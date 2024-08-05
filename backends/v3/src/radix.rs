@@ -16,6 +16,7 @@ use slotmap::{DefaultKey, SlotMap};
 
 type NodeId = DefaultKey;
 
+#[derive(Debug)]
 pub struct RadixTrie {
     root: DefaultKey,
     leaves: BTreeSet<(u64, NodeId)>,
@@ -45,8 +46,8 @@ impl RadixTrie {
         let node = &self.nodes[node_id];
 
         if let Some(&child_id) = node.children.get(&key[0]) {
-            let child = self.nodes.get_mut(child_id).unwrap();
-            child.last_accessed = self.time;
+            self.update_access_time(child_id);
+            let child = self.nodes.get(child_id).unwrap();
             let shared_prefix_len = child.key.shared_prefix_len(key);
             blocks.extend(&child.blocks[..shared_prefix_len]);
 
@@ -60,6 +61,10 @@ impl RadixTrie {
     }
 
     pub fn decref(&mut self, node_id: NodeId) {
+        if node_id == self.root {
+            return;
+        }
+
         let node = self.nodes.get_mut(node_id).unwrap();
         assert!(node.ref_count > 0);
         node.ref_count -= 1;
@@ -68,7 +73,44 @@ impl RadixTrie {
         }
     }
 
+    /// Evict `n_blocks` from the trie.
+    ///
+    /// Returns the evicted blocks.
+    pub fn evict(&mut self, n_blocks: usize) -> Vec<u32> {
+        let mut evicted = Vec::new();
+
+        while let Some((last_access, node_id)) = self.leaves.pop_first() {
+            let blocks_needed = n_blocks - evicted.len();
+
+            let node = self.nodes.get(node_id).unwrap();
+
+            if blocks_needed >= node.blocks.len() {
+                // We need to evict the whole node if we exhaust all its blocks.
+                let node = self.remove_node(node_id);
+                evicted.extend(node.blocks);
+
+                if evicted.len() >= n_blocks {
+                    break;
+                }
+            } else {
+                // The node has more blocks than needed, so we'll just remove
+                // what is needed.
+                let node = self.nodes.get_mut(node_id).unwrap();
+                node.key.truncate(node.blocks.len() - blocks_needed);
+                evicted.extend(node.blocks.split_off(node.blocks.len() - blocks_needed));
+                self.leaves.insert((last_access, node_id));
+                break;
+            }
+        }
+
+        evicted
+    }
+
     pub fn incref(&mut self, node_id: NodeId) {
+        if node_id == self.root {
+            return;
+        }
+
         let node = self.nodes.get_mut(node_id).unwrap();
         if node.ref_count == 0 {
             self.leaves.remove(&(node.last_accessed, node_id));
@@ -85,8 +127,8 @@ impl RadixTrie {
         assert_eq!(key.len(), blocks.len());
 
         if let Some(&child_id) = self.nodes[node_id].children.get(&key[0]) {
+            self.update_access_time(child_id);
             let child = self.nodes.get_mut(child_id).unwrap();
-            child.last_accessed = self.time;
             let shared_prefix_len = child.key.shared_prefix_len(key);
 
             // We are done, the prefix is already in the trie.
@@ -112,7 +154,7 @@ impl RadixTrie {
             let blocks = &blocks[shared_prefix_len..];
             self.insert_(child_id, key, blocks)
         } else {
-            self.add_child(node_id, key, blocks);
+            self.add_node(node_id, key, blocks);
             key.len()
         }
     }
@@ -121,10 +163,10 @@ impl RadixTrie {
         let node = self.nodes.get_mut(node_id).unwrap();
         let rest_key = node.key.split_off(prefix_len);
         let rest_blocks = node.blocks.split_off(prefix_len);
-        self.add_child(node_id, rest_key, rest_blocks);
+        self.add_node(node_id, rest_key, rest_blocks);
     }
 
-    fn add_child(
+    fn add_node(
         &mut self,
         parent_id: NodeId,
         key: impl Into<Vec<u32>>,
@@ -139,9 +181,52 @@ impl RadixTrie {
         let node = self.nodes.get_mut(parent_id).unwrap();
         node.children.insert(first, child_id);
         self.incref(parent_id);
+        self.leaves.insert((self.time, child_id));
+    }
+
+    fn remove_node(&mut self, node_id: NodeId) -> TrieNode {
+        let node = self.nodes.remove(node_id).unwrap();
+        let parent_id = node.parent.expect("Attempted to remove root node");
+        let parent = self.nodes.get_mut(parent_id).unwrap();
+        parent.children.remove(&node.key[0]);
+        self.decref(parent_id);
+        self.nodes.remove(node_id);
+        node
+    }
+
+    fn update_access_time(&mut self, node_id: NodeId) {
+        let node = self.nodes.get_mut(node_id).unwrap();
+
+        // Update the ordered leaves set if the node is a leave.
+        if self.leaves.remove(&(node.last_accessed, node_id)) {
+            self.leaves.insert((self.time, node_id));
+        }
+
+        node.last_accessed = self.time;
+    }
+
+    pub fn print_debug(&self) {
+        self.print_debug_(self.root, 0);
+    }
+
+    fn print_debug_(&self, node_id: NodeId, indent: usize) {
+        let node = &self.nodes[node_id];
+        eprintln!(
+            "{}{:?}, key: {:?}, blocks: {:?}, ref_count: {}, last_accessed: {}",
+            " ".repeat(indent),
+            node_id,
+            node.key,
+            node.blocks,
+            node.ref_count,
+            node.last_accessed
+        );
+        for child_id in self.nodes[node_id].children.values() {
+            self.print_debug_(*child_id, indent + 2);
+        }
     }
 }
 
+#[derive(Debug)]
 struct TrieNode {
     blocks: Vec<u32>,
     children: HashMap<u32, NodeId>,
@@ -232,5 +317,42 @@ mod tests {
         blocks.clear();
         trie.find(&[0, 1, 2, 3, 5], &mut blocks);
         assert_eq!(blocks, vec![0, 1, 2, 3, 5]);
+    }
+
+    #[test]
+    fn evict_removes_correct_blocks() {
+        let mut trie = super::RadixTrie::new();
+        trie.insert(&[0, 1, 2], &[0, 1, 2]);
+        trie.insert(&[0, 1, 2, 3, 5, 6, 7], &[0, 1, 2, 3, 5, 6, 7]);
+        trie.insert(&[0, 1, 2, 3, 4], &[0, 1, 2, 3, 4]);
+        trie.insert(&[1, 2, 3], &[1, 2, 3]);
+
+        let mut blocks = Vec::new();
+
+        // Remove less than the leave blocks.
+        assert_eq!(trie.evict(1), vec![7]);
+        trie.find(&[0, 1, 2, 3, 5, 6, 7], &mut blocks);
+        assert_eq!(blocks, vec![0, 1, 2, 3, 5, 6]);
+
+        // Refresh other leaf.
+        trie.find(&[0, 1, 2, 3, 4], &mut blocks);
+        trie.find(&[1, 2, 3], &mut blocks);
+
+        // Remove the leave blocks exactly.
+        assert_eq!(trie.evict(2), vec![5, 6]);
+        blocks.clear();
+        trie.find(&[0, 1, 2, 3, 5, 6, 7], &mut blocks);
+        assert_eq!(blocks, vec![0, 1, 2, 3]);
+
+        trie.find(&[1, 2, 3], &mut blocks);
+
+        // Remove more than the leave blocks.
+        assert_eq!(trie.evict(3), vec![4, 3, 2]);
+        blocks.clear();
+        trie.find(&[0, 1, 2, 3, 4], &mut blocks);
+        assert_eq!(blocks, vec![0, 1]);
+
+        // Clear out the whole trie.
+        assert_eq!(trie.evict(10), vec![1, 2, 3, 0, 1]);
     }
 }
