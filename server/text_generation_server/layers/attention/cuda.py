@@ -292,8 +292,7 @@ else:
                 )
 
         out = torch.empty_like(q)
-
-        return flash_attn_cuda.fwd(
+        flash_attn_cuda.fwd(
             q,
             k,
             v,
@@ -309,4 +308,5 @@ else:
             False,
             0,
             None,
-        )[0]
+        )
+        return out
