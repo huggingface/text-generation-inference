@@ -172,6 +172,10 @@ def paged_attention(
 
 
 try:
+    is_ampere_or_newer = major >= 8 and minor >= 0
+    if not is_ampere_or_newer:
+        raise ImportError("FlashAttention only supports Ampere GPUs or newer.")
+
     import flash_attn_2_cuda
 
     V2 = True
