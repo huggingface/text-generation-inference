@@ -6,9 +6,9 @@ mod utils;
 
 #[cxx::bridge(namespace = "huggingface::tgi::backends")]
 mod ffi {
-
     /// Struct used as shared type between rust and C++ to represent the result
     /// of a single decoding iteration
+    #[derive(Debug, Clone)]
     pub struct GenerationStep {
         request_id: u64,
         token_id: u32,
