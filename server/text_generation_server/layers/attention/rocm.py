@@ -14,7 +14,7 @@ use_triton = os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() in {"true", 
 ENGINE = "triton" if use_triton else "ck"
 
 try:
-    from vllm._C import cache_ops
+    import vllm._custom_ops as ops
 except Exception as e:
     raise ImportError(
         f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
@@ -33,9 +33,7 @@ def reshape_and_cache(
         key_cache.view(-1, shape[-2], shape[-1])[slots] = key
         value_cache.view(-1, shape[-2], shape[-1])[slots] = value
     else:
-        cache_ops.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
-        )
+        ops.reshape_and_cache(key, value, key_cache, value_cache, slots, "auto", 1.0)
 
 
 def paged_attention(
@@ -78,7 +76,7 @@ def paged_attention(
     # V1 to avoid the overhead of reduction. Also, if the number of
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
-    from vllm._C import ops
+    import vllm._custom_ops as ops
 
     use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
     if use_v1:
@@ -180,6 +178,7 @@ if ENGINE == "ck":
         softmax_scale,
         window_size_left=-1,
         causal=True,
+        softcap=0.0,
     ):
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
@@ -194,12 +193,19 @@ if ENGINE == "ck":
             out,
             cu_seqlens,
             cu_seqlens,
+            None,
+            None,
+            None,
+            None,
             max_s,
             max_s,
             0.0,
             softmax_scale,
             False,
             causal,
+            window_size_left,
+            0,
+            softcap,
             False,
             None,
         )
