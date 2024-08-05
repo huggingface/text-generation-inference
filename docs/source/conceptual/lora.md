@@ -36,6 +36,18 @@ To use LoRA in TGI, when starting the server, you can specify the list of LoRA m
 LORA_ADAPTERS=predibase/customer_support,predibase/dbpedia
 ```
 
+additionally, you can specify the path to the LoRA models using the `LORA_ADAPTERS_PATH` environment variable. For example:
+
+```bash
+LORA_ADAPTERS=myadapter=/some/path/to/adapter,myadapter2=/another/path/to/adapter
+```
+
+note it's possible to mix adapter_ids with adapter_id=adapter_path e.g.
+
+```bash
+LORA_ADAPTERS=predibase/dbpedia,myadapter=/path/to/dir/
+```
+
 In the server logs, you will see the following message:
 
 ```txt
