@@ -7,6 +7,11 @@ use crate::RadixTrie;
 pub(crate) struct BlockAllocation {
     pub blocks: Vec<u32>,
     pub slots: Vec<u32>,
+
+    /// Prefix that was cached and for which the KV does not have to
+    /// be recomputed.
+    pub prefix_len: u64,
+
     pub allocation_id: u64,
     block_allocator: BlockAllocator,
 }
@@ -63,12 +68,15 @@ impl BlockAllocator {
         response_receiver
             .await
             .unwrap()
-            .map(|(blocks, slots, allocation_id)| BlockAllocation {
-                blocks,
-                slots,
-                allocation_id,
-                block_allocator: self.clone(),
-            })
+            .map(
+                |(blocks, slots, prefix_len, allocation_id)| BlockAllocation {
+                    blocks,
+                    slots,
+                    prefix_len,
+                    allocation_id,
+                    block_allocator: self.clone(),
+                },
+            )
     }
 
     pub(crate) fn free(&self, blocks: Vec<u32>, allocation_id: u64) {
@@ -117,7 +125,7 @@ enum BlockAllocatorCommand {
     Allocate {
         tokens: u32,
         prefill_tokens: Option<Arc<Vec<u32>>>,
-        response_sender: oneshot::Sender<Option<(Vec<u32>, Vec<u32>, u64)>>,
+        response_sender: oneshot::Sender<Option<(Vec<u32>, Vec<u32>, u64, u64)>>,
     },
 }
 
@@ -126,7 +134,7 @@ pub trait Allocator {
         &mut self,
         tokens: u32,
         prefill_tokens: Option<&[u32]>,
-    ) -> Option<(Vec<u32>, Vec<u32>, u64)>;
+    ) -> Option<(Vec<u32>, Vec<u32>, u64, u64)>;
 
     fn free(&mut self, blocks: Vec<u32>, allocation_id: u64);
 }
@@ -153,7 +161,7 @@ impl Allocator for SimpleAllocator {
         &mut self,
         tokens: u32,
         _prefill_tokens: Option<&[u32]>,
-    ) -> Option<(Vec<u32>, Vec<u32>, u64)> {
+    ) -> Option<(Vec<u32>, Vec<u32>, u64, u64)> {
         // Apply window size
         let (required_blocks, repeats) = {
             let (tokens, repeats) = match self.window_size {
@@ -187,7 +195,7 @@ impl Allocator for SimpleAllocator {
                     }
                 }
             }
-            Some((blocks, slots, 0))
+            Some((blocks, slots, 0, 0))
         }
     }
 
@@ -212,12 +220,6 @@ struct RadixAllocator {
 
     /// Blocks that are immediately available for allocation.
     free_blocks: Vec<u32>,
-
-    /// Prefix blocks with a reference count of zero, by staleness.
-    leaves: BTreeSet<(u64, u64)>,
-
-    // Avoid a system call, use a counter for time.
-    time: u64,
 }
 
 impl RadixAllocator {
@@ -234,8 +236,68 @@ impl RadixAllocator {
         RadixAllocator {
             cache_blocks: RadixTrie::new(),
             free_blocks: (1..n_blocks).collect(),
-            leaves: BTreeSet::new(),
-            time: 0,
         }
+    }
+
+    fn alloc_or_reclaim(&mut self, n_blocks_needed: usize) -> Option<Vec<u32>> {
+        if self.free_blocks.len() < n_blocks_needed {
+            // This is a bit annoying, we first extend the free list and then
+            // split it off again below. This is because we need to put it on
+            // the free list if we cannot allocate enough blocks. This is only
+            // temporary, the trie needs to be able to report whether it can
+            // allocate the requested amount. Just not implemented yet.
+            self.free_blocks.extend(
+                self.cache_blocks
+                    .evict(n_blocks_needed - self.free_blocks.len()),
+            );
+        }
+
+        if self.free_blocks.len() >= n_blocks_needed {
+            Some(self.free_blocks.split_off(n_blocks_needed))
+        } else {
+            None
+        }
+    }
+}
+
+impl Allocator for RadixAllocator {
+    fn allocate(
+        &mut self,
+        tokens: u32,
+        prefill_tokens: Option<&[u32]>,
+    ) -> Option<(Vec<u32>, Vec<u32>, u64, u64)> {
+        let mut blocks = vec![];
+        let prefix_node = if let Some(prefill_tokens) = prefill_tokens {
+            let node_id = self.cache_blocks.find(prefill_tokens, &mut blocks);
+            // Even if this allocation fails below, we need to increase he
+            // refcount to ensure that the prefix that was found is not evicted.
+            self.cache_blocks.incref(node_id);
+
+            Some(node_id)
+        } else {
+            None
+        };
+
+        let prefix_len = blocks.len();
+        let suffix_len = tokens - prefix_len as u32;
+
+        match self.alloc_or_reclaim(suffix_len as usize) {
+            Some(suffix_blocks) => blocks.extend(suffix_blocks),
+            None => {
+                if let Some(node_id) = prefix_node {
+                    self.cache_blocks.decref(node_id);
+                }
+                return None;
+            }
+        }
+
+        // 1:1 mapping of blocks and slots.
+        let slots = blocks.clone();
+
+        Some((blocks, slots, prefix_len as u64, 0))
+    }
+
+    fn free(&mut self, blocks: Vec<u32>, allocation_id: u64) {
+        todo!()
     }
 }
