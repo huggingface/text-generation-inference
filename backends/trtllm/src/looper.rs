@@ -43,7 +43,7 @@ fn executor_status_poller(
 
     // TODO: Does it need a spin-loop?
     loop {
-        span!(Level::DEBUG, "in-flight submit").in_scope(|| {
+        span!(Level::DEBUG, "[in-flight][submit]").in_scope(|| {
             // Is there any request pending to be scheduled?
             let awaiting_requests = waiting_requests.len();
             if awaiting_requests > 0 {
@@ -84,7 +84,7 @@ fn executor_status_poller(
             }
         });
 
-        span!(Level::DEBUG, "in-flight poll").in_scope(|| {
+        span!(Level::DEBUG, "[in-flight][poll]").in_scope(|| {
             if backend.num_responses_ready() > 0 {
                 match backend.pin_mut().pull_tokens() {
                     Ok(responses) => {
