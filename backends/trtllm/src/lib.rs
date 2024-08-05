@@ -2,6 +2,7 @@ pub use looper::TensorRtLlmBackendV2;
 
 pub mod errors;
 mod looper;
+mod utils;
 
 #[cxx::bridge(namespace = "huggingface::tgi::backends")]
 mod ffi {
