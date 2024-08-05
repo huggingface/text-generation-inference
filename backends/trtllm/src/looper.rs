@@ -9,6 +9,7 @@ use hashbrown::HashMap;
 use log::warn;
 use tokenizers::{Encoding, Tokenizer};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::error::SendError;
 use tokio::task::{JoinHandle, spawn_blocking};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -111,7 +112,7 @@ fn executor_status_poller(
                                     info!("New token for {} -> {}", request_id, step.token_id);
 
                                     if !step.has_error {
-                                        let req_group = grouper.entry_ref(&request_id).or_insert(
+                                        let req_group = grouper.entry(request_id).or_insert(
                                             DecodedTokenContext {
                                                 tokens: vec![],
                                                 ctx: ctx.streamer.clone(), // Arc::clone() = cheap
@@ -138,7 +139,7 @@ fn executor_status_poller(
                         grouper
                             .into_values()
                             .map(|ctx| post_processor_sender.send(ctx))
-                            .collect()?;
+                            .collect::<Result<(), SendError<DecodedTokenContext>>>()?;
                     }
                     Err(err) => {
                         error!("Failed to retrieve tokens from the executor: {}", err);
@@ -146,7 +147,7 @@ fn executor_status_poller(
                 }
             }
 
-            Ok(())
+            Ok::<(), SendError<DecodedTokenContext>>(())
         }) {
             error!(
                 "Caught an fatal error in the executor's loop, about to exit. {}",
