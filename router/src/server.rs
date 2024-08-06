@@ -1246,9 +1246,13 @@ async fn chat_completions(
             .as_secs();
 
         let (tool_calls, output) = if tool_grammar.is_some() {
-            let gen_text_value: Value = serde_json::from_str(&generation.generated_text)
-                .map_err(|e| InferError::ToolError(e.to_string()))?;
-
+            let gen_text_value: Value =
+                serde_json::from_str(&generation.generated_text).map_err(|e| {
+                    InferError::ToolError(format!(
+                        "Failed to parse generated text: {} {:?}",
+                        e, generation.generated_text
+                    ))
+                })?;
             let function = gen_text_value.get("function").ok_or(InferError::ToolError(
                 "No function found in generated text".to_string(),
             ))?;
