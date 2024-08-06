@@ -1,0 +1,20 @@
+{% include 'main.js.j2' %}
+
+export function get_options() {
+    return {
+        scenarios: {
+            load_test: {
+                executor: 'ramping-arrival-rate',
+                gracefulStop: '0s',
+                preAllocatedVUs: {{ pre_allocated_vus }},
+                timeUnit: '{{ time_unit }}',
+                startRate: {{ start_rate }},
+                stages: [
+                    {%- for stage in stages %}
+                    {target: {{ stage.target }}, duration: '{{ stage.duration }}'},
+                    {%- endfor %}
+                ],
+            },
+        },
+    };
+}

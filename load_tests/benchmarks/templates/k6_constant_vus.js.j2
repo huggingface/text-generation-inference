@@ -1,0 +1,14 @@
+{% include 'main.js.j2' %}
+
+export function get_options() {
+    return {
+        scenarios: {
+            load_test: {
+                executor: 'constant-vus',
+                gracefulStop: '0s',
+                duration: '{{ duration }}',
+                vus: {{ vus }},
+            },
+        },
+    };
+}
