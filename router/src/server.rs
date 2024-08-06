@@ -1021,7 +1021,7 @@ async fn completions(
                 total_tokens += details.prefill.len() as u32 + details.generated_tokens;
 
                 Ok(CompletionComplete {
-                    finish_reason: details.finish_reason.to_string(),
+                    finish_reason: details.finish_reason.format(true),
                     index: index as u32,
                     logprobs: None,
                     text: generation.generated_text,
@@ -1212,7 +1212,7 @@ async fn chat_completions(
                         tool_calls,
                         current_time,
                         logprobs,
-                        stream_token.details.map(|d| d.finish_reason.to_string()),
+                        stream_token.details.map(|d| d.finish_reason.format(true)),
                     ),
                 ))
                 .unwrap_or_else(|e| {
