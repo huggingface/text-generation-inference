@@ -204,7 +204,7 @@ impl Allocator for SimpleAllocator {
     }
 }
 
-struct RadixAllocator {
+pub struct RadixAllocator {
     allocation_id: u64,
 
     allocations: HashMap<u64, RadixAllocation>,
