@@ -208,7 +208,7 @@ if ENGINE == "ck":
             softcap,
             False,
             None,
-        )
+        )[0]
 
 elif ENGINE == "triton":
     from .flash_attn_triton import triton_attention
