@@ -118,6 +118,11 @@ impl RadixTrie {
         node.ref_count += 1;
     }
 
+    /// Insert a prefill along with its blocks.
+    ///
+    /// This method returns the length of the prefix that was already
+    /// in the trie. E.g. if the length is 10, this means that for
+    /// the first 10 elements of the tree **the blocks are not updated**.
     pub fn insert(&mut self, key: &[u32], blocks: &[u32]) -> usize {
         self.time += 1;
         self.insert_(self.root, key, blocks)
@@ -152,10 +157,10 @@ impl RadixTrie {
             let child_id = self.split_node(child_id, shared_prefix_len);
             let key = &key[shared_prefix_len..];
             let blocks = &blocks[shared_prefix_len..];
-            self.insert_(child_id, key, blocks)
+            shared_prefix_len + self.insert_(child_id, key, blocks)
         } else {
             self.add_node(node_id, key, blocks);
-            key.len()
+            0
         }
     }
 
