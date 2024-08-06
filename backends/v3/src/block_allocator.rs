@@ -393,7 +393,7 @@ mod tests {
     }
 
     #[test]
-    fn correctly_free_when_fully_overlapping_prefills_in_flight() {
+    fn correctly_free_fully_overlapping_prefills() {
         let mut cache = RadixAllocator::new(1, 10, None);
         let allocation1 = cache.allocate(4, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
         let allocation2 = cache.allocate(4, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
@@ -406,5 +406,47 @@ mod tests {
 
         // 10 blocks, of which 1 reserved for health checks, 4 for the cached blocks.
         assert_eq!(cache.free_blocks.len(), 5);
+    }
+
+    #[test]
+    fn correctly_free_partially_overlapping_prefills() {
+        let mut cache = RadixAllocator::new(1, 20, None);
+        let allocation1 = cache.allocate(4, Some(Arc::new(vec![0, 1]))).unwrap();
+        assert_eq!(allocation1.0, vec![16, 17, 18, 19]);
+        assert_eq!(allocation1.2, 0);
+
+        cache.free(allocation1.0, allocation1.3);
+
+        let allocation2 = cache
+            .allocate(8, Some(Arc::new(vec![0, 1, 2, 3, 4, 5])))
+            .unwrap();
+        assert_eq!(allocation2.0, vec![16, 17, 12, 13, 14, 15, 18, 19]);
+        assert_eq!(allocation2.2, 2);
+
+        let allocation3 = cache
+            .allocate(8, Some(Arc::new(vec![0, 1, 2, 3, 6, 7])))
+            .unwrap();
+        assert_eq!(allocation3.0, vec![16, 17, 6, 7, 8, 9, 10, 11]);
+        assert_eq!(allocation3.2, 2);
+
+        cache.free(allocation3.0, allocation3.3);
+        cache.free(allocation2.0, allocation2.3);
+
+        // 20 blocks, of which 1 reserved for health checks, 6 for allocation3, 2 for allocation2.
+        assert_eq!(cache.free_blocks.len(), 11);
+
+        let allocation4 = cache
+            .allocate(6, Some(Arc::new(vec![0, 1, 2, 3, 4, 5])))
+            .unwrap();
+        assert_eq!(allocation4.0, vec![16, 17, 6, 7, 14, 15]);
+        assert_eq!(allocation4.2, 6);
+        assert_eq!(cache.free_blocks.len(), 11);
+
+        let allocation5 = cache
+            .allocate(6, Some(Arc::new(vec![0, 1, 2, 3, 6, 7])))
+            .unwrap();
+        assert_eq!(allocation5.0, vec![16, 17, 6, 7, 8, 9]);
+        assert_eq!(allocation5.2, 6);
+        assert_eq!(cache.free_blocks.len(), 11);
     }
 }
