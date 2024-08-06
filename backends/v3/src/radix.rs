@@ -14,7 +14,7 @@ use slotmap::{DefaultKey, SlotMap};
 // - We store additional information in each node, such as last access
 //   time and a reference count.
 
-type NodeId = DefaultKey;
+pub type NodeId = DefaultKey;
 
 #[derive(Debug)]
 pub struct RadixTrie {
@@ -251,6 +251,10 @@ impl RadixTrie {
         for child_id in self.nodes[node_id].children.values() {
             self.print_debug_(*child_id, indent + 2);
         }
+    }
+
+    pub(crate) fn root_id(&self) -> DefaultKey {
+        self.root
     }
 }
 
