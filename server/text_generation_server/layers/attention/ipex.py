@@ -21,7 +21,7 @@ def attention(
     out = torch.empty_like(q)
 
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
-    return ipex.llm.functional.varlen_attention(
+    ipex.llm.functional.varlen_attention(
         q,
         k,
         v,
@@ -37,6 +37,8 @@ def attention(
         False,
         None,
     )
+
+    return out
 
 
 def reshape_and_cache(
