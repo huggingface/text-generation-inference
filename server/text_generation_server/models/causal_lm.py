@@ -684,9 +684,11 @@ class CausalLM(Model):
             "return_dict": True,
         }
 
-        if model.config.model_type in ["llama", "mistral"]:
-            kwargs["attn_softmax_bf16"] = True
-            kwargs["trim_logits"] = True
+        if model.config.model_type in ["llama", "mistral", "starcoder2"]:
+            
+            if model.config.model_type in ["llama", "mistral"]:
+                kwargs["attn_softmax_bf16"] = True
+                kwargs["trim_logits"] = True
 
             if os.getenv("USE_FLASH_ATTENTION", "false").lower() == "true":
                 kwargs["use_flash_attention"] = True

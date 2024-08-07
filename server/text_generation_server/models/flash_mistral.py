@@ -10,7 +10,7 @@ from transformers import PreTrainedTokenizerBase, AutoTokenizer, AutoConfig
 from typing import Optional, Tuple, Type
 
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models import FlashCausalLM
+from text_generation_server.models.flash_causal_lm import FlashCausalLM
 from text_generation_server.models.flash_causal_lm import FlashCausalLMBatch, BLOCK_SIZE
 from text_generation_server.models.cache_manager import (
     get_cache_manager,
