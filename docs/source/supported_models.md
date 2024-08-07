@@ -32,6 +32,7 @@ Text Generation Inference enables serving optimized models on specific hardware 
 - [Mpt](https://huggingface.co/mosaicml/mpt-7b-instruct)
 - [Gpt2](https://huggingface.co/openai-community/gpt2)
 - [Gpt Neox](https://huggingface.co/EleutherAI/gpt-neox-20b)
+- [Gptj](https://huggingface.co/EleutherAI/gpt-j-6b)
 - [Idefics](https://huggingface.co/HuggingFaceM4/idefics-9b) (Multimodal)
 
 
