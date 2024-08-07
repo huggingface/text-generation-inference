@@ -2,14 +2,14 @@
 
 TGI offers many quantization schemes to run LLMs effectively and fast based on your use-case. TGI supports GPTQ, AWQ, bits-and-bytes, EETQ, Marlin, EXL2 and fp8 quantization.
 
-To leverage GPTQ, AWQ, Marlin and EXL2 quants, you must provide pre-quantized weights. Where as for bits-and-bytes, EETQ and fp8 the weights are quantized on the fly by TGI.
+To leverage GPTQ, AWQ, Marlin and EXL2 quants, you must provide pre-quantized weights. Whereas for bits-and-bytes, EETQ and fp8, weights are quantized by TGI on the fly.
 
 We recommend using the official quantization scripts for creating your quants:
 1. [AWQ](https://github.com/casper-hansen/AutoAWQ/blob/main/examples/quantize.py)
 2. [GPTQ/ Marlin](https://github.com/AutoGPTQ/AutoGPTQ/blob/main/examples/quantization/basic_usage.py)
 3. [EXL2](https://github.com/turboderp/exllamav2/blob/master/doc/convert.md)
 
-For on-the-fly quantization you simply need to pass a the quantization type for TGI and it takes care of the rest. 
+For on-the-fly quantization you simply need to pass one of the supported quantization types and TGI takes care of the rest. 
 
 ## Quantization with bitsandbytes
 

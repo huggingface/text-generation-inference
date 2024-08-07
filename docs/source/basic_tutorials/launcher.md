@@ -55,7 +55,7 @@ Options:
 ## QUANTIZE
 ```shell
       --quantize <QUANTIZE>
-          Whether you want the model to be quantized/ load a pre-quantized model.
+          Whether you want the model to be quantized / load a pre-quantized model.
           
           [env: QUANTIZE=]
 
