@@ -37,7 +37,7 @@ jobs:
       # fail-fast is true by default
       fail-fast: false
       matrix:
-        hardware: ["cuda", "rocm", "intel"]
+        hardware: ["cuda", "rocm", "intel-xpu", "intel-cpu"]
     uses: ./.github/workflows/build.yaml # calls the one above ^
     with:
       hardware: ${{ matrix.hardware }}
