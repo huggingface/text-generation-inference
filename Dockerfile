@@ -11,6 +11,7 @@ COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
 COPY benchmark benchmark
 COPY router router
+COPY backends backends
 COPY launcher launcher
 RUN cargo chef prepare --recipe-path recipe.json
 
@@ -33,6 +34,7 @@ COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
 COPY benchmark benchmark
 COPY router router
+COPY backends backends
 COPY launcher launcher
 RUN cargo build --profile release-opt
 

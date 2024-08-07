@@ -168,6 +168,33 @@ impl std::fmt::Display for RopeScaling {
     }
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum UsageStatsLevel {
+    /// Default option, usage statistics are collected anonymously
+    On,
+    /// Disables all collection of usage statistics
+    Off,
+    /// Doesn't send the error stack trace or error type, but allows sending a crash event
+    NoStack,
+}
+
+impl std::fmt::Display for UsageStatsLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // To keep in track with `server`.
+        match self {
+            UsageStatsLevel::On => {
+                write!(f, "on")
+            }
+            UsageStatsLevel::Off => {
+                write!(f, "off")
+            }
+            UsageStatsLevel::NoStack => {
+                write!(f, "no-stack")
+            }
+        }
+    }
+}
+
 /// App Configuration
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -466,13 +493,11 @@ struct Args {
     #[clap(long, env)]
     lora_adapters: Option<String>,
 
-    /// Disable sending of all usage statistics
-    #[clap(default_value = "false", long, env)]
-    disable_usage_stats: bool,
-
-    /// Disable sending of crash reports, but allow anonymous usage statistics
-    #[clap(default_value = "false", long, env)]
-    disable_crash_reports: bool,
+    /// Control if anonymous usage stats are collected.
+    /// Options are "on", "off" and "no-stack"
+    /// Defaul is on.
+    #[clap(default_value = "on", long, env)]
+    usage_stats: UsageStatsLevel,
 }
 
 #[derive(Debug)]
@@ -1218,12 +1243,8 @@ fn spawn_webserver(
     ];
 
     // Pass usage stats flags to router
-    if args.disable_usage_stats {
-        router_args.push("--disable-usage-stats".to_string());
-    }
-    if args.disable_crash_reports {
-        router_args.push("--disable-crash-reports".to_string());
-    }
+    router_args.push("--usage-stats".to_string());
+    router_args.push(args.usage_stats.to_string());
 
     // Grammar support
     if args.disable_grammar_support {

@@ -291,17 +291,13 @@ class FlashCohereAttention(torch.nn.Module):
 
         reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
 
-        # output tensor
-        attn_output = torch.empty_like(query)
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            attn_output = attention(
                 query,
                 key,
                 value,
-                attn_output,
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
@@ -309,7 +305,6 @@ class FlashCohereAttention(torch.nn.Module):
         # Decode
         else:
             attn_output = paged_attention(
-                attn_output,
                 query,
                 kv_cache[0],
                 kv_cache[1],

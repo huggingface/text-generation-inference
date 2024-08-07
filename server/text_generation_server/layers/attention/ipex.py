@@ -11,7 +11,6 @@ def attention(
     q,
     k,
     v,
-    out,
     cu_seqlens,
     max_s,
     softmax_scale,
@@ -19,6 +18,8 @@ def attention(
     causal=True,
     softcap: Optional[float] = None,
 ):
+    out = torch.empty_like(q)
+
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
     return ipex.llm.functional.varlen_attention(
         q,
@@ -51,7 +52,6 @@ def reshape_and_cache(
 
 
 def paged_attention(
-    out: torch.Tensor,
     query: torch.Tensor,
     key_cache: torch.Tensor,
     value_cache: torch.Tensor,
@@ -62,6 +62,7 @@ def paged_attention(
     max_s: int,
     softcap: Optional[float] = None,
 ):
+    out = torch.empty_like(query)
     ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
         out,
         query,

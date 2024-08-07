@@ -351,7 +351,19 @@ class IdeficsRMSNorm(nn.Module):
         self.variance_epsilon = eps
 
     def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 8192:
+        if SYSTEM == "ipex":
+            import intel_extension_for_pytorch as ipex
+
+            out = ipex.llm.functional.add_rms_norm(
+                residual,
+                hidden_states,
+                self.weight,
+                None,
+                self.variance_epsilon,
+                residual is not None,
+            )
+            return out
+        elif hidden_states.shape[-1] > 8192:
             if residual is not None:
                 hidden_states += residual
             residual = hidden_states

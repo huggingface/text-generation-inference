@@ -70,4 +70,6 @@ As of release 2.1.2 this is an example of the data collected:
 
 ## How to opt-out
 
-You can easily opt out by passing the `--disable-usage-stats` to the text-generation-launcher command. This will disable all usage statistics. You can also pass `--disable-crash-reports` which disables sending specific crash reports, but allows anonymous usage statistics.
+By passing the `--usage-stats` to the text-generation-launcher you can control how much usage statistics are being collected.
+`--usage-stats=no-stack` will not emit the stack traces from errors and the error types, but will continue to send start and stop events
+`--usage-stats=off` will completely disable everything

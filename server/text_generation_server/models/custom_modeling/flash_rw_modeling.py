@@ -201,17 +201,13 @@ class FlashRWAttention(torch.nn.Module):
 
         reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
 
-        # output
-        attn_output = torch.empty_like(query)
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            attn_output = attention(
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
-                attn_output,
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
@@ -219,7 +215,6 @@ class FlashRWAttention(torch.nn.Module):
         # Decode
         else:
             attn_output = paged_attention(
-                attn_output,
                 query,
                 kv_cache[0],
                 kv_cache[1],
@@ -324,17 +319,13 @@ class FlashRWLargeAttention(torch.nn.Module):
             slots,
         )
 
-        # output
-        attn_output = torch.empty_like(query)
-
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            attention(
+            attn_output = attention(
                 query,
                 torch.select(kv, dim=2, index=0),
                 torch.select(kv, dim=2, index=1),
-                attn_output,
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
@@ -342,7 +333,6 @@ class FlashRWLargeAttention(torch.nn.Module):
         # Decode
         else:
             attn_output = paged_attention(
-                attn_output,
                 query,
                 kv_cache[0],
                 kv_cache[1],
@@ -392,8 +382,13 @@ class FlashRWLayer(nn.Module):
 
         prefix = f"{prefix}.h.{layer_id}"
 
+        # NOTE: Falcon 180B uses the ln_attn prefix
+        ln_prefix = "input_layernorm"
+        if config.num_hidden_layers == 80:
+            ln_prefix = "ln_attn"
+
         self.input_layernorm = FastLayerNorm.load(
-            prefix=f"{prefix}.input_layernorm",
+            prefix=f"{prefix}.{ln_prefix}",
             weights=weights,
             eps=config.layer_norm_epsilon,
         )
@@ -483,7 +478,13 @@ class FlashRWLayer(nn.Module):
 class FlashRWLayerNorm(nn.Module):
     def __init__(self, config, prefix: str, weights):
         super().__init__()
-        self.num_ln = config.num_ln_in_parallel_attn
+        # Falcon2 includes the number of layer norms in the config
+        # in the case no number of layer norms is provided, we default to 1
+        self.num_ln = getattr(config, "num_ln_in_parallel_attn", 1)
+
+        # Falcon 180B uses the ln_attn prefix and has 2 layer norms
+        if config.num_hidden_layers == 80:
+            self.num_ln = 2
 
         if self.num_ln == 1:
             self.input_ln = FastLayerNorm.load(

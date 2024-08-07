@@ -29,15 +29,6 @@ if cuda_graphs is not None:
 
 CUDA_GRAPHS = cuda_graphs
 
-# This is overridden at model loading.
-MODEL_ID = None
-
-
-def set_model_id(model_id: str):
-    global MODEL_ID
-    MODEL_ID = model_id
-
-
 # NOTE: eventually we should move this into the router and pass back the
 # index in all cases.
 ADAPTER_TO_INDEX: Optional[Dict[str, int]] = None

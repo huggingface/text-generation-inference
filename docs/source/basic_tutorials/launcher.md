@@ -431,20 +431,18 @@ Options:
           [env: LORA_ADAPTERS=]
 
 ```
-## DISABLE_USAGE_STATS
+## USAGE_STATS
 ```shell
-      --disable-usage-stats
-          Disable sending of all usage statistics
+      --usage-stats <USAGE_STATS>
+          Control if anonymous usage stats are collected. Options are "on", "off" and "no-stack" Defaul is on
           
-          [env: DISABLE_USAGE_STATS=]
+          [env: USAGE_STATS=]
+          [default: on]
 
-```
-## DISABLE_CRASH_REPORTS
-```shell
-      --disable-crash-reports
-          Disable sending of crash reports, but allow anonymous usage statistics
-          
-          [env: DISABLE_CRASH_REPORTS=]
+          Possible values:
+          - on:       Default option, usage statistics are collected anonymously
+          - off:      Disables all collection of usage statistics
+          - no-stack: Doesn't send the error stack trace or error type, but allows sending a crash event
 
 ```
 ## HELP

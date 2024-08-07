@@ -5,13 +5,12 @@ use crate::{
     GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
-use image::{io::Reader as ImageReader, ImageFormat};
+use image::{ImageFormat, ImageReader};
 use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
 use serde_json::Value;
 use std::io::Cursor;
 use std::iter;
-use text_generation_client::{Chunk, Image, InputChunk};
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::mpsc;
@@ -96,7 +95,7 @@ impl Validation {
         &self,
         inputs: String,
         truncate: Option<usize>,
-    ) -> Result<Option<(tokenizers::Encoding, Vec<InputChunk>)>, ValidationError> {
+    ) -> Result<Option<(tokenizers::Encoding, Vec<Chunk>)>, ValidationError> {
         // If we have a fast tokenizer
         if let Some(sender) = &self.sender {
             // Create response channel
@@ -122,7 +121,7 @@ impl Validation {
         inputs: String,
         truncate: Option<usize>,
         max_new_tokens: Option<u32>,
-    ) -> Result<(Vec<InputChunk>, usize, u32), ValidationError> {
+    ) -> Result<(Vec<Chunk>, usize, u32), ValidationError> {
         // If we have a fast tokenizer
         if let Some((encoding, inputs)) = self.tokenize(inputs.clone(), truncate).await? {
             // Create response channel
@@ -181,11 +180,7 @@ impl Validation {
                 input_length = input_length.saturating_sub(max_new_tokens as usize);
             }
 
-            Ok((
-                vec![Chunk::Text(inputs).into()],
-                input_length,
-                max_new_tokens,
-            ))
+            Ok((vec![Chunk::Text(inputs)], input_length, max_new_tokens))
         }
     }
 
@@ -589,7 +584,7 @@ fn prepare_input(
     tokenizer: &Tokenizer,
     config: Option<&Config>,
     preprocessor_config: Option<&HubPreprocessorConfig>,
-) -> Result<(tokenizers::Encoding, Vec<InputChunk>), ValidationError> {
+) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {
     use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     let (tokenizer_query, input_chunks) = match config {
@@ -601,16 +596,16 @@ fn prepare_input(
                 let chunk_start = chunk.start();
                 let chunk_end = chunk.end();
                 if chunk_start != start {
-                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()).into());
+                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()));
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
                 let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                input_chunks.push(Chunk::Image(Image { data, mimetype }).into());
+                input_chunks.push(Chunk::Image(Image { data, mimetype }));
                 tokenizer_query.push_str(&image_tokens(config, preprocessor_config, height, width));
                 start = chunk_end;
             }
             if start != inputs.len() {
-                input_chunks.push(Chunk::Text(inputs[start..].to_string()).into());
+                input_chunks.push(Chunk::Text(inputs[start..].to_string()));
                 tokenizer_query.push_str(&inputs[start..]);
             }
 
@@ -618,7 +613,7 @@ fn prepare_input(
 
             (tokenizer_query, input_chunks)
         }
-        _ => (inputs.clone(), vec![Chunk::Text(inputs).into()]),
+        _ => (inputs.clone(), vec![Chunk::Text(inputs)]),
     };
 
     // Get the number of tokens in the input
@@ -631,18 +626,51 @@ fn prepare_input(
 
 type TokenizerRequest = (
     (String, Option<usize>),
-    oneshot::Sender<Result<(tokenizers::Encoding, Vec<InputChunk>), ValidationError>>,
+    oneshot::Sender<Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError>>,
     Span,
 );
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Image {
+    pub data: Vec<u8>,
+    pub mimetype: String,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum Chunk {
+    Text(String),
+    Image(Image),
+}
+
+/// Convert input chunks to a stringly-typed input for backwards
+/// compat for backends that haven't implemented chunked inputs.
+pub trait ChunksToString {
+    /// Convert chunks to string.
+    fn chunks_to_string(&self) -> String;
+}
+
+impl ChunksToString for Vec<Chunk> {
+    fn chunks_to_string(&self) -> String {
+        let mut output = String::new();
+        self.iter().for_each(|c| match &c {
+            Chunk::Text(text) => output.push_str(text),
+            Chunk::Image(Image { data, mimetype }) => {
+                let encoded = STANDARD.encode(data);
+                output.push_str(&format!("![](data:{};base64,{})", mimetype, encoded))
+            }
+        });
+        output
+    }
+}
+
 #[derive(Debug, Clone)]
-pub(crate) enum ValidGrammar {
+pub enum ValidGrammar {
     Json(String),
     Regex(String),
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ValidParameters {
+pub struct ValidParameters {
     /// / exponential scaling output probability distribution
     pub temperature: f32,
     /// / restricting to the k highest probability elements
@@ -666,7 +694,7 @@ pub(crate) struct ValidParameters {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ValidStoppingParameters {
+pub struct ValidStoppingParameters {
     /// / Maximum number of generated tokens
     pub max_new_tokens: u32,
     /// / Optional stopping sequences
@@ -677,8 +705,8 @@ pub(crate) struct ValidStoppingParameters {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ValidGenerateRequest {
-    pub inputs: Vec<InputChunk>,
+pub struct ValidGenerateRequest {
+    pub inputs: Vec<Chunk>,
     pub input_length: u32,
     pub truncate: u32,
     pub decoder_input_details: bool,
@@ -750,6 +778,8 @@ pub enum ValidationError {
     InvalidImageContent(String),
     #[error("Could not fetch image: {0}")]
     FailedFetchImage(#[from] reqwest::Error),
+    #[error("{0} modality is not supported")]
+    UnsupportedModality(&'static str),
 }
 
 #[cfg(test)]
