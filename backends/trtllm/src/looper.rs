@@ -56,13 +56,10 @@ fn executor_status_poller(
         span!(Level::DEBUG, "[in-flight][submit]").in_scope(|| {
             // Is there any request pending to be scheduled?
             let awaiting_requests = waiting_requests.len();
-            if awaiting_requests > 0 {
+            for _ in 0..awaiting_requests {
                 // Retrieve all the requests
-                let mut requests = Vec::with_capacity(awaiting_requests);
-                let _ = waiting_requests.recv_many(&mut requests, awaiting_requests);
-
-                // Submit all the request to the executor and move the context to the in-flight tracker
-                for ctx in requests {
+                if let Some(ctx) = waiting_requests.blocking_recv() {
+                    // Submit all the request to the executor and move the context to the in-flight tracker
                     let request = &ctx.request;
                     let generation_params = &request.inner.parameters;
                     let stopping_params = &request.inner.stopping_parameters;
