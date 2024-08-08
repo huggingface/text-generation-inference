@@ -153,6 +153,7 @@ pub enum Config {
     Bloom,
     Mpt,
     Gpt2,
+    Gptj,
     GptNeox,
     Phi,
     #[serde(rename = "phi-msft")]
