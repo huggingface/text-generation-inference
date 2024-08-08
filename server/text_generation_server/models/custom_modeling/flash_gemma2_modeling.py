@@ -265,7 +265,7 @@ class FlashGemma2Attention(torch.nn.Module):
 class Gemma2MLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
-        act = config.hidden_act
+        act = config.hidden_activation
         self.act = (
             ACT2FN[act]
             if "gelu" not in act
