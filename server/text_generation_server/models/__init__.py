@@ -492,7 +492,13 @@ def get_model(
         )
     sliding_window = config_dict.get("sliding_window", -1)
 
-    if max_input_tokens is not None and max_input_tokens <= sliding_window:
+    if max_input_tokens is None:
+        max_input_tokens = 1024  # Set a default value if not provided
+    
+    if sliding_window is None:
+        sliding_window = 2048  # Set a default value if not provided
+
+    if max_input_tokens <= sliding_window:
         sliding_window = -1
 
     if (
