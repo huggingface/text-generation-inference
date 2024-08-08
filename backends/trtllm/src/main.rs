@@ -10,7 +10,7 @@ use text_generation_backends_trtllm::errors::TensorRtLlmBackendError;
 use text_generation_backends_trtllm::TensorRtLlmBackendV2;
 use text_generation_router::{HubTokenizerConfig, server};
 use text_generation_router::server::{
-    create_post_processor, get_base_tokenizer, get_hub_model_info,
+    create_post_processor, get_base_tokenizer,
 };
 
 /// App Configuration
@@ -296,7 +296,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         max_input_tokens,
         max_total_tokens,
         validation_workers,
-        None,
+        auth_token,
         tokenizer_name,
         tokenizer_config_path,
         revision,
