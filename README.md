@@ -48,6 +48,8 @@ Text Generation Inference (TGI) is a toolkit for deploying and serving Large Lan
   - [GPT-Q](https://arxiv.org/abs/2210.17323)
   - [EETQ](https://github.com/NetEase-FuXi/EETQ)
   - [AWQ](https://github.com/casper-hansen/AutoAWQ)
+  - [Marlin](https://github.com/IST-DASLab/marlin)
+  - [fp8]()
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 - Logits warper (temperature scaling, top-p, top-k, repetition penalty, more details see [transformers.LogitsProcessor](https://huggingface.co/docs/transformers/internal/generation_utils#transformers.LogitsProcessor))
