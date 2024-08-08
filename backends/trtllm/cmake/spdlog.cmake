@@ -11,7 +11,6 @@ endif ()
 
 fetchcontent_declare(
         spdlog
-        GIT_REPOSITORY https://github.com/gabime/spdlog.git
-        GIT_TAG v1.14.1
+        URL https://github.com/gabime/spdlog/archive/refs/tags/v1.14.1.tar.gz
 )
 fetchcontent_makeavailable(spdlog)

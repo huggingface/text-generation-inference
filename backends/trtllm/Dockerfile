@@ -86,6 +86,7 @@ FROM nvidia/cuda:12.5.1-cudnn-runtime-ubuntu22.04 AS runtime
 WORKDIR /usr/local/tgi/bin
 
 ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
+ENV OMPI_MCA_plm_rsh_agent=""
 
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
