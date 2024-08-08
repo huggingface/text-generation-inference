@@ -350,6 +350,12 @@ Options:
           [env: CORS_ALLOW_ORIGIN=]
 
 ```
+## API_KEY
+```shell
+      --api-key <API_KEY>
+          [env: API_KEY=]
+
+```
 ## WATERMARK_GAMMA
 ```shell
       --watermark-gamma <WATERMARK_GAMMA>
@@ -423,6 +429,20 @@ Options:
           Lora Adapters a list of adapter ids i.e. `repo/adapter1,repo/adapter2` to load during startup that will be available to callers via the `adapter_id` field in a request
           
           [env: LORA_ADAPTERS=]
+
+```
+## USAGE_STATS
+```shell
+      --usage-stats <USAGE_STATS>
+          Control if anonymous usage stats are collected. Options are "on", "off" and "no-stack" Defaul is on
+          
+          [env: USAGE_STATS=]
+          [default: on]
+
+          Possible values:
+          - on:       Default option, usage statistics are collected anonymously
+          - off:      Disables all collection of usage statistics
+          - no-stack: Doesn't send the error stack trace or error type, but allows sending a crash event
 
 ```
 ## HELP
