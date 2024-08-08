@@ -304,7 +304,7 @@ impl State {
             batch_entries.insert(id, entry);
 
             // Check if max_size
-            if Some(batch_requests.len()) >= max_size {
+            if Some(batch_requests.len()) == max_size {
                 break;
             }
         }
