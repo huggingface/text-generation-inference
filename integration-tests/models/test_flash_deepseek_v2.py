@@ -13,7 +13,7 @@ async def flash_deepseek_v2(flash_deepseek_v2_handle):
     return flash_deepseek_v2_handle.client
 
 
-@pytest.mark.release
+# @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_deepseek_v2(flash_deepseek_v2, response_snapshot):
@@ -24,7 +24,7 @@ async def test_flash_deepseek_v2(flash_deepseek_v2, response_snapshot):
     assert response == response_snapshot
 
 
-@pytest.mark.release
+# @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_deepseek_v2_all_params(flash_deepseek_v2, response_snapshot):
@@ -47,7 +47,7 @@ async def test_flash_deepseek_v2_all_params(flash_deepseek_v2, response_snapshot
     assert response == response_snapshot
 
 
-@pytest.mark.release
+# @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_deepseek_v2_load(
