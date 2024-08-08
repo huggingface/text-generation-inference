@@ -490,7 +490,12 @@ def get_model(
         raise RuntimeError(
             "Sharding is currently not supported with `exl2` quantization"
         )
-    sliding_window = config_dict.get("sliding_window", -1)
+
+    sliding_window = (
+        config_dict.get("sliding_window")
+        if config_dict.get("sliding_window") is not None
+        else -1
+    )
 
     if max_input_tokens is not None and max_input_tokens <= sliding_window:
         sliding_window = -1
