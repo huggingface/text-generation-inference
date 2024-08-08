@@ -56,6 +56,8 @@ elif torch.version.cuda is not None and torch.cuda.is_available():
     get_free_memory = get_cuda_free_memory
 elif is_ipex_available():
     SYSTEM = "ipex"
+    import intel_extension_for_pytorch  # noqa: F401
+
     if hasattr(torch, "xpu") and torch.xpu.is_available():
         empty_cache = torch.xpu.empty_cache
         synchronize = torch.xpu.synchronize
