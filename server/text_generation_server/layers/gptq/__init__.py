@@ -24,11 +24,19 @@ elif CAN_EXLLAMA:
             from text_generation_server.layers.gptq.exllamav2 import (
                 QuantLinear as ExllamaQuantLinear,  # noqa: F401
             )
+            from text_generation_server.layers.gptq.exllamav2 import (
+                create_exllama_buffers,  # noqa: F401
+                set_device,  # noqa: F401
+            )
 
             HAS_EXLLAMA = "2"
         else:
             from text_generation_server.layers.gptq.exllama import (
                 Ex4bitLinear as ExllamaQuantLinear,  # noqa: F401
+            )
+            from text_generation_server.layers.gptq.exllamav2 import (
+                create_exllama_buffers,  # noqa: F401
+                set_device,  # noqa: F401
             )
 
             HAS_EXLLAMA = "1"
