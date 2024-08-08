@@ -22,7 +22,7 @@ async def llama_grammar(llama_grammar_handle):
     return llama_grammar_handle.client
 
 
-@pytest.mark.release
+# @pytest.mark.release
 @pytest.mark.asyncio
 async def test_grammar_response_format_llama_json(llama_grammar, response_snapshot):
 
@@ -63,7 +63,7 @@ async def test_grammar_response_format_llama_json(llama_grammar, response_snapsh
     assert chat_completion == response_snapshot
 
 
-@pytest.mark.release
+# @pytest.mark.release
 @pytest.mark.asyncio
 async def test_grammar_response_format_llama_error_if_tools_not_installed(
     llama_grammar,
@@ -98,6 +98,6 @@ async def test_grammar_response_format_llama_error_if_tools_not_installed(
     # 422 means the server was unable to process the request because it contains invalid data.
     assert response.status_code == 422
     assert response.json() == {
-        "error": "Grammar and tools are mutually exclusive",
-        "error_type": "grammar and tools",
+        "error": "Tool error: Grammar and tools are mutually exclusive",
+        "error_type": "tool_error",
     }
