@@ -106,7 +106,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     g++ \
     git \
     wget \
-    cmake
+    cmake \
+    libnuma-dev
 
 ENV HUGGINGFACE_HUB_CACHE=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
@@ -135,7 +136,7 @@ RUN conda install -c conda-forge gperftools mkl
 RUN pip install https://download.pytorch.org/whl/nightly/cpu/torch-2.4.0.dev20240612%2Bcpu-cp310-cp310-linux_x86_64.whl
 RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchvision-0.19.0.dev20240612%2Bcpu-cp310-cp310-linux_x86_64.whl
 RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchaudio-2.4.0.dev20240612%2Bcpu-cp310-cp310-linux_x86_64.whl
-RUN pip install triton
+RUN pip install triton numa
 
 WORKDIR /usr/src
 
@@ -147,16 +148,11 @@ RUN cd intel-extension-for-pytorch && git submodule sync && git submodule update
 
 RUN cd torch-ccl && git submodule sync && git submodule update --init --recursive && pip install .
 
-ENV LD_PRELOAD=/opt/conda/lib/libtcmalloc.so:/opt/conda/lib/libiomp5.so
+ENV LD_PRELOAD=/opt/conda/lib/libtcmalloc.so
 ENV CCL_ROOT=/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch
 ENV I_MPI_ROOT=/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch
 ENV FI_PROVIDER_PATH=/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch/opt/mpi/libfabric/lib/prov:/usr/lib64/libfabric
 ENV LD_LIBRARY_PATH=/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch/opt/mpi/libfabric/lib:/opt/conda/lib/python3.10/site-packages/oneccl_bindings_for_pytorch/lib
-ENV KMP_BLOCKTIME=1
-ENV KMP_TPAUSE=0
-ENV KMP_FORKJOIN_BARRIER_PATTERN=dist,dist
-ENV KMP_PLAIN_BARRIER_PATTERN=dist,dist
-ENV KMP_REDUCTION_BARRIER_PATTERN=dist,dist
 
 # Install server
 COPY proto proto
