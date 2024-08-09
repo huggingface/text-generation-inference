@@ -138,13 +138,14 @@ impl Infer {
     #[instrument(skip_all)]
     pub(crate) fn apply_chat_template(
         &self,
+        guideline: Option<String>,
         messages: Vec<Message>,
         grammar_with_prompt: Option<(GrammarType, String)>,
     ) -> Result<String, InferError> {
         self.chat_template
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
-            .apply(messages, grammar_with_prompt)
+            .apply(guideline.as_deref(), messages, grammar_with_prompt)
             .map_err(|e| {
                 metrics::counter!("tgi_request_failure", "err" => "template").increment(1);
                 tracing::error!("{e}");

@@ -858,6 +858,11 @@ pub(crate) struct ChatRequest {
     #[serde(default)]
     #[schema(nullable = true, default = "null", example = "null")]
     pub response_format: Option<GrammarType>,
+
+    /// A guideline to be used in the chat_template
+    #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
+    pub guideline: Option<String>,
 }
 
 fn default_tool_prompt() -> Option<String> {
@@ -965,6 +970,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
     add_generation_prompt: bool,
     tools: Option<&'a str>,
     tools_prompt: Option<&'a str>,
+    guideline: Option<&'a str>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug, PartialEq)]

@@ -48,6 +48,7 @@ impl ChatTemplate {
 
     pub(crate) fn apply(
         &self,
+        guideline: Option<&str>,
         mut messages: Vec<Message>,
         grammar_with_prompt: Option<(GrammarType, String)>,
     ) -> Result<String, InferError> {
@@ -65,6 +66,7 @@ impl ChatTemplate {
 
         self.template
             .render(ChatTemplateInputs {
+                guideline,
                 messages,
                 bos_token: self.bos_token.as_deref(),
                 eos_token: self.eos_token.as_deref(),
@@ -730,6 +732,19 @@ mod tests {
                     ..Default::default()
                 },
                 target: "You are a friendly chatbot who always responds in the style of a pirateYou are a friendly chatbot who always responds in the style of a pirate### Instruction: Hello, how are you?### Response: I'm doing great. How can I help you today?### Instruction: I'd like to show off how chat templating works!",
+            },
+            ChatTemplateTestItem {
+                name: "google/shieldgemma-9b",
+                chat_template: "{{- bos_token }}\n{%- if messages[-1].role == 'user' %}\n    {{- \"You are a policy expert trying to help determine whether a user prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the human question violate the above principle? Your answer must start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- else %}\n    {{- \"You are a policy expert trying to help determine whether an AI response to a prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-2].content }}\n    {{- \"\\n<end_of_turn>\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Chatbot Response: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the Chatbot Response violate the above principle? Your answer must  start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- endif %}\n\n",
+                input: ChatTemplateInputs {
+                    messages: example_chat_with_system.clone(),
+                    add_generation_prompt: false,
+                    bos_token: Some("<s>"),
+                    eos_token: Some("</s>"),
+                    guideline: Some("Do not use offensive language."),
+                    ..Default::default()
+                },
+                target: "<s>You are a policy expert trying to help determine whether a user prompt is in violation of the defined safety policies.\n\n<start_of_turn>\nHuman Question: I'd like to show off how chat templating works!\n<end_of_turn>\n\nOur safety principle is defined in the below:\n\n* Do not use offensive language.\n\n===\n\nDoes the human question violate the above principle? Your answer must start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\n\n",
             },
         ];
 
