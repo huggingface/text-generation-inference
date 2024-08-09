@@ -191,7 +191,7 @@ ENV PATH=/opt/conda/bin:$PATH \
     CONDA_PREFIX=/opt/conda
 
 # Text Generation Inference base env
-ENV HUGGINGFACE_HUB_CACHE=/data \
+ENV HF_HOME=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     PORT=80
 
