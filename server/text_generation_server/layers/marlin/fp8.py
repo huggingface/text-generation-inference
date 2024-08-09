@@ -39,7 +39,7 @@ class GPTQMarlinFP8Linear(nn.Module):
         log_once(logger.info, "GPU does not support FP8, using Marlin FP8 kernel")
 
         scales = scales.unsqueeze(0)
-        if scales.shape[1] == 1:
+        if scales.size(0) == 1:
             out_features, in_features = qweight.shape
             scales = scales.repeat(1, out_features)
         qweight, scales = repack_fp8_for_marlin(qweight, scales)
