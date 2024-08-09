@@ -500,14 +500,15 @@ def get_model(
     if max_input_tokens is not None and max_input_tokens <= sliding_window:
         sliding_window = -1
 
-    if (
-        (sliding_window is not None and sliding_window != -1)
-        and not SUPPORTS_WINDOWING
-        and max_input_tokens > sliding_window
-    ):
-        raise ValueError(
-            f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
-        )
+    should_use_sliding_window = (
+        sliding_window is not None and sliding_window != -1 and SUPPORTS_WINDOWING
+    )
+
+    if should_use_sliding_window:
+        if max_input_tokens is not None and max_input_tokens > sliding_window:
+            raise ValueError(
+                f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
+            )
 
     if model_type == DEEPSEEK_V2:
         if FLASH_ATTENTION:
