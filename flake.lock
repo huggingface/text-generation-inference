@@ -102,11 +102,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1723188417,
-        "narHash": "sha256-GXdFuRMU9N9W0CryUTJIWhJkGwQFHSR2EW5xR0ZyBjk=",
+        "lastModified": 1723234585,
+        "narHash": "sha256-HChJpNP155FPhHr9C5BtqllV8Uv/Ebg59HhMc/HhQrc=",
         "owner": "danieldk",
         "repo": "tgi-nix",
-        "rev": "491db7e234ecf79513ddb94da6ecc14167b9c0b3",
+        "rev": "15bd4a978d6c2c8b04b7afc335d137dbe41e73df",
         "type": "github"
       },
       "original": {
