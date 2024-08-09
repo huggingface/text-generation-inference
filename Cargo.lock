@@ -4045,6 +4045,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "slotmap",
  "text-generation-router",
  "thiserror",
  "tokenizers",

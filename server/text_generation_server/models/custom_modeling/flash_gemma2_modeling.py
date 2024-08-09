@@ -238,6 +238,8 @@ class FlashGemma2Attention(torch.nn.Module):
                 query,
                 torch.select(kv, dim=1, index=0),
                 torch.select(kv, dim=1, index=1),
+                kv_cache[0],
+                kv_cache[1],
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,

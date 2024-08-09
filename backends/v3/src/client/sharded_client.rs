@@ -245,6 +245,7 @@ impl Health for ShardedClient {
             // Block 0 is reserved for health checks
             blocks: vec![0],
             slots: (0..16).collect(),
+            prefix_len: 0,
             adapter_id: None,
         };
         let batch = Batch {
