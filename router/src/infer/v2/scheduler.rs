@@ -1,10 +1,10 @@
 /// Batching and inference logic
 use crate::infer::v2::queue::{Entry, Queue};
 use crate::infer::{
-    Backend, GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse,
+    Attention, Backend, GenerateStreamResponse, GeneratedText, InferError, InferStreamResponse,
 };
 use crate::validation::ValidGenerateRequest;
-use crate::{FinishReason, PrefillToken, Token};
+use crate::{Attention, FinishReason, PrefillToken, Token};
 use nohash_hasher::IntMap;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -40,12 +40,18 @@ impl BackendV2 {
         generation_health: Arc<AtomicBool>,
     ) -> Self {
         // Infer shared state
-        let flashdecoding = if let Ok(flashdecoding) = std::env::var("FLASH_DECODING") {
-            matches!(flashdecoding.to_lowercase().as_str(), "1" | "true")
+        let attention = if let Ok(attention) = std::env::var("ATTENTION") {
+            attention
+                .parse()
+                .expect(&format!("Invalid attention was specified :`{attention}`"))
         } else {
-            false
+            Attention::Paged
         };
-        let block_size = if flashdecoding { 256 } else { 16 };
+        let block_size = if attention == Attention::FlashDecoding {
+            256
+        } else {
+            16
+        };
         let queue = Queue::new(requires_padding, block_size, window_size, speculate);
         let batching_task_notifier = Arc::new(Notify::new());
 

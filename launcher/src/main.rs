@@ -1461,7 +1461,7 @@ fn main() -> Result<(), LauncherError> {
 
         if config.model_type == Some("gemma2".to_string()) {
             tracing::info!("Forcing flash decoding because of softcap usage");
-            std::env::set_var("FLASH_DECODING", "1");
+            std::env::set_var("ATTENTION", "flashdecoding");
         }
         let config: Config = config.into();
 
