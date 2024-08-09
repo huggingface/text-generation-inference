@@ -1,0 +1,12 @@
+services:
+
+  # How to run:
+  # HOST=..... docker compose up
+  tgi_load_test:
+    image: grafana/k6
+    command: run /load_tests/common.js
+    environment:
+      - HOST=${HOST}
+      - MODEL_ID=${MODEL_ID}
+    volumes:
+      - ./:/load_tests:Z
