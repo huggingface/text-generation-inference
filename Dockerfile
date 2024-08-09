@@ -37,7 +37,7 @@ RUN cargo build --release
 FROM vault.habana.ai/gaudi-docker/1.17.0/ubuntu22.04/habanalabs/pytorch-installer-2.3.1:latest as base
 
 # Text Generation Inference base env
-ENV HUGGINGFACE_HUB_CACHE=/data \
+ENV HF_HOME=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     PORT=80
 
