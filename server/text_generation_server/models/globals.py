@@ -29,7 +29,6 @@ elif ATTENTION == "flashinfer":
 else:
     BLOCK_SIZE = 16
 
-
 cuda_graphs = os.getenv("CUDA_GRAPHS")
 if cuda_graphs is not None:
     try:
