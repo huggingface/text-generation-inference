@@ -30,8 +30,10 @@
             buildInputs =
               [
                 cargo
+                clippy
                 openssl.dev
                 pkg-config
+                rustfmt
               ]
               ++ (with python3.pkgs; [
                 venvShellHook
