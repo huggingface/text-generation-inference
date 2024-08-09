@@ -64,8 +64,6 @@ namespace huggingface::tgi::backends {
         std::unique_ptr<std::vector<GenerationStep>> PullTokens();
     };
 
-    GenerationStep ConvertResponseToGenerationStep(const tle::Response &response);
-
     /***
     *
     * @param engineFolder

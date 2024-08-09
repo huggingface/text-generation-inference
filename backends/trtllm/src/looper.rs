@@ -8,18 +8,20 @@ use cxx::UniquePtr;
 use hashbrown::HashMap;
 use log::warn;
 use tokenizers::{Encoding, Tokenizer};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::mpsc::error::SendError;
-use tokio::task::{JoinHandle, spawn_blocking};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::task::{spawn_blocking, JoinHandle};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{error, info, Level, span};
+use tracing::{debug, error, info, span, Level};
 
-use text_generation_router::{FinishReason, Token};
+use text_generation_router::infer::InferError::{GenerationError, ValidationError};
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
-use text_generation_router::infer::InferError::GenerationError;
-use text_generation_router::validation::{Chunk, ValidationError, ValidGenerateRequest};
-use text_generation_router::validation::ValidationError::UnsupportedModality;
+use text_generation_router::validation::ValidationError::{
+    EmptyInput, Grammar, TopNTokensDisabled, UnsupportedModality,
+};
+use text_generation_router::validation::{Chunk, ValidGenerateRequest};
+use text_generation_router::{FinishReason, Token};
 
 use crate::errors::TensorRtLlmBackendError;
 use crate::ffi::{create_tensorrt_llm_backend, GenerationStep, TensorRtLlmBackendImpl};
@@ -95,6 +97,8 @@ fn executor_status_poller(
             if backend.num_responses_ready() > 0 {
                 match backend.pin_mut().pull_tokens() {
                     Ok(responses) => {
+                        debug!("Received {} tokens from the executor", responses.len());
+
                         // worse case scenario is one token for each response: with_capacity(responses.len())
                         // grouper will group decoded tokens per request to decode multiple tokens
                         let mut grouper: HashMap<u64, DecodedTokenContext> =
@@ -102,33 +106,49 @@ fn executor_status_poller(
 
                         // Iterate through all the decoded token
                         for step in responses.deref() {
-                            let request_id = step.request_id;
-
-                            match in_flights.get(&request_id) {
+                            match in_flights.get(&step.request_id) {
                                 Some(ctx) => {
-                                    info!("New token for {} -> {}", request_id, step.token_id);
+                                    debug!(
+                                        "{} -> (token={}, final={})",
+                                        step.request_id, step.token_id, step.is_final
+                                    );
 
+                                    // If no error, let's forward to post-processor
                                     if !step.has_error {
-                                        let req_group = grouper.entry(request_id).or_insert(
+                                        let req_group = grouper.entry(step.request_id).or_insert(
                                             DecodedTokenContext {
                                                 tokens: vec![],
                                                 ctx: ctx.streamer.clone(), // Arc::clone() = cheap
                                             },
                                         );
                                         req_group.tokens.push(step.clone()); // Should be ultra cheap
-
-                                        if step.is_final {
-                                            let _ = in_flights.remove(&step.request_id);
-                                        }
                                     } else {
                                         warn!(
                                             "Error for request: {} -> {}",
-                                            request_id, &step.error_msg
+                                            step.request_id, &step.error_msg
                                         );
+
+                                        // TODO: Send something back to the postprocessor for the client?
+                                    }
+
+                                    // Remove from tracked requests
+                                    if step.is_final {
+                                        let _ = in_flights.remove(&step.request_id);
                                     }
                                 }
                                 None => {
-                                    error!("Got step for untracked request {}", request_id);
+                                    if step.has_error {
+                                        error!(
+                                            "Untracked request {} -> {}",
+                                            step.request_id, &step.error_msg
+                                        );
+                                        continue;
+                                    } else {
+                                        error!(
+                                            "Got step for untracked request {}",
+                                            step.request_id
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -275,18 +295,16 @@ impl TensorRtLlmBackendV2 {
 
     fn validate(request: &ValidGenerateRequest) -> InferResult<&String> {
         if request.top_n_tokens > 1 {
-            return Err(InferError::ValidationError(
-                ValidationError::TopNTokensDisabled,
-            ));
+            return Err(InferError::ValidationError(TopNTokensDisabled));
         }
 
         // TODO: Is it really needed? How can it be validated before?
         if request.parameters.grammar.is_some() {
-            return Err(InferError::ValidationError(ValidationError::Grammar));
+            return Err(InferError::ValidationError(Grammar));
         }
 
         match request.inputs.len() {
-            0 => Err(InferError::ValidationError(ValidationError::EmptyInput)),
+            0 => Err(InferError::ValidationError(EmptyInput)),
             2.. => Err(InferError::GenerationError(
                 "TensorRT-LLM backend don't support multi-chunk".into(),
             )),

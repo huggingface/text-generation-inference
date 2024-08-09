@@ -36,34 +36,38 @@ uint64_t huggingface::tgi::backends::TensorRtLlmBackendImpl::Submit(
 std::unique_ptr<std::vector<huggingface::tgi::backends::GenerationStep>>
 huggingface::tgi::backends::TensorRtLlmBackendImpl::PullTokens() {
     const auto responses = TensorRtLlmBackend::PullNewTokens();
-    auto steps = std::make_unique<std::vector<GenerationStep>>(responses.size());
-    std::ranges::copy(std::views::transform(responses, ConvertResponseToGenerationStep), std::back_inserter(*steps));
-    return steps;
-}
 
-huggingface::tgi::backends::GenerationStep
-huggingface::tgi::backends::ConvertResponseToGenerationStep(const tle::Response &response) {
-    const auto reqId = response.getRequestId();
-    if (!response.hasError()) {
-        const auto result = response.getResult();
-        return std::move(GenerationStep{
-                reqId,
-                static_cast<uint32_t>(result.outputTokenIds[0][0]),
-                result.logProbs.value()[0][0],
-                result.isFinal,
-                false,
-                std::string()
-        });
-    } else {
-        return std::move(GenerationStep{
-                reqId,
-                0,
-                0.0,
-                true,
-                true,
-                std::move(response.getErrorMsg())
-        });
-    }
+    auto steps = std::make_unique<std::vector<GenerationStep>>();
+    steps->reserve(responses.size());
+
+    SPDLOG_DEBUG(FMT_STRING("Pulled out {:d} new tokens"), responses->size());
+
+    // Transform tle::Response to GenerationStep
+    std::ranges::transform(responses.begin(), responses.end(), std::back_inserter(*steps), [&](const Response &r) {
+        const auto reqId = r.getRequestId();
+        if (!r.hasError()) {
+            const auto result = r.getResult();
+            return GenerationStep{
+                    reqId,
+                    static_cast<uint32_t>(result.outputTokenIds[0][0]),
+                    result.logProbs.value()[0][0],
+                    result.isFinal,
+                    false,
+                    std::string()
+            };
+        } else {
+            return GenerationStep{
+                    reqId,
+                    0,
+                    0.0,
+                    true,
+                    true,
+                    std::move(r.getErrorMsg())
+            };
+        }
+    });
+
+    return steps;
 }
 
 std::unique_ptr<huggingface::tgi::backends::TensorRtLlmBackendImpl>
