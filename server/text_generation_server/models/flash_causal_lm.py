@@ -40,8 +40,7 @@ from text_generation_server.models.types import (
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.globals import (
     MEM_POOL,
-    FLASH_DECODING,
-    FLASH_INFER,
+    ATTENTION,
     BLOCK_SIZE,
     CUDA_GRAPHS,
     get_adapter_to_index,
@@ -938,7 +937,7 @@ class FlashCausalLM(Model):
         self.cuda_graphs = {}
         self.kv_cache = []
 
-        if FLASH_INFER:
+        if ATTENTION == "flashinfer":
             from text_generation_server.layers.attention.flash_infer import (
                 create_prefill_state,
                 create_decode_state,
@@ -990,7 +989,7 @@ class FlashCausalLM(Model):
         else:
             x = BLOCK_SIZE // element_size
 
-        if FLASH_DECODING or FLASH_INFER:
+        if ATTENTION in {"flashdecoding", "flashinfer"}:
             self.kv_cache = [
                 (
                     torch.empty(
@@ -1062,7 +1061,7 @@ class FlashCausalLM(Model):
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs]["graph"] = graph
 
-        if FLASH_INFER:
+        if ATTENTION == "flashinfer":
             from text_generation_server.layers.attention.flash_infer import (
                 create_decode_state_cuda_graphs,
             )
@@ -1766,7 +1765,7 @@ class FlashCausalLM(Model):
         input_lengths: torch.Tensor,
         state: Optional[Any] = None,
     ) -> ContextManager:
-        if not FLASH_INFER:
+        if ATTENTION != "flashinfer":
             return nullcontext()
 
         from text_generation_server.layers.attention.flash_infer import (

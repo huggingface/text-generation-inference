@@ -1,9 +1,8 @@
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import (
-    FLASH_DECODING,
+    ATTENTION,
     BLOCK_SIZE,
-    FLASH_INFER,
 )
 from text_generation_server.layers.attention import Seqlen
 from typing import Optional
@@ -27,7 +26,7 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    if FLASH_DECODING or FLASH_INFER:
+    if ATTENTION in {"flashdecoding", "flashinfer"}:
         shape = key_cache.shape
         key_cache.view(-1, shape[-2], shape[-1])[slots] = key
         value_cache.view(-1, shape[-2], shape[-1])[slots] = value
@@ -76,7 +75,7 @@ def paged_attention(
     # V1 to avoid the overhead of reduction. Also, if the number of
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
-    if FLASH_INFER:
+    if ATTENTION == "flashinfer":
         from text_generation_server.layers.attention.flash_infer import decode_state
 
         return decode_state.get().forward(
@@ -85,7 +84,7 @@ def paged_attention(
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
         )
-    elif FLASH_DECODING:
+    elif ATTENTION == "flashdecoding":
         max_q = 1
         max_k = max_s
         import flash_attn_2_cuda
@@ -219,7 +218,7 @@ except ImportError:
 
 SUPPORTS_WINDOWING = V2
 
-if FLASH_INFER:
+if ATTENTION == "flashinfer":
 
     def attention(
         q,
