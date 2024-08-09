@@ -12,12 +12,13 @@ use cxx::UniquePtr;
 use log::{error, warn};
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
-use tokio::sync::RwLock;
 use tokio::time::{sleep, Instant};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::{Stream, StreamExt};
 use tracing::{instrument, span, Level};
 
+// use tokio::sync::RwLock;
+use parking_lot::RwLock;
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::ValidationError::UnsupportedModality;
 use text_generation_router::validation::{Chunk, ValidGenerateRequest, ValidationError};
