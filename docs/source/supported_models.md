@@ -1,22 +1,22 @@
 
 # Supported Models and Hardware
 
-Text Generation Inference enables serving optimized models on specific hardware for the highest performance. The following sections list which models are hardware are supported.
+Text Generation Inference enables serving optimized models on specific hardware for the highest performance. The following sections list which models (VLMs & LLMs) are supported.
 
 ## Supported Models
 
 - [Deepseek V2](https://huggingface.co/deepseek-ai/DeepSeek-V2)
 - [Idefics 2](https://huggingface.co/HuggingFaceM4/idefics2-8b) (Multimodal)
 - [Llava Next (1.6)](https://huggingface.co/llava-hf/llava-v1.6-vicuna-13b-hf) (Multimodal)
-- [Llama](https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct)
+- [Llama](https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f)
 - [Phi 3](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct)
 - [Gemma](https://huggingface.co/google/gemma-7b)
 - [PaliGemma](https://huggingface.co/google/paligemma-3b-pt-224)
-- [Gemma2](https://huggingface.co/google/gemma2-9b)
+- [Gemma2](https://huggingface.co/collections/google/gemma-2-release-667d6600fd5220e7b967f315)
 - [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)
 - [Dbrx](https://huggingface.co/databricks/dbrx-instruct)
 - [Mamba](https://huggingface.co/state-spaces/mamba-2.8b-slimpj)
-- [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2)
+- [Mistral](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407)
 - [Mixtral](https://huggingface.co/mistralai/Mixtral-8x22B-Instruct-v0.1)
 - [Gpt Bigcode](https://huggingface.co/bigcode/gpt_bigcode-santacoder)
 - [Phi](https://huggingface.co/microsoft/phi-1_5)
