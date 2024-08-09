@@ -6,7 +6,7 @@ use nohash_hasher::IntMap;
 use std::sync::Arc;
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::ValidGenerateRequest;
-use text_generation_router::{FinishReason, PrefillToken, Token};
+use text_generation_router::{FinishReason, PrefillToken, Token, Attention};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify};
 use tokio::time::Instant;
@@ -35,12 +35,12 @@ impl BackendV3 {
         window_size: Option<u32>,
         speculate: u32,
     ) -> Self {
-        let flashdecoding = if let Ok(flashdecoding) = std::env::var("FLASH_DECODING") {
-            matches!(flashdecoding.to_lowercase().as_str(), "1" | "true")
+        let attention = if let Ok(attention) = std::env::var("ATTENTION") {
+            attention.parse().expect(&format!("Invalid attention was specified :`{attention}`"))
         } else {
-            false
+            Attention::Paged
         };
-        let block_size = if flashdecoding { 256 } else { 16 };
+        let block_size = if attention == Attention::FlashDecoding { 256 } else { 16 };
 
         let queue = Queue::new(
             requires_padding,

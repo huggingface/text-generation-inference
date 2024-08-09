@@ -15,6 +15,35 @@ use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
 
+#[derive(PartialEq)]
+pub enum Attention{
+    Paged,
+    FlashDecoding,
+    FlashInfer,
+}
+
+#[derive(Debug)]
+pub struct ParseError;
+
+impl std::fmt::Display for ParseError{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Cannot parse attention value")
+    }
+}
+impl std::error::Error for ParseError{}
+
+impl std::str::FromStr for Attention{
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err>{
+        match s{
+            "paged" => Ok(Attention::Paged),
+            "flashdecoding" => Ok(Attention::FlashDecoding),
+            "flashinfer" => Ok(Attention::FlashInfer),
+            _ => Err(ParseError)
+        }
+    }
+}
+
 #[derive(Clone, Deserialize, ToSchema)]
 pub(crate) struct VertexInstance {
     #[schema(example = "What is Deep Learning?")]

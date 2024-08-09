@@ -5,16 +5,12 @@ from typing import Dict, Optional
 
 from text_generation_server.utils.log import log_master
 
-FLASH_INFER = os.getenv("FLASH_INFER") in {"1", "true", "True"}
-if FLASH_INFER:
-    log_master(logger.info, "Using FLASH_INFER")
+ATTENTION = os.getenv("ATTENTION", "paged")
+log_master(logger.info, f"Using Attention = {ATTENTION}")
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 # This is overridden by the cli
-FLASH_DECODING = os.getenv("FLASH_DECODING") in {"1", "true", "True"}
-BLOCK_SIZE: int = 256 if FLASH_DECODING else 16
-if FLASH_DECODING:
-    log_master(logger.info, "Using FLASH_DECODING")
+BLOCK_SIZE: int = 256 if ATTENTION == "flashdecoding" else 16
 
 
 cuda_graphs = os.getenv("CUDA_GRAPHS")
