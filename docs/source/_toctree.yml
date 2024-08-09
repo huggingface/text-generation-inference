@@ -17,8 +17,6 @@
     title: Installation from source
   - local: supported_models
     title: Supported Models and Hardware
-  - local: messages_api
-    title: Messages API
   - local: architecture
     title: Internal Architecture
   - local: usage_statistics
@@ -33,8 +31,6 @@
     title: Serving Private & Gated Models
   - local: basic_tutorials/using_cli
     title: Using TGI CLI
-  - local: basic_tutorials/launcher
-    title: All TGI CLI options
   - local: basic_tutorials/non_core_models
     title: Non-core Model Serving
   - local: basic_tutorials/safety
@@ -48,6 +44,14 @@
   - local: basic_tutorials/train_medusa
     title: Train Medusa
   title: Tutorials
+- sections:
+  - local: reference/launcher
+    title: All TGI CLI options
+  - local: reference/metrics
+    title: Exported Metrics
+  - local: reference/api_reference
+    title: API Reference
+  title: Reference
 - sections:
   - local: conceptual/streaming
     title: Streaming
@@ -64,7 +68,7 @@
   - local: conceptual/speculation
     title: Speculation (Medusa, ngram)
   - local: conceptual/guidance
-    title: How Guidance Works (via outlines
+    title: How Guidance Works (via outlines)
   - local: conceptual/lora
     title: LoRA (Low-Rank Adaptation)
 
