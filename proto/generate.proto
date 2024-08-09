@@ -74,6 +74,8 @@ message NextTokenChooserParameters {
     float repetition_penalty = 7;
     /// frequency penalty
     float frequency_penalty = 9;
+    /// no_repeat_ngram_size
+    uint32 no_repeat_ngram_size = 12;
     /// token watermarking using "A Watermark for Large Language Models"
     bool watermark = 8;
     /// grammar (applied if not empty)

@@ -231,6 +231,7 @@ impl Health for ShardedClient {
                 seed: 0,
                 repetition_penalty: 1.0,
                 frequency_penalty: 0.0,
+                no_repeat_ngram_size: 0,
                 watermark: false,
                 grammar: String::new(),
                 grammar_type: GrammarType::None as i32,
