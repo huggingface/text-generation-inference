@@ -9,7 +9,7 @@ We recommend using the official quantization scripts for creating your quants:
 2. [GPTQ/ Marlin](https://github.com/AutoGPTQ/AutoGPTQ/blob/main/examples/quantization/basic_usage.py)
 3. [EXL2](https://github.com/turboderp/exllamav2/blob/master/doc/convert.md)
 
-For on-the-fly quantization you simply need to pass one of the supported quantization types and TGI takes care of the rest. 
+For on-the-fly quantization you simply need to pass one of the supported quantization types and TGI takes care of the rest.
 
 ## Quantization with bitsandbytes
 

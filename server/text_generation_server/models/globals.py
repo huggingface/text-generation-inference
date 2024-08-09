@@ -6,8 +6,10 @@ from typing import Dict, Optional
 from text_generation_server.utils.log import log_master
 
 ATTENTION = os.getenv("ATTENTION", "paged")
-_expected  = {"paged", "flashdecoding", "flashinfer"}
-assert ATTENTION in _expected, f"Attention is not valid {ATTENTION}, expected {_expected}"
+_expected = {"paged", "flashdecoding", "flashinfer"}
+assert (
+    ATTENTION in _expected
+), f"Attention is not valid {ATTENTION}, expected {_expected}"
 log_master(logger.info, f"Using Attention = {ATTENTION}")
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
