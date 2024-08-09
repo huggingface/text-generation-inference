@@ -17,8 +17,6 @@
     title: Installation from source
   - local: supported_models
     title: Supported Models and Hardware
-  - local: messages_api
-    title: Messages API
   - local: architecture
     title: Internal Architecture
   - local: usage_statistics
