@@ -226,6 +226,13 @@ impl State {
             }
         }
 
+        if let Some(max_size) = max_size {
+            if max_size == 0 {
+                tracing::debug!("No capacity");
+                return None;
+            }
+        }
+
         // Pad prefill_token_budget to be a multiple of block size
         let prefill_token_budget =
             ((prefill_token_budget + self.block_size - 1) / self.block_size) * self.block_size;
