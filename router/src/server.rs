@@ -141,6 +141,7 @@ async fn get_chat_tokenize(
         tool_prompt,
         temperature,
         response_format,
+        guideline,
         ..
     } = req;
 
@@ -151,6 +152,7 @@ async fn get_chat_tokenize(
         tools,
         tool_choice,
         &tool_prompt,
+        guideline,
         messages,
     )?;
 
@@ -1123,6 +1125,7 @@ async fn chat_completions(
         tool_prompt,
         temperature,
         response_format,
+        guideline,
         ..
     } = req;
 
@@ -1142,6 +1145,7 @@ async fn chat_completions(
         tools,
         tool_choice,
         &tool_prompt,
+        guideline,
         messages,
     )?;
 
@@ -2402,6 +2406,7 @@ fn prepare_chat_input(
     tools: Option<Vec<Tool>>,
     tool_choice: ToolChoice,
     tool_prompt: &str,
+    guideline: Option<String>,
     messages: Vec<Message>,
 ) -> Result<PreparedInput, InferError> {
     if response_format.is_some() && tools.is_some() {
@@ -2411,7 +2416,7 @@ fn prepare_chat_input(
     }
 
     if let Some(format) = response_format {
-        let inputs = infer.apply_chat_template(messages, None)?;
+        let inputs = infer.apply_chat_template(guideline, messages, None)?;
         return Ok((inputs, Some(format), None));
     }
 
@@ -2423,6 +2428,6 @@ fn prepare_chat_input(
     let tools_grammar_prompt = tool_grammar
         .as_ref()
         .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt.into()));
-    let inputs = infer.apply_chat_template(messages, tools_grammar_prompt)?;
+    let inputs = infer.apply_chat_template(guideline, messages, tools_grammar_prompt)?;
     Ok((inputs, grammar, tool_grammar))
 }

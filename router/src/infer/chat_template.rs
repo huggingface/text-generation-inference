@@ -48,6 +48,7 @@ impl ChatTemplate {
 
     pub(crate) fn apply(
         &self,
+        guideline: Option<&str>,
         mut messages: Vec<Message>,
         grammar_with_prompt: Option<(GrammarType, String)>,
     ) -> Result<String, InferError> {
@@ -65,6 +66,7 @@ impl ChatTemplate {
 
         self.template
             .render(ChatTemplateInputs {
+                guideline,
                 messages,
                 bos_token: self.bos_token.as_deref(),
                 eos_token: self.eos_token.as_deref(),
