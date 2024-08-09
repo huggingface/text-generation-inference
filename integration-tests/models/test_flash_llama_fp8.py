@@ -48,16 +48,15 @@ async def test_flash_llama_fp8_all_params(flash_llama_fp8, response_snapshot):
     assert response == response_snapshot
 
 
-# TODO: fix and re-enable
 # @pytest.mark.release
-# @pytest.mark.asyncio
-# @pytest.mark.private
-# async def test_flash_llama_fp8_load(flash_llama_fp8, generate_load, response_snapshot):
-#     responses = await generate_load(
-#         flash_llama_fp8, "Test request", max_new_tokens=10, n=4
-#     )
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_fp8_load(flash_llama_fp8, generate_load, response_snapshot):
+    responses = await generate_load(
+        flash_llama_fp8, "Test request", max_new_tokens=10, n=4
+    )
 
-#     assert len(responses) == 4
-#     assert all([r.generated_text == responses[0].generated_text for r in responses])
+    assert len(responses) == 4
+    assert all([r.generated_text == responses[0].generated_text for r in responses])
 
-#     assert responses == response_snapshot
+    assert responses == response_snapshot
