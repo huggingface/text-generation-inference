@@ -50,6 +50,7 @@ jobs:
                 export label_extension=""
                 export docker_devices=""
                 export runs_on="aws-g6-12xlarge-plus-priv"
+                export platform=""
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
@@ -58,12 +59,21 @@ jobs:
                 # TODO Re-enable when they pass.
                 # export runs_on="amd-gpu-tgi"
                 export runs_on="ubuntu-latest"
+                export platform=""
                 ;;
-            intel)
+            intel-xpu)
                 export dockerfile="Dockerfile_intel"
-                export label_extension="-intel"
+                export label_extension="-intel-xpu"
                 export docker_devices=""
                 export runs_on="ubuntu-latest"
+                export platform="xpu"
+                ;;
+            intel-cpu)
+                export dockerfile="Dockerfile_intel"
+                export label_extension="-intel-cpu"
+                export docker_devices=""
+                export runs_on="ubuntu-latest"
+                export platform="cpu"
                 ;;
           esac
           echo $dockerfile
@@ -71,8 +81,10 @@ jobs:
           echo $label_extension
           echo $docker_devices
           echo $runs_on
+          echo $platform
           echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
           echo "LABEL=${label_extension}" >> $GITHUB_ENV
+          echo "PLATFORM=${platform}" >> $GITHUB_ENV
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
           echo "RUNS_ON=${runs_on}" >> $GITHUB_ENV
           echo REGISTRY_MIRROR=$REGISTRY_MIRROR >> $GITHUB_ENV
@@ -139,6 +151,7 @@ jobs:
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            PLATFORM=${{ env.PLATFORM }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
