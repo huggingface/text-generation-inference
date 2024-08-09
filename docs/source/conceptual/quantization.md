@@ -11,7 +11,7 @@ We recommend using the official quantization scripts for creating your quants:
 
 For on-the-fly quantization you simply need to pass one of the supported quantization types and TGI takes care of the rest. 
 
-## Quantization with bitsandbytes
+## Quantization with bitsandbytes, EETQ & fp8
 
 bitsandbytes is a library used to apply 8-bit and 4-bit quantization to models. Unlike GPTQ quantization, bitsandbytes doesn't require a calibration dataset or any post-processing – weights are automatically quantized on load. However, inference with bitsandbytes is slower than GPTQ or FP16 precision.
 
@@ -32,7 +32,7 @@ docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingf
 
 You can get more information about 8-bit quantization by reading this [blog post](https://huggingface.co/blog/hf-bitsandbytes-integration), and 4-bit quantization by reading [this blog post](https://huggingface.co/blog/4bit-transformers-bitsandbytes).
 
-Use `eetq` or `fp8` for other quantization schemes.
+Similarly you can use pass you can pass `--quantize eetq` or `--quantize fp8` for respective quantization schemes.
 
 In addition to this, TGI allows creating GPTQ quants directly by passing the model weights and a calibration dataset.
 

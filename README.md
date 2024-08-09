@@ -13,7 +13,7 @@
   <img alt="Swagger API documentation" src="https://img.shields.io/badge/API-Swagger-informational">
 </a>
 
-A Rust, Python and gRPC server for text generation inference. Used in production at [HuggingFace](https://huggingface.co)
+A Rust, Python and gRPC server for text generation inference. Used in production at [Hugging Face](https://huggingface.co)
 to power Hugging Chat, the Inference API and Inference Endpoint.
 
 </div>
@@ -42,6 +42,7 @@ Text Generation Inference (TGI) is a toolkit for deploying and serving Large Lan
 - Tensor Parallelism for faster inference on multiple GPUs
 - Token streaming using Server-Sent Events (SSE)
 - Continuous batching of incoming requests for increased total throughput
+- [Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) compatible with Open AI Chat Completion API
 - Optimized transformers code for inference using [Flash Attention](https://github.com/HazyResearch/flash-attention) and [Paged Attention](https://github.com/vllm-project/vllm) on the most popular architectures
 - Quantization with :
   - [bitsandbytes](https://github.com/TimDettmers/bitsandbytes)
@@ -49,7 +50,7 @@ Text Generation Inference (TGI) is a toolkit for deploying and serving Large Lan
   - [EETQ](https://github.com/NetEase-FuXi/EETQ)
   - [AWQ](https://github.com/casper-hansen/AutoAWQ)
   - [Marlin](https://github.com/IST-DASLab/marlin)
-  - [fp8]()
+  - [fp8](https://developer.nvidia.com/blog/nvidia-arm-and-intel-publish-fp8-specification-for-standardization-as-an-interchange-format-for-ai/)
 - [Safetensors](https://github.com/huggingface/safetensors) weight loading
 - Watermarking with [A Watermark for Large Language Models](https://arxiv.org/abs/2301.10226)
 - Logits warper (temperature scaling, top-p, top-k, repetition penalty, more details see [transformers.LogitsProcessor](https://huggingface.co/docs/transformers/internal/generation_utils#transformers.LogitsProcessor))
@@ -94,6 +95,29 @@ curl 127.0.0.1:8080/generate_stream \
     -H 'Content-Type: application/json'
 ```
 
+You can also use [TGI's Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) to obtain Open AI Chat Completion API compatible responses.
+
+```bash
+curl localhost:3000/v1/chat/completions \
+    -X POST \
+    -d '{
+  "model": "tgi",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "What is deep learning?"
+    }
+  ],
+  "stream": true,
+  "max_tokens": 20
+}' \
+    -H 'Content-Type: application/json'
+```
+
 **Note:** To use NVIDIA GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 12.2 or higher. For running the Docker container on a machine with no GPUs or CUDA support, it is enough to remove the `--gpus all` flag and add `--disable-custom-kernels`, please note CPU is not the intended platform for this project, so performance might be subpar.
 
 **Note:** TGI supports AMD Instinct MI210 and MI250 GPUs. Details can be found in the [Supported Hardware documentation](https://huggingface.co/docs/text-generation-inference/supported_models#supported-hardware). To use AMD GPUs, please use `docker run --device /dev/kfd --device /dev/dri --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:2.2.0-rocm --model-id $model` instead of the command above.
@@ -122,7 +146,7 @@ For example, if you want to serve the gated Llama V2 model variants:
 or with Docker:
 
 ```shell
-model=meta-llama/Llama-2-7b-chat-hf
+model=meta-llama/Meta-Llama-3.1-8B-Instruct
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 token=<your cli READ token>
 
@@ -234,13 +258,15 @@ text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2
 
 ### Quantization
 
-You can also quantize the weights with bitsandbytes to reduce the VRAM requirement:
+You can also run pre-quantized weights (AWQ, GPTQ, Marlin) or on-the-fly quantize weights with bitsandbytes, EETQ, fp8, to reduce the VRAM requirement:
 
 ```shell
 text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2 --quantize
 ```
 
 4bit quantization is available using the [NF4 and FP4 data types from bitsandbytes](https://arxiv.org/pdf/2305.14314.pdf). It can be enabled by providing `--quantize bitsandbytes-nf4` or `--quantize bitsandbytes-fp4` as a command line argument to `text-generation-launcher`.
+
+Read more about quantization in the [Quantization documentation](https://huggingface.co/docs/text-generation-inference/en/conceptual/quantization).
 
 ## Develop
 

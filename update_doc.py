@@ -7,7 +7,7 @@ import os
 TEMPLATE = """
 # Supported Models and Hardware
 
-Text Generation Inference enables serving optimized models on specific hardware for the highest performance. The following sections list which models are hardware are supported.
+Text Generation Inference enables serving optimized models on specific hardware for the highest performance. The following sections list which models (VLMs & LLMs) are supported.
 
 ## Supported Models
 
