@@ -819,6 +819,13 @@
             "example": "1.0",
             "nullable": true
           },
+          "guideline": {
+            "type": "string",
+            "description": "A guideline to be used in the chat_template",
+            "default": "null",
+            "example": "null",
+            "nullable": true
+          },
           "logit_bias": {
             "type": "array",
             "items": {
