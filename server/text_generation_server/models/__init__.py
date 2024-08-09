@@ -180,7 +180,7 @@ class ModelType(enum.Enum):
     LLAMA = {
         "type": "llama",
         "name": "Llama",
-        "url": "https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct",
+        "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
     }
     PHI3 = {
         "type": "phi3",
@@ -200,7 +200,7 @@ class ModelType(enum.Enum):
     GEMMA2 = {
         "type": "gemma2",
         "name": "Gemma2",
-        "url": "https://huggingface.co/google/gemma2-9b",
+        "url": "https://huggingface.co/collections/google/gemma-2-release-667d6600fd5220e7b967f315",
     }
     COHERE = {
         "type": "cohere",
@@ -220,7 +220,7 @@ class ModelType(enum.Enum):
     MISTRAL = {
         "type": "mistral",
         "name": "Mistral",
-        "url": "https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2",
+        "url": "https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407",
     }
     MIXTRAL = {
         "type": "mixtral",
