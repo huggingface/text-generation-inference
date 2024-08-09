@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from text_generation_server.models.globals import FLASH_DECODING
+from text_generation_server.models.globals import FLASH_DECODING, FLASH_INFER
 import torch
 from typing import Optional
 
 
-if FLASH_DECODING:
+if FLASH_DECODING or FLASH_INFER:
 
     @dataclass
     class Seqlen:
