@@ -3,12 +3,17 @@
     tgi-nix.url = "github:danieldk/tgi-nix";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
+    };
   };
   outputs =
     {
       self,
       nixpkgs,
       flake-utils,
+      rust-overlay,
       tgi-nix,
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -20,7 +25,10 @@
         };
         pkgs = import nixpkgs {
           inherit config system;
-          overlays = [ tgi-nix.overlay ];
+          overlays = [
+            rust-overlay.overlays.default
+            tgi-nix.overlay
+          ];
         };
       in
       {
@@ -29,11 +37,14 @@
           mkShell {
             buildInputs =
               [
-                cargo
-                clippy
                 openssl.dev
                 pkg-config
-                rustfmt
+                (rust-bin.stable.latest.default.override {
+                  extensions = [
+                    "rust-analyzer"
+                    "rust-src"
+                  ];
+                })
               ]
               ++ (with python3.pkgs; [
                 venvShellHook
