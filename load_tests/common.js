@@ -36,7 +36,7 @@ export function get_options() {
             load_test: {
                 executor: 'constant-arrival-rate',
                 duration: '60s',
-                preAllocatedVUs: 100,
+                preAllocatedVUs: 50, // not enough RAM for 100 VUs
                 rate: 1,
                 timeUnit: '1s',
             },
@@ -68,13 +68,16 @@ export default function run() {
     const headers = { 'Content-Type': 'application/json' };
     const query = shareGPT[scenario.iterationInTest % shareGPT.length];
     const payload = JSON.stringify(generate_payload(query, max_new_tokens));
-    const res = http.post(`http://${host}/v1/chat/completions`, payload, {
+    const res = http.post(`https://${host}/v1/chat/completions`, payload, {
         headers,
     });
     if (res.status >= 400 && res.status < 500) {
         return;
     }
 
+    if (res.status !== 200) {
+        console.error(res.body);
+    }
 
     check(res, {
         'Post status is 200': (res) => res.status === 200,
