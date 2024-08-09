@@ -1196,8 +1196,7 @@ class FlashCausalLM(Model):
                 elif CUDA_GRAPHS is not None:
                     tuning_sequences = CUDA_GRAPHS
                 else:
-                    # For seqlen = 1, we dispatch to LLMM1 kernel.
-                    tuning_sequences = [2, 3, 4, 5, 6, 7]
+                    tuning_sequences = [1, 2, 3, 4, 5, 6, 7]
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
@@ -1206,7 +1205,7 @@ class FlashCausalLM(Model):
 
                 log_master(
                     logger.info,
-                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
+                    f"PyTorch TunableOp is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
                 )
 
                 if os.path.isfile(tunableop_filepath):
