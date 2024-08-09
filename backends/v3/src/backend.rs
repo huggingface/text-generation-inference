@@ -36,7 +36,7 @@ impl BackendV3 {
         speculate: u32,
     ) -> Self {
         let attention = if let Ok(attention) = std::env::var("ATTENTION") {
-            attention.parse().expect(&format!("Invalid attention was specified :`{attention}`"))
+            attention.parse().unwrap_or_else(|_| panic!("Invalid attention was specified :`{attention}`"))
         } else {
             Attention::Paged
         };
