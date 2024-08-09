@@ -1211,7 +1211,7 @@ pub(crate) struct ChatTokenizeResponse {
 #[serde(transparent)]
 pub(crate) struct TokenizeResponse(Vec<SimpleToken>);
 
-#[derive(Serialize, ToSchema, Debug)]
+#[derive(Serialize, ToSchema)]
 pub(crate) struct StreamDetails {
     #[schema(example = "length")]
     pub finish_reason: FinishReason,
@@ -1223,7 +1223,7 @@ pub(crate) struct StreamDetails {
     pub input_length: u32,
 }
 
-#[derive(Serialize, ToSchema, Debug)]
+#[derive(Serialize, ToSchema)]
 pub(crate) struct StreamResponse {
     pub index: u32,
     pub token: Token,

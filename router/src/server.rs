@@ -533,7 +533,7 @@ async fn generate_stream_internal(
         } else {
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
-                Ok((_permit, input_length, mut response_stream)) => {
+                Ok((_permit, input_length, response_stream)) => {
                     let mut index = 0;
                     let mut response_stream = Box::pin(response_stream);
                     // Server-Sent Event stream
