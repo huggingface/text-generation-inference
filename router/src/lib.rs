@@ -1017,7 +1017,7 @@ impl MessageContent {
         match self {
             MessageContent::SingleText(text) => {
                 *self =
-                    MessageContent::MultipleChunks(vec![MessageChunk::Text { text: text.clone() }]);
+                    MessageContent::MultipleChunks(vec![MessageChunk::Text { text: text.clone() }, chunk]);
             }
             MessageContent::MultipleChunks(chunks) => {
                 chunks.push(chunk);
