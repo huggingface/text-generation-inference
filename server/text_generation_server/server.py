@@ -32,6 +32,7 @@ try:
 except (ImportError, NotImplementedError):
     # These imports can fail on CPU/Non flash.
     VLM_BATCH_TYPES = set()
+from text_generation_server.utils.version import is_driver_compatible, MIN_TGI_GAUDI_SYNAPSE_VERSION
 
 
 class SignalHandler:
@@ -62,6 +63,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         # if model.device.type == "hpu":
         # Force inference mode for the lifetime of TextGenerationService
         # self._inference_mode_raii_guard = torch._C._InferenceMode(True)
+
 
     async def Info(self, request, context):
         return self.model.info
@@ -191,6 +193,9 @@ def serve(
         dtype: Optional[str] = None,
         trust_remote_code: bool = False,
     ):
+        if not is_driver_compatible():
+            logger.warning(f"Current Synapse version is lower than the minimum version supported: {MIN_TGI_GAUDI_SYNAPSE_VERSION}, this could result in failures")
+
         unix_socket_template = "unix://{}-{}"
         logger.info("Server:server_inner: sharded ={}".format(sharded))
 

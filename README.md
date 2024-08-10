@@ -87,15 +87,15 @@ Maximum sequence length is controlled by two arguments:
 - `--max-total-tokens` is the maximum possible total length of the sequence (input and output). Default value is `4096`.
 
 Maximum batch size is controlled by two arguments:
-- For prefill operation, please set `--max-prefill-total-tokens` as `bs * max-input-tokens`, where `bs` is your expected maximum prefill batch size.
+- For prefill operation, please set `--max-batch-prefill-tokens` as `bs * max-input-tokens`, where `bs` is your expected maximum prefill batch size.
 - For decode operation, please set `--max-batch-total-tokens` as `bs * max-total-tokens`, where `bs` is your expected maximum decode batch size.
 - Please note that batch size will be always padded to the nearest multiplication of `BATCH_BUCKET_SIZE` and `PREFILL_BATCH_BUCKET_SIZE`.
 
-To ensure greatest performance results, at the begginging of each server run, warmup is performed. It's designed to cover major recompilations while using HPU Graphs. It creates queries with all possible input shapes, based on provided parameters (described in this section) and runs basic TGI operations on them (prefill, decode, concatenate).
+To ensure greatest performance results, at the beginning of each server run, warmup is performed. It's designed to cover major recompilations while using HPU Graphs. It creates queries with all possible input shapes, based on provided parameters (described in this section) and runs basic TGI operations on them (prefill, decode, concatenate).
 
 Except those already mentioned, there are other parameters that need to be properly adjusted to improve performance or memory usage:
 
-- `PAD_SEQUENCE_TO_MULTIPLE_OF` determines sizes of input legnth buckets. Since warmup creates several graphs for each bucket, it's important to adjust that value proportionally to input sequence length. Otherwise, some out of memory issues can be observed.
+- `PAD_SEQUENCE_TO_MULTIPLE_OF` determines sizes of input length buckets. Since warmup creates several graphs for each bucket, it's important to adjust that value proportionally to input sequence length. Otherwise, some out of memory issues can be observed.
 - `ENABLE_HPU_GRAPH` enables HPU graphs usage, which is crucial for performance results. Recommended value to keep is `true` .
 
 For more information and documentation about Text Generation Inference, checkout [the README](https://github.com/huggingface/text-generation-inference#text-generation-inference) of the original repo.
@@ -118,7 +118,7 @@ Additional hints to quantize model for TGI when using `run_lm_eval.py`:
 ## Currently supported configurations
 
 Not all features of TGI are currently supported as this is still a work in progress.
-Currently supported and validated configurations (other configurations are not guaranted to work or ensure reasonable performance):
+Currently supported and validated configurations (other configurations are not guaranteed to work or ensure reasonable performance):
 
 ### LLama 7b BF16 on 1 Gaudi2 card
 

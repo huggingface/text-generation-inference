@@ -119,7 +119,6 @@ def roll(tensor, chunk, dim, merge_graphs):
     return tensor
 
 
-@torch_compile_for_eager
 def grouped_roll(tensor_groups, chunk, dims, merge_graphs):
     tensor_groups = [[roll(t, chunk, dim, merge_graphs) for t in tensors] for tensors, dim in zip(tensor_groups, dims)]
     if merge_graphs:
@@ -135,7 +134,6 @@ def grouped_shift(tensor_groups, dims, offset, merge_graphs):
     return tensor_groups
 
 
-@torch_compile_for_eager
 def move(dst_tensors, dst_indices, src_tensors):
     bs_dim = 0
     num_indices = dst_indices.size(0)
@@ -687,9 +685,11 @@ class CausalLM(Model):
             "return_dict": True,
         }
 
-        if model.config.model_type in ["llama", "mistral"]:
-            kwargs["attn_softmax_bf16"] = True
-            kwargs["trim_logits"] = True
+        if model.config.model_type in ["llama", "mistral", "starcoder2"]:
+            
+            if model.config.model_type in ["llama", "mistral"]:
+                kwargs["attn_softmax_bf16"] = True
+                kwargs["trim_logits"] = True
 
             if os.getenv("USE_FLASH_ATTENTION", "false").lower() == "true":
                 kwargs["use_flash_attention"] = True
