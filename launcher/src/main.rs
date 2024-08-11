@@ -182,7 +182,7 @@ struct Args {
     speculate: Option<usize>,
 
     /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
-    #[clap(long, env, value_enum)]
+    #[clap(default_value = "bfloat16", long, env, value_enum)]
     dtype: Option<Dtype>,
 
     /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
@@ -501,13 +501,12 @@ fn shard_manager(
 
     if let Some(dtype) = dtype {
         shard_args.push("--dtype".to_string());
-        shard_args.push(dtype.to_string())
+        shard_args.push(dtype.to_string());
     }
-
     // Model optional revision
     if let Some(revision) = revision {
         shard_args.push("--revision".to_string());
-        shard_args.push(revision)
+        shard_args.push(revision);
     }
 
     let rope = match (rope_scaling, rope_factor) {
