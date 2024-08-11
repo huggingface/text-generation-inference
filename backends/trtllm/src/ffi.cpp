@@ -43,7 +43,7 @@ huggingface::tgi::backends::TensorRtLlmBackendImpl::PullTokens() {
     SPDLOG_DEBUG(FMT_STRING("Pulled out {:d} new tokens"), responses->size());
 
     // Transform tle::Response to GenerationStep
-    std::ranges::transform(responses.begin(), responses.end(), std::back_inserter(*steps), [&](const tle::Response &r) {
+    std::ranges::transform(responses.begin(), responses.end(), std::back_inserter(*steps), [](const tle::Response &r) {
         const auto reqId = r.getRequestId();
         if (!r.hasError()) {
             const auto result = r.getResult();
