@@ -35,8 +35,14 @@ serde = "1.0.188"
 serde_json = "1.0.107"
 slotmap = "1.0.7"
 thiserror = "1.0.48"
-tokenizers = { workspace = true}
-tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
+tokenizers = { workspace = true }
+tokio = { version = "1.32.0", features = [
+  "rt",
+  "rt-multi-thread",
+  "parking_lot",
+  "signal",
+  "sync",
+] }
 tokio-stream = "0.1.14"
 tower-http = { version = "0.5.1", features = ["cors"] }
 tracing = "0.1.37"
@@ -44,7 +50,9 @@ tracing-opentelemetry = "0.21.0"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 utoipa = { version = "4.2.0", features = ["axum_extras"] }
 utoipa-swagger-ui = { version = "6.0.0", features = ["axum"] }
-init-tracing-opentelemetry = { version = "0.14.1", features = ["opentelemetry-otlp"] }
+init-tracing-opentelemetry = { version = "0.14.1", features = [
+  "opentelemetry-otlp",
+] }
 minijinja = { version = "2.0.2" }
 minijinja-contrib = { version = "2.0.2", features = ["pycompat"] }
 futures-util = "0.3.30"
@@ -60,8 +68,16 @@ tower = "^0.4"
 tonic-build = "0.10.1"
 prost-build = "0.12.1"
 
+[dev-dependencies]
+criterion = "0.3"
+itertools = "0.13"
+
 [features]
 default = ["ngrok"]
 ngrok = ["text-generation-router/ngrok"]
 google = ["text-generation-router/google"]
 kserve = ["text-generation-router/kserve"]
+
+[[bench]]
+name = "prefix_cache"
+harness = false

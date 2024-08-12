@@ -4,7 +4,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::radix::RadixAllocator;
 
 #[derive(Debug, Clone)]
-pub(crate) struct BlockAllocation {
+pub struct BlockAllocation {
     pub allocation_id: u64,
     pub blocks: Vec<u32>,
     pub slots: Vec<u32>,
@@ -25,7 +25,7 @@ impl Drop for BlockAllocation {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct BlockAllocator {
+pub struct BlockAllocator {
     /// Channel to communicate with the background task
     block_allocator: mpsc::UnboundedSender<BlockAllocatorCommand>,
 }
@@ -128,7 +128,7 @@ enum BlockAllocatorCommand {
     },
 }
 
-pub(crate) trait Allocator {
+pub trait Allocator {
     fn allocate(
         &mut self,
         tokens: u32,
