@@ -98,6 +98,6 @@ async def test_grammar_response_format_llama_error_if_tools_not_installed(
     # 422 means the server was unable to process the request because it contains invalid data.
     assert response.status_code == 422
     assert response.json() == {
-        "error": "Grammar and tools are mutually exclusive",
-        "error_type": "grammar and tools",
+        "error": "Tool error: Grammar and tools are mutually exclusive",
+        "error_type": "tool_error",
     }
