@@ -674,7 +674,14 @@ class CausalLM(Model):
             if model.config.pad_token_id is not None:
                 tokenizer.pad_token_id = model.config.pad_token_id
             elif model.config.eos_token_id is not None:
-                tokenizer.pad_token_id = model.config.eos_token_id
+                if isinstance(model.config.eos_token_id, int):
+                    tokenizer.pad_token_id = model.config.eos_token_id
+                elif isinstance(model.config.eos_token_id, list):
+                    tokenizer.pad_token_id = model.config.eos_token_id[0]
+                else:
+                    raise ValueError(
+                        f"{type(model.config.eos_token_id)} type of eos_token_id in the model's config is not supported for tokenizer.pad_token_id"
+                    )
             elif tokenizer.eos_token_id is not None:
                 tokenizer.pad_token_id = tokenizer.eos_token_id
             else:
