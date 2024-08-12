@@ -1,4 +1,4 @@
-import { check } from 'k6';
+import { check, sleep } from 'k6';
 import { scenario } from 'k6/execution';
 import http from 'k6/http';
 import { Trend, Counter } from 'k6/metrics';
@@ -33,13 +33,13 @@ export function get_options() {
             //     rate: 20,
             //     timeUnit: '1s',
             // },
-            load_test: {
-                executor: 'constant-arrival-rate',
-                duration: '60s',
-                preAllocatedVUs: 10, // not enough RAM for 100 VUs
-                rate: 1,
-                timeUnit: '1s',
-            },
+            // load_test: {
+            //     executor: 'constant-arrival-rate',
+            //     duration: '60s',
+            //     preAllocatedVUs: 10, // not enough RAM for 100 VUs
+            //     rate: 1,
+            //     timeUnit: '1s',
+            // },
             // breakpoint: {
             //     executor: 'ramping-arrival-rate', //Assure load increase if the system slows
             //     preAllocatedVUs: 300,
@@ -47,19 +47,21 @@ export function get_options() {
             //         { duration: '60s', target: 100 }, // just slowly ramp-up to a HUGE load
             //     ],
             // },
-            // throughput: {
-            //     executor: 'shared-iterations',
-            //     vus: 100,
-            //     iterations: 200,
-            //     maxDuration: '40s',
-            // },
+            throughput: {
+                executor: 'shared-iterations',
+                vus: 100,
+                iterations: 500,
+                maxDuration: '400s',
+            },
         },
     };
 }
 
 function generate_payload(gpt, max_new_tokens) {
     const input = gpt["conversations"][0]["value"];
-    return { "messages": [{ "role": "user", "content": input }], "temperature": 0, "model": `${model_id}`, "max_tokens": max_new_tokens }
+    return { "messages": [
+        { "role": "user", "content": input.substring(0, 5000) }
+    ], "temperature": 0, "model": `${model_id}`, "max_tokens": max_new_tokens }
 }
 
 export const options = get_options();
@@ -71,12 +73,14 @@ export default function run() {
     const res = http.post(`https://${host}/v1/chat/completions`, payload, {
         headers,
     });
-    if (res.status >= 400 && res.status < 500) {
-        return;
-    }
+    // if (res.status >= 400 && res.status < 500) {
+    //     return;
+    // }
 
     if (res.status !== 200) {
         console.error(res.body);
+        console.error('status: ' + res.status);
+        return;
     }
 
     check(res, {
@@ -94,4 +98,6 @@ export default function run() {
         new_tokens.add(completion_tokens);
         tokens.add(completion_tokens + prompt_tokens);
     }
+
+    sleep(1);
 }
