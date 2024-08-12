@@ -74,6 +74,9 @@
                 (callPackage ./router.nix {
                   inherit (rustPlatform) buildRustPackage importCargoLock;
                 })
+                (callPackage ./_launcher.nix {
+                  inherit (rustPlatform) buildRustPackage importCargoLock;
+                })
               ]);
 
             venvDir = "./.venv";
