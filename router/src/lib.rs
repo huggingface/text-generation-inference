@@ -1219,6 +1219,8 @@ pub(crate) struct StreamDetails {
     pub generated_tokens: u32,
     #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
+    #[schema(example = 1)]
+    pub input_length: u32,
 }
 
 #[derive(Serialize, ToSchema)]
