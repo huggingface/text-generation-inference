@@ -94,7 +94,9 @@ impl ChatTemplate {
 mod tests {
     use crate::infer::chat_template::raise_exception;
     use crate::infer::ChatTemplate;
-    use crate::{ChatTemplateInputs, Message, MessageContent, TextMessage, TokenizerConfigToken};
+    use crate::{
+        ChatTemplateInputs, GrammarType, Message, MessageContent, TextMessage, TokenizerConfigToken,
+    };
     use minijinja::Environment;
 
     #[test]
@@ -822,5 +824,41 @@ mod tests {
                 assert_eq!(e.to_string(), "Missing template vatiable: guideline")
             }
         }
+    }
+
+    #[test]
+    fn test_chat_template_with_default_tool_template() {
+        let ct = ChatTemplate::new(
+            "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if message['role'] == 'user' %}{{ '[INST] ' + message['content'] + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ message['content'] + eos_token + ' ' }}{% else %}{{ raise_exception('Only user and assistant roles are supported!') }}{% endif %}{% endfor %}".to_string(),
+            Some(TokenizerConfigToken::String("<s>".to_string())),
+            Some(TokenizerConfigToken::String("</s>".to_string())),
+        );
+
+        // convert TextMessage to Message
+        let msgs: Vec<Message> = vec![
+            Message {
+                name: None,
+                role: "user".to_string(),
+                content: MessageContent::SingleText(
+                    "I'd like to show off how chat templating works!".to_string(),
+                ),
+            },
+            Message {
+                name: None,
+                role: "assistant".to_string(),
+                content: MessageContent::SingleText("Great! How can I help you today?".to_string()),
+            },
+            Message {
+                name: None,
+                role: "user".to_string(),
+                content: MessageContent::SingleText("Just testing".to_string()),
+            },
+        ];
+        let tools = serde_json::json!("[]");
+        let tool_prompt = "This default prompt will be used".to_string();
+        let grammer_with_prompt = (GrammarType::Json(tools), tool_prompt);
+        let result = ct.apply(None, msgs, Some(grammer_with_prompt));
+        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\nThis default prompt will be used\n\"[]\" [/INST]".to_string();
+        assert_eq!(result.unwrap(), expected);
     }
 }
