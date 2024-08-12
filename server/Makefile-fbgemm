@@ -1,4 +1,4 @@
-fbgemm_commit := ddac8dd9fc0bee70a3f456df68b8aac38576c856
+fbgemm_commit := v0.8.0
 
 build-fbgemm:
 	git clone https://github.com/pytorch/FBGEMM.git fbgemm && \
