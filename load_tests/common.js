@@ -36,7 +36,7 @@ export function get_options() {
             load_test: {
                 executor: 'constant-arrival-rate',
                 duration: '60s',
-                preAllocatedVUs: 50, // not enough RAM for 100 VUs
+                preAllocatedVUs: 10, // not enough RAM for 100 VUs
                 rate: 1,
                 timeUnit: '1s',
             },
