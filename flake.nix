@@ -3,6 +3,7 @@
     tgi-nix.url = "github:danieldk/tgi-nix";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
+    poetry2nix.url = "github:nix-community/poetry2nix";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
@@ -15,6 +16,7 @@
       flake-utils,
       rust-overlay,
       tgi-nix,
+      poetry2nix,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -29,6 +31,11 @@
             rust-overlay.overlays.default
             tgi-nix.overlay
           ];
+        };
+
+        inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryEditablePackage;
+        text-generation-server = mkPoetryEditablePackage {
+            editablePackageSources = ./server;
         };
       in
       {
@@ -50,14 +57,17 @@
                 venvShellHook
                 pip
 
+                click
                 einops
                 fbgemm-gpu
+                flashinfer
                 flash-attn
                 flash-attn-layer-norm
                 flash-attn-rotary
                 grpc-interceptor
                 grpcio-reflection
                 grpcio-status
+                grpcio-tools
                 hf-transfer
                 loguru
                 marlin-kernels
