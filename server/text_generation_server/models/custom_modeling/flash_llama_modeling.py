@@ -21,7 +21,6 @@
 from contextlib import contextmanager
 from typing import List, Optional, Tuple
 
-from loguru import logger
 import torch
 import torch.distributed
 

@@ -6,8 +6,7 @@ from typing import Dict, Optional
 from text_generation_server.utils.log import log_master
 
 PREFIX_CACHING = os.getenv("USE_PREFIX_CACHING", False)
-log_master(logger.info, f"Using Attention = {PREFIX_CACHING}")
-
+log_master(logger.info, f"Using prefix caching = {PREFIX_CACHING}")
 ATTENTION = os.getenv("ATTENTION", "flashinfer" if PREFIX_CACHING else "paged")
 _expected = {"paged", "flashdecoding", "flashinfer"}
 assert (
