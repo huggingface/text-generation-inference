@@ -3,7 +3,6 @@ import torch.distributed
 
 from opentelemetry import trace
 from transformers import AutoConfig, AutoTokenizer, GenerationConfig
-from transformers.models.llama import LlamaTokenizer
 from typing import Optional
 
 from text_generation_server.models import FlashCausalLM
@@ -18,7 +17,7 @@ from text_generation_server.utils import (
 
 tracer = trace.get_tracer(__name__)
 
-from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 class FlashLlama(FlashCausalLM):
@@ -27,7 +26,7 @@ class FlashLlama(FlashCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        use_medusa: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -35,28 +34,19 @@ class FlashLlama(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
-        elif IS_XPU_SYSTEM:
+        elif SYSTEM == "xpu":
             device = torch.device(f"xpu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
             raise NotImplementedError("FlashLlama is only available on GPU")
 
-        try:
-            tokenizer = LlamaTokenizer.from_pretrained(
-                model_id,
-                revision=revision,
-                padding_side="left",
-                truncation_side="left",
-                trust_remote_code=trust_remote_code,
-            )
-        except Exception:
-            tokenizer = AutoTokenizer.from_pretrained(
-                model_id,
-                revision=revision,
-                padding_side="left",
-                truncation_side="left",
-                trust_remote_code=trust_remote_code,
-            )
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
         try:
             generation_config = GenerationConfig.from_pretrained(
                 model_id, revision=revision, trust_remote_code=trust_remote_code
@@ -71,7 +61,7 @@ class FlashLlama(FlashCausalLM):
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
-        config.use_medusa = use_medusa
+        config.speculator = speculator
 
         torch.distributed.barrier(group=self.process_group)
 

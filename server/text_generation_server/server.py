@@ -19,6 +19,19 @@ from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
+from text_generation_server.models.globals import set_model_id
+
+try:
+    from text_generation_server.models.pali_gemma import PaliGemmaBatch
+    from text_generation_server.models.vlm_causal_lm import (
+        VlmCausalLMBatch,
+    )
+    from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
+
+    VLM_BATCH_TYPES = {PaliGemmaBatch, VlmCausalLMBatch, IdeficsCausalLMBatch}
+except (ImportError, NotImplementedError):
+    # These imports can fail on CPU/Non flash.
+    VLM_BATCH_TYPES = set()
 from text_generation_server.utils.version import is_driver_compatible, MIN_TGI_GAUDI_SYNAPSE_VERSION
 
 
@@ -32,9 +45,6 @@ class SignalHandler:
     def exit_gracefully(self, signum, frame):
         print(f"Exiting gracefully: Signal {signum}")
         self.KEEP_PROCESSING = False
-
-
-signal_handler = SignalHandler()
 
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
@@ -88,16 +98,33 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
 
-        batches = [batch_from_pb(batch) for batch in request.batches]
-        self.model.warmup(batches)
+        if self.model.batch_type in VLM_BATCH_TYPES :
+            max_supported_total_tokens = self.model.warmup(request)
+            return generate_pb2.WarmupResponse(max_supported_total_tokens=max_supported_total_tokens)
+        else:
+            batches = [batch_from_pb(batch) for batch in request.batches]
+            self.model.warmup(batches)
+            return generate_pb2.WarmupResponse()
 
-        return generate_pb2.WarmupResponse()
 
     async def Prefill(self, request, context):
         start = time.time_ns()
-        batch = self.model.batch_type.from_pb(
-            request.batch, self.model.tokenizer, self.model.dtype, self.model.device
-        )
+        if (
+            self.model.batch_type in VLM_BATCH_TYPES
+        ):  # Hack, i would rather use kwargs in the `from_pb` call
+            batch = self.model.batch_type.from_pb_processor(
+                request.batch,
+                self.model.tokenizer,
+                self.model.processor,
+                self.model.model.config,
+                self.model.dtype,
+                self.model.device,
+            )
+        else:
+            batch = self.model.batch_type.from_pb(
+                request.batch, self.model.tokenizer, self.model.dtype, self.model.device
+            )
+     
         generations, next_batch, timings = self.model.generate_token([batch])
         self.cache.set(next_batch)
 
@@ -147,7 +174,7 @@ def serve(
     uds_path: Path,
 ):
     # Remove default handler
-    logger.remove()
+    #logger.remove()
     logger.add(
         sys.stdout,
         format="{message}",
@@ -221,10 +248,11 @@ def serve(
         await server.start()
 
         logger.info("Server started at {}".format(local_url))
-
+        signal_handler = SignalHandler()
         while signal_handler.KEEP_PROCESSING:
             await asyncio.sleep(0.5)
 
+    set_model_id(model_id)
     asyncio.run(
         serve_inner(
             model_id, revision, sharded, speculate, dtype, trust_remote_code

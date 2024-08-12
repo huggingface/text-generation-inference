@@ -6,13 +6,15 @@ from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     SpeculativeHead,
     TensorParallelEmbedding,
-    FastLayerNorm,
     get_linear,
+)
+from text_generation_server.layers.layernorm import (
+    FastLayerNorm,
 )
 
 
@@ -80,13 +82,13 @@ def _load_multi_mqa_gptq(
             g_idx = g_idx.to(device=weights.device)
         elif quant_method == "awq":
             g_idx = None
-            from text_generation_server.utils.awq.conversion_utils import (
+            from text_generation_server.layers.awq.conversion_utils import (
                 fast_awq_to_gptq,
             )
 
             qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
 
-        from text_generation_server.utils.layers import HAS_EXLLAMA
+        from text_generation_server.layers.gptq import HAS_EXLLAMA
 
         use_exllama = HAS_EXLLAMA
         weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)

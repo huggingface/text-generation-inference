@@ -11,7 +11,7 @@ pub(crate) enum Event {
     /// Key press.
     Key(event::KeyEvent),
     /// Terminal resize.
-    Resize(u16, u16),
+    Resize,
 }
 
 pub(crate) async fn terminal_event_task(
@@ -47,8 +47,8 @@ async fn event_loop(fps: u32, event_sender: mpsc::Sender<Event>) {
         if event::poll(Duration::from_secs(0)).expect("no events available") {
             match event::read().expect("unable to read event") {
                 event::Event::Key(e) => event_sender.send(Event::Key(e)).await.unwrap_or(()),
-                event::Event::Resize(w, h) => {
-                    event_sender.send(Event::Resize(w, h)).await.unwrap_or(())
+                event::Event::Resize(_w, _h) => {
+                    event_sender.send(Event::Resize).await.unwrap_or(())
                 }
                 _ => (),
             }

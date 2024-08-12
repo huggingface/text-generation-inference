@@ -38,7 +38,7 @@ from transformers.utils import (
     is_torch_fx_proxy,
 )
 from transformers import T5Config
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,

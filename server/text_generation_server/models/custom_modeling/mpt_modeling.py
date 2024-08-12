@@ -17,7 +17,7 @@ from transformers.modeling_outputs import (
 )
 from einops import rearrange
 from packaging import version
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelEmbedding,
     TensorParallelColumnLinear,
     TensorParallelRowLinear,

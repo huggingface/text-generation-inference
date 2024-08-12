@@ -25,7 +25,7 @@ class FlashPhi(FlashCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        use_medusa: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -48,7 +48,7 @@ class FlashPhi(FlashCausalLM):
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
-        config.use_medusa = use_medusa
+        config.speculator = speculator
 
         torch.distributed.barrier(group=self.process_group)
 
@@ -58,7 +58,7 @@ class FlashPhi(FlashCausalLM):
             weights._set_gptq_params(model_id, revision)
 
         model = FlashPhiForCausalLM(config, weights)
-        if use_medusa:
+        if speculator:
             from text_generation_server.utils.medusa import MedusaModel
             from huggingface_hub import hf_hub_download
             import json
@@ -66,19 +66,19 @@ class FlashPhi(FlashCausalLM):
             from pathlib import Path
 
             is_local_model = (
-                Path(use_medusa).exists() and Path(use_medusa).is_dir()
+                Path(speculator).exists() and Path(speculator).is_dir()
             ) or os.getenv("WEIGHTS_CACHE_OVERRIDE", None) is not None
 
             if not is_local_model:
                 medusa_config = hf_hub_download(
-                    use_medusa, revision=revision, filename="config.json"
+                    speculator, revision=revision, filename="config.json"
                 )
                 medusa_head = hf_hub_download(
-                    use_medusa, revision=revision, filename="medusa_lm_head.pt"
+                    speculator, revision=revision, filename="medusa_lm_head.pt"
                 )
             else:
-                medusa_config = str(Path(use_medusa) / "config.json")
-                medusa_head = str(Path(use_medusa) / "medusa_lm_head.pt")
+                medusa_config = str(Path(speculator) / "config.json")
+                medusa_head = str(Path(speculator) / "medusa_lm_head.pt")
 
             with open(medusa_config, "r") as f:
                 config = json.load(f)

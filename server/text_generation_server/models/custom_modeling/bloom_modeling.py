@@ -32,7 +32,7 @@ from transformers.modeling_outputs import (
 )
 from transformers import BloomConfig, PreTrainedModel
 
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
     TensorParallelRowLinear,

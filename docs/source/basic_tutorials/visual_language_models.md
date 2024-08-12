@@ -53,7 +53,67 @@ for token in client.text_generation(prompt, max_new_tokens=10, stream=True):
 # This is a picture of an anthropomorphic rabbit in a space suit.
 ```
 
-If you want additional details, you can add `details=True`. In this case, you get a `TextGenerationStreamResponse` which contains additional information such as the probabilities and the tokens. For the final response in the stream, it also returns the full generated text.
+or via the `chat_completion` endpoint:
+
+```python
+from huggingface_hub import InferenceClient
+
+client = InferenceClient("http://127.0.0.1:3000")
+
+chat = client.chat_completion(
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Whats in this image?"},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png"
+                    },
+                },
+            ],
+        },
+    ],
+    seed=42,
+    max_tokens=100,
+)
+
+print(chat)
+# ChatCompletionOutput(choices=[ChatCompletionOutputComplete(finish_reason='length', index=0, message=ChatCompletionOutputMessage(role='assistant', content=" The image you've provided features an anthropomorphic rabbit in spacesuit attire. This rabbit is depicted with human-like posture and movement, standing on a rocky terrain with a vast, reddish-brown landscape in the background. The spacesuit is detailed with mission patches, circuitry, and a helmet that covers the rabbit's face and ear, with an illuminated red light on the chest area.\n\nThe artwork style is that of a", name=None, tool_calls=None), logprobs=None)], created=1714589614, id='', model='llava-hf/llava-v1.6-mistral-7b-hf', object='text_completion', system_fingerprint='2.0.2-native', usage=ChatCompletionOutputUsage(completion_tokens=100, prompt_tokens=2943, total_tokens=3043))
+
+```
+
+or with OpenAi's library:
+
+```python
+from openai import OpenAI
+
+# init the client but point it to TGI
+client = OpenAI(base_url="http://localhost:3000/v1", api_key="-")
+
+chat_completion = client.chat.completions.create(
+    model="tgi",
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Whats in this image?"},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png"
+                    },
+                },
+            ],
+        },
+    ],
+    stream=False,
+)
+
+print(chat_completion)
+# ChatCompletion(id='', choices=[Choice(finish_reason='eos_token', index=0, logprobs=None, message=ChatCompletionMessage(content=' The image depicts an anthropomorphic rabbit dressed in a space suit with gear that resembles NASA attire. The setting appears to be a solar eclipse with dramatic mountain peaks and a partial celestial body in the sky. The artwork is detailed and vivid, with a warm color palette and a sense of an adventurous bunny exploring or preparing for a journey beyond Earth. ', role='assistant', function_call=None, tool_calls=None))], created=1714589732, model='llava-hf/llava-v1.6-mistral-7b-hf', object='text_completion', system_fingerprint='2.0.2-native', usage=CompletionUsage(completion_tokens=84, prompt_tokens=2943, total_tokens=3027))
+```
 
 ### Inference Through Sending `cURL` Requests
 

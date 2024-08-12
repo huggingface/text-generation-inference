@@ -12,11 +12,11 @@ class RW(CausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        use_medusa: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
-        if use_medusa:
+        if speculator:
             raise RuntimeError("Medusa decoding is not enabled for AutoModel")
 
         if torch.cuda.is_available():

@@ -4,7 +4,7 @@
 use crate::validation::{Validation, ValidationError};
 use crate::{
     ChatTemplateInputs, ChatTemplateVersions, Entry, GenerateRequest, GenerateStreamResponse,
-    HubTokenizerConfig, Message, PrefillToken, Queue, Token,
+    HubTokenizerConfig, Message, MessageChunk, PrefillToken, Queue, Text, TextMessage, Token,
 };
 use crate::{FunctionRef, FunctionsMap, GrammarType, Properties, Tool, ToolType, Tools};
 use futures::future::try_join_all;
@@ -373,15 +373,14 @@ impl ChatTemplate {
         if self.use_default_tool_template {
             if let Some(last_message) = messages.last_mut() {
                 if let Some((GrammarType::Json(tools), tool_prompt)) = grammar_with_prompt {
-                    last_message.content = Some(format!(
-                        "{}\n---\n{}\n{}",
-                        last_message.content.as_deref().unwrap_or_default(),
-                        tool_prompt,
-                        tools
-                    ));
+                    last_message.content.push(MessageChunk::Text(Text {
+                        text: format!("\n---\n{}\n{}", tool_prompt, tools),
+                    }));
                 }
             }
         }
+
+        let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
 
         self.template
             .render(ChatTemplateInputs {
@@ -950,8 +949,7 @@ impl InferError {
 #[cfg(test)]
 mod tests {
     use crate::infer::raise_exception;
-    use crate::ChatTemplateInputs;
-    use crate::Message;
+    use crate::{ChatTemplateInputs, TextMessage};
     use minijinja::Environment;
 
     #[test]
@@ -985,29 +983,21 @@ mod tests {
 
         let chat_template_inputs = ChatTemplateInputs {
             messages: vec![
-                Message {
+                TextMessage {
                     role: "user".to_string(),
-                    content: Some("Hi!".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "Hi!".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "assistant".to_string(),
-                    content: Some("Hello how can I help?".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "Hello how can I help?".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "user".to_string(),
-                    content: Some("What is Deep Learning?".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "What is Deep Learning?".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "assistant".to_string(),
-                    content: Some("magic!".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "magic!".to_string(),
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -1055,35 +1045,25 @@ mod tests {
 
         let chat_template_inputs = ChatTemplateInputs {
             messages: vec![
-                Message {
+                TextMessage {
                     role: "user".to_string(),
-                    content: Some("Hi!".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "Hi!".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "user".to_string(),
-                    content: Some("Hi again!".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "Hi again!".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "assistant".to_string(),
-                    content: Some("Hello how can I help?".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "Hello how can I help?".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "user".to_string(),
-                    content: Some("What is Deep Learning?".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "What is Deep Learning?".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "assistant".to_string(),
-                    content: Some("magic!".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "magic!".to_string(),
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -1136,29 +1116,21 @@ mod tests {
 
         let chat_template_inputs = ChatTemplateInputs {
             messages: vec![
-                Message {
+                TextMessage {
                     role: "user".to_string(),
-                    content: Some("Hi!".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "Hi!".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "assistant".to_string(),
-                    content: Some("Hello how can I help?".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "Hello how can I help?".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "user".to_string(),
-                    content: Some("What is Deep Learning?".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "What is Deep Learning?".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "assistant".to_string(),
-                    content: Some("magic!".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "magic!".to_string(),
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -1195,29 +1167,21 @@ mod tests {
 
         let chat_template_inputs = ChatTemplateInputs {
             messages: vec![
-                Message {
+                TextMessage {
                     role: "user".to_string(),
-                    content: Some("Hi!".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "Hi!".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "assistant".to_string(),
-                    content: Some("Hello how can I help?".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "Hello how can I help?".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "user".to_string(),
-                    content: Some("What is Deep Learning?".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "What is Deep Learning?".to_string(),
                 },
-                Message {
+                TextMessage {
                     role: "assistant".to_string(),
-                    content: Some("magic!".to_string()),
-                    name: None,
-                    tool_calls: None,
+                    content: "magic!".to_string(),
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -1240,34 +1204,24 @@ mod tests {
     #[test]
     fn test_many_chat_templates() {
         let example_chat = vec![
-            Message {
+            TextMessage {
                 role: "user".to_string(),
-                content: Some("Hello, how are you?".to_string()),
-                name: None,
-                tool_calls: None,
+                content: "Hello, how are you?".to_string(),
             },
-            Message {
+            TextMessage {
                 role: "assistant".to_string(),
-                content: Some("I'm doing great. How can I help you today?".to_string()),
-                name: None,
-                tool_calls: None,
+                content: "I'm doing great. How can I help you today?".to_string(),
             },
-            Message {
+            TextMessage {
                 role: "user".to_string(),
-                content: Some("I'd like to show off how chat templating works!".to_string()),
-                name: None,
-                tool_calls: None,
+                content: "I'd like to show off how chat templating works!".to_string(),
             },
         ];
 
-        let example_chat_with_system = vec![Message {
+        let example_chat_with_system = [TextMessage {
             role: "system".to_string(),
-            content: Some(
-                "You are a friendly chatbot who always responds in the style of a pirate"
-                    .to_string(),
-            ),
-            name: None,
-            tool_calls: None,
+            content: "You are a friendly chatbot who always responds in the style of a pirate"
+                .to_string(),
         }]
         .iter()
         .chain(&example_chat)
@@ -1384,7 +1338,7 @@ mod tests {
         {
             let mut env = Environment::new();
             env.add_function("raise_exception", raise_exception);
-            let tmpl = env.template_from_str(&chat_template);
+            let tmpl = env.template_from_str(chat_template);
             let result = tmpl.unwrap().render(input).unwrap();
             assert_eq!(result, target);
         }
@@ -1407,17 +1361,13 @@ mod tests {
                 chat_template: "{% for message in messages %}\n{% if message['role'] == 'user' %}\n{{ '<|user|>\\n' + message['content'] + eos_token }}\n{% elif message['role'] == 'system' %}\n{{ '<|system|>\\n' + message['content'] + eos_token }}\n{% elif message['role'] == 'assistant' %}\n{{ '<|assistant|>\\n'  + message['content'] + eos_token }}\n{% endif %}\n{% if loop.last and add_generation_prompt %}\n{{ '<|assistant|>' }}\n{% endif %}\n{% endfor %}",
                 input: ChatTemplateInputs {
                     messages: vec![
-                        Message {
+                        TextMessage{
                             role: "system".to_string(),
-                            content: Some("You are a friendly chatbot who always responds in the style of a pirate".to_string()),
-                            name: None,
-                            tool_calls: None,
+                            content: "You are a friendly chatbot who always responds in the style of a pirate".to_string(),
                         },
-                        Message {
+                        TextMessage{
                             role: "user".to_string(),
-                            content: Some("How many helicopters can a human eat in one sitting?".to_string()),
-                            name: None,
-                            tool_calls: None,
+                            content: "How many helicopters can a human eat in one sitting?".to_string(),
                         },
                     ],
                     add_generation_prompt: true,

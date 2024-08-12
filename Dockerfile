@@ -1,5 +1,5 @@
 # Rust builder
-FROM lukemathwalker/cargo-chef:latest-rust-1.75 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.78 AS chef
 WORKDIR /usr/src
 
 FROM chef as planner
@@ -50,6 +50,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         ca-certificates \
         make \
         curl \
+        git \
         && rm -rf /var/lib/apt/lists/*
 
 # Install server

@@ -33,7 +33,7 @@ tracer = trace.get_tracer(__name__)
 # Will be set in init
 SLIDING_WINDOW: Optional[int] = None
 SLIDING_WINDOW_BLOCKS: Optional[int] = None
-from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 
@@ -121,6 +121,11 @@ class FlashMistralBatch(FlashCausalLMBatch):
             requests_idx_mapping[r.id] = i
 
             tokenized_input = tokenized_input[-r.truncate :]
+            if (
+                tokenized_input[0] == tokenizer.bos_token_id
+                and tokenized_input[1] == tokenizer.bos_token_id
+            ):
+                tokenized_input = tokenized_input[1:]
 
             input_length = len(tokenized_input)
             input_lengths.append(input_length)
@@ -308,7 +313,7 @@ class BaseFlashMistral(FlashCausalLM):
         config_cls=AutoConfig,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        use_medusa: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
         tokenizer_class=AutoTokenizer,
@@ -317,7 +322,7 @@ class BaseFlashMistral(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
-        elif IS_XPU_SYSTEM:
+        elif SYSTEM == "xpu":
             device = torch.device(f"xpu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
@@ -335,7 +340,7 @@ class BaseFlashMistral(FlashCausalLM):
             model_id, revision=revision, trust_remote_code=trust_remote_code
         )
         config.quantize = quantize
-        config.use_medusa = use_medusa
+        config.speculator = speculator
 
         # Set context windows
         if getattr(config, "sliding_window", None) is not None:
@@ -385,6 +390,31 @@ class BaseFlashMistral(FlashCausalLM):
     @property
     def batch_type(self) -> Type[FlashMistralBatch]:
         return FlashMistralBatch
+
+    def tunableop_warmup(self, seqlen: int):
+        input_ids = torch.zeros(seqlen, dtype=torch.int64, device=self.device)
+        position_ids = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
+        slots = torch.arange(seqlen, dtype=torch.int64, device=self.device)
+        kv_cache = get_cache_manager().kv_cache
+
+        # Dummy value, some models (starcoder2) don't accept `None`.
+        input_lengths = torch.ones(seqlen, dtype=torch.int32, device=self.device)
+
+        # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
+        self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=torch.tensor(
+                [0, seqlen], device=self.device, dtype=torch.int32
+            ),
+            kv_cache=get_cache_manager().kv_cache,
+            block_tables=None,
+            input_lengths=input_lengths,
+            slots=slots,
+            max_s=seqlen,
+            lm_head_indices=None,
+            prefill_cache_indices=None,
+        )
 
     def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
         input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
@@ -562,7 +592,7 @@ class FlashMistral(BaseFlashMistral):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        use_medusa: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -572,7 +602,7 @@ class FlashMistral(BaseFlashMistral):
             model_id=model_id,
             revision=revision,
             quantize=quantize,
-            use_medusa=use_medusa,
+            speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )

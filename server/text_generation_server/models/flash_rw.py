@@ -15,7 +15,7 @@ from text_generation_server.utils import (
     weight_files,
     Weights,
 )
-from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM
 
 tracer = trace.get_tracer(__name__)
 
@@ -26,7 +26,7 @@ class FlashRWSharded(FlashCausalLM):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
-        use_medusa: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
@@ -34,7 +34,7 @@ class FlashRWSharded(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = torch.float16 if dtype is None else dtype
-        elif IS_XPU_SYSTEM:
+        elif SYSTEM == "xpu":
             device = torch.device(f"xpu:{rank}")
             dtype = torch.float16 if dtype is None else dtype
         else:
@@ -66,7 +66,7 @@ class FlashRWSharded(FlashCausalLM):
         )
 
         config.quantize = quantize
-        config.use_medusa = use_medusa
+        config.speculator = speculator
         if config.quantize == "gptq":
             weights._set_gptq_params(model_id, revision)
 

@@ -1,5 +1,5 @@
 import torch
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelEmbedding,
 )
 

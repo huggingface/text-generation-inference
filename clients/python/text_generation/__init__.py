@@ -14,5 +14,10 @@
 
 __version__ = "0.6.0"
 
+DEPRECATION_WARNING = (
+    "`text_generation` clients are deprecated and will be removed in the near future. "
+    "Please use the `InferenceClient` from the `huggingface_hub` package instead."
+)
+
 from text_generation.client import Client, AsyncClient
 from text_generation.inference_api import InferenceAPIClient, InferenceAPIAsyncClient

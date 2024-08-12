@@ -3,8 +3,16 @@
     title: Text Generation Inference
   - local: quicktour
     title: Quick Tour
+  - local: installation_nvidia
+    title: Using TGI with Nvidia GPUs
+  - local: installation_amd
+    title: Using TGI with AMD GPUs
+  - local: installation_gaudi
+    title: Using TGI with Intel Gaudi
+  - local: installation_inferentia
+    title: Using TGI with AWS Inferentia
   - local: installation
-    title: Installation
+    title: Installation from source
   - local: supported_models
     title: Supported Models and Hardware
   - local: messages_api
@@ -20,7 +28,7 @@
   - local: basic_tutorials/using_cli
     title: Using TGI CLI
   - local: basic_tutorials/launcher
-    title: All TGI CLI  options
+    title: All TGI CLI options
   - local: basic_tutorials/non_core_models
     title: Non-core Model Serving
   - local: basic_tutorials/safety
@@ -29,6 +37,10 @@
     title: Using Guidance, JSON, tools
   - local: basic_tutorials/visual_language_models
     title: Visual Language Models
+  - local: basic_tutorials/monitoring
+    title: Monitoring TGI with Prometheus and Grafana
+  - local: basic_tutorials/train_medusa
+    title: Train Medusa
   title: Tutorials
 - sections:
   - local: conceptual/streaming

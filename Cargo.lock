@@ -78,9 +78,9 @@ dependencies = [
 
 [[package]]
 name = "anstyle-query"
-version = "1.1.0"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad186efb764318d35165f1758e7dcef3b10628e26d41a44bc5550652e6804391"
+checksum = "a64c907d4e79225ac72e2a354c9ce84d50ebb4586dee56c82b3ee73004f537f5"
 dependencies = [
  "windows-sys 0.52.0",
 ]
@@ -3552,7 +3552,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "2.0.1"
+version = "2.0.4"
 dependencies = [
  "average",
  "clap",
@@ -3573,7 +3573,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "2.0.1"
+version = "2.0.4"
 dependencies = [
  "futures",
  "grpc-metadata",
@@ -3590,7 +3590,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "2.0.1"
+version = "2.0.4"
 dependencies = [
  "clap",
  "ctrlc",
@@ -3601,6 +3601,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "thiserror",
  "tracing",
  "tracing-subscriber",
  "vergen",
@@ -3608,7 +3609,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "2.0.1"
+version = "2.0.4"
 dependencies = [
  "async-stream",
  "axum",

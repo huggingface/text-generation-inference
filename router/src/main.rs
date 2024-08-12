@@ -23,7 +23,7 @@ use tokenizers::Tokenizer;
 use tower_http::cors::AllowOrigin;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, Layer};
+use tracing_subscriber::{filter::LevelFilter, EnvFilter, Layer};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -349,6 +349,7 @@ async fn main() -> Result<(), RouterError> {
             max_batch_prefill_tokens,
             max_total_tokens as u32,
             max_batch_size,
+            &model_info.model_id
         )
         .await
         .map_err(RouterError::Warmup)?
@@ -482,8 +483,21 @@ fn init_logging(otlp_endpoint: Option<String>, json_output: bool) {
     }
 
     // Filter events with LOG_LEVEL
-    let env_filter =
-        EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
+    let varname = "LOG_LEVEL";
+    let env_filter = if let Ok(log_level) = std::env::var(varname) {
+        // Override to avoid simple logs to be spammed with tokio level informations
+        let log_level = match &log_level[..] {
+            "warn" => "text_generation_launcher=warn,text_generation_router=warn",
+            "info" => "text_generation_launcher=info,text_generation_router=info",
+            "debug" => "text_generation_launcher=debug,text_generation_router=debug",
+            log_level => log_level,
+        };
+        EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .parse_lossy(log_level)
+    } else {
+        EnvFilter::new("info")
+    };
 
     tracing_subscriber::registry()
         .with(env_filter)

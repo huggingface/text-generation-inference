@@ -1,14 +1,18 @@
 import torch
-from text_generation_server.utils.import_utils import (
-    IS_CUDA_SYSTEM,
-    IS_ROCM_SYSTEM,
-    IS_XPU_SYSTEM,
-)
+from text_generation_server.utils.import_utils import SYSTEM
 
 _PARTITION_SIZE = 512
 
-if IS_XPU_SYSTEM:
+if SYSTEM == "xpu":
     import intel_extension_for_pytorch as ipex
+else:
+    try:
+        from vllm._C import cache_ops
+        from vllm._C import ops
+    except Exception as e:
+        raise ImportError(
+            f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
+        )
 
 
 def reshape_and_cache(
@@ -18,22 +22,14 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    if IS_CUDA_SYSTEM:
-        from vllm._C import cache_ops
-
-        cache_ops.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
-        )
-    elif IS_ROCM_SYSTEM:
-        from vllm import cache_ops
-
-        cache_ops.reshape_and_cache(key, value, key_cache, value_cache, slots)
-    elif IS_XPU_SYSTEM:
+    if SYSTEM == "xpu":
         ipex.llm.modules.PagedAttention.reshape_and_cache(
             key, value, key_cache, value_cache, slots
         )
     else:
-        raise ValueError("vllm is not supported on your system")
+        cache_ops.reshape_and_cache(
+            key, value, key_cache, value_cache, slots, "auto", 1.0
+        )
 
 
 def attention(
@@ -68,7 +64,7 @@ def attention(
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
-    if IS_XPU_SYSTEM:
+    if SYSTEM == "xpu":
         query = query.contiguous()
         return ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
             out,
@@ -91,43 +87,21 @@ def attention(
     # to parallelize.
     use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
     if use_v1:
-        if IS_CUDA_SYSTEM:
-            from vllm._C import ops
-
-            ops.paged_attention_v1(
-                out,
-                query,
-                key_cache,
-                value_cache,
-                kv_head_mapping,
-                softmax_scale,
-                block_tables,
-                input_lengths,
-                block_size,
-                max_s,
-                None,
-                "auto",
-                1.0,
-            )
-        elif IS_ROCM_SYSTEM:
-            from vllm import attention_ops
-
-            attention_ops.paged_attention_v1(
-                out,
-                query,
-                key_cache,
-                value_cache,
-                kv_head_mapping,
-                softmax_scale,
-                block_tables,
-                input_lengths,
-                block_size,
-                max_s,
-                None,
-            )
-        else:
-            raise ValueError("vllm is not supported on your system")
-
+        ops.paged_attention_v1(
+            out,
+            query,
+            key_cache,
+            value_cache,
+            kv_head_mapping,
+            softmax_scale,
+            block_tables,
+            input_lengths,
+            block_size,
+            max_s,
+            None,
+            "auto",
+            1.0,
+        )
     else:
         # Run PagedAttention V2.
         assert _PARTITION_SIZE % block_size == 0
@@ -143,45 +117,21 @@ def attention(
         )
         max_logits = torch.empty_like(exp_sums)
 
-        if IS_CUDA_SYSTEM:
-            from vllm._C import ops
-
-            ops.paged_attention_v2(
-                out,
-                exp_sums,
-                max_logits,
-                tmp_output,
-                query,
-                key_cache,
-                value_cache,
-                kv_head_mapping,
-                softmax_scale,
-                block_tables,
-                input_lengths,
-                block_size,
-                max_s,
-                None,
-                "auto",
-                1.0,
-            )
-        elif IS_ROCM_SYSTEM:
-            from vllm import attention_ops
-
-            attention_ops.paged_attention_v2(
-                out,
-                exp_sums,
-                max_logits,
-                tmp_output,
-                query,
-                key_cache,
-                value_cache,
-                kv_head_mapping,
-                softmax_scale,
-                block_tables,
-                input_lengths,
-                block_size,
-                max_s,
-                None,
-            )
-        else:
-            raise ValueError("vllm is not supported on your system")
+        ops.paged_attention_v2(
+            out,
+            exp_sums,
+            max_logits,
+            tmp_output,
+            query,
+            key_cache,
+            value_cache,
+            kv_head_mapping,
+            softmax_scale,
+            block_tables,
+            input_lengths,
+            block_size,
+            max_s,
+            None,
+            "auto",
+            1.0,
+        )

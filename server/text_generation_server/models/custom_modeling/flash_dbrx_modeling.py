@@ -21,20 +21,25 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple, Any
 from loguru import logger
-from text_generation_server.utils.import_utils import IS_XPU_SYSTEM
+from text_generation_server.utils.import_utils import SYSTEM
 
-if not IS_XPU_SYSTEM:
+if SYSTEM != "xpu":
     from vllm.model_executor.layers.fused_moe import fused_moe
+
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     FastLinear,
-    FastLayerNorm,
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    PositionRotaryEmbedding,
     SpeculativeHead,
     get_linear,
+)
+from text_generation_server.layers.rotary import (
+    PositionRotaryEmbedding,
+)
+from text_generation_server.layers.layernorm import (
+    FastLayerNorm,
 )
 from text_generation_server.utils.log import log_once
 
@@ -216,7 +221,7 @@ def _load_gqa(config, prefix: str, weights):
 
         bits, groupsize, desc_act, quant_method = weights._get_gptq_params()
 
-        from text_generation_server.utils.layers import HAS_EXLLAMA
+        from text_generation_server.layers import HAS_EXLLAMA
 
         use_exllama = (
             bits == 4 and HAS_EXLLAMA and config.quantize == "gptq" and not desc_act
@@ -236,7 +241,7 @@ def _load_gqa(config, prefix: str, weights):
             log_once(
                 logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
             )
-            from text_generation_server.utils.awq.conversion_utils import (
+            from text_generation_server.layers.awq.conveersion_utils import (
                 fast_awq_to_gptq,
             )
 

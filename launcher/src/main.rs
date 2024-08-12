@@ -18,14 +18,33 @@ use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use std::{fs, io};
-use tracing_subscriber::EnvFilter;
+use thiserror::Error;
+use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod env_runtime;
 
 #[derive(Deserialize)]
+struct RawConfig {
+    max_position_embeddings: Option<usize>,
+    n_positions: Option<usize>,
+    max_seq_len: Option<usize>,
+}
+
+#[derive(Deserialize)]
 struct Config {
     max_position_embeddings: Option<usize>,
-    max_seq_len: Option<usize>,
+}
+
+impl From<RawConfig> for Config {
+    fn from(other: RawConfig) -> Self {
+        let max_position_embeddings = other
+            .max_position_embeddings
+            .or(other.max_seq_len)
+            .or(other.n_positions);
+        Config {
+            max_position_embeddings,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -453,6 +472,7 @@ fn shard_manager(
     max_total_tokens: usize,
     max_batch_size: Option<usize>,
     otlp_endpoint: Option<String>,
+    log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
     _shutdown_sender: mpsc::Sender<()>,
@@ -475,7 +495,7 @@ fn shard_manager(
         "--uds-path".to_string(),
         uds_path,
         "--logger-level".to_string(),
-        "INFO".to_string(),
+        log_level.to_string().to_uppercase(),
         "--json-output".to_string(),
     ];
 
@@ -755,13 +775,13 @@ struct PythonLogMessage {
 impl PythonLogMessage {
     fn trace(&self) {
         match self.record.level.name {
-            PythonLogLevelEnum::Trace => tracing::trace!("{}", self.text),
-            PythonLogLevelEnum::Debug => tracing::debug!("{}", self.text),
-            PythonLogLevelEnum::Info => tracing::info!("{}", self.text),
-            PythonLogLevelEnum::Success => tracing::info!("{}", self.text),
-            PythonLogLevelEnum::Warning => tracing::warn!("{}", self.text),
-            PythonLogLevelEnum::Error => tracing::error!("{}", self.text),
-            PythonLogLevelEnum::Critical => tracing::error!("{}", self.text),
+            PythonLogLevelEnum::Trace => tracing::trace!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Debug => tracing::debug!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Info => tracing::info!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Success => tracing::info!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Warning => tracing::warn!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Error => tracing::error!("{}", self.text.trim_end()),
+            PythonLogLevelEnum::Critical => tracing::error!("{}", self.text.trim_end()),
         }
     }
 }
@@ -823,25 +843,25 @@ fn find_num_shards(
     Ok(num_shard)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 enum LauncherError {
+    #[error("Invalid argument: {0}")]
     ArgumentValidation(String),
+    #[error("not enough cuda devices: {0}")]
     NotEnoughCUDADevices(String),
+    #[error("Download error")]
     DownloadError,
+    #[error("Shard cannot start")]
     ShardCannotStart,
+    #[error("Shard disconnected")]
     ShardDisconnected,
+    #[error("Shard failed")]
     ShardFailed,
+    #[error("Webserver failed")]
     WebserverFailed,
+    #[error("Webserver cannot start")]
     WebserverCannotStart,
 }
-
-impl core::fmt::Display for LauncherError {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-impl std::error::Error for LauncherError {}
 
 fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
     // Enter download tracing span
@@ -981,6 +1001,7 @@ fn spawn_shards(
     args: &Args,
     cuda_graphs: Vec<usize>,
     max_total_tokens: usize,
+    max_log_level: LevelFilter,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
     shutdown_sender: mpsc::Sender<()>,
@@ -1038,6 +1059,7 @@ fn spawn_shards(
                 max_total_tokens,
                 max_batch_size,
                 otlp_endpoint,
+                max_log_level,
                 status_sender,
                 shutdown,
                 shutdown_sender,
@@ -1278,8 +1300,22 @@ fn main() -> Result<(), LauncherError> {
     let args: Args = Args::parse();
 
     // Filter events with LOG_LEVEL
-    let env_filter =
-        EnvFilter::try_from_env("LOG_LEVEL").unwrap_or_else(|_| EnvFilter::new("info"));
+    let varname = "LOG_LEVEL";
+    let env_filter = if let Ok(log_level) = std::env::var(varname) {
+        // Override to avoid simple logs to be spammed with tokio level informations
+        let log_level = match &log_level[..] {
+            "warn" => "text_generation_launcher=warn,text_generation_router=warn",
+            "info" => "text_generation_launcher=info,text_generation_router=info",
+            "debug" => "text_generation_launcher=debug,text_generation_router=debug",
+            log_level => log_level,
+        };
+        EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .parse_lossy(log_level)
+    } else {
+        EnvFilter::new("info")
+    };
+    let max_log_level = env_filter.max_level_hint().unwrap_or(LevelFilter::INFO);
 
     if args.json_output {
         tracing_subscriber::fmt()
@@ -1322,33 +1358,30 @@ fn main() -> Result<(), LauncherError> {
         };
 
         let content = std::fs::read_to_string(filename)?;
-        let config: Config = serde_json::from_str(&content)?;
+        let config: RawConfig = serde_json::from_str(&content)?;
+        let config: Config = config.into();
 
         // Quantization usually means you're even more RAM constrained.
         let max_default = 4096;
 
-        let max_position_embeddings = match (config.max_position_embeddings, config.max_seq_len) {
-            (Some(max_position_embeddings), _) | (None, Some(max_position_embeddings)) => {
-                if max_position_embeddings > max_default {
-                    let max = max_position_embeddings;
-                    if args.max_input_tokens.is_none()
-                        && args.max_total_tokens.is_none()
-                        && args.max_batch_prefill_tokens.is_none()
-                    {
-                        tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
-                    }
-                    max_default
-                } else {
-                    max_position_embeddings
+        if let Some(max_position_embeddings) = config.max_position_embeddings {
+            if max_position_embeddings > max_default {
+                let max = max_position_embeddings;
+                if args.max_input_tokens.is_none()
+                    && args.max_total_tokens.is_none()
+                    && args.max_batch_prefill_tokens.is_none()
+                {
+                    tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
                 }
+                Ok(max_default)
+            } else {
+                Ok(max_position_embeddings)
             }
-            _ => {
-                return Err(Box::new(LauncherError::ArgumentValidation(
-                    "no max defined".to_string(),
-                )));
-            }
-        };
-        Ok(max_position_embeddings)
+        } else {
+            Err(Box::new(LauncherError::ArgumentValidation(
+                "no max defined".to_string(),
+            )))
+        }
     };
     let max_position_embeddings: usize = get_max_position_embeddings().unwrap_or(4096);
 
@@ -1504,6 +1537,7 @@ fn main() -> Result<(), LauncherError> {
         &args,
         cuda_graphs,
         max_total_tokens,
+        max_log_level,
         shutdown.clone(),
         &shutdown_receiver,
         shutdown_sender,

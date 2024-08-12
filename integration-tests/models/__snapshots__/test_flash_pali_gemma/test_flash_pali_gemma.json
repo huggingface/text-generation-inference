@@ -1,0 +1,25 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 2,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 54901,
+        "logprob": -0.72753906,
+        "special": false,
+        "text": "beach"
+      },
+      {
+        "id": 1,
+        "logprob": -0.011009216,
+        "special": true,
+        "text": "<eos>"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "beach"
+}

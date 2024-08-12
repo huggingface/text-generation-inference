@@ -26,18 +26,22 @@ from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
 from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.import_utils import IS_ROCM_SYSTEM, IS_CUDA_SYSTEM
-from text_generation_server.utils.layers import (
+from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    PositionRotaryEmbedding,
     SpeculativeHead,
     get_linear,
+)
+from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
+from text_generation_server.layers.rotary import (
+    PositionRotaryEmbedding,
+)
 
-if IS_CUDA_SYSTEM:
+if SYSTEM == "cuda":
     import dropout_layer_norm
 else:
     dropout_layer_norm = None
@@ -52,7 +56,7 @@ class CohereRotary(PositionRotaryEmbedding):
         sin: torch.Tensor,
     ):
         # Such controlflows may add some overhead.
-        if IS_CUDA_SYSTEM:
+        if SYSTEM == "cuda":
             import rotary_emb
 
             q1 = query[..., ::2]
@@ -64,8 +68,8 @@ class CohereRotary(PositionRotaryEmbedding):
             k2 = key[..., 1::2]
 
             rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
-        elif IS_ROCM_SYSTEM:
-            from vllm import pos_encoding_ops
+        elif SYSTEM == "rocm":
+            from vllm._C import ops
 
             # NOTE: On RoCm systems, we use a ROPE implementatation adapted from VLLM which launches a single kernel for both query/key, contrary to flash-attn implementation used on NVIDIA systems.
             # Compiling flash-attn rotary on RoCm, it appears hipcc is unable to unroll loops, resulting in an even slower inference compared to eager: https://github.com/pytorch/pytorch/issues/113773
@@ -73,7 +77,7 @@ class CohereRotary(PositionRotaryEmbedding):
             head_size = query.shape[-1]
 
             # Inplace operation, updating query and key.
-            pos_encoding_ops.rotary_embedding(query, key, head_size, cos, sin, False)
+            ops.rotary_embedding(query, key, head_size, cos, sin, False)
         else:
             raise ValueError(
                 "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
@@ -90,7 +94,7 @@ class CohereLayerNorm(nn.Module):
         self.eps = eps
 
     def forward(self, hidden_states):
-        if hidden_states.shape[-1] > 8192 or IS_ROCM_SYSTEM:
+        if hidden_states.shape[-1] > 8192 or SYSTEM == "rocm":
             hidden_states = hidden_states.reshape(
                 -1, self.weight.shape[0], self.weight.shape[1]
             )

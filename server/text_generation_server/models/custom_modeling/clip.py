@@ -15,7 +15,7 @@ from transformers.modeling_outputs import (
 )
 from transformers import CLIPConfig, CLIPTextConfig, CLIPVisionConfig
 
-from text_generation_server.utils.layers import (
+from text_generation_server.layers import (
     TensorParallelEmbedding,
     TensorParallelColumnLinear,
     TensorParallelRowLinear,

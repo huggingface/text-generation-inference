@@ -13,8 +13,11 @@ from opentelemetry import trace
 from transformers import PreTrainedTokenizerBase
 from typing import Optional, Tuple, List, Type, Dict
 
+from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
 from text_generation_server.utils.tokens import batch_top_tokens
+from text_generation_server.utils.dist import RANK
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.models.types import (
     Batch,
@@ -29,15 +32,17 @@ from text_generation_server.models.cache_manager import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.globals import MEM_POOL, CUDA_GRAPHS
+import text_generation_server.models.globals as tgi_globals
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 
-tracer = trace.get_tracer(__name__)
 from text_generation_server.utils.import_utils import (
-    IS_CUDA_SYSTEM,
-    IS_ROCM_SYSTEM,
-    IS_XPU_SYSTEM,
+    empty_cache,
+    synchronize,
+    get_free_memory,
 )
+
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -133,6 +138,17 @@ class FlashCausalLMBatch(Batch):
         device: torch.device,
     ) -> "FlashCausalLMBatch":
         batch_tokenized_inputs = cls.batch_tokenized_inputs(pb.requests, tokenizer)
+        return cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
+
+    @classmethod
+    def from_tokenized(
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        batch_tokenized_inputs,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "FlashCausalLMBatch":
         position_ids = []
         speculative_ids = []
         cu_seqlen_prefill = [0]
@@ -207,6 +223,7 @@ class FlashCausalLMBatch(Batch):
             # Paged attention
             # Remove one as the first token des not have a past
             speculative_length = get_speculate()
+            speculative_length = 0 if speculative_length is None else speculative_length
             total_tokens = input_length + max_new_tokens - 1 + speculative_length
             needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
             blocks += needed_blocks
@@ -757,10 +774,8 @@ class FlashCausalLM(Model):
 
     def warmup(self, batch: FlashCausalLMBatch):
         # The warmup batch is the biggest batch we could ever receive
-        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
-            torch.cuda.empty_cache()
-        elif IS_XPU_SYSTEM:
-            torch.xpu.empty_cache()
+        empty_cache()
+
         try:
             cache_manager = set_cache_manager(
                 batch.blocks,
@@ -773,6 +788,9 @@ class FlashCausalLM(Model):
             )
             max_bt = batch.max_blocks
             max_s = max_bt * get_cache_manager().block_size
+
+            if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
+                torch.cuda.tunable.tuning_enable(False)
             _, batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
@@ -780,10 +798,7 @@ class FlashCausalLM(Model):
                 f"You need to decrease `--max-batch-prefill-tokens`"
             ) from e
 
-        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
-            torch.cuda.synchronize(self.device)
-        elif IS_XPU_SYSTEM:
-            torch.xpu.synchronize(self.device)
+        synchronize(self.device)
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
@@ -791,20 +806,7 @@ class FlashCausalLM(Model):
         cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
-        if IS_CUDA_SYSTEM or IS_ROCM_SYSTEM:
-            total_free_memory, _ = torch.cuda.mem_get_info(self.device)
-            total_gpu_memory = torch.cuda.get_device_properties(
-                self.device
-            ).total_memory
-
-            free_memory = max(
-                0, total_free_memory - (1 - MEMORY_FRACTION) * total_gpu_memory
-            )
-        elif IS_XPU_SYSTEM:
-            total_gpu_memory = torch.xpu.get_device_properties(self.device).total_memory
-            free_memory = int(total_gpu_memory * 0.5)
-        else:
-            raise NotImplementedError("FlashModel is only available on GPU")
+        free_memory = get_free_memory(self.device, MEMORY_FRACTION)
 
         num_blocks = (
             # Leave 5% for some wiggle room
@@ -826,6 +828,49 @@ class FlashCausalLM(Model):
             self.device,
         )
 
+        if SYSTEM == "rocm":
+            if (
+                os.environ.get("PYTORCH_TUNABLEOP_ENABLED") is None
+                or os.environ.get("PYTORCH_TUNABLEOP_ENABLED") == "1"
+            ):
+                if os.environ.get("PYTORCH_TUNABLEOP_TUNING") != "0":
+                    torch.cuda.tunable.tuning_enable(True)
+
+                if os.environ.get("PYTORCH_TUNABLEOP_SEQLENS") is not None:
+                    tuning_sequences = [
+                        int(val)
+                        for val in os.environ["PYTORCH_TUNABLEOP_SEQLENS"].split(",")
+                    ]
+                else:
+                    tuning_sequences = CUDA_GRAPHS
+
+                tunableop_filepath = os.path.join(
+                    HUGGINGFACE_HUB_CACHE,
+                    f"tunableop_{tgi_globals.MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
+                )
+
+                logger.info(
+                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`."
+                )
+
+                if os.path.isfile(tunableop_filepath):
+                    logger.info(
+                        f"The file {tunableop_filepath} already exists and will be reused."
+                    )
+                    torch.cuda.tunable.read_file(tunableop_filepath)
+
+                os.makedirs(HUGGINGFACE_HUB_CACHE, exist_ok=True)
+
+                for seqlen in tuning_sequences:
+                    logger.info(f"Warming up TunableOp for seqlen={seqlen}")
+                    self.tunableop_warmup(seqlen)
+                    torch.cuda.tunable.write_file(tunableop_filepath)
+                torch.cuda.tunable.tuning_enable(False)
+            else:
+                logger.info(
+                    "PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp."
+                )
+
         if CUDA_GRAPHS:
             try:
                 logger.info(f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}")
@@ -839,6 +884,30 @@ class FlashCausalLM(Model):
             logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
         return int(num_blocks * BLOCK_SIZE)
+
+    def tunableop_warmup(self, seqlen: int):
+        input_ids = torch.zeros(seqlen, dtype=torch.int64, device=self.device)
+        position_ids = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
+        slots = torch.arange(seqlen, dtype=torch.int64, device=self.device)
+        kv_cache = get_cache_manager().kv_cache
+
+        # Dummy value, some models (starcoder2) don't accept `None`.
+        input_lengths = torch.ones(seqlen, dtype=torch.int32, device=self.device)
+
+        # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
+        self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=torch.tensor(
+                [0, seqlen], device=self.device, dtype=torch.int32
+            ),
+            kv_cache=get_cache_manager().kv_cache,
+            block_tables=None,
+            input_lengths=input_lengths,
+            slots=slots,
+            max_s=seqlen,
+            lm_head_indices=None,
+        )
 
     def forward(
         self, batch: FlashCausalLMBatch
@@ -1118,6 +1187,10 @@ class FlashCausalLM(Model):
             # Append next token to all tokens
             next_token_texts = []
             left = 0
+
+            if n_accepted_ids > 1:
+                if RANK == 0:
+                    logger.debug(f"Speculated ids {n_accepted_ids - 1}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):
