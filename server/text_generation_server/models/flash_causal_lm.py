@@ -1027,6 +1027,7 @@ class FlashCausalLM(Model):
                 create_decode_state,
                 create_prefill_with_paged_kv_state,
             )
+
             self.prefill_state = create_prefill_state(device=device)
             self.prefill_with_paged_kv_state = create_prefill_with_paged_kv_state(
                 device=device
