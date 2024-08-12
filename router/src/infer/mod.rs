@@ -337,6 +337,8 @@ pub enum InferError {
     IncompleteGeneration,
     #[error("Template error: {0}")]
     TemplateError(#[from] minijinja::Error),
+    #[error("Missing template vatiable: {0}")]
+    MissingTemplateVariable(String),
     #[error("Tool error: {0}")]
     ToolError(String),
 }
@@ -349,6 +351,7 @@ impl InferError {
             InferError::ValidationError(_) => "validation",
             InferError::IncompleteGeneration => "incomplete_generation",
             InferError::TemplateError(_) => "template_error",
+            InferError::MissingTemplateVariable(_) => "missing_template_variable",
             InferError::ToolError(_) => "tool_error",
         }
     }
