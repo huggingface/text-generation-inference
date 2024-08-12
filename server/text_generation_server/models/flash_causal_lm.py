@@ -20,9 +20,6 @@ from typing import Any, ContextManager, Iterable, Optional, Tuple, List, Type, D
 
 from text_generation_server.adapters import AdapterBatchData, AdapterBatchMetadata
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
-from text_generation_server.layers.attention.flash_infer import (
-    create_prefill_with_paged_kv_state,
-)
 from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
@@ -1028,8 +1025,8 @@ class FlashCausalLM(Model):
             from text_generation_server.layers.attention.flash_infer import (
                 create_prefill_state,
                 create_decode_state,
+                create_prefill_with_paged_kv_state,
             )
-
             self.prefill_state = create_prefill_state(device=device)
             self.prefill_with_paged_kv_state = create_prefill_with_paged_kv_state(
                 device=device
