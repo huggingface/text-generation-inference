@@ -70,6 +70,10 @@
                 torch
                 transformers
                 vllm
+
+                (callPackage ./router.nix {
+                  inherit (rustPlatform) buildRustPackage importCargoLock;
+                })
               ]);
 
             venvDir = "./.venv";
