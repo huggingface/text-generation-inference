@@ -1824,13 +1824,20 @@
         "type": "object",
         "required": [
           "finish_reason",
-          "generated_tokens"
+          "generated_tokens",
+          "input_length"
         ],
         "properties": {
           "finish_reason": {
             "$ref": "#/components/schemas/FinishReason"
           },
           "generated_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "example": 1,
+            "minimum": 0
+          },
+          "input_length": {
             "type": "integer",
             "format": "int32",
             "example": 1,
