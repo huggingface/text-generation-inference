@@ -76,7 +76,7 @@ def paged_attention(
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
     if ATTENTION == "flashinfer":
-        from text_generation_server.layers.attention.flash_infer import decode_state
+        from text_generation_server.layers.attention.flashinfer import decode_state
 
         return decode_state.get().forward(
             query.contiguous(),
@@ -234,7 +234,7 @@ if ATTENTION == "flashinfer":
         softcap=0.0,
     ):
         assert window_size_left == -1, "Windowing is not supported with flash infer"
-        from text_generation_server.layers.attention.flash_infer import (
+        from text_generation_server.layers.attention.flashinfer import (
             prefill_with_paged_kv_state,
         )
 
