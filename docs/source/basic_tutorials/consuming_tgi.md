@@ -2,7 +2,7 @@
 
 There are many ways to consume Text Generation Inference (TGI) server in your applications. After launching the server, you can use the [Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) `/v1/chat/completions` route and make a `POST` request to get results from the server. You can also pass `"stream": true` to the call if you want TGI to return a stream of tokens. While `/generate` and `/generate_stream` are still available, the Messages API is recommended as it automatically applies the chat template.
 
-For more information on the API, consult the OpenAPI documentation of the `text-generation-inference` available [here](https://huggingface.github.io/text-generation-inference).
+For more information on the API, consult the OpenAPI documentation of `text-generation-inference` available [here](https://huggingface.github.io/text-generation-inference).
 
 You can make the requests using any tool of your preference, such as curl, Python or TypeScript. For an end-to-end experience, we've open-sourced ChatUI, a chat interface for open-source models.
 
@@ -31,13 +31,13 @@ curl -N localhost:3000/v1/chat/completions \
     -H 'Content-Type: application/json'
 ```
 
-You can update the `stream` parameter to `false` to get a non-streaming response.
+You can set the `stream` parameter to `false` to get a non-streaming response.
 
 ## Python
 
 ### OpenAI Client
 
-You can directly use the OpenAI [Python](https://github.com/openai/openai-python)/ [JS](https://github.com/openai/openai-node) client to interact with TGI.
+You can directly use the OpenAI [Python](https://github.com/openai/openai-python) or [JS](https://github.com/openai/openai-node) clients to interact with TGI.
 
 Install the OpenAI Python package via pip. 
 
@@ -70,15 +70,15 @@ for message in chat_completion:
 
 ### Inference Client
 
-[`huggingface-hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with the Hugging Face Hub, including its endpoints. It provides a high-level class, [`~huggingface_hub.InferenceClient`], which makes it easy to make calls to TGI's Messages API. `InferenceClient` also takes care of parameter validation and provides a simple to-use interface.
+[`huggingface-hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with the Hugging Face Hub, including its endpoints. It provides a high-level class, [`huggingface_hub.InferenceClient`](https://huggingface.co/docs/huggingface_hub/package_reference/inference_client#huggingface_hub.InferenceClient), which makes it easy to make calls to TGI's Messages API. `InferenceClient` also takes care of parameter validation and provides a simple to-use interface.
 
-Install `huggingface-hub` package via pip.
+Install `huggingface_hub` package via pip.
 
 ```bash
-pip install huggingface-hub
+pip install huggingface_hub
 ```
 
-Once you start the TGI server, instantiate `InferenceClient()` with the URL to the endpoint serving the model. You can then call `text_generation()` to hit the endpoint through Python.
+You can now use `InferenceClient` the exact same way you would use `OpenAI` client in Python
 
 ```python
 - from openai import OpenAI
@@ -105,7 +105,9 @@ for chunk in output:
     print(chunk.choices[0].delta.content)
 ```
 
-You can check out more details [here](https://huggingface.co/docs/huggingface_hub/en/guides/inference#openai-compatibility). There is also an async version of the client, `AsyncInferenceClient`, based on `asyncio` and `aiohttp`. You can find docs for it [here](https://huggingface.co/docs/huggingface_hub/package_reference/inference_client#huggingface_hub.AsyncInferenceClient)
+You can check out more details about OpenAI compatibility [here](https://huggingface.co/docs/huggingface_hub/en/guides/inference#openai-compatibility).
+
+There is also an async version of the client, `AsyncInferenceClient`, based on `asyncio` and `aiohttp`. You can find docs for it [here](https://huggingface.co/docs/huggingface_hub/package_reference/inference_client#huggingface_hub.AsyncInferenceClient)
 
 ## UI
 

@@ -50,7 +50,6 @@ from huggingface_hub import InferenceClient
 
 client = InferenceClient("http://127.0.0.1:8080")
 output = client.chat.completions.create(
-    model="tgi",
     messages=[
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Count to 10"},
@@ -82,7 +81,6 @@ from huggingface_hub import AsyncInferenceClient
 client = AsyncInferenceClient("http://127.0.0.1:8080")
 async def main():
     stream = await client.chat.completions.create(
-        model="tgi",
         messages=[{"role": "user", "content": "Say this is a test"}],
         stream=True,
     )
