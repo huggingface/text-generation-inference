@@ -1,10 +1,10 @@
 # Consuming Text Generation Inference
 
-There are many ways to consume Text Generation Inference (TGI) server in your applications. After launching the server, you can use the [Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) `/v1/chat/completions` route and make a `POST` request to get results from the server. You can also pass `"stream": true` to the call if you want TGI to return a stream of tokens. You can make the requests using the tool of your preference, such as curl, Python or TypeScript. For a final end-to-end experience, we have also open-sourced ChatUI, a chat interface for open-source models.
+There are many ways to consume Text Generation Inference (TGI) server in your applications. After launching the server, you can use the [Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) `/v1/chat/completions` route and make a `POST` request to get results from the server. You can also pass `"stream": true` to the call if you want TGI to return a stream of tokens. You can make the requests using the tool of your preference, such as curl, Python or TypeScript. For a final end-to-end experience, we have also [open-sourced ChatUI](https://github.com/huggingface/chat-ui), a chat interface for open-source models.
 
 ## curl
 
-After a successful server launch, you can query the model using the `v1/chat/completions` route to get OpenAI Chat Completion API spec compliant responses:
+After a successful server launch, you can query the model using the `v1/chat/completions` route, to get responses that are compliant to the OpenAI Chat Completion spec:
 
 ```bash
 curl localhost:3000/v1/chat/completions \
