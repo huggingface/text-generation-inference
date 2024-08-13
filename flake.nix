@@ -81,6 +81,7 @@
                 grpcio-status
                 grpcio-tools
                 hf-transfer
+                ipdb
                 loguru
                 mamba-ssm
                 marlin-kernels
