@@ -66,6 +66,7 @@
                 venvShellHook
                 pip
 
+                causal-conv1d
                 click
                 einops
                 fbgemm-gpu
@@ -79,6 +80,7 @@
                 grpcio-tools
                 hf-transfer
                 loguru
+                mamba-ssm
                 marlin-kernels
                 opentelemetry-api
                 opentelemetry-exporter-otlp
