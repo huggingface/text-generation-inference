@@ -12,6 +12,7 @@ void huggingface::tgi::backends::InitializeBackend() {
     nvmlInit_v2();
     initTrtLlmPlugins();
 
+    SPDLOG_INFO("Backend Executor Version: {}", tle::version());
     const auto numGpus = huggingface::hardware::cuda::GetNumDevices();
     if (numGpus.has_value()) {
         SPDLOG_INFO("Detected {:d} Nvidia GPU(s)", numGpus.value());
@@ -22,7 +23,7 @@ void huggingface::tgi::backends::InitializeBackend() {
 
 [[nodiscard]]
 tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &config, const std::string &workerPath) {
-    tle::ExecutorConfig execConfig(1);
+    tle::ExecutorConfig execConfig(/* maxBeamWidth = */ 1);
 
     // Retrieve the compute capabilities to enable some options at runtime
     const auto computeCapabilities = huggingface::hardware::cuda::GetCudaComputeCapabilities();
@@ -55,12 +56,12 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
 }
 
 tle::SamplingConfig huggingface::tgi::backends::GetSamplingConfig(
-        uint32_t topK,
-        float_t topP,
-        float_t temperature,
-        float_t repetition_penalty,
-        float_t frequency_penalty,
-        uint64_t seed) {
+        const uint32_t topK,
+        const float_t topP,
+        const float_t temperature,
+        const float_t repetition_penalty,
+        const float_t frequency_penalty,
+        const uint64_t seed) noexcept {
     return tle::SamplingConfig(
             1,  // TGI only use a single beam
             topK,
@@ -83,16 +84,9 @@ huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
         const std::filesystem::path &executorWorker
 ) :
         config(json::parse(std::ifstream(enginesFolder / "config.json"))),
-        executor(
-                enginesFolder,
-                tensorrt_llm::executor::ModelType::kDECODER_ONLY,
-                GetExecutorConfig(config, executorWorker.string()
-                )) {
+        executor(enginesFolder, tensorrt_llm::executor::ModelType::kDECODER_ONLY,
+                 GetExecutorConfig(config, executorWorker.string())) {
     SPDLOG_INFO(FMT_STRING("Engine (version={})"), config["/version"_json_pointer].get_ref<const std::string &>());
-}
-
-bool huggingface::tgi::backends::TensorRtLlmBackend::IsReady() const {
-    return executor.canEnqueueRequests();
 }
 
 [[nodiscard("Returned number of requests needs to be consumed")]]
@@ -103,6 +97,7 @@ size_t huggingface::tgi::backends::TensorRtLlmBackend::NumResponsesReady() const
 [[nodiscard("Returned request id needs to be provided back to gather generated tokens")]]
 tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const std::vector<tle::TokenIdType> &tokens,
+        const uint32_t maxNewTokens,
         const int32_t topK,
         const float_t topP,
         const float_t temperature,
@@ -124,23 +119,14 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
     );
 #endif
 
-    const auto maxNumTokens = config["/build_config/max_num_tokens"_json_pointer].get<size_t>();
-    const auto maxNewTokens = static_cast<int32_t>(std::max(1ul, maxNumTokens - tokens.size()));
+    const auto maxNumTokens = config["/build_config/max_num_tokens"_json_pointer].get<uint64_t>();
+    const auto maxNewTokensChecked = static_cast<tle::SizeType32>(
+            std::min(maxNewTokens, static_cast<uint32_t>(maxNumTokens - tokens.size())));
 
     const auto sampling = GetSamplingConfig(topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
-    const auto output = tle::OutputConfig(true, false, false, true, false);
-    return executor.enqueueRequest(
-            tle::Request{tokens, maxNewTokens, true, sampling, output});
+    return executor.enqueueRequest(tle::Request{tokens, maxNewTokensChecked, true, sampling, OUTPUT_CONFIG});
 }
 
-[[nodiscard("Generated tokens result must be used")]]
-std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::Poll(const tle::IdType requestId) {
-    SPDLOG_DEBUG(FMT_STRING("Polling status for request {:d}"), requestId);
-    return executor.awaitResponses(requestId);
-}
-
-
-void huggingface::tgi::backends::TensorRtLlmBackend::Shutdown() {
-    SPDLOG_INFO("Shutting down executor");
-    executor.shutdown();
+std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::PullNewTokens() {
+    return std::move(executor.awaitResponses());
 }

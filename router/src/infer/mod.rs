@@ -341,6 +341,8 @@ pub enum InferError {
     MissingTemplateVariable(String),
     #[error("Tool error: {0}")]
     ToolError(String),
+    #[error("Scheduling error: {0}")]
+    SchedulingError(String),
 }
 
 impl InferError {
@@ -353,6 +355,7 @@ impl InferError {
             InferError::TemplateError(_) => "template_error",
             InferError::MissingTemplateVariable(_) => "missing_template_variable",
             InferError::ToolError(_) => "tool_error",
+            InferError::SchedulingError(_) => "schedling"
         }
     }
 }
