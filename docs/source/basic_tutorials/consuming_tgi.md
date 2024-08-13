@@ -127,8 +127,18 @@ client = InferenceClient(model="http://127.0.0.1:8080")
 
 def inference(message, history):
     partial_message = ""
-    for token in client.text_generation(message, max_new_tokens=20, stream=True):
-        partial_message += token
+    output = client.chat.completions.create(
+        model="tgi",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": message},
+        ],
+        stream=True,
+        max_tokens=1024,
+    )
+    
+    for chunk in output:
+        partial_message += chunk.choices[0].delta.content
         yield partial_message
 
 gr.ChatInterface(
