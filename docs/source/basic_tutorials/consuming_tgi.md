@@ -29,6 +29,33 @@ curl localhost:3000/v1/chat/completions \
 
 You can update the `stream` parameter to `false` to get a non-streaming response.
 
+## OpenAI Client
+
+You can directly use the OpenAI Python/ JS client to interact with TGI.
+
+```python
+from openai import OpenAI
+
+# init the client but point it to TGI
+client = OpenAI(
+    base_url="http://localhost:3000/v1/",
+    api_key="-"
+)
+
+chat_completion = client.chat.completions.create(
+    model="tgi",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant." },
+        {"role": "user", "content": "What is deep learning?"}
+    ],
+    stream=True
+)
+
+# iterate and print stream
+for message in chat_completion:
+    print(message)
+```
+
 ## Inference Client
 
 [`huggingface-hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with the Hugging Face Hub, including its endpoints. It provides a nice high-level class, [`~huggingface_hub.InferenceClient`], which makes it easy to make calls to a TGI endpoint. `InferenceClient` also takes care of parameter validation and provides a simple to-use interface.
