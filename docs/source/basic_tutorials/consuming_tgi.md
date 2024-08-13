@@ -8,7 +8,7 @@ You can make the requests using any tool of your preference, such as curl, Pytho
 
 ## curl
 
-After a successful server launch, you can query the model using the `v1/chat/completions` route to get OpenAI Chat Completion API spec compliant responses:
+After a successful server launch, you can query the model using the `v1/chat/completions` route, to get responses that are compliant to the OpenAI Chat Completion spec:
 
 ```bash
 curl -N localhost:3000/v1/chat/completions \
