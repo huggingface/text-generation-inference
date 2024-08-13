@@ -1412,7 +1412,7 @@ class FlashCausalLM(Model):
             ).view(-1)
             prefix_lens_tensor = (
                 batch.prefix_lens_tensor.unsqueeze(-1).expand(B, new_length)
-            ).view(-1)
+            ).reshape(-1)
 
             # Add Copy the block tables for all members
             block_tables = (
