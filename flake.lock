@@ -763,11 +763,11 @@
         "treefmt-nix": "treefmt-nix"
       },
       "locked": {
-        "lastModified": 1723343306,
-        "narHash": "sha256-/6sRkPq7/5weX2y0V8sQ29Sz35nt8kyj+BsFtkhgbJE=",
+        "lastModified": 1723512448,
+        "narHash": "sha256-VSTtxGKre1p6zd6ACuBmfDcR+BT9+ml8Y3KrSbfGFYU=",
         "owner": "nix-community",
         "repo": "poetry2nix",
-        "rev": "4a1c112ff0c67f496573dc345bd0b2247818fc29",
+        "rev": "ed52f844c4dd04dde45550c3189529854384124e",
         "type": "github"
       },
       "original": {
@@ -897,11 +897,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1723429325,
-        "narHash": "sha256-4x/32xTCd+xCwFoI/kKSiCr5LQA2ZlyTRYXKEni5HR8=",
+        "lastModified": 1723515680,
+        "narHash": "sha256-nHdKymsHCVIh0Wdm4MvSgxcTTg34FJIYHRQkQYaSuvk=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "65e3dc0fe079fe8df087cd38f1fe6836a0373aad",
+        "rev": "4ee3d9e9569f70d7bb40f28804d6fe950c81eab3",
         "type": "github"
       },
       "original": {
@@ -1035,11 +1035,11 @@
         "nixpkgs": "nixpkgs_7"
       },
       "locked": {
-        "lastModified": 1723450799,
-        "narHash": "sha256-cuT/ce7R2D5Lx6Ted4YS4y+WrAAOXQFAbzLsM1vtPo8=",
+        "lastModified": 1723532088,
+        "narHash": "sha256-6h/P/BkFDw8txlikonKXp5IbluHSPhHJTQRftJLkbLQ=",
         "owner": "danieldk",
         "repo": "tgi-nix",
-        "rev": "29f9b45bd613eced65c4a5241a00aa9346f63d90",
+        "rev": "32335a37ce0f703bab901baf7b74eb11e9972d5f",
         "type": "github"
       },
       "original": {
