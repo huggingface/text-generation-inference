@@ -130,7 +130,6 @@ client = InferenceClient(model="http://127.0.0.1:8080")
 def inference(message, history):
     partial_message = ""
     output = client.chat.completions.create(
-        model="tgi",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": message},
