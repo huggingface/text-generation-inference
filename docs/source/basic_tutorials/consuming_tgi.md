@@ -1,18 +1,33 @@
 # Consuming Text Generation Inference
 
-There are many ways you can consume Text Generation Inference server in your applications. After launching, you can use the `/generate` route and make a `POST` request to get results from the server. You can also use the `/generate_stream` route if you want TGI to return a stream of tokens. You can make the requests using the tool of your preference, such as curl, Python or TypeScrpt. For a final end-to-end experience, we also open-sourced ChatUI, a chat interface for open-source models.
+There are many ways to consume Text Generation Inference (TGI) server in your applications. After launching the server, you can use the [Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) `/v1/chat/completions` route and make a `POST` request to get results from the server. You can also pass `"stream": true` to the call if you want TGI to return a stream of tokens. You can make the requests using the tool of your preference, such as curl, Python or TypeScript. For a final end-to-end experience, we have also open-sourced ChatUI, a chat interface for open-source models.
 
 ## curl
 
-After the launch, you can query the model using either the `/generate` or `/generate_stream` routes:
+After a successful server launch, you can query the model using the `v1/chat/completions` route to get OpenAI Chat Completion API spec compliant responses:
 
 ```bash
-curl 127.0.0.1:8080/generate \
+curl localhost:3000/v1/chat/completions \
     -X POST \
-    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
+    -d '{
+  "model": "tgi",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "What is deep learning?"
+    }
+  ],
+  "stream": true,
+  "max_tokens": 20
+}' \
     -H 'Content-Type: application/json'
 ```
 
+You can update the `stream` parameter to `false` to get a non-streaming response.
 
 ## Inference Client
 
