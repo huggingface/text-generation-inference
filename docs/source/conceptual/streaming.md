@@ -48,7 +48,7 @@ To stream tokens with `InferenceClient`, simply pass `stream=True` and iterate o
 ```python
 from huggingface_hub import InferenceClient
 
-client = InferenceClient("http://127.0.0.1:8080")
+client = InferenceClient(base_url="http://127.0.0.1:8080")
 output = client.chat.completions.create(
     messages=[
         {"role": "system", "content": "You are a helpful assistant."},
@@ -78,7 +78,7 @@ The `huggingface_hub` library also comes with an `AsyncInferenceClient` in case 
 ```python
 from huggingface_hub import AsyncInferenceClient
 
-client = AsyncInferenceClient("http://127.0.0.1:8080")
+client = AsyncInferenceClient(base_url="http://127.0.0.1:8080")
 async def main():
     stream = await client.chat.completions.create(
         messages=[{"role": "user", "content": "Say this is a test"}],

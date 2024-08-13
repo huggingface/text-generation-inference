@@ -125,7 +125,7 @@ Assume you are serving your model on port 8080, we will query through [Inference
 import gradio as gr
 from huggingface_hub import InferenceClient
 
-client = InferenceClient(model="http://127.0.0.1:8080")
+client = InferenceClient(base_url="http://127.0.0.1:8080")
 
 def inference(message, history):
     partial_message = ""
