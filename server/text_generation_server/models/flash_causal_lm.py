@@ -1507,7 +1507,7 @@ class FlashCausalLM(Model):
             input_lengths_tensor=cuda_graph["input_lengths"],
             prefix_lens=batch.prefix_lens,
             prefix_lens_tensor=prefix_lens_tensor,
-            state=cuda_graph["state"],
+            state=cuda_graph.get("state"),
         ):
             # Replay the graph
             cuda_graph["graph"].replay()
