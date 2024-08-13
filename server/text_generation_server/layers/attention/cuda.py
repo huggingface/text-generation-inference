@@ -293,6 +293,7 @@ else:
         max_s,
         softmax_scale,
         window_size_left=-1,
+        causal=None,
         softcap=None,
     ):
         if window_size_left != -1:
