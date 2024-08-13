@@ -74,6 +74,36 @@ def get_sliding_windows() -> int:
     return SLIDING_WINDOW
 
 
+def init_cpu_threads_env(rank_id: int, world_size: int):
+    import importlib.util
+
+    if importlib.util.find_spec("numa") is not None:
+        import numa
+        import psutil
+
+        nodes = numa.get_max_node() + 1
+        rank_per_node = math.ceil(world_size / nodes)
+        num_cpus_per_nodes = int(psutil.cpu_count(logical=False) / nodes)
+        node_id = int(rank_id / rank_per_node)
+        rank_offset_per_node = rank_id % rank_per_node
+        if os.getenv("OMP_NUM_THREADS") is None:
+            num_cpus_per_rank = max(int(num_cpus_per_nodes / rank_per_node), 1)
+        else:
+            num_cpus_per_rank = int(os.getenv("OMP_NUM_THREADS"))
+        if len(numa.get_membind()) == nodes:
+            numa.set_membind([node_id])
+        torch.set_num_threads(num_cpus_per_rank)
+        if len(numa.get_affinity(0)) == psutil.cpu_count(logical=True):
+            cpu_start = num_cpus_per_rank * rank_offset_per_node
+            numa.set_affinity(
+                0,
+                list(numa.node_to_cpus(node_id))[
+                    cpu_start : cpu_start + num_cpus_per_rank
+                ],
+            )
+        logger.info(f"affinity={numa.get_affinity(0)}, membind = {numa.get_membind()}")
+
+
 @dataclass
 class FlashCausalLMBatch(Batch):
     batch_id: int
@@ -854,6 +884,7 @@ class FlashCausalLM(Model):
                 device = torch.device("cpu")
                 # Float16 doesn't exist on target.
                 dtype = torch.bfloat16 if dtype is None else dtype
+                init_cpu_threads_env(rank_id=rank, world_size=world_size)
         else:
             raise NotImplementedError(f"{model_class} is only available on GPU")
 
