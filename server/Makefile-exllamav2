@@ -1,7 +1,7 @@
-exllamav2_commit := v0.1.8
+exllamav2_commit := 872386c89eaebe0bde5b245a890f1da9522768b3
 
 build-exllamav2:
-	git clone https://github.com/turboderp/exllamav2.git exllamav2 && \
+	git clone https://github.com/Narsil/exllamav2.git exllamav2 && \
 	cd exllamav2 && git fetch && git checkout $(exllamav2_commit)  && \
 	git submodule update --init --recursive && \
 	pip install -r requirements.txt && \

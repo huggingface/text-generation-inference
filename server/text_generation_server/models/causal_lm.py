@@ -652,6 +652,7 @@ class CausalLM(Model):
             dtype=dtype,
             device=device,
         )
+        self.quantize = quantize
         return self
 
     @property

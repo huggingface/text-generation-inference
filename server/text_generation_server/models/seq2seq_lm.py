@@ -676,6 +676,7 @@ class Seq2SeqLM(Model):
             dtype=dtype,
             device=device,
         )
+        self.quantize = quantize
         return self
 
     @property
