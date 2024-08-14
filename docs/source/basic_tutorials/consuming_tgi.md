@@ -4,7 +4,7 @@ There are many ways to consume Text Generation Inference (TGI) server in your ap
 
 For more information on the API, consult the OpenAPI documentation of `text-generation-inference` available [here](https://huggingface.github.io/text-generation-inference).
 
-You can make the requests using any tool of your preference, such as curl, Python, or TypeScript. For an end-to-end experience, we've open-sourced ChatUI, a chat interface for open-access models.
+You can make the requests using any tool of your preference, such as curl, Python, or TypeScript. For an end-to-end experience, we've open-sourced [ChatUI](https://github.com/huggingface/chat-ui), a chat interface for open-access models.
 
 ## curl
 
