@@ -9,7 +9,7 @@ backends/client/src/v3/pb
 
 # ROCm auto-generated files
 *.hip
-server/exllamav2_kernels/exllamav2_kernels/hip/
+server/exllamav2
 server/exllama_kernels/exllama_kernels/hip/
 server/exllama_kernels/exllama_kernels/hip_func/
 *_hip.cuh

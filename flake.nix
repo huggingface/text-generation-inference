@@ -93,6 +93,7 @@
                 causal-conv1d
                 click
                 einops
+                exllamav2
                 fbgemm-gpu
                 flashinfer
                 flash-attn
