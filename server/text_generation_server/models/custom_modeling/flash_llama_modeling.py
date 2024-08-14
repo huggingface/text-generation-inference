@@ -515,9 +515,7 @@ class FlashLlamaModel(torch.nn.Module):
             self.layers.append(
                 FlashLlamaLayer(
                     index=0,
-                    prefix=(
-                        "model.layers.0" if not prefix else f"{prefix}.model.layers.0"
-                    ),
+                    prefix=("model.layers.0" if not prefix else f"{prefix}.layers.0"),
                     config=config,
                     weights=weights,
                 )
@@ -564,7 +562,7 @@ class FlashLlamaModel(torch.nn.Module):
                     prefix=(
                         f"model.layers.{last_layer_id}"
                         if not prefix
-                        else f"{prefix}.model.layers.{last_layer_id}"
+                        else f"{prefix}.layers.{last_layer_id}"
                     ),
                     config=config,
                     weights=weights,
@@ -572,7 +570,7 @@ class FlashLlamaModel(torch.nn.Module):
             )
 
         self.norm = FastRMSNorm.load(
-            prefix="model.norm" if not prefix else f"{prefix}.model.norm",
+            prefix="model.norm" if not prefix else f"{prefix}.norm",
             weights=weights,
             eps=config.rms_norm_eps,
         )
@@ -635,9 +633,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         with no_fp8(weights):
             self.embed_tokens = TensorParallelEmbedding(
                 prefix=(
-                    "model.embed_tokens"
-                    if not prefix
-                    else f"{prefix}.model.embed_tokens"
+                    "model.embed_tokens" if not prefix else f"{prefix}.embed_tokens"
                 ),
                 weights=weights,
             )
@@ -655,7 +651,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         with no_fp8(weights):
             self.lm_head = SpeculativeHead.load(
                 config,
-                prefix=suffix if not prefix else f"{prefix}.{suffix}",
+                prefix=suffix,
                 weights=weights,
             )
 

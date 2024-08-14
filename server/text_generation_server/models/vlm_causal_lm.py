@@ -54,6 +54,10 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         if processor.image_processor.do_image_splitting:
             image_str *= 5
         return image_str
+    if config.model_type == "idefics3":
+        image_str = f"{IDEFICS2_FAKE_TOKEN}{IDEFICS2_IMAGE_TOKEN}{IDEFICS2_FAKE_TOKEN}"
+        image_str = ""
+        return image_str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
@@ -288,6 +292,7 @@ class VlmCausalLM(FlashCausalLM):
             **processor_kwargs,
         )
         self.batch_class = batch_class
+        # import ipdb; ipdb.set_trace()
         super().__init__(
             model_id=model_id,
             revision=revision,

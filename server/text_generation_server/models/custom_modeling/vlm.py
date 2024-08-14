@@ -4,7 +4,7 @@ def load_text_model(prefix, config, weights, name=None):
             FlashLlamaForCausalLM,
         )
 
-        return FlashLlamaForCausalLM(prefix, config, weights)
+        return FlashLlamaForCausalLM(f"{prefix}.text_model", config, weights)
     elif config.model_type == "mistral":
         from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
             FlashMistralForCausalLM,

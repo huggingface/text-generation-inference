@@ -151,6 +151,7 @@ try:
     )
     from text_generation_server.models.custom_modeling.idefics2 import (
         Idefics2ForConditionalGeneration,
+        Idefics3ForConditionalGeneration,
     )
     from text_generation_server.models.custom_modeling.qwen2_vl import (
         Qwen2VLForConditionalGeneration,
@@ -186,6 +187,12 @@ class ModelType(enum.Enum):
         "type": "idefics2",
         "name": "Idefics 2",
         "url": "https://huggingface.co/HuggingFaceM4/idefics2-8b",
+        "multimodal": True,
+    }
+    IDEFICS3 = {
+        "type": "idefics3",
+        "name": "Idefics 3",
+        "url": "https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3",
         "multimodal": True,
     }
     LLAVA_NEXT = {
@@ -1245,6 +1252,23 @@ def get_model(
                 speculator=speculator,
                 dtype=dtype,
                 kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                # XXX: Extremely important to cap resolution in order to limit
+                # VRAM usage.
+                processor_kwargs={"size": {"longest_edge": 448, "shortest_edge": 378}},
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+    if model_type == IDEFICS3:
+        if FLASH_ATTENTION:
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Idefics3ForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 # XXX: Extremely important to cap resolution in order to limit
