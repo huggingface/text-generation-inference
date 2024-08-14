@@ -1,4 +1,9 @@
-{ mkPoetryApplication, pkg-config, protobuf, openssl }:
+{
+  mkPoetryApplication,
+  pkg-config,
+  protobuf,
+  openssl,
+}:
 
 mkPoetryApplication {
   # name = "text-generation-server";
