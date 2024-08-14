@@ -1,6 +1,6 @@
 # Consuming Text Generation Inference
 
-There are many ways to consume Text Generation Inference (TGI) server in your applications. After launching the server, you can use the [Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) `/v1/chat/completions` route and make a `POST` request to get results from the server. You can also pass `"stream": true` to the call if you want TGI to return a stream of tokens. While `/generate` and `/generate_stream` are still available, the Messages API is recommended as it automatically applies the chat template.
+There are many ways to consume Text Generation Inference (TGI) server in your applications. After launching the server, you can use the [Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) `/v1/chat/completions` route and make a `POST` request to get results from the server. You can also pass `"stream": true` to the call if you want TGI to return a stream of tokens.
 
 For more information on the API, consult the OpenAPI documentation of `text-generation-inference` available [here](https://huggingface.github.io/text-generation-inference).
 
@@ -30,8 +30,6 @@ curl -N localhost:3000/v1/chat/completions \
 }' \
     -H 'Content-Type: application/json'
 ```
-
-You can set the `stream` parameter to `false` to get a non-streaming response.
 
 ## Python
 
@@ -86,8 +84,7 @@ You can now use `InferenceClient` the exact same way you would use `OpenAI` clie
 
 - client = OpenAI(
 + client = InferenceClient(
-    base_url=...,
-    api_key=...,
+    base_url="http://localhost:3000/v1/",
 )
 
 
