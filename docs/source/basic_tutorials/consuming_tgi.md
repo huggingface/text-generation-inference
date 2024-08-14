@@ -31,6 +31,20 @@ curl localhost:8080/v1/chat/completions \
     -H 'Content-Type: application/json'
 ```
 
+For non-chat use-cases, you can also use the `/generate` and `/generate_stream` routes.
+
+```bash
+curl 127.0.0.1:8080/generate \
+    -X POST \
+    -d '{
+  "inputs":"What is Deep Learning?",
+  "parameters":{
+    "max_new_tokens":20
+  }
+}' \
+    -H 'Content-Type: application/json'
+```
+
 ## Python
 
 ### Inference Client
@@ -46,11 +60,9 @@ pip install huggingface_hub
 You can now use `InferenceClient` the exact same way you would use `OpenAI` client in Python
 
 ```python
-- from openai import OpenAI
-+ from huggingface_hub import InferenceClient
+from huggingface_hub import InferenceClient
 
-- client = OpenAI(
-+ client = InferenceClient(
+client = InferenceClient(
     base_url="http://localhost:8080/v1/",
 )
 
