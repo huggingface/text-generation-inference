@@ -115,13 +115,14 @@ def ext_make_q_matrix(
                 w.qweight,
                 extra.q_perm,
                 extra.q_invperm,
-                none_tensor,
-                none_tensor,
-                none_tensor,
-                none_tensor,
+                none_tensor,  # q_scale
+                none_tensor,  # q_scale_max
+                none_tensor,  # q_groups
+                none_tensor,  # q_group_map
                 w.qzeros,
                 w.scales,
                 w.g_idx.cpu(),
+                none_tensor,  # bias
                 temp_dq,
                 max_dq_rows,
             )
@@ -129,15 +130,16 @@ def ext_make_q_matrix(
         else:
             return make_q_matrix(
                 w.qweight,
-                none_tensor,
-                none_tensor,
-                none_tensor,
-                none_tensor,
-                none_tensor,
-                none_tensor,
+                none_tensor,  # q_perm
+                none_tensor,  # q_invperm
+                none_tensor,  # q_scale
+                none_tensor,  # q_scale_max
+                none_tensor,  # q_groups
+                none_tensor,  # q_group_map
                 w.qzeros,
                 w.scales,
-                none_tensor,
+                none_tensor,  # g_idx
+                none_tensor,  # bias
                 temp_dq,
                 max_dq_rows,
             )
