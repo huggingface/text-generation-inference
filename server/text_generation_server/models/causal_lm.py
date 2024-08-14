@@ -511,6 +511,7 @@ class CausalLM(Model):
         config_class=AutoConfig,
         batch_class=CausalLMBatch,
     ):
+        self.quantize = quantize
         self.batch_class = batch_class
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():

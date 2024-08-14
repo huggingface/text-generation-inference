@@ -872,6 +872,7 @@ class FlashCausalLM(Model):
         head_size: Optional[int] = None,
         skip_special_tokens: bool = True,
     ):
+        self.quantize = quantize
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
