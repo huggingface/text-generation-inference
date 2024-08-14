@@ -4,7 +4,7 @@ There are many ways to consume Text Generation Inference (TGI) server in your ap
 
 For more information on the API, consult the OpenAPI documentation of `text-generation-inference` available [here](https://huggingface.github.io/text-generation-inference).
 
-You can make the requests using any tool of your preference, such as curl, Python or TypeScript. For an end-to-end experience, we've open-sourced ChatUI, a chat interface for open-source models.
+You can make the requests using any tool of your preference, such as curl, Python, or TypeScript. For an end-to-end experience, we've open-sourced ChatUI, a chat interface for open-access models.
 
 ## curl
 
@@ -68,7 +68,7 @@ for message in chat_completion:
 
 ### Inference Client
 
-[`huggingface-hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with the Hugging Face Hub, including its endpoints. It provides a high-level class, [`huggingface_hub.InferenceClient`](https://huggingface.co/docs/huggingface_hub/package_reference/inference_client#huggingface_hub.InferenceClient), which makes it easy to make calls to TGI's Messages API. `InferenceClient` also takes care of parameter validation and provides a simple to-use interface.
+[`huggingface_hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with the Hugging Face Hub, including its endpoints. It provides a high-level class, [`huggingface_hub.InferenceClient`](https://huggingface.co/docs/huggingface_hub/package_reference/inference_client#huggingface_hub.InferenceClient), which makes it easy to make calls to TGI's Messages API. `InferenceClient` also takes care of parameter validation and provides a simple-to-use interface.
 
 Install `huggingface_hub` package via pip.
 
@@ -86,7 +86,6 @@ You can now use `InferenceClient` the exact same way you would use `OpenAI` clie
 + client = InferenceClient(
     base_url="http://localhost:3000/v1/",
 )
-
 
 output = client.chat.completions.create(
     model="tgi",
