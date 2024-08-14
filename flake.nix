@@ -7,6 +7,10 @@
     tgi-nix.url = "github:danieldk/tgi-nix";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
+    naersk = {
+      url = "github:nix-community/naersk";
+      inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
+    };
     poetry2nix.url = "github:nix-community/poetry2nix";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -17,6 +21,7 @@
     {
       self,
       crate2nix,
+      naersk,
       nixpkgs,
       flake-utils,
       rust-overlay,
@@ -41,13 +46,32 @@
             tgi-nix.overlay
           ];
         };
+        naersk' = pkgs.callPackage naersk { };
+        router =
+          with pkgs;
+          naersk'.buildPackage {
+            name = "router";
+            src = ./.;
+            cargoBuildOptions =
+              x:
+              x
+              ++ [
+                "-p"
+                "text-generation-router-v3"
+              ];
+            nativeBuildInputs = [ pkg-config ];
+            buildInputs = [
+              openssl.dev
+              protobuf
+            ];
+            doCheck = false;
+          };
 
         inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryEditablePackage;
-        text-generation-server = mkPoetryEditablePackage {
-            editablePackageSources = ./server;
-        };
+        text-generation-server = mkPoetryEditablePackage { editablePackageSources = ./server; };
       in
       {
+        defaultPackage = router;
         devShells.default =
           with pkgs;
           mkShell {
@@ -92,11 +116,8 @@
                 transformers
                 vllm
 
-                cargoNix.workspaceMembers.text-generation-launcher.build 
-
-                (callPackage ./router.nix {
-                  inherit (rustPlatform) buildRustPackage importCargoLock;
-                })
+                cargoNix.workspaceMembers.text-generation-launcher.build
+                router
               ]);
 
             venvDir = "./.venv";
