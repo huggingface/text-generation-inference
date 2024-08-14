@@ -11,7 +11,7 @@ You can make the requests using any tool of your preference, such as curl, Pytho
 After a successful server launch, you can query the model using the `v1/chat/completions` route, to get responses that are compliant to the OpenAI Chat Completion spec:
 
 ```bash
-curl -N localhost:3000/v1/chat/completions \
+curl localhost:8080/v1/chat/completions \
     -X POST \
     -d '{
   "model": "tgi",
@@ -33,39 +33,6 @@ curl -N localhost:3000/v1/chat/completions \
 
 ## Python
 
-### OpenAI Client
-
-You can directly use the OpenAI [Python](https://github.com/openai/openai-python) or [JS](https://github.com/openai/openai-node) clients to interact with TGI.
-
-Install the OpenAI Python package via pip. 
-
-```bash
-pip install openai
-```
-
-```python
-from openai import OpenAI
-
-# init the client but point it to TGI
-client = OpenAI(
-    base_url="http://localhost:3000/v1/",
-    api_key="-"
-)
-
-chat_completion = client.chat.completions.create(
-    model="tgi",
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant." },
-        {"role": "user", "content": "What is deep learning?"}
-    ],
-    stream=True
-)
-
-# iterate and print stream
-for message in chat_completion:
-    print(message)
-```
-
 ### Inference Client
 
 [`huggingface_hub`](https://huggingface.co/docs/huggingface_hub/main/en/index) is a Python library to interact with the Hugging Face Hub, including its endpoints. It provides a high-level class, [`huggingface_hub.InferenceClient`](https://huggingface.co/docs/huggingface_hub/package_reference/inference_client#huggingface_hub.InferenceClient), which makes it easy to make calls to TGI's Messages API. `InferenceClient` also takes care of parameter validation and provides a simple-to-use interface.
@@ -84,7 +51,7 @@ You can now use `InferenceClient` the exact same way you would use `OpenAI` clie
 
 - client = OpenAI(
 + client = InferenceClient(
-    base_url="http://localhost:3000/v1/",
+    base_url="http://localhost:8080/v1/",
 )
 
 output = client.chat.completions.create(
@@ -104,6 +71,39 @@ for chunk in output:
 You can check out more details about OpenAI compatibility [here](https://huggingface.co/docs/huggingface_hub/en/guides/inference#openai-compatibility).
 
 There is also an async version of the client, `AsyncInferenceClient`, based on `asyncio` and `aiohttp`. You can find docs for it [here](https://huggingface.co/docs/huggingface_hub/package_reference/inference_client#huggingface_hub.AsyncInferenceClient)
+
+### OpenAI Client
+
+You can directly use the OpenAI [Python](https://github.com/openai/openai-python) or [JS](https://github.com/openai/openai-node) clients to interact with TGI.
+
+Install the OpenAI Python package via pip. 
+
+```bash
+pip install openai
+```
+
+```python
+from openai import OpenAI
+
+# init the client but point it to TGI
+client = OpenAI(
+    base_url="http://localhost:8080/v1/",
+    api_key="-"
+)
+
+chat_completion = client.chat.completions.create(
+    model="tgi",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant." },
+        {"role": "user", "content": "What is deep learning?"}
+    ],
+    stream=True
+)
+
+# iterate and print stream
+for message in chat_completion:
+    print(message)
+```
 
 ## UI
 
