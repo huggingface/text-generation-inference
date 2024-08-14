@@ -1,0 +1,12 @@
+exllamav2_commit := v0.1.8
+
+build-exllamav2:
+	git clone https://github.com/turboderp/exllamav2.git exllamav2 && \
+	cd exllamav2 && git fetch && git checkout $(exllamav2_commit)  && \
+	git submodule update --init --recursive && \
+	pip install -r requirements.txt && \
+	CUDA_ARCH_LIST="8.0;9.0a" NVCC_GENCODE="-gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_90a,code=sm_90a" TORCH_CUDA_ARCH_LIST="8.0;9.0a" python setup.py build
+
+install-exllamav2: build-exllamav2
+	cd exllamav2/ &&  \
+	CUDA_ARCH_LIST="8.0;9.0a" NVCC_GENCODE="-gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_90a,code=sm_90a" TORCH_CUDA_ARCH_LIST="8.0;9.0a" python setup.py install
