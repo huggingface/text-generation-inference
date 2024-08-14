@@ -468,7 +468,6 @@ class FlashCausalLMBatch(Batch):
         block_tables_tensor = block_tables_tensor.to(device)
         prefix_lens_tensor = torch.tensor(prefix_lens, dtype=torch.int32, device=device)
 
-        log_master(logger.info, f"Block tables {block_tables}")
         return cls(
             batch_id=pb.id,
             requests=pb.requests,
@@ -1915,7 +1914,6 @@ class FlashCausalLM(Model):
         # has_prefix_lens = any(prefix_len > 0 for prefix_len in prefix_lens)
 
         if cu_seqlen_prefill is not None:
-            log_master(logger.info, f"Prefix lens {prefix_lens}")
             return use_prefill_with_paged_kv_state(
                 state=(
                     state if state is not None else self.prefill_with_paged_kv_state
