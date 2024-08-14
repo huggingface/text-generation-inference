@@ -89,8 +89,6 @@ impl Allocator for RadixAllocator {
         let prefix_len = blocks.len();
         let suffix_len = tokens - prefix_len as u32;
 
-        tracing::info!("Prefix {prefix_len} - Suffix {suffix_len}");
-
         match self.alloc_or_reclaim(suffix_len as usize) {
             Some(suffix_blocks) => blocks.extend(suffix_blocks),
             None => {

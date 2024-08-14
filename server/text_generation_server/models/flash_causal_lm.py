@@ -1743,7 +1743,7 @@ class FlashCausalLM(Model):
             left = 0
 
             if n_accepted_ids > 1:
-                log_master(logger.info, f"Speculated ids {n_accepted_ids - 1}")
+                log_master(logger.debug, f"Speculated ids {n_accepted_ids - 1}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):
