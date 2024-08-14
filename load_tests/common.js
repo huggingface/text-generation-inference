@@ -49,8 +49,8 @@ export function get_options() {
             // },
             throughput: {
                 executor: 'shared-iterations',
-                vus: 100,
-                iterations: 500,
+                vus: 16,
+                iterations: 200,
                 maxDuration: '400s',
             },
         },
@@ -59,9 +59,12 @@ export function get_options() {
 
 function generate_payload(gpt, max_new_tokens) {
     const input = gpt["conversations"][0]["value"];
-    return { "messages": [
-        { "role": "user", "content": input.substring(0, 5000) }
-    ], "temperature": 0, "model": `${model_id}`, "max_tokens": max_new_tokens }
+    return {
+        "prompt": `<|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n${input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n`,
+        "max_tokens": max_new_tokens,
+        "temperature": 0,
+        "model": `${model_id}`,
+    }
 }
 
 export const options = get_options();
@@ -70,7 +73,7 @@ export default function run() {
     const headers = { 'Content-Type': 'application/json' };
     const query = shareGPT[scenario.iterationInTest % shareGPT.length];
     const payload = JSON.stringify(generate_payload(query, max_new_tokens));
-    const res = http.post(`https://${host}/v1/chat/completions`, payload, {
+    const res = http.post(`https://${host}/v1/completions`, payload, {
         headers,
     });
     // if (res.status >= 400 && res.status < 500) {
@@ -90,13 +93,25 @@ export default function run() {
 
     if (res.status === 200) {
         const body = res.json();
-        const completion_tokens = body.usage.completion_tokens;
-        const latency_ms_per_token = duration / completion_tokens;
-        timePerToken.add(latency_ms_per_token);
-        const prompt_tokens = body.usage.prompt_tokens;
-        input_tokens.add(prompt_tokens);
-        new_tokens.add(completion_tokens);
-        tokens.add(completion_tokens + prompt_tokens);
+        if (body.usage) {
+            const completion_tokens = body.usage.completion_tokens;
+            const latency_ms_per_token = duration / completion_tokens;
+            timePerToken.add(latency_ms_per_token);
+            const prompt_tokens = body.usage.prompt_tokens;
+            input_tokens.add(prompt_tokens);
+            new_tokens.add(completion_tokens);
+            tokens.add(completion_tokens + prompt_tokens);
+        }
+        if (body.tokens_predicted) {
+            // llama.cpp specific
+            const completion_tokens = body.tokens_predicted;
+            const latency_ms_per_token = duration / completion_tokens;
+            timePerToken.add(latency_ms_per_token);
+            const prompt_tokens = body.tokens_evaluated;
+            input_tokens.add(prompt_tokens);
+            new_tokens.add(completion_tokens);
+            tokens.add(completion_tokens + prompt_tokens);
+        }
     }
 
     sleep(1);
