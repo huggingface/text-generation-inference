@@ -580,6 +580,7 @@ class IdeficsCausalLM(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        self.quantize = quantize
         from text_generation_server.models.custom_modeling.idefics_modeling import (
             IdeficsForVisionText2Text,
         )
