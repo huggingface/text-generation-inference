@@ -3,7 +3,7 @@ ARG OMPI_VERSION="4.1.6"
 
 # Build dependencies resolver stage
 FROM lukemathwalker/cargo-chef:latest AS chef
-WORKDIR /usr/src/text-generation-inference
+WORKDIR /usr/src/text-generation-inference/backends/trtllm
 
 FROM chef AS planner
 COPY . .
@@ -42,7 +42,7 @@ RUN wget "https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILE
     mkdir /usr/src/mpi && \
     tar -xf "/opt/src/$OMPI_TARBALL_FILENAME" -C /usr/src/mpi --strip-components=1 && \
     cd /usr/src/mpi && \
-    ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda --without-slurm && \
+    ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda && \
     make -j all && \
     make install && \
     rm -rf "/opt/src/$OMPI_TARBALL_FILENAME"
@@ -66,7 +66,7 @@ ENV PATH="/root/.cargo/bin:$PATH"
 RUN cargo install cargo-chef
 
 # Cache dependencies
-COPY --from=planner /usr/src/text-generation-inference/recipe.json .
+COPY --from=planner /usr/src/text-generation-inference/backends/trtllm/recipe.json .
 RUN cargo chef cook --release --recipe-path recipe.json
 
 # Build actual TGI
@@ -79,7 +79,8 @@ COPY . .
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
-    CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --release --bin text-generation-backends-trtllm
+    cd backends/trtllm && \
+    CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --release
 
 FROM nvidia/cuda:12.5.1-cudnn-runtime-ubuntu22.04 AS runtime
 WORKDIR /usr/local/tgi/bin
