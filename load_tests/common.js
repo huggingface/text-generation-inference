@@ -50,7 +50,7 @@ export function get_options() {
             throughput: {
                 executor: 'shared-iterations',
                 vus: 16,
-                iterations: 200,
+                iterations: 500,
                 maxDuration: '400s',
             },
         },
@@ -58,7 +58,8 @@ export function get_options() {
 }
 
 function generate_payload(gpt, max_new_tokens) {
-    const input = gpt["conversations"][0]["value"];
+    const max_input_tokens = 10000 - max_new_tokens - 1;
+    const input = gpt["conversations"][0]["value"].substring(0, max_input_tokens);
     return {
         "prompt": `<|start_header_id|>system<|end_header_id|>\n\nYou are a helpful assistant<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n${input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n`,
         "max_tokens": max_new_tokens,
