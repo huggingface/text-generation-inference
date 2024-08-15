@@ -26,13 +26,13 @@
       },
       {
         "id": 259,
-        "logprob": -0.4716797,
+        "logprob": -0.46948242,
         "special": false,
         "text": " "
       },
       {
         "id": 261,
-        "logprob": -0.044677734,
+        "logprob": -0.15307617,
         "special": false,
         "text": ","
       },
@@ -56,7 +56,7 @@
       },
       {
         "id": 35622,
-        "logprob": -1.1630859,
+        "logprob": -1.2998047,
         "special": false,
         "text": " cloud"
       },

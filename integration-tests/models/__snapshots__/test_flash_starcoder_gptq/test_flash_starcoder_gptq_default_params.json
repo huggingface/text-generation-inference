@@ -1,8 +1,8 @@
 {
   "details": {
     "best_of_sequences": null,
-    "finish_reason": "length",
-    "generated_tokens": 20,
+    "finish_reason": "eos_token",
+    "generated_tokens": 2,
     "prefill": [
       {
         "id": 589,
@@ -11,57 +11,57 @@
       },
       {
         "id": 3226,
-        "logprob": -8.5859375,
+        "logprob": -8.9453125,
         "text": " ge"
       },
       {
         "id": 21017,
-        "logprob": -7.5898438,
+        "logprob": -8.859375,
         "text": "ometric"
       },
       {
         "id": 81,
-        "logprob": -0.26586914,
+        "logprob": -0.21984863,
         "text": "_"
       },
       {
         "id": 6009,
-        "logprob": -1.6347656,
+        "logprob": -1.2861328,
         "text": "mean"
       },
       {
         "id": 26,
-        "logprob": -0.22705078,
+        "logprob": -0.25219727,
         "text": "("
       },
       {
         "id": 62,
-        "logprob": -5.2382812,
+        "logprob": -4.8007812,
         "text": "L"
       },
       {
         "id": 44,
-        "logprob": -3.0996094,
+        "logprob": -3.7949219,
         "text": ":"
       },
       {
         "id": 1682,
-        "logprob": -1.1025391,
+        "logprob": -0.8046875,
         "text": " List"
       },
       {
         "id": 77,
-        "logprob": -0.14294434,
+        "logprob": -0.22424316,
         "text": "["
       },
       {
         "id": 1808,
-        "logprob": -0.32226562,
+        "logprob": -0.46191406,
         "text": "float"
       },
       {
         "id": 10794,
-        "logprob": -2.8164062,
+        "logprob": -3.0253906,
         "text": "]):"
       }
     ],
@@ -74,121 +74,13 @@
         "text": "\n   "
       },
       {
-        "id": 442,
-        "logprob": -1.3134766,
-        "special": false,
-        "text": " return"
-      },
-      {
-        "id": 11665,
-        "logprob": -0.10021973,
-        "special": false,
-        "text": " reduce"
-      },
-      {
-        "id": 26,
-        "logprob": 0.0,
-        "special": false,
-        "text": "("
-      },
-      {
-        "id": 5962,
-        "logprob": 0.0,
-        "special": false,
-        "text": "lambda"
-      },
-      {
-        "id": 816,
-        "logprob": 0.0,
-        "special": false,
-        "text": " x"
-      },
-      {
-        "id": 30,
-        "logprob": 0.0,
-        "special": false,
-        "text": ","
-      },
-      {
-        "id": 533,
-        "logprob": 0.0,
-        "special": false,
-        "text": " y"
-      },
-      {
-        "id": 44,
-        "logprob": 0.0,
-        "special": false,
-        "text": ":"
-      },
-      {
-        "id": 816,
-        "logprob": 0.0,
-        "special": false,
-        "text": " x"
-      },
-      {
-        "id": 319,
-        "logprob": -0.42871094,
-        "special": false,
-        "text": " *"
-      },
-      {
-        "id": 533,
-        "logprob": 0.0,
-        "special": false,
-        "text": " y"
-      },
-      {
-        "id": 30,
-        "logprob": 0.0,
-        "special": false,
-        "text": ","
-      },
-      {
-        "id": 498,
-        "logprob": 0.0,
-        "special": false,
-        "text": " L"
-      },
-      {
-        "id": 27,
-        "logprob": 0.0,
-        "special": false,
-        "text": ")"
-      },
-      {
-        "id": 1115,
-        "logprob": 0.0,
-        "special": false,
-        "text": " **"
-      },
-      {
-        "id": 308,
-        "logprob": 0.0,
-        "special": false,
-        "text": " ("
-      },
-      {
-        "id": 35,
-        "logprob": 0.0,
-        "special": false,
-        "text": "1"
-      },
-      {
-        "id": 32,
-        "logprob": -0.31323242,
-        "special": false,
-        "text": "."
-      },
-      {
-        "id": 34,
-        "logprob": 0.0,
-        "special": false,
-        "text": "0"
+        "id": 0,
+        "logprob": null,
+        "special": true,
+        "text": "<|endoftext|>"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "\n    return reduce(lambda x, y: x * y, L) ** (1.0"
+  "generated_text": "\n   "
 }
