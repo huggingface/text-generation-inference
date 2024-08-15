@@ -1192,14 +1192,6 @@ class CausalLM(Model):
             if len(request_ids) < len(decode_batch.requests):
                 decode_batch = decode_batch.filter(request_ids)
 
-        while decode_batch is not None:
-            # filter finished requests
-            request_ids = get_unfinished_requests(decode_batch.requests)
-            if len(request_ids) < len(decode_batch.requests):
-                decode_batch = decode_batch.filter(request_ids)
-            # decode
-            _, decode_batch, _ = self.generate_token([decode_batch])
-
     def shifting_warmup(self, batch: CausalLMBatch) -> None:
         chunk_sizes = CHUNK_SIZES.copy()
         chunk_sizes.extend([-chunk for chunk in chunk_sizes])
