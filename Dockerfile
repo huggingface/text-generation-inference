@@ -250,6 +250,9 @@ RUN cd server && \
     pip install nvidia-nccl-cu12==2.22.3
 
 ENV LD_PRELOAD=/opt/conda/lib/python3.10/site-packages/nvidia/nccl/lib/libnccl.so.2
+# This is needed because exl2 tries to load flash-attn
+# And fails with our builds.
+ENV EXLLAMA_NO_FLASH_ATTN=1
 
 # Deps before the binaries
 # The binaries change on every build given we burn the SHA into them

@@ -21,7 +21,6 @@ async def flash_llama_exl2(flash_llama_exl2_handle):
     return flash_llama_exl2_handle.client
 
 
-@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_exl2(flash_llama_exl2, ignore_logprob_response_snapshot):
@@ -33,7 +32,6 @@ async def test_flash_llama_exl2(flash_llama_exl2, ignore_logprob_response_snapsh
     assert response == ignore_logprob_response_snapshot
 
 
-@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_exl2_all_params(
@@ -60,7 +58,6 @@ async def test_flash_llama_exl2_all_params(
     assert response == ignore_logprob_response_snapshot
 
 
-@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_exl2_load(
