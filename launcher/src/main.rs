@@ -89,10 +89,10 @@ enum Quantization {
     Bitsandbytes,
     /// Bitsandbytes 4bit. Can be applied on any model, will cut the memory requirement by 4x,
     /// but it is known that the model will be much slower to run than the native f16.
-    BitsandbytesNF4,
+    BitsandbytesNf4,
     /// Bitsandbytes 4bit. nf4 should be preferred in most cases but maybe this one has better
     /// perplexity performance for you model
-    BitsandbytesFP4,
+    BitsandbytesFp4,
     /// [FP8](https://developer.nvidia.com/blog/nvidia-arm-and-intel-publish-fp8-specification-for-standardization-as-an-interchange-format-for-ai/) (e4m3) works on H100 and above
     /// This dtype has native ops should be the fastest if available.
     /// This is currently not the fastest because of local unpacking + padding to satisfy matrix
@@ -109,10 +109,10 @@ impl std::fmt::Display for Quantization {
             Quantization::Bitsandbytes => {
                 write!(f, "bitsandbytes")
             }
-            Quantization::BitsandbytesNF4 => {
+            Quantization::BitsandbytesNf4 => {
                 write!(f, "bitsandbytes-nf4")
             }
-            Quantization::BitsandbytesFP4 => {
+            Quantization::BitsandbytesFp4 => {
                 write!(f, "bitsandbytes-fp4")
             }
             Quantization::Exl2 => {
@@ -1566,8 +1566,8 @@ fn main() -> Result<(), LauncherError> {
             None,
             Some(
                 Quantization::Bitsandbytes
-                | Quantization::BitsandbytesNF4
-                | Quantization::BitsandbytesFP4,
+                | Quantization::BitsandbytesNf4
+                | Quantization::BitsandbytesFp4,
             ),
         ) => {
             tracing::info!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
