@@ -6,9 +6,6 @@ def flash_llama_exl2_handle(launcher):
     with launcher(
         "turboderp/Llama-3-8B-Instruct-exl2",
         revision="2.5bpw",
-        # TODO
-        # Exl2 is currently broken with cuda graphs.
-        cuda_graphs=[0],
         # Set max input length to avoid OOM due to extremely large
         # scratch buffer.
         max_input_length=1024,
