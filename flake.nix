@@ -7,10 +7,6 @@
     tgi-nix.url = "github:danieldk/tgi-nix";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
-    naersk = {
-      url = "github:nix-community/naersk";
-      inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
-    };
     poetry2nix.url = "github:nix-community/poetry2nix";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -21,7 +17,6 @@
     {
       self,
       crate2nix,
-      naersk,
       nixpkgs,
       flake-utils,
       rust-overlay,
@@ -34,6 +29,7 @@
         cargoNix = crate2nix.tools.${system}.appliedCargoNix {
           name = "tgi";
           src = ./.;
+          additionalCargoNixArgs = [ "--all-features" ];
         };
         config = {
           allowUnfree = true;
@@ -46,32 +42,10 @@
             tgi-nix.overlay
           ];
         };
-        naersk' = pkgs.callPackage naersk { };
-        router =
-          with pkgs;
-          naersk'.buildPackage {
-            name = "router";
-            src = ./.;
-            cargoBuildOptions =
-              x:
-              x
-              ++ [
-                "-p"
-                "text-generation-router-v3"
-              ];
-            nativeBuildInputs = [ pkg-config ];
-            buildInputs = [
-              openssl.dev
-              protobuf
-            ];
-            doCheck = false;
-          };
-
         inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryEditablePackage;
         text-generation-server = mkPoetryEditablePackage { editablePackageSources = ./server; };
       in
       {
-        defaultPackage = router;
         devShells.default =
           with pkgs;
           mkShell {
@@ -118,7 +92,30 @@
                 vllm
 
                 cargoNix.workspaceMembers.text-generation-launcher.build
-                router
+
+                (cargoNix.workspaceMembers.text-generation-router-v3.build.override {
+                  crateOverrides = defaultCrateOverrides // {
+                    aws-lc-rs = attrs: {
+                      # aws-lc-rs does its own custom parsing of Cargo environment
+                      # variables like DEP_.*_INCLUDE. However buildRustCrate does
+                      # not use the version number, so the parsing fails.
+                      postPatch = ''
+                        substituteInPlace build.rs \
+                          --replace-fail \
+                          "assert!(!selected.is_empty()" \
+                          "// assert!(!selected.is_empty()"
+                      '';
+                    };
+                    rav1e = attrs: { env.CARGO_ENCODED_RUSTFLAGS = "-C target-feature=-crt-static"; };
+                    text-generation-router-v3 = attrs: {
+                      # We need to do the src/source root dance so that the build
+                      # has access to the protobuf file.
+                      src = ./.;
+                      postPatch = "cd backends/v3";
+                      buildInputs = [ protobuf ];
+                    };
+                  };
+                })
               ]);
 
             venvDir = "./.venv";
