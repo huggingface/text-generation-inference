@@ -1558,7 +1558,6 @@ fn main() -> Result<(), LauncherError> {
     }
 
     let quantize = args.quantize.or(quantize);
-    tracing::info!("Quantize found {quantize:?}");
     let cuda_graphs = match (&args.cuda_graphs, &quantize) {
         (Some(cuda_graphs), _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
         #[allow(deprecated)]
