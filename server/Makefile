@@ -7,6 +7,7 @@ include Makefile-selective-scan
 include Makefile-lorax-punica
 include Makefile-fbgemm
 include Makefile-exllamav2
+include Makefile-flashinfer
 
 unit-tests:
 	pytest -s -vv -m "not private" tests
