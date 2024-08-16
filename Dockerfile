@@ -148,7 +148,7 @@ FROM kernel-builder AS lorax-punica-builder
 WORKDIR /usr/src
 COPY server/Makefile-lorax-punica Makefile
 # Build specific version of transformers
-RUN make build-lorax-punica
+RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-lorax-punica
 
 # Build Transformers CUDA kernels
 FROM kernel-builder AS custom-kernels-builder
