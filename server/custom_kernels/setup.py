@@ -1,10 +1,7 @@
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
-import torch
 
 extra_compile_args = ["-std=c++17"]
-if not torch.version.hip:
-    extra_compile_args.append("-arch=compute_80")
 
 setup(
     name="custom_kernels",

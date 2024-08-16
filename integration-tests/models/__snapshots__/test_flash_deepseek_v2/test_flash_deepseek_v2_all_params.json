@@ -11,7 +11,7 @@
       },
       {
         "id": 3533,
-        "logprob": -9.5625,
+        "logprob": -9.625,
         "text": "Test"
       },
       {
@@ -24,13 +24,13 @@
     "tokens": [
       {
         "id": 2143,
-        "logprob": -1.8203125,
+        "logprob": -1.828125,
         "special": false,
         "text": " sent"
       },
       {
         "id": 10081,
-        "logprob": -0.55078125,
+        "logprob": -0.41210938,
         "special": false,
         "text": " successfully"
       },
@@ -42,7 +42,7 @@
       },
       {
         "id": 100001,
-        "logprob": -0.12695312,
+        "logprob": -0.16015625,
         "special": true,
         "text": "<｜end▁of▁sentence｜>"
       }

@@ -11,22 +11,22 @@
       },
       {
         "id": 13,
-        "logprob": -2.59375,
+        "logprob": -2.734375,
         "text": ","
       },
       {
         "id": 8862,
-        "logprob": -3.5625,
+        "logprob": -3.6875,
         "text": " yellow"
       },
       {
         "id": 13,
-        "logprob": -0.44726562,
+        "logprob": -0.40234375,
         "text": ","
       },
       {
         "id": 209,
-        "logprob": -8.0,
+        "logprob": -8.25,
         "text": " "
       }
     ],
@@ -52,7 +52,7 @@
       },
       {
         "id": 9830,
-        "logprob": -2.03125,
+        "logprob": -2.25,
         "special": false,
         "text": " colors"
       },
@@ -64,13 +64,13 @@
       },
       {
         "id": 329,
-        "logprob": -2.734375,
+        "logprob": -2.171875,
         "special": false,
         "text": " A"
       },
       {
         "id": 1180,
-        "logprob": -2.0,
+        "logprob": -2.046875,
         "special": false,
         "text": " number"
       },
@@ -81,19 +81,19 @@
         "text": " of"
       },
       {
-        "id": 253,
-        "logprob": -0.69140625,
+        "id": 1027,
+        "logprob": -1.5546875,
         "special": false,
-        "text": " the"
+        "text": " different"
       },
       {
         "id": 3295,
-        "logprob": -0.8203125,
+        "logprob": -0.97265625,
         "special": false,
         "text": " color"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "blue, red, yellow, \nand blue colors. A number of the color"
+  "generated_text": "blue, red, yellow, \nand blue colors. A number of different color"
 }

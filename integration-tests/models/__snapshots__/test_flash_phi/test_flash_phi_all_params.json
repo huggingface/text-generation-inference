@@ -19,25 +19,25 @@
     "tokens": [
       {
         "id": 284,
-        "logprob": -0.19421387,
+        "logprob": -0.28955078,
         "special": false,
         "text": " to"
       },
       {
         "id": 3758,
-        "logprob": -0.62597656,
+        "logprob": -0.7739258,
         "special": false,
         "text": " send"
       },
       {
         "id": 1366,
-        "logprob": -0.87060547,
+        "logprob": -0.85253906,
         "special": false,
         "text": " data"
       },
       {
         "id": 625,
-        "logprob": -0.88427734,
+        "logprob": -0.8984375,
         "special": false,
         "text": " over"
       },
@@ -49,7 +49,7 @@
       },
       {
         "id": 3127,
-        "logprob": -1.9462891,
+        "logprob": -1.9404297,
         "special": false,
         "text": " network"
       }
