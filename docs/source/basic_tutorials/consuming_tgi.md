@@ -88,7 +88,7 @@ There is also an async version of the client, `AsyncInferenceClient`, based on `
 
 You can directly use the OpenAI [Python](https://github.com/openai/openai-python) or [JS](https://github.com/openai/openai-node) clients to interact with TGI.
 
-Install the OpenAI Python package via pip. 
+Install the OpenAI Python package via pip.
 
 ```bash
 pip install openai
@@ -145,7 +145,7 @@ def inference(message, history):
         stream=True,
         max_tokens=1024,
     )
-    
+
     for chunk in output:
         partial_message += chunk.choices[0].delta.content
         yield partial_message
