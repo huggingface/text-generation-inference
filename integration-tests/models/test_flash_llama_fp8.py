@@ -21,6 +21,7 @@ async def test_flash_llama_fp8(flash_llama_fp8, response_snapshot):
         "Test request", max_new_tokens=10, decoder_input_details=True
     )
 
+    assert response.generated_text == " for the 2019-2020 school year"
     assert response.details.generated_tokens == 10
     assert response == response_snapshot
 
@@ -57,6 +58,8 @@ async def test_flash_llama_fp8_load(flash_llama_fp8, generate_load, response_sna
     )
 
     assert len(responses) == 4
-    assert all([r.generated_text == responses[0].generated_text for r in responses])
-
+    assert responses[0].generated_text == " for the 2019-2020 school year"
+    assert all(
+        [r.generated_text == responses[0].generated_text for r in responses]
+    ), f"Different messages : {[r.generated_text for r in responses]}"
     assert responses == response_snapshot

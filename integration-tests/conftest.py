@@ -118,6 +118,7 @@ class ResponseComparator(JSONSnapshotExtension):
                 and token.text == other.text
                 and (
                     self.ignore_logprob
+                    or (token.logprob == other.logprob and token.logprob is None)
                     or math.isclose(token.logprob, other.logprob, rel_tol=self.rtol)
                 )
                 and token.special == other.special
