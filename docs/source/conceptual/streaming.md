@@ -101,7 +101,7 @@ asyncio.run(main())
 To use the OpenAI Chat Completions compatible Messages API `v1/chat/completions` endpoint with curl, you can add the `-N` flag, which disables curl default buffering and shows data as it arrives from the server
 
 ```curl
-curl localhost:3000/v1/chat/completions \
+curl localhost:8080/v1/chat/completions \
     -X POST \
     -d '{
   "model": "tgi",
