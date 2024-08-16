@@ -48,34 +48,29 @@ To stream tokens with `InferenceClient`, simply pass `stream=True` and iterate o
 ```python
 from huggingface_hub import InferenceClient
 
-client = InferenceClient("http://127.0.0.1:8080")
-for token in client.text_generation("How do you make cheese?", max_new_tokens=12, stream=True):
-    print(token)
+client = InferenceClient(base_url="http://127.0.0.1:8080")
+output = client.chat.completions.create(
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Count to 10"},
+    ],
+    stream=True,
+    max_tokens=1024,
+)
 
-# To
-# make
-# cheese
-#,
-# you
-# need
-# to
-# start
-# with
-# milk
-#.
-```
+for chunk in output:
+    print(chunk.choices[0].delta.content)
 
-If you want additional details, you can add `details=True`. In this case, you get a `TextGenerationStreamResponse` which contains additional information such as the probabilities and the tokens. For the final response in the stream, it also returns the full generated text.
-
-```python
-for details in client.text_generation("How do you make cheese?", max_new_tokens=12, details=True, stream=True):
-    print(details)
-
-#TextGenerationStreamResponse(token=Token(id=193, text='\n', logprob=-0.007358551, special=False), generated_text=None, details=None)
-#TextGenerationStreamResponse(token=Token(id=2044, text='To', logprob=-1.1357422, special=False), generated_text=None, details=None)
-#TextGenerationStreamResponse(token=Token(id=717, text=' make', logprob=-0.009841919, special=False), generated_text=None, details=None)
-#...
-#TextGenerationStreamResponse(token=Token(id=25, text='.', logprob=-1.3408203, special=False), generated_text='\nTo make cheese, you need to start with milk.', details=StreamDetails(finish_reason=<FinishReason.Length: 'length'>, generated_tokens=12, seed=None))
+# 1
+# 2
+# 3
+# 4
+# 5
+# 6
+# 7
+# 8
+# 9
+# 10
 ```
 
 The `huggingface_hub` library also comes with an `AsyncInferenceClient` in case you need to handle the requests concurrently.
@@ -83,31 +78,46 @@ The `huggingface_hub` library also comes with an `AsyncInferenceClient` in case 
 ```python
 from huggingface_hub import AsyncInferenceClient
 
-client = AsyncInferenceClient("http://127.0.0.1:8080")
-async for token in await client.text_generation("How do you make cheese?", stream=True):
-    print(token)
+client = AsyncInferenceClient(base_url="http://127.0.0.1:8080")
+async def main():
+    stream = await client.chat.completions.create(
+        messages=[{"role": "user", "content": "Say this is a test"}],
+        stream=True,
+    )
+    async for chunk in stream:
+        print(chunk.choices[0].delta.content or "", end="")
 
-# To
-# make
-# cheese
-#,
-# you
-# need
-# to
-# start
-# with
-# milk
+asyncio.run(main())
+
+# This
+# is
+# a
+# test
 #.
 ```
 
 ### Streaming with cURL
 
-To use the `generate_stream` endpoint with curl, you can add the `-N` flag, which disables curl default buffering and shows data as it arrives from the server
+To use the OpenAI Chat Completions compatible Messages API `v1/chat/completions` endpoint with curl, you can add the `-N` flag, which disables curl default buffering and shows data as it arrives from the server
 
 ```curl
-curl -N 127.0.0.1:8080/generate_stream \
+curl localhost:8080/v1/chat/completions \
     -X POST \
-    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
+    -d '{
+  "model": "tgi",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "What is deep learning?"
+    }
+  ],
+  "stream": true,
+  "max_tokens": 20
+}' \
     -H 'Content-Type: application/json'
 ```
 
