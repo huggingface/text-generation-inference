@@ -5,7 +5,7 @@ repos:
     -   id: check-yaml
     -   id: end-of-file-fixer
     -   id: trailing-whitespace
-        exclude: docs/source/basic_tutorials/launcher.md
+        exclude: docs/source/reference/launcher.md
 -   repo: https://github.com/psf/black
     rev: 24.2.0
     hooks:

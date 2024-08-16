@@ -1,17 +1,30 @@
-# Messages API
+# HTTP API Reference
+
+#### Table of Contents
+
+- [Text Generation Inference custom API](#text-generation-inference-custom-api)
+- [OpenAI Messages API](#openai-messages-api)
+  - [Making a Request](#making-a-request)
+  - [Streaming](#streaming)
+  - [Synchronous](#synchronous)
+  - [Hugging Face Inference Endpoints](#hugging-face-inference-endpoints)
+  - [Cloud Providers](#cloud-providers)
+      - [Amazon SageMaker](#amazon-sagemaker)
+
+The HTTP API is a RESTful API that allows you to interact with the text-generation-inference component. Two endpoints are available:
+* Text Generation Inference [custom API](https://huggingface.github.io/text-generation-inference/)
+* OpenAI's [Messages API](#openai-messages-api)
+
+
+## Text Generation Inference custom API
+
+Check the [API documentation](https://huggingface.github.io/text-generation-inference/) for more information on how to interact with the Text Generation Inference API.
+
+## OpenAI Messages API
 
 Text Generation Inference (TGI) now supports the Messages API, which is fully compatible with the OpenAI Chat Completion API. This feature is available starting from version 1.4.0. You can use OpenAI's client libraries or third-party libraries expecting OpenAI schema to interact with TGI's Messages API. Below are some examples of how to utilize this compatibility.
 
 > **Note:** The Messages API is supported from TGI version 1.4.0 and above. Ensure you are using a compatible version to access this feature.
-
-#### Table of Contents
-
-- [Making a Request](#making-a-request)
-- [Streaming](#streaming)
-- [Synchronous](#synchronous)
-- [Hugging Face Inference Endpoints](#hugging-face-inference-endpoints)
-- [Cloud Providers](#cloud-providers)
-  - [Amazon SageMaker](#amazon-sagemaker)
 
 ## Making a Request
 
