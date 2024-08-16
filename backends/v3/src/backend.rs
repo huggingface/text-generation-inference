@@ -38,7 +38,7 @@ impl BackendV3 {
         let prefix_caching = if let Ok(prefix_caching) = std::env::var("USE_PREFIX_CACHING") {
             matches!(prefix_caching.as_str(), "true" | "1")
         } else {
-            false
+            true
         };
         let attention = if let Ok(attention) = std::env::var("ATTENTION") {
             attention
