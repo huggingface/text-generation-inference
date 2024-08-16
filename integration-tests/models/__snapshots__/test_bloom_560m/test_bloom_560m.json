@@ -11,52 +11,52 @@
       },
       {
         "id": 49833,
-        "logprob": -10.546875,
+        "logprob": -10.5703125,
         "text": " dég"
       },
       {
         "id": 21543,
-        "logprob": -0.18457031,
+        "logprob": -0.14746094,
         "text": "uster"
       },
       {
         "id": 447,
-        "logprob": -1.9287109,
+        "logprob": -1.9277344,
         "text": " un"
       },
       {
         "id": 46341,
-        "logprob": -15.4296875,
+        "logprob": -15.421875,
         "text": " ort"
       },
       {
         "id": 35567,
-        "logprob": -7.578125,
+        "logprob": -7.5820312,
         "text": "olan"
       },
       {
         "id": 15,
-        "logprob": -1.4003906,
+        "logprob": -1.4013672,
         "text": ","
       },
       {
         "id": 1669,
-        "logprob": -1.5439453,
+        "logprob": -1.5595703,
         "text": " il"
       },
       {
         "id": 11580,
-        "logprob": -0.93896484,
+        "logprob": -0.9428711,
         "text": " faut"
       },
       {
         "id": 3913,
-        "logprob": -3.7207031,
+        "logprob": -3.703125,
         "text": " tout"
       },
       {
         "id": 39261,
-        "logprob": -1.5742188,
+        "logprob": -1.7763672,
         "text": " d'abord"
       }
     ],
@@ -64,19 +64,19 @@
     "tokens": [
       {
         "id": 578,
-        "logprob": -1.6474609,
+        "logprob": -1.7822266,
         "special": false,
         "text": " le"
       },
       {
         "id": 5608,
-        "logprob": -2.4707031,
+        "logprob": -2.4882812,
         "special": false,
         "text": " faire"
       },
       {
         "id": 7735,
-        "logprob": -2.4355469,
+        "logprob": -2.4199219,
         "special": false,
         "text": " fond"
       },
@@ -94,13 +94,13 @@
       },
       {
         "id": 366,
-        "logprob": -1.1953125,
+        "logprob": -1.1308594,
         "special": false,
         "text": " la"
       },
       {
         "id": 48844,
-        "logprob": -1.7978516,
+        "logprob": -1.7900391,
         "special": false,
         "text": " cass"
       },
@@ -118,7 +118,7 @@
       },
       {
         "id": 2940,
-        "logprob": -1.9335938,
+        "logprob": -1.9306641,
         "special": false,
         "text": " avec"
       }

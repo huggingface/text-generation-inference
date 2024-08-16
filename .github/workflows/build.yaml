@@ -172,7 +172,7 @@ jobs:
       group: ${{ needs.build-and-push.outputs.runs_on }}
     if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
     env:
-      PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || inputs.release-tests == true) && '--release' || '' }}
+      PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || inputs.release-tests == true) && '--release' || '--release' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
