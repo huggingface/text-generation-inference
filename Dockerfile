@@ -88,6 +88,7 @@ RUN case ${TARGETPLATFORM} in \
 FROM pytorch-install AS kernel-builder
 
 ARG MAX_JOBS=8
+ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;9.0+PTX"
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ninja-build cmake \
@@ -118,7 +119,7 @@ FROM kernel-builder AS exllama-kernels-builder
 WORKDIR /usr/src
 COPY server/exllama_kernels/ .
 
-RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" python setup.py build
+RUN python setup.py build
 
 # Build Transformers exllama kernels
 FROM kernel-builder AS exllamav2-kernels-builder
@@ -126,28 +127,28 @@ WORKDIR /usr/src
 COPY server/Makefile-exllamav2/ Makefile
 
 # Build specific version of transformers
-RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-exllamav2
+RUN make build-exllamav2
 
 # Build Transformers awq kernels
 FROM kernel-builder AS awq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-awq Makefile
 # Build specific version of transformers
-RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-awq
+RUN make build-awq
 
 # Build eetq kernels
 FROM kernel-builder AS eetq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-eetq Makefile
 # Build specific version of transformers
-RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-eetq
+RUN make build-eetq
 
 # Build Lorax Punica kernels
 FROM kernel-builder AS lorax-punica-builder
 WORKDIR /usr/src
 COPY server/Makefile-lorax-punica Makefile
 # Build specific version of transformers
-RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-lorax-punica
+RUN make build-lorax-punica
 
 # Build Transformers CUDA kernels
 FROM kernel-builder AS custom-kernels-builder
