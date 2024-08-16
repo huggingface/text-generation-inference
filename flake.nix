@@ -4,6 +4,7 @@
       url = "github:nix-community/crate2nix";
       inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
     };
+    nix-filter.url = "github:numtide/nix-filter";
     tgi-nix.url = "github:danieldk/tgi-nix";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
@@ -17,6 +18,7 @@
     {
       self,
       crate2nix,
+      nix-filter,
       nixpkgs,
       flake-utils,
       rust-overlay,
@@ -44,6 +46,7 @@
         };
         inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryEditablePackage;
         text-generation-server = mkPoetryEditablePackage { editablePackageSources = ./server; };
+        crateOverrides = import ./nix/crate-overrides.nix { inherit pkgs nix-filter; };
       in
       {
         devShells.default =
@@ -91,31 +94,8 @@
                 transformers
                 vllm
 
-                cargoNix.workspaceMembers.text-generation-launcher.build
-
-                (cargoNix.workspaceMembers.text-generation-router-v3.build.override {
-                  crateOverrides = defaultCrateOverrides // {
-                    aws-lc-rs = attrs: {
-                      # aws-lc-rs does its own custom parsing of Cargo environment
-                      # variables like DEP_.*_INCLUDE. However buildRustCrate does
-                      # not use the version number, so the parsing fails.
-                      postPatch = ''
-                        substituteInPlace build.rs \
-                          --replace-fail \
-                          "assert!(!selected.is_empty()" \
-                          "// assert!(!selected.is_empty()"
-                      '';
-                    };
-                    rav1e = attrs: { env.CARGO_ENCODED_RUSTFLAGS = "-C target-feature=-crt-static"; };
-                    text-generation-router-v3 = attrs: {
-                      # We need to do the src/source root dance so that the build
-                      # has access to the protobuf file.
-                      src = ./.;
-                      postPatch = "cd backends/v3";
-                      buildInputs = [ protobuf ];
-                    };
-                  };
-                })
+                (cargoNix.workspaceMembers.text-generation-launcher.build.override { inherit crateOverrides; })
+                (cargoNix.workspaceMembers.text-generation-router-v3.build.override { inherit crateOverrides; })
               ]);
 
             venvDir = "./.venv";
