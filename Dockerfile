@@ -188,7 +188,7 @@ RUN make build-all
 FROM kernel-builder AS flashinfer-builder
 WORKDIR /usr/src
 COPY server/Makefile-flashinfer Makefile
-RUN make build-flashinfer
+RUN make install-flashinfer
 
 # Text Generation Inference base image
 FROM nvidia/cuda:12.1.0-base-ubuntu22.04 AS base
@@ -242,7 +242,7 @@ COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-310 /opt/c
 # Copy build artifacts from mamba builder
 COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
 COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
-COPY --from=flashinfer-builder /usr/src/flashinfer/build/lib.linux-x86_64-cpython-310/ /opt/conda/lib/python3.10/site-packages
+COPY --from=flashinfer-builder /opt/conda/lib/python3.10/site-packages/flashinfer/ /opt/conda/lib/python3.10/site-packages/flashinfer/
 
 # Install flash-attention dependencies
 RUN pip install einops --no-cache-dir
