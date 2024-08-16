@@ -2003,6 +2003,120 @@ async fn start(
         .install_recorder()
         .expect("failed to install metrics recorder");
 
+    // Metrics descriptions
+    metrics::describe_counter!("tgi_request_success", "Number of successful requests");
+    metrics::describe_histogram!(
+        "tgi_request_duration",
+        metrics::Unit::Seconds,
+        "Request duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_validation_duration",
+        metrics::Unit::Seconds,
+        "Request validation duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_queue_duration",
+        metrics::Unit::Seconds,
+        "Request queue duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_inference_duration",
+        metrics::Unit::Seconds,
+        "Request inference duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_mean_time_per_token_duration",
+        metrics::Unit::Seconds,
+        "Mean time per token per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_generated_tokens",
+        metrics::Unit::Count,
+        "Generated tokens per request"
+    );
+    metrics::describe_counter!(
+        "tgi_batch_inference_count",
+        metrics::Unit::Count,
+        "Inference calls per method (prefill or decode)"
+    );
+    metrics::describe_counter!(
+        "tgi_request_count",
+        metrics::Unit::Count,
+        "Total number of requests"
+    );
+    metrics::describe_counter!(
+        "tgi_batch_inference_success",
+        metrics::Unit::Count,
+        "Number of successful inference calls per method (prefill or decode)"
+    );
+    metrics::describe_gauge!(
+        "tgi_batch_current_size",
+        metrics::Unit::Count,
+        "Current batch size"
+    );
+    metrics::describe_gauge!("tgi_queue_size", metrics::Unit::Count, "Current queue size");
+    metrics::describe_gauge!(
+        "tgi_batch_current_max_tokens",
+        metrics::Unit::Count,
+        "Maximum tokens for the current batch"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_max_new_tokens",
+        metrics::Unit::Count,
+        "Maximum new tokens per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_inference_duration",
+        metrics::Unit::Seconds,
+        "Batch inference duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_forward_duration",
+        metrics::Unit::Seconds,
+        "Batch forward duration per method (prefill or decode)"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_skipped_tokens",
+        metrics::Unit::Count,
+        "Speculated tokens per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_filter_duration",
+        metrics::Unit::Seconds,
+        "Time spent filtering batches and sending generated tokens per method (prefill or decode)"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_queue_duration",
+        metrics::Unit::Seconds,
+        "Time spent in the queue per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_validation_duration",
+        metrics::Unit::Seconds,
+        "Time spent validating the request"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_duration",
+        metrics::Unit::Seconds,
+        "Total time spent processing the request"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_decode_duration",
+        metrics::Unit::Seconds,
+        "Time spent decoding a batch per method (prefill or decode)"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_input_length",
+        metrics::Unit::Count,
+        "Input token length per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_next_size",
+        metrics::Unit::Count,
+        "Batch size of the next batch"
+    );
+
     // CORS layer
     let allow_origin = allow_origin.unwrap_or(AllowOrigin::any());
     let cors_layer = CorsLayer::new()
