@@ -7,7 +7,7 @@
       "prefill": [
         {
           "id": 128000,
-          "logprob": 0.0,
+          "logprob": null,
           "text": "<|begin_of_text|>"
         },
         {
@@ -96,7 +96,7 @@
       "prefill": [
         {
           "id": 128000,
-          "logprob": 0.0,
+          "logprob": null,
           "text": "<|begin_of_text|>"
         },
         {
@@ -185,7 +185,7 @@
       "prefill": [
         {
           "id": 128000,
-          "logprob": 0.0,
+          "logprob": null,
           "text": "<|begin_of_text|>"
         },
         {
@@ -274,7 +274,7 @@
       "prefill": [
         {
           "id": 128000,
-          "logprob": 0.0,
+          "logprob": null,
           "text": "<|begin_of_text|>"
         },
         {
