@@ -40,14 +40,14 @@ RUN cargo build --profile release-opt
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS pytorch-install
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS pytorch-install
 
 # NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
 ARG PYTORCH_VERSION=2.4.0
 
 ARG PYTHON_VERSION=3.10
 # Keep in sync with `server/pyproject.toml
-ARG CUDA_VERSION=12.1
+ARG CUDA_VERSION=12.4
 ARG MAMBA_VERSION=24.3.0-0
 ARG CUDA_CHANNEL=nvidia
 ARG INSTALL_CHANNEL=pytorch
