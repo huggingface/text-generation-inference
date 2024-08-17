@@ -16,6 +16,11 @@ pub struct RadixAllocator {
 
     /// Blocks that are immediately available for allocation.
     free_blocks: Vec<u32>,
+
+    #[allow(dead_code)]
+    // This isn't used because the prefix need to match without the windowing
+    // mecanism. This at worst is overallocating, not necessarily being wrong.
+    window_size: Option<u32>,
 }
 
 impl RadixAllocator {
@@ -25,9 +30,9 @@ impl RadixAllocator {
             "Radix tree allocator only works with block_size=1, was: {}",
             block_size
         );
-        if window_size.is_some() {
-            unimplemented!("Window size not supported in the prefix-caching block allocator yet");
-        }
+        // if window_size.is_some() {
+        //     unimplemented!("Window size not supported in the prefix-caching block allocator yet");
+        // }
 
         RadixAllocator {
             allocation_id: 0,
@@ -36,6 +41,7 @@ impl RadixAllocator {
 
             // Block 0 is reserved for health checks.
             free_blocks: (1..n_blocks).collect(),
+            window_size,
         }
     }
 
