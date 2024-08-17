@@ -233,7 +233,7 @@ if ATTENTION == "flashinfer":
         causal=True,
         softcap=0.0,
     ):
-        assert window_size_left == -1, "Windowing is not supported with flash infer"
+        # assert window_size_left == -1, "Windowing is not supported with flash infer"
         from text_generation_server.layers.attention.flashinfer import (
             prefill_with_paged_kv_state,
         )
@@ -244,6 +244,7 @@ if ATTENTION == "flashinfer":
             paged_kv_cache=(key_cache, value_cache),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
+            window_left=window_size_left,
         )
 
 elif V2:
