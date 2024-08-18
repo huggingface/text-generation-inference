@@ -755,16 +755,16 @@
     },
     "nixpkgs_7": {
       "locked": {
-        "lastModified": 1723418128,
-        "narHash": "sha256-k1pEqsnB6ikZyasXbtV6A9akPZMKlsyENPDUA6PXoJo=",
-        "owner": "nixos",
+        "lastModified": 1723912943,
+        "narHash": "sha256-39F9GzyhxYcY3wTeKuEFWRJWcrGBosO4nf4xzMTWZX8=",
+        "owner": "danieldk",
         "repo": "nixpkgs",
-        "rev": "129f579cbb5b4c1ad258fd96bdfb78eb14802727",
+        "rev": "b82cdca86dbb30013b76c4b55d48806476820a5c",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
-        "ref": "nixos-unstable-small",
+        "owner": "danieldk",
+        "ref": "cuda-12.4",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -1051,11 +1051,11 @@
         "nixpkgs": "nixpkgs_7"
       },
       "locked": {
-        "lastModified": 1723532088,
-        "narHash": "sha256-6h/P/BkFDw8txlikonKXp5IbluHSPhHJTQRftJLkbLQ=",
+        "lastModified": 1723973328,
+        "narHash": "sha256-q5FmW4YFQcRb6fXHnrxL0uno6xcw9dcg+pFBbVM1xeQ=",
         "owner": "danieldk",
         "repo": "tgi-nix",
-        "rev": "32335a37ce0f703bab901baf7b74eb11e9972d5f",
+        "rev": "d2038f36589a8a179834e5771ffd081620ba94c3",
         "type": "github"
       },
       "original": {
