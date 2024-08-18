@@ -8,10 +8,6 @@
     tgi-nix.url = "github:danieldk/tgi-nix";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
-    poetry2nix = {
-      url = "github:nix-community/poetry2nix";
-      inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
-    };
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
@@ -26,7 +22,6 @@
       flake-utils,
       rust-overlay,
       tgi-nix,
-      poetry2nix,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -47,8 +42,6 @@
             tgi-nix.overlay
           ];
         };
-        inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryEditablePackage;
-        text-generation-server = mkPoetryEditablePackage { editablePackageSources = ./server; };
         crateOverrides = import ./nix/crate-overrides.nix { inherit pkgs nix-filter; };
         launcher = cargoNix.workspaceMembers.text-generation-launcher.build.override {
           inherit crateOverrides;
