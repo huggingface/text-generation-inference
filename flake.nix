@@ -50,11 +50,27 @@
         inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryEditablePackage;
         text-generation-server = mkPoetryEditablePackage { editablePackageSources = ./server; };
         crateOverrides = import ./nix/crate-overrides.nix { inherit pkgs nix-filter; };
+        launcher = cargoNix.workspaceMembers.text-generation-launcher.build.override {
+          inherit crateOverrides;
+        };
+        router = cargoNix.workspaceMembers.text-generation-router-v3.build.override {
+          inherit crateOverrides;
+        };
+        server = pkgs.python3.pkgs.callPackage ./nix/server.nix { inherit nix-filter; };
       in
       {
-        devShells.default =
-          with pkgs;
-          mkShell {
+        devShells = with pkgs; rec {
+          default = pure;
+
+          pure = mkShell {
+            buildInputs = [
+              launcher
+              router
+              server
+            ];
+          };
+
+          impure = mkShell {
             buildInputs =
               [
                 openssl.dev
@@ -65,42 +81,14 @@
                     "rust-src"
                   ];
                 })
+                protobuf
               ]
               ++ (with python3.pkgs; [
                 venvShellHook
                 pip
-
-                causal-conv1d
-                click
-                einops
-                exllamav2
-                fbgemm-gpu
-                flashinfer
-                flash-attn
-                flash-attn-layer-norm
-                flash-attn-rotary
-                grpc-interceptor
-                grpcio-reflection
-                grpcio-status
-                grpcio-tools
-                hf-transfer
-                ipdb
-                loguru
-                mamba-ssm
-                marlin-kernels
-                opentelemetry-api
-                opentelemetry-exporter-otlp
-                opentelemetry-instrumentation-grpc
-                opentelemetry-semantic-conventions
-                peft
-                tokenizers
-                torch
-                transformers
-                vllm
-
-                (cargoNix.workspaceMembers.text-generation-launcher.build.override { inherit crateOverrides; })
-                (cargoNix.workspaceMembers.text-generation-router-v3.build.override { inherit crateOverrides; })
               ]);
+
+            inputsFrom = [ server ];
 
             venvDir = "./.venv";
 
@@ -109,8 +97,10 @@
             '';
             postShellHook = ''
               unset SOURCE_DATE_EPOCH
+              export PATH=$PATH:~/.cargo/bin
             '';
           };
+        };
       }
     );
 }
