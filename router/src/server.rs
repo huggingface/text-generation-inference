@@ -23,7 +23,8 @@ use crate::{
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, VertexRequest,
     VertexResponse,
 };
-use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
+use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType, Tools};
+use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -114,6 +115,25 @@ responses((status = 200, description = "Served model info", body = Info))
 #[instrument]
 async fn get_model_info(info: Extension<Info>) -> Json<Info> {
     Json(info.0)
+}
+
+#[utoipa::path(
+get,
+tag = "Text Generation Inference",
+path = "/v1/models",
+responses((status = 200, description = "Served model info", body = ModelInfo))
+)]
+#[instrument]
+async fn openai_get_model_info(info: Extension<Info>) -> Json<ModelsInfo> {
+    Json(ModelsInfo {
+        data: vec![ModelInfo {
+            id: info.0.model_id.clone(),
+            object: "model".to_string(),
+            created: 0, // TODO: determine how to get this
+            owned_by: info.0.model_id.clone(),
+        }],
+        ..Default::default()
+    })
 }
 
 #[utoipa::path(
@@ -2208,7 +2228,7 @@ async fn start(
 
     // Define base and health routes
     let mut base_routes = Router::new()
-        .route("/", post(compat_generate))
+        .route("/", post(openai_get_model_info))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
@@ -2246,7 +2266,8 @@ async fn start(
         .route("/info", get(get_model_info))
         .route("/health", get(health))
         .route("/ping", get(health))
-        .route("/metrics", get(metrics));
+        .route("/metrics", get(metrics))
+        .route("/v1/models", get(openai_get_model_info));
 
     // Conditional AWS Sagemaker route
     let aws_sagemaker_route = if messages_api_enabled {
