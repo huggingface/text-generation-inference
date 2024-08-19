@@ -31,6 +31,10 @@ struct RawConfig {
     model_type: Option<String>,
     max_seq_len: Option<usize>,
     quantization_config: Option<QuantizationConfig>,
+    n_embd: Option<usize>,
+    hidden_size: Option<usize>,
+    num_attention_heads: Option<usize>,
+    head_dim: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -42,6 +46,7 @@ struct QuantizationConfig {
 struct Config {
     max_position_embeddings: Option<usize>,
     quantize: Option<Quantization>,
+    head_dim: Option<usize>,
 }
 
 impl From<RawConfig> for Config {
@@ -51,9 +56,26 @@ impl From<RawConfig> for Config {
             .or(other.max_seq_len)
             .or(other.n_positions);
         let quantize = other.quantization_config.and_then(|q| q.quant_method);
+        let head_dim = other.head_dim.or_else(|| {
+            match (other.hidden_size, other.n_embd, other.num_attention_heads) {
+                (Some(hidden_size), _, Some(num_attention_heads))
+                    if hidden_size % num_attention_heads == 0 =>
+                {
+                    Some(hidden_size / num_attention_heads)
+                }
+                // Legacy
+                (_, Some(hidden_size), Some(num_attention_heads))
+                    if hidden_size % num_attention_heads == 0 =>
+                {
+                    Some(hidden_size / num_attention_heads)
+                }
+                _ => None,
+            }
+        });
         Config {
             max_position_embeddings,
             quantize,
+            head_dim,
         }
     }
 }
@@ -1475,6 +1497,16 @@ fn main() -> Result<(), LauncherError> {
                 std::env::set_var("ATTENTION", "flashdecoding");
             }
             let config: Config = config.into();
+            match config.head_dim {
+                Some(h) if h == 64 || h == 128 || h == 256 => {
+                    // std::env::set_var("ATTENTION", "flashdecoding");
+                }
+                _ => {
+                    tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
+                    std::env::set_var("USE_PREFIX_CACHING", "0");
+                    std::env::set_var("ATTENTION", "flashdecoding");
+                }
+            }
             let quantize = config.quantize;
 
             // Quantization usually means you're even more RAM constrained.
