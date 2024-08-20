@@ -79,6 +79,7 @@
               ++ (with python3.pkgs; [
                 venvShellHook
                 pip
+                ipdb
               ]);
 
             inputsFrom = [ server ];
