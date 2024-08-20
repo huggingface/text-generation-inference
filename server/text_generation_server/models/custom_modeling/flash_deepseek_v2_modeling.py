@@ -365,6 +365,8 @@ class DeepseekV2Attention(torch.nn.Module):
                 query,
                 key,
                 value,
+                kv_cache[0],
+                kv_cache[1],
                 cu_seqlen_prefill,
                 max_s,
                 self.softmax_scale,
