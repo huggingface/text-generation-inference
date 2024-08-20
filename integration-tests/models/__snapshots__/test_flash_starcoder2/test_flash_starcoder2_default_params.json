@@ -16,7 +16,7 @@
       },
       {
         "id": 100,
-        "logprob": -0.38549805,
+        "logprob": -0.38305664,
         "text": "_"
       },
       {
@@ -29,7 +29,7 @@
     "tokens": [
       {
         "id": 2284,
-        "logprob": -0.31323242,
+        "logprob": -0.296875,
         "special": false,
         "text": "():"
       },
@@ -59,19 +59,19 @@
       },
       {
         "id": 10914,
-        "logprob": -0.7817383,
+        "logprob": -0.7734375,
         "special": false,
         "text": " World"
       },
       {
         "id": 16013,
-        "logprob": -0.6328125,
+        "logprob": -0.61816406,
         "special": false,
         "text": "!\")"
       },
       {
         "id": 222,
-        "logprob": -0.0619812,
+        "logprob": -0.054870605,
         "special": false,
         "text": "\n"
       },
@@ -83,7 +83,7 @@
       },
       {
         "id": 610,
-        "logprob": -0.4086914,
+        "logprob": -0.4152832,
         "special": false,
         "text": "def"
       },
@@ -113,7 +113,7 @@
       },
       {
         "id": 444,
-        "logprob": -0.21826172,
+        "logprob": -0.21313477,
         "special": false,
         "text": "name"
       },
@@ -160,28 +160,16 @@
         "text": "Hello"
       },
       {
-        "id": 925,
-        "logprob": -3.3476562,
+        "id": 332,
+        "logprob": -0.034698486,
         "special": false,
-        "text": " %"
+        "text": " \""
       },
       {
-        "id": 120,
+        "id": 494,
         "logprob": 0.0,
         "special": false,
-        "text": "s"
-      },
-      {
-        "id": 11571,
-        "logprob": -0.10021973,
-        "special": false,
-        "text": "!\""
-      },
-      {
-        "id": 925,
-        "logprob": 0.0,
-        "special": false,
-        "text": " %"
+        "text": " +"
       },
       {
         "id": 655,
@@ -190,10 +178,22 @@
         "text": " name"
       },
       {
-        "id": 46,
+        "id": 494,
+        "logprob": -0.20141602,
+        "special": false,
+        "text": " +"
+      },
+      {
+        "id": 332,
         "logprob": 0.0,
         "special": false,
-        "text": ")"
+        "text": " \""
+      },
+      {
+        "id": 16013,
+        "logprob": 0.0,
+        "special": false,
+        "text": "!\")"
       },
       {
         "id": 222,
@@ -251,7 +251,7 @@
       },
       {
         "id": 400,
-        "logprob": -0.074279785,
+        "logprob": 0.0,
         "special": false,
         "text": "age"
       },
@@ -310,22 +310,34 @@
         "text": "Hello"
       },
       {
-        "id": 925,
+        "id": 332,
         "logprob": 0.0,
         "special": false,
-        "text": " %"
+        "text": " \""
       },
       {
-        "id": 120,
+        "id": 494,
         "logprob": 0.0,
         "special": false,
-        "text": "s"
+        "text": " +"
       },
       {
-        "id": 49,
-        "logprob": -0.07891846,
+        "id": 655,
+        "logprob": 0.0,
         "special": false,
-        "text": ","
+        "text": " name"
+      },
+      {
+        "id": 494,
+        "logprob": 0.0,
+        "special": false,
+        "text": " +"
+      },
+      {
+        "id": 3021,
+        "logprob": -0.5761719,
+        "special": false,
+        "text": " \","
       },
       {
         "id": 863,
@@ -340,55 +352,43 @@
         "text": " are"
       },
       {
-        "id": 925,
+        "id": 332,
         "logprob": 0.0,
         "special": false,
-        "text": " %"
+        "text": " \""
       },
       {
-        "id": 105,
+        "id": 494,
         "logprob": 0.0,
         "special": false,
-        "text": "d"
+        "text": " +"
       },
       {
-        "id": 11339,
+        "id": 615,
         "logprob": 0.0,
         "special": false,
-        "text": " years"
+        "text": " str"
       },
       {
-        "id": 3627,
+        "id": 45,
         "logprob": 0.0,
         "special": false,
-        "text": " old"
+        "text": "("
       },
       {
-        "id": 11571,
+        "id": 400,
         "logprob": 0.0,
         "special": false,
-        "text": "!\""
+        "text": "age"
       },
       {
-        "id": 925,
+        "id": 46,
         "logprob": 0.0,
         "special": false,
-        "text": " %"
-      },
-      {
-        "id": 327,
-        "logprob": 0.0,
-        "special": false,
-        "text": " ("
-      },
-      {
-        "id": 444,
-        "logprob": 0.0,
-        "special": false,
-        "text": "name"
+        "text": ")"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "():\n    print(\"Hello World!\")\n\ndef print_hello_name(name):\n    print(\"Hello %s!\" % name)\n\ndef print_hello_name_age(name, age):\n    print(\"Hello %s, you are %d years old!\" % (name"
+  "generated_text": "():\n    print(\"Hello World!\")\n\ndef print_hello_name(name):\n    print(\"Hello \" + name + \"!\")\n\ndef print_hello_name_age(name, age):\n    print(\"Hello \" + name + \", you are \" + str(age)"
 }
