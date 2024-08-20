@@ -47,7 +47,7 @@ impl BackendV3 {
         } else if prefix_caching {
             Attention::FlashInfer
         } else {
-            Attention::Paged
+            Attention::FlashDecoding
         };
         let block_size = if attention == Attention::FlashDecoding {
             256
