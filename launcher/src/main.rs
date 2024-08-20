@@ -1504,7 +1504,7 @@ fn main() -> Result<(), LauncherError> {
                         std::env::set_var("USE_PREFIX_CACHING", "0");
                     }
                     match config.model_type.as_deref() {
-                        Some("gemma2") | Some("falcon") => {
+                        Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
                             // Required because gemma2 needs bfloat16 which is not supported by
                             // flashinfer ?
                             std::env::set_var("USE_PREFIX_CACHING", "0");

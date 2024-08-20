@@ -7,7 +7,7 @@ from text_generation_server.utils.log import log_master
 
 PREFIX_CACHING = os.getenv("USE_PREFIX_CACHING", "1").lower() in {"1", "true"}
 log_master(logger.info, f"Using prefix caching = {PREFIX_CACHING}")
-ATTENTION = os.getenv("ATTENTION", "flashinfer" if PREFIX_CACHING else "paged")
+ATTENTION = os.getenv("ATTENTION", "flashinfer" if PREFIX_CACHING else "flashdecoding")
 _expected = {"paged", "flashdecoding", "flashinfer"}
 assert (
     ATTENTION in _expected
