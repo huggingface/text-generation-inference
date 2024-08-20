@@ -112,9 +112,20 @@ pub struct ClipVisionModel {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct Idefics3 {
-    pub(crate) vision_encoder_max_image_size: usize,
-    pub(crate) image_seq_len: usize,
+pub struct Idefics3 {}
+
+impl Idefics3 {
+    pub fn get_max_longest_edge(&self) -> usize {
+        364
+    }
+
+    pub fn get_number_of_features(&self) -> usize {
+        169
+    }
+
+    pub fn get_max_longest_edge_for_image_resize(&self) -> usize {
+        1456
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
