@@ -43,6 +43,9 @@
           ];
         };
         crateOverrides = import ./nix/crate-overrides.nix { inherit pkgs nix-filter; };
+        benchmark = cargoNix.workspaceMembers.text-generation-benchmark.build.override {
+          inherit crateOverrides;
+        };
         launcher = cargoNix.workspaceMembers.text-generation-launcher.build.override {
           inherit crateOverrides;
         };
@@ -57,6 +60,7 @@
 
           pure = mkShell {
             buildInputs = [
+              benchmark
               launcher
               router
               server
