@@ -1498,7 +1498,6 @@ fn main() -> Result<(), LauncherError> {
             let config: Config = config.into();
             match config.head_dim {
                 Some(h) if h == 64 || h == 128 || h == 256 => {
-                    // std::env::set_var("ATTENTION", "flashdecoding");
                     if args.lora_adapters.is_some() {
                         tracing::info!("Disabling prefix caching because of lora adapters");
                         std::env::set_var("USE_PREFIX_CACHING", "0");
