@@ -59,7 +59,8 @@ RUN apt-get update && apt install -y intel-basekit xpu-smi cmake python3-dev nin
 # Text Generation Inference base env
 ENV HF_HOME=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
-    PORT=80
+    PORT=80 \
+    NUMBA_CACHE_DIR=/data/numba_cache
 
 
 WORKDIR /usr/src
@@ -111,7 +112,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 
 ENV HUGGINGFACE_HUB_CACHE=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
-    PORT=80
+    PORT=80 \
+    NUMBA_CACHE_DIR=/data/numba_cache
 
 ARG MAMBA_VERSION=23.1.0-1
 ARG PYTHON_VERSION='3.10.10'
