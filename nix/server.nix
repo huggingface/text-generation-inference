@@ -4,6 +4,7 @@
   poetry-core,
   mypy-protobuf,
   causal-conv1d,
+  eetq,
   einops,
   exllamav2,
   fbgemm-gpu,
@@ -66,6 +67,7 @@ buildPythonPackage {
   pythonRemoveDeps = [ "scipy" ];
 
   dependencies = [
+    eetq
     causal-conv1d
     einops
     exllamav2
