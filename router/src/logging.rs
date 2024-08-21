@@ -1,9 +1,15 @@
+use axum::body::Body;
+use axum::http::{HeaderMap, Request};
+use axum::middleware::Next;
+use axum::response::Response;
+use opentelemetry::propagation::Extractor;
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use opentelemetry::sdk::trace;
 use opentelemetry::sdk::trace::Sampler;
 use opentelemetry::sdk::Resource;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter, Layer};
@@ -78,4 +84,31 @@ pub fn init_logging(otlp_endpoint: Option<String>, otlp_service_name: String, js
         .with(env_filter)
         .with(layers)
         .init();
+}
+
+struct HeaderExtractor<'a>(&'a HeaderMap);
+
+impl<'a> Extractor for HeaderExtractor<'a> {
+    fn get(&self, key: &str) -> Option<&str> {
+        let value = self.0.get(key).and_then(|v| v.to_str().ok());
+        value
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        let keys: Vec<&str> = self.0.keys().map(|k| k.as_str()).collect();
+        keys
+    }
+}
+
+pub async fn trace_context_middleware(request: Request<Body>, next: Next) -> Response {
+    let parent_ctx = global::get_text_map_propagator(|prop| {
+        let headers = request.headers();
+        let extractor = HeaderExtractor(headers);
+        prop.extract(&extractor)
+    });
+
+    let span = tracing::Span::current();
+    span.set_parent(parent_ctx);
+
+    next.run(request).await
 }

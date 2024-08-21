@@ -8,7 +8,7 @@ use crate::kserve::{
     kserve_model_metadata, kserve_model_metadata_ready,
 };
 use crate::validation::ValidationError;
-use crate::ChatTokenizeResponse;
+use crate::{logging, ChatTokenizeResponse};
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -2305,6 +2305,7 @@ async fn start(
         .layer(Extension(infer))
         .layer(Extension(compute_type))
         .layer(Extension(prom_handle.clone()))
+        .layer(axum::middleware::from_fn(logging::trace_context_middleware))
         .layer(OtelAxumLayer::default())
         .layer(cors_layer);
 
