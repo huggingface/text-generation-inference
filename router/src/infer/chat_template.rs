@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 
 use crate::infer::InferError;
-use crate::{
-    ChatTemplateInputs, GrammarType, Message, MessageChunk, TextMessage, TokenizerConfigToken,
-};
+use crate::{ChatTemplateInputs, Message, MessageChunk, TextMessage, TokenizerConfigToken, Tool};
 use minijinja::{Environment, ErrorKind, Template};
 use minijinja_contrib::pycompat;
 
@@ -32,6 +30,7 @@ impl ChatTemplate {
         env.set_unknown_method_callback(pycompat::unknown_method_callback);
         let template_str = template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
+        tracing::debug!("Loading template: {:#?}", template_str);
 
         // leaking env and template_str as read-only, static resources for performance.
         let template = Box::leak(env)
@@ -42,6 +41,7 @@ impl ChatTemplate {
         let variables = template.undeclared_variables(true);
         // check if the `tools` variable is used in the template
         let use_default_tool_template = !variables.contains("tools");
+        tracing::debug!("Use default tool template: {}", use_default_tool_template);
 
         Self {
             template,
@@ -56,36 +56,43 @@ impl ChatTemplate {
         &self,
         guideline: Option<&str>,
         mut messages: Vec<Message>,
-        grammar_with_prompt: Option<(GrammarType, String)>,
+        tools_and_prompt: Option<(Option<Vec<Tool>>, String)>,
     ) -> Result<String, InferError> {
-        if self.use_default_tool_template {
-            if let Some(last_message) = messages.last_mut() {
-                if let Some((GrammarType::Json(tools), tool_prompt)) = grammar_with_prompt {
-                    last_message.content.push(MessageChunk::Text {
-                        text: format!("\n---\n{}\n{}", tool_prompt, tools),
-                    });
-                }
-            }
-        }
-
-        let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
-
         // check if guideline is expected but not provided
         if self.variables.contains("guideline") && guideline.is_none() {
             return Err(InferError::MissingTemplateVariable("guideline".to_string()));
         }
 
-        self.template
+        let (tools, tool_prompt) = tools_and_prompt.unwrap_or_default();
+
+        if tools.is_some() {
+            // check if the `tools` variable is used in the template
+            // if not, we need to append the tools to the last message
+            let text = if self.use_default_tool_template {
+                format!("\n---\n{:?}\n{}", tools, tool_prompt)
+            } else {
+                // if the `tools` variable is used in the template, we just append the tool_prompt
+                format!("\n---\n{}", tool_prompt)
+            };
+            if let Some(last_message) = messages.last_mut() {
+                last_message.content.push(MessageChunk::Text { text });
+            }
+        }
+
+        let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
+
+        return self
+            .template
             .render(ChatTemplateInputs {
                 guideline,
                 messages,
                 bos_token: self.bos_token.as_deref(),
                 eos_token: self.eos_token.as_deref(),
                 add_generation_prompt: true,
-                tools: None,
+                tools: tools,
                 tools_prompt: None,
             })
-            .map_err(InferError::TemplateError)
+            .map_err(InferError::TemplateError);
     }
 }
 
