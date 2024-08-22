@@ -1386,7 +1386,8 @@ class FlashCausalLM(Model):
                 total_cuda_graph_memory = free_memory_post_alloc - last_available_memory
                 log_master(
                     logger.info,
-                    f"Total memory used for CUDA graphs: {total_cuda_graph_memory/1024/1024:.2f} MB",
+                    f"Total memory used for CUDA graphs: {total_cuda_graph_memory/1024/1024:.2f} MB"
+                    f"\nTotal memory available: {last_available_memory/1024/1024:.2f} MB",
                 )
             except torch.cuda.OutOfMemoryError:
                 logger.exception("Decode cuda graph warmup failed")
