@@ -1,4 +1,4 @@
-use std::{cmp::min, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::radix::RadixAllocator;
@@ -91,11 +91,7 @@ async fn block_allocator_task(
     window_size: Option<u32>,
     mut receiver: mpsc::UnboundedReceiver<BlockAllocatorCommand>,
 ) {
-    let mut allocator: Box<dyn Allocator + Send> = if prefix_caching {
-        Box::new(RadixAllocator::new(block_size, blocks, window_size))
-    } else {
-        Box::new(SimpleAllocator::new(blocks, block_size, window_size))
-    };
+    let mut allocator = RadixAllocator::new(block_size, blocks, window_size, prefix_caching);
     while let Some(cmd) = receiver.recv().await {
         match cmd {
             BlockAllocatorCommand::Free {
@@ -128,83 +124,12 @@ enum BlockAllocatorCommand {
     },
 }
 
-pub trait Allocator {
-    fn allocate(
-        &mut self,
-        tokens: u32,
-        prefill_tokens: Option<Arc<Vec<u32>>>,
-    ) -> Option<BlockAllocation>;
-
-    fn free(&mut self, blocks: Vec<u32>, allocation_id: u64);
-}
-
-pub struct SimpleAllocator {
-    free_blocks: Vec<u32>,
-    block_size: u32,
-    window_size: Option<u32>,
-}
-
-impl SimpleAllocator {
-    fn new(blocks: u32, block_size: u32, window_size: Option<u32>) -> Self {
-        SimpleAllocator {
-            block_size,
-            // Block 0 is reserved for health checks
-            free_blocks: (1..blocks).collect(),
-            window_size,
-        }
-    }
-}
-
-impl Allocator for SimpleAllocator {
-    fn allocate(
-        &mut self,
-        tokens: u32,
-        _prefill_tokens: Option<Arc<Vec<u32>>>,
-    ) -> Option<BlockAllocation> {
-        // Apply window size
-        let (required_blocks, repeats) = {
-            let (tokens, repeats) = match self.window_size {
-                None => (tokens, 1),
-                Some(window_size) => {
-                    let repeats = (tokens + window_size - 1) / window_size;
-                    let tokens = min(tokens, window_size);
-                    (tokens, repeats as usize)
-                }
-            };
-            // Pad to a multiple of block size
-            let required_blocks = (tokens + self.block_size - 1) / self.block_size;
-            (required_blocks, repeats)
-        };
-
-        let tokens = tokens as usize;
-        if required_blocks > self.free_blocks.len() as u32 {
-            None
-        } else {
-            let blocks = self
-                .free_blocks
-                .split_off(self.free_blocks.len() - required_blocks as usize);
-            let mut slots =
-                Vec::with_capacity((required_blocks * self.block_size * repeats as u32) as usize);
-
-            'slots: for block_id in blocks.repeat(repeats).iter() {
-                for s in (block_id * self.block_size)..((block_id + 1) * self.block_size) {
-                    slots.push(s);
-                    if slots.len() == tokens {
-                        break 'slots;
-                    }
-                }
-            }
-            Some(BlockAllocation {
-                allocation_id: 0,
-                blocks,
-                slots,
-                prefix_len: 0,
-                block_allocator: None,
-            })
-        }
-    }
-
-    fn free(&mut self, blocks: Vec<u32>, _allocation_id: u64) {
-        self.free_blocks.extend(blocks)
-    }
-}
+// pub trait Allocator {
+//     fn allocate(
+//         &mut self,
+//         tokens: u32,
+//         prefill_tokens: Option<Arc<Vec<u32>>>,
+//     ) -> Option<BlockAllocation>;
+//
+//     fn free(&mut self, blocks: Vec<u32>, allocation_id: u64);
+// }

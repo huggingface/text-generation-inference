@@ -43,7 +43,6 @@ from text_generation_server.models.globals import (
     ATTENTION,
     BLOCK_SIZE,
     CUDA_GRAPHS,
-    PREFIX_CACHING,
     get_adapter_to_index,
 )
 from text_generation_server.layers.attention import Seqlen
@@ -266,7 +265,7 @@ class FlashCausalLMBatch(Batch):
 
             orig_input_length = len(tokenized_input)
 
-            if PREFIX_CACHING:
+            if ATTENTION == "flashinfer":
                 prefix_len = r.prefix_len
                 if prefix_len == orig_input_length:
                     assert prefix_len > 0
@@ -1452,7 +1451,7 @@ class FlashCausalLM(Model):
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
             input_lengths = input_lengths + prefix_lens_tensor
-            if PREFIX_CACHING:
+            if ATTENTION == "flashinfer":
                 block_tables = block_tables_to_ragged(
                     block_tables=block_tables,
                     input_lengths=batch.input_lengths,

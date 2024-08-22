@@ -5,7 +5,7 @@ use std::{
 
 use slotmap::{DefaultKey, SlotMap};
 
-use crate::block_allocator::{Allocator, BlockAllocation};
+use crate::block_allocator::BlockAllocation;
 
 pub struct RadixAllocator {
     allocation_id: u64,
@@ -21,10 +21,18 @@ pub struct RadixAllocator {
     // This isn't used because the prefix need to match without the windowing
     // mecanism. This at worst is overallocating, not necessarily being wrong.
     window_size: Option<u32>,
+
+    /// Wether to actual use the radix tree for searching or not.
+    prefix_caching: bool,
 }
 
 impl RadixAllocator {
-    pub fn new(block_size: u32, n_blocks: u32, window_size: Option<u32>) -> Self {
+    pub fn new(
+        block_size: u32,
+        n_blocks: u32,
+        window_size: Option<u32>,
+        prefix_caching: bool,
+    ) -> Self {
         assert_eq!(
             block_size, 1,
             "Radix tree allocator only works with block_size=1, was: {}",
@@ -42,6 +50,7 @@ impl RadixAllocator {
             // Block 0 is reserved for health checks.
             free_blocks: (1..n_blocks).collect(),
             window_size,
+            prefix_caching,
         }
     }
 
@@ -69,23 +78,25 @@ impl RadixAllocator {
     }
 }
 
-impl Allocator for RadixAllocator {
-    fn allocate(
+// Allocator trait
+impl RadixAllocator {
+    pub fn allocate(
         &mut self,
         tokens: u32,
         prefill_tokens: Option<Arc<Vec<u32>>>,
     ) -> Option<BlockAllocation> {
         let mut blocks = vec![];
-        let prefix_node = if let Some(prefill_tokens) = prefill_tokens.as_ref() {
-            let node_id = self
-                .cache_blocks
-                .find(prefill_tokens.as_slice(), &mut blocks);
-            // Even if this allocation fails below, we need to increase he
-            // refcount to ensure that the prefix that was found is not evicted.
+        let prefix_node = match (self.prefix_caching, prefill_tokens.as_ref()) {
+            (true, Some(prefill_tokens)) => {
+                let node_id = self
+                    .cache_blocks
+                    .find(prefill_tokens.as_slice(), &mut blocks);
+                // Even if this allocation fails below, we need to increase he
+                // refcount to ensure that the prefix that was found is not evicted.
 
-            node_id
-        } else {
-            self.cache_blocks.root_id()
+                node_id
+            }
+            _ => self.cache_blocks.root_id(),
         };
 
         self.cache_blocks
@@ -126,7 +137,7 @@ impl Allocator for RadixAllocator {
         })
     }
 
-    fn free(&mut self, blocks: Vec<u32>, allocation_id: u64) {
+    pub fn free(&mut self, blocks: Vec<u32>, allocation_id: u64) {
         let allocation = match self.allocations.remove(&allocation_id) {
             Some(allocation) => allocation,
             None => unreachable!("Tried to free an unknown allocation."),
@@ -574,13 +585,11 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use crate::block_allocator::Allocator;
-
     use super::RadixAllocator;
 
     #[test]
     fn allocator_reuses_prefixes() {
-        let mut cache = RadixAllocator::new(1, 12, None);
+        let mut cache = RadixAllocator::new(1, 12, None, true);
         let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
         assert_eq!(allocation.blocks, vec![4, 5, 6, 7, 8, 9, 10, 11]);
         assert_eq!(allocation.slots, allocation.slots);
@@ -593,8 +602,22 @@ mod tests {
     }
 
     #[test]
+    fn allocator_doesnt_reuses_prefixes() {
+        let mut cache = RadixAllocator::new(1, 12, None, false);
+        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
+        assert_eq!(allocation.blocks, vec![4, 5, 6, 7, 8, 9, 10, 11]);
+        assert_eq!(allocation.slots, allocation.slots);
+        assert_eq!(allocation.prefix_len, 0);
+        cache.free(allocation.blocks.clone(), allocation.allocation_id);
+
+        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
+        assert_eq!(allocation.blocks, vec![1, 2, 3, 8, 9, 10, 11, 7]);
+        assert_eq!(allocation.prefix_len, 0);
+    }
+
+    #[test]
     fn allocator_collects_older_prefixes_first() {
-        let mut cache = RadixAllocator::new(1, 7, None);
+        let mut cache = RadixAllocator::new(1, 7, None, true);
         let allocation1 = cache.allocate(4, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
         assert_eq!(allocation1.blocks, vec![3, 4, 5, 6]);
         assert_eq!(allocation1.prefix_len, 0);
@@ -614,7 +637,7 @@ mod tests {
 
     #[test]
     fn allocator_frees_fully_overlapping_prefills() {
-        let mut cache = RadixAllocator::new(1, 10, None);
+        let mut cache = RadixAllocator::new(1, 10, None, true);
         let allocation1 = cache.allocate(4, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
         let allocation2 = cache.allocate(4, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
 
@@ -630,7 +653,7 @@ mod tests {
 
     #[test]
     fn allocator_frees_partially_overlapping_prefills() {
-        let mut cache = RadixAllocator::new(1, 20, None);
+        let mut cache = RadixAllocator::new(1, 20, None, true);
         let allocation1 = cache.allocate(4, Some(Arc::new(vec![0, 1]))).unwrap();
         assert_eq!(allocation1.blocks, vec![16, 17, 18, 19]);
         assert_eq!(allocation1.prefix_len, 0);

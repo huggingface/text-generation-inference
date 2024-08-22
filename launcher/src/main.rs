@@ -24,6 +24,44 @@ use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod env_runtime;
 
+fn resolve_attention(config: &Config, lora_adapters: &Option<String>) -> (String, String) {
+    let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
+    let mut attention: Option<String> = std::env::var("ATTENTION").ok();
+    match config.head_dim {
+        Some(h) if h == 64 || h == 128 || h == 256 => {
+            if lora_adapters.is_some() && prefix_caching.is_none() {
+                tracing::info!("Disabling prefix caching because of lora adapters");
+                prefix_caching = Some("0".to_string());
+            }
+            match config.model_type.as_deref() {
+                Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
+                    // Required because gemma2 needs bfloat16 which is not supported by
+                    // flashinfer ?
+                    if prefix_caching.is_none() {
+                        tracing::info!(
+                            "Forcing flash decoding because model {} requires it",
+                            config.model_type.as_ref().unwrap()
+                        );
+                        prefix_caching = Some("0".to_string());
+                        attention = Some("flashdecoding".to_string());
+                    }
+                }
+                _ => {}
+            }
+        }
+        _ => {
+            if prefix_caching.is_none() {
+                tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
+                prefix_caching = Some("0".to_string());
+                attention = Some("flashdecoding".to_string());
+            }
+        }
+    }
+    let prefix_caching = prefix_caching.unwrap_or("true".to_string());
+    let attention = attention.unwrap_or("flashinfer".to_string());
+    (prefix_caching, attention)
+}
+
 #[derive(Deserialize)]
 struct RawConfig {
     max_position_embeddings: Option<usize>,
@@ -1496,28 +1534,10 @@ fn main() -> Result<(), LauncherError> {
             let config: RawConfig = serde_json::from_str(&content)?;
 
             let config: Config = config.into();
-            match config.head_dim {
-                Some(h) if h == 64 || h == 128 || h == 256 => {
-                    if args.lora_adapters.is_some() {
-                        tracing::info!("Disabling prefix caching because of lora adapters");
-                        std::env::set_var("USE_PREFIX_CACHING", "0");
-                    }
-                    match config.model_type.as_deref() {
-                        Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
-                            // Required because gemma2 needs bfloat16 which is not supported by
-                            // flashinfer ?
-                            std::env::set_var("USE_PREFIX_CACHING", "0");
-                            std::env::set_var("ATTENTION", "flashdecoding");
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {
-                    tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
-                    std::env::set_var("USE_PREFIX_CACHING", "0");
-                    std::env::set_var("ATTENTION", "flashdecoding");
-                }
-            }
+            let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
+            tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
+            std::env::set_var("USE_PREFIX_CACHING", prefix_caching);
+            std::env::set_var("ATTENTION", attention);
             let quantize = config.quantize;
 
             // Quantization usually means you're even more RAM constrained.
