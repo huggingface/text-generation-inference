@@ -2562,13 +2562,11 @@ fn prepare_chat_input(
     }
 
     // if tools are set, apply the tool grammar and then the chat template
-    let tool_grammar: Option<Tools> = ToolGrammar::apply(tools, tool_choice)?;
+    let tool_grammar: Option<Tools> = ToolGrammar::apply(tools.clone(), tool_choice)?;
     let grammar = tool_grammar
         .as_ref()
         .map(|t| GrammarType::Json(serde_json::json!(t)));
-    let tools_grammar_prompt = tool_grammar
-        .as_ref()
-        .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt.into()));
-    let inputs = infer.apply_chat_template(guideline, messages, tools_grammar_prompt)?;
+    let tools_and_prompt: (Option<Vec<Tool>>, String) = (tools, tool_prompt.into());
+    let inputs = infer.apply_chat_template(guideline, messages, Some(tools_and_prompt))?;
     Ok((inputs, grammar, tool_grammar))
 }
