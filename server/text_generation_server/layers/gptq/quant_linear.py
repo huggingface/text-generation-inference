@@ -7,6 +7,10 @@ from torch.cuda.amp import custom_fwd
 import triton
 import triton.language as tl
 from . import custom_autotune
+from text_generation_server.utils.import_utils import SYSTEM
+
+if SYSTEM == "ipex":
+    import intel_extension_for_pytorch as ipex
 
 
 # code based https://github.com/fpgaminer/GPTQ-triton
@@ -264,6 +268,21 @@ class QuantLinear(nn.Module):
 
         self.outfeatures = qweight.shape[1]
         self.infeatures = qweight.shape[0] * 32 // bits
+        if SYSTEM == "ipex" and bits == 4:
+            self.woq_linear = (
+                ipex.llm.quantization.IPEXWeightOnlyQuantizedLinear.from_weight(
+                    self.qweight,
+                    self.scales,
+                    self.qzeros,
+                    self.infeatures,
+                    self.outfeatures,
+                    bias=self.bias,
+                    group_size=self.groupsize,
+                    g_idx=g_idx,
+                    quant_method=ipex.llm.quantization.QuantMethod.GPTQ_GEMM,
+                    dtype=ipex.llm.quantization.QuantDtype.INT4,
+                )
+            )
 
     @classmethod
     def new(cls, bits, groupsize, infeatures, outfeatures, bias):
@@ -346,14 +365,17 @@ class QuantLinear(nn.Module):
 
     def forward(self, x):
         out_shape = x.shape[:-1] + (self.outfeatures,)
-        out = QuantLinearFunction.apply(
-            x.reshape(-1, x.shape[-1]),
-            self.qweight,
-            self.scales,
-            self.qzeros,
-            self.g_idx,
-            self.bits,
-            self.maxq,
-        )
+        if SYSTEM == "ipex" and self.bits == 4:
+            out = self.woq_linear(x.reshape(-1, x.shape[-1]))
+        else:
+            out = QuantLinearFunction.apply(
+                x.reshape(-1, x.shape[-1]),
+                self.qweight,
+                self.scales,
+                self.qzeros,
+                self.g_idx,
+                self.bits,
+                self.maxq,
+            )
         out = out + self.bias if self.bias is not None else out
         return out.reshape(out_shape)

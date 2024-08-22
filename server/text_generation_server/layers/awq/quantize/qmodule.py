@@ -3,7 +3,12 @@
 from typing import Optional
 import torch
 import torch.nn as nn
-import awq_inference_engine  # with CUDA kernels
+from text_generation_server.utils.import_utils import SYSTEM
+
+if SYSTEM == "ipex":
+    import intel_extension_for_pytorch as ipex
+else:
+    import awq_inference_engine  # with CUDA kernels
 
 
 # class ScaledActivation(nn.Module):
@@ -38,12 +43,29 @@ class WQLinear(nn.Module):
         self.qzeros = qzeros
         self.scales = scales
         self.bias = bias
+        if SYSTEM == "ipex":
+            self.woq_linear = (
+                ipex.llm.quantization.IPEXWeightOnlyQuantizedLinear.from_weight(
+                    self.qweight,
+                    self.scales,
+                    self.qzeros,
+                    self.in_features,
+                    self.out_features,
+                    bias=self.bias,
+                    group_size=self.group_size,
+                    quant_method=ipex.llm.quantization.QuantMethod.AWQ_GEMM,
+                    dtype=ipex.llm.quantization.QuantDtype.INT4,
+                )
+            )
 
     @torch.no_grad()
     def forward(self, x):
         out_shape = x.shape[:-1] + (self.out_features,)
-        out = awq_inference_engine.gemm_forward_cuda(
-            x.reshape(-1, x.shape[-1]), self.qweight, self.scales, self.qzeros, 8
-        )
+        if SYSTEM == "ipex":
+            out = self.woq_linear(x.reshape(-1, x.shape[-1]))
+        else:
+            out = awq_inference_engine.gemm_forward_cuda(
+                x.reshape(-1, x.shape[-1]), self.qweight, self.scales, self.qzeros, 8
+            )
         out = out + self.bias if self.bias is not None else out
         return out.reshape(out_shape)
