@@ -1124,6 +1124,8 @@ class FlashCausalLM(Model):
                 device = torch.device("cpu")
                 # Float16 doesn't exist on target.
                 dtype = torch.bfloat16 if dtype is None else dtype
+                if quantize in ["awq", "exl2", "gptq", "marlin"]:
+                    dtype = torch.bfloat16
                 init_cpu_threads_env(rank_id=rank, world_size=world_size)
         else:
             raise NotImplementedError(f"{model_class} is only available on GPU")
