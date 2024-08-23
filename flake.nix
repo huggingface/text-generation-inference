@@ -99,6 +99,17 @@
             '';
           };
         };
+
+        packages.default = pkgs.writeShellApplication {
+          name = "text-generation-inference";
+          runtimeInputs = [
+            server
+            router
+          ];
+          text = ''
+            ${launcher}/bin/text-generation-launcher "$@"
+          '';
+        };
       }
     );
 }
