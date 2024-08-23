@@ -1207,6 +1207,7 @@ pub(crate) struct GenerateResponse {
 pub(crate) struct ChatTokenizeResponse {
     pub(crate) tokenize_response: TokenizeResponse,
     pub(crate) templated_text: String,
+    pub(crate) using_tools: bool,
 }
 
 #[derive(Serialize, ToSchema)]
