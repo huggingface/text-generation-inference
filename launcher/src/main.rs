@@ -24,36 +24,38 @@ use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod env_runtime;
 
-fn resolve_attention(config: &Config, lora_adapters: &Option<String>) -> (String, String) {
+fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
     let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
     let mut attention: Option<String> = std::env::var("ATTENTION").ok();
-    match config.head_dim {
-        Some(h) if h == 64 || h == 128 || h == 256 => {
-            if lora_adapters.is_some() && prefix_caching.is_none() {
-                tracing::info!("Disabling prefix caching because of lora adapters");
-                prefix_caching = Some("0".to_string());
-            }
-            match config.model_type.as_deref() {
-                Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
-                    // Required because gemma2 needs bfloat16 which is not supported by
-                    // flashinfer ?
-                    if prefix_caching.is_none() {
-                        tracing::info!(
-                            "Forcing flash decoding because model {} requires it",
-                            config.model_type.as_ref().unwrap()
-                        );
-                        prefix_caching = Some("0".to_string());
-                        attention = Some("flashdecoding".to_string());
-                    }
+    if let Some(config) = config {
+        match config.head_dim {
+            Some(h) if h == 64 || h == 128 || h == 256 => {
+                if lora_adapters.is_some() && prefix_caching.is_none() {
+                    tracing::info!("Disabling prefix caching because of lora adapters");
+                    prefix_caching = Some("0".to_string());
                 }
-                _ => {}
+                match config.model_type.as_deref() {
+                    Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
+                        // Required because gemma2 needs bfloat16 which is not supported by
+                        // flashinfer ?
+                        if prefix_caching.is_none() {
+                            tracing::info!(
+                                "Forcing flash decoding because model {} requires it",
+                                config.model_type.as_ref().unwrap()
+                            );
+                            prefix_caching = Some("0".to_string());
+                            attention = Some("flashdecoding".to_string());
+                        }
+                    }
+                    _ => {}
+                }
             }
-        }
-        _ => {
-            if prefix_caching.is_none() {
-                tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
-                prefix_caching = Some("0".to_string());
-                attention = Some("flashdecoding".to_string());
+            _ => {
+                if prefix_caching.is_none() {
+                    tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
+                    prefix_caching = Some("0".to_string());
+                    attention = Some("flashdecoding".to_string());
+                }
             }
         }
     }
@@ -1502,68 +1504,68 @@ fn main() -> Result<(), LauncherError> {
 
     tracing::info!("{:#?}", args);
 
-    let get_max_positions_quantize =
-        || -> Result<(usize, Option<Quantization>), Box<dyn std::error::Error>> {
-            let model_id = args.model_id.clone();
-            let mut path = std::path::Path::new(&args.model_id).to_path_buf();
-            let filename = if !path.exists() {
-                // Assume it's a hub id
+    let get_config = || -> Result<Config, Box<dyn std::error::Error>> {
+        let model_id = args.model_id.clone();
+        let mut path = std::path::Path::new(&args.model_id).to_path_buf();
+        let filename = if !path.exists() {
+            // Assume it's a hub id
 
-                let api = if let Ok(token) = std::env::var("HF_TOKEN") {
-                    // env variable has precedence over on file token.
-                    ApiBuilder::new().with_token(Some(token)).build()?
-                } else {
-                    Api::new()?
-                };
-                let repo = if let Some(ref revision) = args.revision {
-                    api.repo(Repo::with_revision(
-                        model_id,
-                        RepoType::Model,
-                        revision.to_string(),
-                    ))
-                } else {
-                    api.model(model_id)
-                };
-                repo.get("config.json")?
+            let api = if let Ok(token) = std::env::var("HF_TOKEN") {
+                // env variable has precedence over on file token.
+                ApiBuilder::new().with_token(Some(token)).build()?
             } else {
-                path.push("config.json");
-                path
+                Api::new()?
             };
-
-            let content = std::fs::read_to_string(filename)?;
-            let config: RawConfig = serde_json::from_str(&content)?;
-
-            let config: Config = config.into();
-            let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
-            tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
-            std::env::set_var("USE_PREFIX_CACHING", prefix_caching);
-            std::env::set_var("ATTENTION", attention);
-            let quantize = config.quantize;
-
-            // Quantization usually means you're even more RAM constrained.
-            let max_default = 4096;
-
-            if let Some(max_position_embeddings) = config.max_position_embeddings {
-                if max_position_embeddings > max_default {
-                    let max = max_position_embeddings;
-                    if args.max_input_tokens.is_none()
-                        && args.max_total_tokens.is_none()
-                        && args.max_batch_prefill_tokens.is_none()
-                    {
-                        tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
-                    }
-                    Ok((max_default, quantize))
-                } else {
-                    Ok((max_position_embeddings, quantize))
-                }
+            let repo = if let Some(ref revision) = args.revision {
+                api.repo(Repo::with_revision(
+                    model_id,
+                    RepoType::Model,
+                    revision.to_string(),
+                ))
             } else {
-                Err(Box::new(LauncherError::ArgumentValidation(
-                    "no max defined".to_string(),
-                )))
-            }
+                api.model(model_id)
+            };
+            repo.get("config.json")?
+        } else {
+            path.push("config.json");
+            path
         };
-    let (max_position_embeddings, quantize): (usize, Option<Quantization>) =
-        get_max_positions_quantize().unwrap_or((4096, None));
+
+        let content = std::fs::read_to_string(filename)?;
+        let config: RawConfig = serde_json::from_str(&content)?;
+
+        let config: Config = config.into();
+        Ok(config)
+    };
+    let config: Option<Config> = get_config().ok();
+    let quantize = config.as_ref().and_then(|c| c.quantize);
+    // Quantization usually means you're even more RAM constrained.
+    let max_default = 4096;
+
+    let max_position_embeddings = if let Some(config) = &config {
+        if let Some(max_position_embeddings) = config.max_position_embeddings {
+            if max_position_embeddings > max_default {
+                let max = max_position_embeddings;
+                if args.max_input_tokens.is_none()
+                    && args.max_total_tokens.is_none()
+                    && args.max_batch_prefill_tokens.is_none()
+                {
+                    tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
+                }
+                max_default
+            } else {
+                max_position_embeddings
+            }
+        } else {
+            max_default
+        }
+    } else {
+        max_default
+    };
+    let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
+    tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
+    std::env::set_var("USE_PREFIX_CACHING", prefix_caching);
+    std::env::set_var("ATTENTION", attention);
 
     let max_input_tokens = {
         match (args.max_input_tokens, args.max_input_length) {

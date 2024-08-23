@@ -33,11 +33,13 @@ impl RadixAllocator {
         window_size: Option<u32>,
         prefix_caching: bool,
     ) -> Self {
-        assert_eq!(
-            block_size, 1,
-            "Radix tree allocator only works with block_size=1, was: {}",
-            block_size
-        );
+        if prefix_caching {
+            assert_eq!(
+                block_size, 1,
+                "Radix tree allocator only works with block_size=1, was: {}",
+                block_size
+            );
+        }
         // if window_size.is_some() {
         //     unimplemented!("Window size not supported in the prefix-caching block allocator yet");
         // }

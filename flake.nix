@@ -56,6 +56,7 @@
       in
       {
         devShells = with pkgs; rec {
+
           default = pure;
 
           pure = mkShell {
