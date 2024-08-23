@@ -1,5 +1,8 @@
 use crate::infer::InferError;
-use crate::{FunctionRef, FunctionsMap, Properties, Tool, ToolChoice, ToolType, Tools};
+use crate::{
+    FunctionDefinition, FunctionRef, FunctionsMap, JsonSchemaTool, Properties, Tool, ToolChoice,
+    ToolType,
+};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 
@@ -16,16 +19,41 @@ impl ToolGrammar {
     }
 
     pub fn apply(
-        tools: Option<Vec<Tool>>,
+        tools: Vec<Tool>,
         tool_choice: ToolChoice,
-    ) -> Result<Option<Tools>, InferError> {
+    ) -> Result<(Vec<Tool>, Option<JsonSchemaTool>), InferError> {
         // if no tools are provided, we return None
-        let tools = match tools {
-            Some(tools) if !tools.is_empty() => tools,
-            _ => return Ok(None),
-        };
+        if tools.is_empty() {
+            return Ok((tools, None));
+        }
 
         let tool_choice = tool_choice.0.unwrap_or(ToolType::OneOf);
+
+        let mut tools = tools.clone();
+
+        // add the notify_error function to the tools
+        let notify_error = Tool {
+            r#type: "function".to_string(),
+            function: FunctionDefinition {
+                name: "notify_error".to_string(),
+                description: Some("Notify an error or issue".to_string()),
+                arguments: json!({
+                    "type": "object",
+                    "properties": {
+                        "error": {
+                            "type": "string",
+                            "description": "The error or issue to notify"
+                        },
+                        "_name": {
+                            "type": "string",
+                            "const": "notify_error"
+                        }
+                    },
+                    "required": ["error", "_name"]
+                }),
+            },
+        };
+        tools.push(notify_error);
 
         // if tools are provided and no tool_choice we default to the OneOf
         let tools_to_use = match tool_choice {
@@ -35,26 +63,9 @@ impl ToolGrammar {
             ToolType::Function { function } => {
                 vec![Self::find_tool_by_name(&tools, &function.name)?]
             }
-            ToolType::OneOf => tools,
-            ToolType::NoTool => return Ok(None),
+            ToolType::OneOf => tools.clone(),
+            ToolType::NoTool => return Ok((tools, None)),
         };
-
-        // adds the error notification function for LLM feedback if required
-        let mut text_response_properties = Map::new();
-        text_response_properties.insert(
-            "error".to_string(),
-            serde_json::json!({
-                "type": "string",
-                "description": "The error or issue to notify"
-            }),
-        );
-        text_response_properties.insert(
-            "_name".to_string(),
-            serde_json::json!({
-                "type": "string",
-                "const": "notify_error"
-            }),
-        );
 
         let functions: HashMap<String, serde_json::Value> = tools_to_use
             .iter()
@@ -105,17 +116,9 @@ impl ToolGrammar {
 
                 (func.name, Value::Object(params))
             })
-            .chain([(
-                "notify_error".to_string(),
-                serde_json::json!({
-                    "properties": text_response_properties,
-                    "required": ["error", "_name"],
-                    "type": "object"
-                }),
-            )])
             .collect();
 
-        let tools = Tools {
+        let tool_schema = JsonSchemaTool {
             functions_map: FunctionsMap { functions },
             properties: Properties {
                 function: tools_to_use
@@ -130,6 +133,6 @@ impl ToolGrammar {
             },
         };
 
-        Ok(Some(tools))
+        Ok((tools, Some(tool_schema)))
     }
 }

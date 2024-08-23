@@ -910,7 +910,7 @@ impl From<ToolTypeDeserializer> for ToolChoice {
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
-pub struct Tools {
+pub struct JsonSchemaTool {
     #[serde(flatten)]
     functions_map: FunctionsMap,
     properties: Properties,
@@ -969,7 +969,6 @@ pub(crate) struct ChatTemplateInputs<'a> {
     eos_token: Option<&'a str>,
     add_generation_prompt: bool,
     tools: Option<Vec<Tool>>,
-    tools_prompt: Option<&'a str>,
     guideline: Option<&'a str>,
 }
 
@@ -1207,7 +1206,6 @@ pub(crate) struct GenerateResponse {
 pub(crate) struct ChatTokenizeResponse {
     pub(crate) tokenize_response: TokenizeResponse,
     pub(crate) templated_text: String,
-    pub(crate) using_tools: bool,
 }
 
 #[derive(Serialize, ToSchema)]

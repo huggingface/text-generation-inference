@@ -23,7 +23,7 @@ use crate::{
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, VertexRequest,
     VertexResponse,
 };
-use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType, Tools};
+use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -146,7 +146,7 @@ async fn get_chat_tokenize(
     } = req;
 
     let tool_prompt = tool_prompt.unwrap_or_default();
-    let (inputs, _grammar, using_tools) = prepare_chat_input(
+    let (inputs, _grammar, _using_tools) = prepare_chat_input(
         &infer,
         response_format,
         tools,
@@ -206,7 +206,6 @@ async fn get_chat_tokenize(
         let resp = ChatTokenizeResponse {
             tokenize_response: TokenizeResponse(tokens),
             templated_text: input,
-            using_tools,
         };
         Ok((HeaderMap::new(), Json(resp)))
     } else {
@@ -2562,28 +2561,28 @@ fn prepare_chat_input(
         return Ok((inputs, Some(format), false));
     }
 
-    // if tools are set, apply the tool grammar and then the chat template
-    let tool_grammar: Option<Tools> = ToolGrammar::apply(tools.clone(), tool_choice)?;
-    let grammar = tool_grammar
+    let (updated_tools, tool_schema) = ToolGrammar::apply(tools.unwrap().clone(), tool_choice)?;
+
+    let grammar = tool_schema
         .as_ref()
         .map(|t| GrammarType::Json(serde_json::json!(t)));
-    let tools_and_prompt: (Option<Vec<Tool>>, String) = (tools, tool_prompt.into());
-    let inputs = infer.apply_chat_template(guideline, messages, Some(tools_and_prompt))?;
-    Ok((inputs, grammar, tool_grammar.is_some()))
+
+    let inputs: String = infer.apply_chat_template(
+        guideline,
+        messages,
+        Some((updated_tools, tool_prompt.into())),
+    )?;
+
+    Ok((inputs, grammar, tool_schema.is_some()))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
     use crate::ChatTemplateVersions;
-    use crate::FunctionsMap;
     use crate::HubTokenizerConfig;
-    use crate::Properties;
     use crate::TokenizerConfigToken;
     use crate::Tool;
-    use crate::Tools;
 
     use serde_json::json;
 
@@ -2595,26 +2594,26 @@ mod tests {
         impl Backend for MockBackend {
             fn schedule(
                 &self,
-                request: crate::validation::ValidGenerateRequest,
+                _request: crate::validation::ValidGenerateRequest,
             ) -> Result<
                 tokio_stream::wrappers::UnboundedReceiverStream<
                     Result<InferStreamResponse, InferError>,
                 >,
                 InferError,
             > {
-                unimplemented!()
+                unimplemented!("Never called in this test");
             }
-            fn health<'life0, 'async_trait>(
-                &'life0 self,
-                current_health: bool,
+            fn health<'a, 'async_trait>(
+                &'a self,
+                _current_health: bool,
             ) -> core::pin::Pin<
                 Box<dyn core::future::Future<Output = bool> + core::marker::Send + 'async_trait>,
             >
             where
-                'life0: 'async_trait,
+                'a: 'async_trait,
                 Self: 'async_trait,
             {
-                unimplemented!()
+                unimplemented!("Never called in this test");
             }
         }
 
@@ -2680,8 +2679,8 @@ mod tests {
         );
 
         assert!(result.is_ok());
-        let (inputs, grammar, using_tools) = result.unwrap();
+        let (inputs, _grammar, using_tools) = result.unwrap();
         assert_eq!(using_tools, true);
-        assert_eq!(inputs, "<s>[AVAILABLE_TOOLS] [{\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}, \"description\": \"Get the current weather\", \"name\": \"get_current_weather\"}}][/AVAILABLE_TOOLS][INST] What is the weather like in New York?\n---\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.[/INST]".to_string());
+        assert_eq!(inputs, "<s>[AVAILABLE_TOOLS] [{\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}, \"description\": \"Get the current weather\", \"name\": \"get_current_weather\"}}, {\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"_name\":{\"const\":\"notify_error\",\"type\":\"string\"},\"error\":{\"description\":\"The error or issue to notify\",\"type\":\"string\"}},\"required\":[\"error\",\"_name\"],\"type\":\"object\"}, \"description\": \"Notify an error or issue\", \"name\": \"notify_error\"}}][/AVAILABLE_TOOLS][INST] What is the weather like in New York?\n---\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.[/INST]".to_string());
     }
 }

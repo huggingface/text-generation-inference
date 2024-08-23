@@ -140,7 +140,7 @@ impl Infer {
         &self,
         guideline: Option<String>,
         messages: Vec<Message>,
-        tools_and_prompt: Option<(Option<Vec<Tool>>, String)>,
+        tools_and_prompt: Option<(Vec<Tool>, String)>,
     ) -> Result<String, InferError> {
         self.chat_template
             .as_ref()
