@@ -2556,24 +2556,32 @@ fn prepare_chat_input(
         ));
     }
 
+    // when response_format is set, tools are not included when applying the chat template to generate inputs
     if let Some(format) = response_format {
         let inputs = infer.apply_chat_template(guideline, messages, None)?;
         return Ok((inputs, Some(format), false));
     }
 
-    let (updated_tools, tool_schema) = ToolGrammar::apply(tools.unwrap().clone(), tool_choice)?;
+    // when no response_format is set and tools are included, apply the chat template with the tools
+    // to generate inputs
+    if let Some(tools) = tools {
+        let (updated_tools, tool_schema) = ToolGrammar::apply(tools, tool_choice)?;
 
-    let grammar = tool_schema
-        .as_ref()
-        .map(|t| GrammarType::Json(serde_json::json!(t)));
+        let grammar = tool_schema
+            .as_ref()
+            .map(|t| GrammarType::Json(serde_json::json!(t)));
 
-    let inputs: String = infer.apply_chat_template(
-        guideline,
-        messages,
-        Some((updated_tools, tool_prompt.into())),
-    )?;
+        let inputs: String = infer.apply_chat_template(
+            guideline,
+            messages,
+            Some((updated_tools, tool_prompt.into())),
+        )?;
+        return Ok((inputs, grammar, tool_schema.is_some()));
+    }
 
-    Ok((inputs, grammar, tool_schema.is_some()))
+    // if no response_format or tools are set simply apply the chat template to generate inputs
+    let inputs = infer.apply_chat_template(guideline, messages, None)?;
+    Ok((inputs, None, false))
 }
 
 #[cfg(test)]
