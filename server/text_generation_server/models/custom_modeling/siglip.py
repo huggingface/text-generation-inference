@@ -386,11 +386,11 @@ class SiglipVisionTransformer(nn.Module):
         self.encoder = SiglipEncoder(
             prefix=f"{prefix}.encoder", config=config, weights=weights
         )
-        self.post_layernorm = nn.LayerNorm.load(
-            prefix=f"{prefix}.post_layernorm",
-            weights=weights,
-            eps=config.layer_norm_eps,
-        )
+        # self.post_layernorm = nn.LayerNorm.load(
+        #     prefix=f"{prefix}.post_layernorm",
+        #     weights=weights,
+        #     eps=config.layer_norm_eps,
+        # )
 
     def forward(
         self,
@@ -412,10 +412,10 @@ class SiglipVisionTransformer(nn.Module):
             inputs_embeds=hidden_states,
         )
         last_hidden_state = encoder_outputs
-        post_last_hidden_state = self.post_layernorm(last_hidden_state)
+        # post_last_hidden_state = self.post_layernorm(last_hidden_state)
 
         return BaseModelOutputWithPooling(
-            last_hidden_state=post_last_hidden_state,
+            last_hidden_state=last_hidden_state,
             # pooler_output=pooled_output,
             # hidden_states=encoder_outputs,
         )
