@@ -144,6 +144,10 @@ docker run -p 8080:80 \
    -e PREFILL_BATCH_BUCKET_SIZE=1 \
    -e BATCH_BUCKET_SIZE=16 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=128 \
+   -e ENABLE_HPU_GRAPH=true \
+   -e LIMIT_HPU_GRAPH=true \
+   -e USE_FLASH_ATTENTION=true \
+   -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
    ghcr.io/huggingface/tgi-gaudi:2.0.1 \
@@ -171,8 +175,12 @@ docker run -p 8080:80 \
    -e HF_HUB_ENABLE_HF_TRANSFER=1 \
    -e HUGGING_FACE_HUB_TOKEN=$hf_token \
    -e PREFILL_BATCH_BUCKET_SIZE=1 \
-   -e BATCH_BUCKET_SIZE=64 \
+   -e BATCH_BUCKET_SIZE=16 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=128 \
+   -e ENABLE_HPU_GRAPH=true \
+   -e LIMIT_HPU_GRAPH=true \
+   -e USE_FLASH_ATTENTION=true \
+   -e FLASH_ATTENTION_RECOMPUTE=true \
    -e QUANT_CONFIG=./quantization_config/maxabs_quant.json \
    --cap-add=sys_nice \
    --ipc=host \
@@ -181,7 +189,7 @@ docker run -p 8080:80 \
    --max-input-tokens 1024 \
    --max-batch-prefill-tokens 4096 \
    --max-total-tokens 2048 \
-   --max-batch-size 64
+   --max-batch-size 16
 ```
 
 ### LLama 70b BF16 on 8 Gaudi2 card
@@ -202,6 +210,10 @@ docker run -p 8080:80 \
    -e PREFILL_BATCH_BUCKET_SIZE=1 \
    -e BATCH_BUCKET_SIZE=256 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=128 \
+   -e ENABLE_HPU_GRAPH=true \
+   -e LIMIT_HPU_GRAPH=true \
+   -e USE_FLASH_ATTENTION=true \
+   -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
    ghcr.io/huggingface/tgi-gaudi:2.0.1 \
@@ -233,8 +245,12 @@ docker run -p 8080:80 \
    -e HUGGING_FACE_HUB_TOKEN=$hf_token \
    -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true \
    -e PREFILL_BATCH_BUCKET_SIZE=1 \
-   -e BATCH_BUCKET_SIZE=512 \
+   -e BATCH_BUCKET_SIZE=256 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=128 \
+   -e ENABLE_HPU_GRAPH=true \
+   -e LIMIT_HPU_GRAPH=true \
+   -e USE_FLASH_ATTENTION=true \
+   -e FLASH_ATTENTION_RECOMPUTE=true \
    -e QUANT_CONFIG=./quantization_config/maxabs_quant.json \
    --cap-add=sys_nice \
    --ipc=host \
@@ -243,8 +259,8 @@ docker run -p 8080:80 \
    --max-input-tokens 1024 \
    --max-batch-prefill-tokens 16384 \
    --max-total-tokens 2048 \
-   --max-batch-size 512 \
-   --max-concurrent-requests 700 \
+   --max-batch-size 256 \
+   --max-concurrent-requests 400 \
    --sharded true \
    --num-shard 8
 ```
