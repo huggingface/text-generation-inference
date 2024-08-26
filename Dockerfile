@@ -32,7 +32,7 @@ COPY launcher launcher
 RUN cargo build --release
 
 # Text Generation Inference base image
-FROM vault.habana.ai/gaudi-docker/1.16.0/ubuntu22.04/habanalabs/pytorch-installer-2.2.2:latest as base
+FROM vault.habana.ai/gaudi-docker/1.17.0/ubuntu22.04/habanalabs/pytorch-installer-2.3.1:latest as base
 
 # Text Generation Inference base env
 ENV HUGGINGFACE_HUB_CACHE=/data \
@@ -61,7 +61,7 @@ RUN cd server && \
     make gen-server && \
     pip install -r requirements.txt && \
     bash ./dill-0.3.8-patch.sh && \
-    pip install git+https://github.com/HabanaAI/DeepSpeed.git@1.16.0 && \
+    pip install git+https://github.com/HabanaAI/DeepSpeed.git@1.17.0 && \
     pip install . --no-cache-dir
 
 # Install benchmarker

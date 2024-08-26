@@ -18,12 +18,19 @@ limitations under the License.
 
 ## Table of contents
 
-- [Running TGI on Gaudi](#running-tgi-on-gaudi)
-- [Adjusting TGI parameters](#adjusting-tgi-parameters)
-- [Running TGI with FP8 precision](#running-tgi-with-fp8-precision)
-- [Currently supported configurations](#currently-supported-configurations)
-- [Environment variables](#environment-variables)
-- [Profiler](#profiler)
+- [Text Generation Inference on Habana Gaudi](#text-generation-inference-on-habana-gaudi)
+  - [Table of contents](#table-of-contents)
+  - [Running TGI on Gaudi](#running-tgi-on-gaudi)
+  - [Adjusting TGI parameters](#adjusting-tgi-parameters)
+  - [Running TGI with FP8 precision](#running-tgi-with-fp8-precision)
+  - [Currently supported configurations](#currently-supported-configurations)
+    - [LLama 7b BF16 on 1 Gaudi2 card](#llama-7b-bf16-on-1-gaudi2-card)
+    - [LLama 7b FP8 on 1 Gaudi2 card](#llama-7b-fp8-on-1-gaudi2-card)
+    - [LLama 70b BF16 on 8 Gaudi2 card](#llama-70b-bf16-on-8-gaudi2-card)
+    - [LLama 70b FP8 on 8 Gaudi2 card](#llama-70b-fp8-on-8-gaudi2-card)
+    - [LLava-next 7B BF16 on 1 Gaudi2 card](#llava-next-7b-bf16-on-1-gaudi2-card)
+  - [Environment variables](#environment-variables)
+  - [Profiler](#profiler)
 
 ## Running TGI on Gaudi
 
@@ -240,6 +247,32 @@ docker run -p 8080:80 \
    --max-concurrent-requests 700 \
    --sharded true \
    --num-shard 8
+```
+
+### LLava-next 7B BF16 on 1 Gaudi2 card
+
+An image usually accounts for 2000 input tokens. For example, an image of size 512x512 is represented by 2800 tokens. Thus, `max-input-tokens` must be larger than the number of tokens associated to the image. Otherwise the image may be truncated. We set `BASE_IMAGE_TOKENS=2048` as the default image token number. This is the minimum value of `max-input-tokens`. You can override the environment variable `BASE_IMAGE_TOKENS` to change this value. The warmup will generate graphs with input length from `BASE_IMAGE_TOKENS` to `max-input-tokens`. For LLava-next 7B, the value of `max-batch-prefill-tokens` is 16384, which is calcualted as follows: `prefill_batch_size` = `max-batch-prefill-tokens` / `max-input-tokens`.
+
+```bash
+model=llava-hf/llava-v1.6-mistral-7b-hf
+hf_token=YOUR_ACCESS_TOKEN   # HF access token
+volume=$PWD/data   # share a volume with the Docker container to avoid downloading weights every run
+
+docker run -p 8080:80 \
+   --runtime=habana \
+   -v $volume:/data \
+   -e HABANA_VISIBLE_DEVICES=all \
+   -e OMPI_MCA_btl_vader_single_copy_mechanism=none \
+   -e HF_HUB_ENABLE_HF_TRANSFER=1 \
+   -e HUGGING_FACE_HUB_TOKEN=$hf_token \
+   -e PREFILL_BATCH_BUCKET_SIZE=1 \
+   --cap-add=sys_nice \
+   --ipc=host \
+   ghcr.io/huggingface/tgi-gaudi:2.0.1 \
+   --model-id $model \
+   --max-input-tokens 4096 \
+   --max-batch-prefill-tokens 16384 \
+   --max-total-tokens 8192
 ```
 
 Please note that the model warmup can take several minutes, especially for FP8 configs. To minimize this time in consecutive runs, please refer to [Disk Caching Eviction Policy](https://docs.habana.ai/en/latest/PyTorch/Model_Optimization_PyTorch/Optimization_in_PyTorch_Models.html#disk-caching-eviction-policy).
