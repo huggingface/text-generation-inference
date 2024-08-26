@@ -43,13 +43,7 @@ impl BackendV3 {
         let attention: Attention = attention
             .parse()
             .unwrap_or_else(|_| panic!("Invalid attention was specified :`{attention}`"));
-        let block_size = if attention == Attention::FlashDecoding {
-            256
-        } else if attention == Attention::FlashInfer {
-            1
-        } else {
-            16
-        };
+        let block_size = attention.block_size();
 
         let queue = Queue::new(
             requires_padding,

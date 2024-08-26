@@ -8,7 +8,7 @@ use nix::unistd::Pid;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Lines};
+use std::io::{BufRead, BufReader};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -18,7 +18,10 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-use std::{fs, io};
+use std::{
+    fs, io,
+    io::{Read, Write},
+};
 use thiserror::Error;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
@@ -833,6 +836,7 @@ fn shard_manager(
         .args(shard_args)
         .env_clear()
         .envs(envs)
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0)
@@ -854,18 +858,31 @@ fn shard_manager(
     };
 
     // Redirect STDOUT to the console
+    let mut pstdin = p.stdin.take().unwrap();
     let shard_stdout_reader = BufReader::new(p.stdout.take().unwrap());
     let shard_stderr_reader = BufReader::new(p.stderr.take().unwrap());
 
     //stdout tracing thread
     thread::spawn(move || {
-        log_lines(shard_stdout_reader.lines());
+        log_lines(shard_stdout_reader);
     });
     // We read stderr in another thread as it seems that lines() can block in some cases
     let (err_sender, err_receiver) = mpsc::channel();
     thread::spawn(move || {
         for line in shard_stderr_reader.lines().map_while(Result::ok) {
             err_sender.send(line).unwrap_or(());
+        }
+    });
+    // We read stdin in another thread as it seems that lines() can block in some cases
+    thread::spawn(move || {
+        let mut stdin = io::stdin(); // We get `Stdin` here.
+        loop {
+            let mut buffer = vec![0; 4096];
+            if let Ok(n) = stdin.read(&mut buffer) {
+                if n > 0 {
+                    let _ = pstdin.write_all(&buffer[..n]);
+                }
+            }
         }
     });
 
@@ -974,19 +991,36 @@ impl PythonLogMessage {
     }
 }
 
-impl TryFrom<&String> for PythonLogMessage {
+impl TryFrom<&[u8]> for PythonLogMessage {
     type Error = serde_json::Error;
 
-    fn try_from(value: &String) -> Result<Self, Self::Error> {
-        serde_json::from_str::<Self>(value)
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        serde_json::from_slice::<Self>(value)
     }
 }
 
-fn log_lines<S: Sized + BufRead>(lines: Lines<S>) {
-    for line in lines.map_while(Result::ok) {
-        match PythonLogMessage::try_from(&line) {
-            Ok(log) => log.trace(),
-            Err(_) => tracing::debug!("{line}"),
+fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
+    let mut buffer = vec![0u8; 4096];
+    let mut stdout = std::io::stdout();
+    loop {
+        let n = bufread.read(&mut buffer);
+        if let Ok(n) = n {
+            if n > 0 {
+                let mut lines = buffer[..n].split(|i| *i == b'\n').peekable();
+                while let Some(line) = lines.next() {
+                    match PythonLogMessage::try_from(line) {
+                        Ok(log) => log.trace(),
+                        // For interactive debugging ?
+                        Err(_) => {
+                            stdout.write_all(line).unwrap();
+                            if lines.peek().is_some() {
+                                stdout.write_all(b"\n").unwrap();
+                            }
+                            stdout.flush().unwrap();
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1146,7 +1180,7 @@ fn download_convert_model(
     let download_stdout = BufReader::new(download_process.stdout.take().unwrap());
 
     thread::spawn(move || {
-        log_lines(download_stdout.lines());
+        log_lines(download_stdout);
     });
 
     let download_stderr = BufReader::new(download_process.stderr.take().unwrap());

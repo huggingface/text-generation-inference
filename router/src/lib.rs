@@ -22,6 +22,16 @@ pub enum Attention {
     FlashInfer,
 }
 
+impl Attention {
+    pub fn block_size(&self) -> u32 {
+        match self {
+            Attention::FlashDecoding => 256,
+            Attention::FlashInfer => 1,
+            Attention::Paged => 16,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ParseError;
 

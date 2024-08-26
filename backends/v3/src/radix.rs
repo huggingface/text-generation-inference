@@ -1,11 +1,9 @@
+use crate::block_allocator::{Allocator, BlockAllocation};
+use slotmap::{DefaultKey, SlotMap};
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
 };
-
-use slotmap::{DefaultKey, SlotMap};
-
-use crate::block_allocator::BlockAllocation;
 
 pub struct RadixAllocator {
     allocation_id: u64,
@@ -21,25 +19,15 @@ pub struct RadixAllocator {
     // This isn't used because the prefix need to match without the windowing
     // mecanism. This at worst is overallocating, not necessarily being wrong.
     window_size: Option<u32>,
-
-    /// Wether to actual use the radix tree for searching or not.
-    prefix_caching: bool,
 }
 
 impl RadixAllocator {
-    pub fn new(
-        block_size: u32,
-        n_blocks: u32,
-        window_size: Option<u32>,
-        prefix_caching: bool,
-    ) -> Self {
-        if prefix_caching {
-            assert_eq!(
-                block_size, 1,
-                "Radix tree allocator only works with block_size=1, was: {}",
-                block_size
-            );
-        }
+    pub fn new(block_size: u32, n_blocks: u32, window_size: Option<u32>) -> Self {
+        assert_eq!(
+            block_size, 1,
+            "Radix tree allocator only works with block_size=1, was: {}",
+            block_size
+        );
         // if window_size.is_some() {
         //     unimplemented!("Window size not supported in the prefix-caching block allocator yet");
         // }
@@ -52,7 +40,6 @@ impl RadixAllocator {
             // Block 0 is reserved for health checks.
             free_blocks: (1..n_blocks).collect(),
             window_size,
-            prefix_caching,
         }
     }
 
@@ -81,24 +68,23 @@ impl RadixAllocator {
 }
 
 // Allocator trait
-impl RadixAllocator {
-    pub fn allocate(
+impl Allocator for RadixAllocator {
+    fn allocate(
         &mut self,
         tokens: u32,
         prefill_tokens: Option<Arc<Vec<u32>>>,
     ) -> Option<BlockAllocation> {
         let mut blocks = vec![];
-        let prefix_node = match (self.prefix_caching, prefill_tokens.as_ref()) {
-            (true, Some(prefill_tokens)) => {
-                let node_id = self
-                    .cache_blocks
-                    .find(prefill_tokens.as_slice(), &mut blocks);
-                // Even if this allocation fails below, we need to increase he
-                // refcount to ensure that the prefix that was found is not evicted.
+        let prefix_node = if let Some(prefill_tokens) = prefill_tokens.as_ref() {
+            let node_id = self
+                .cache_blocks
+                .find(prefill_tokens.as_slice(), &mut blocks);
+            // Even if this allocation fails below, we need to increase he
+            // refcount to ensure that the prefix that was found is not evicted.
 
-                node_id
-            }
-            _ => self.cache_blocks.root_id(),
+            node_id
+        } else {
+            self.cache_blocks.root_id()
         };
 
         self.cache_blocks
@@ -108,7 +94,9 @@ impl RadixAllocator {
         let prefix_len = blocks.len();
         let suffix_len = tokens - prefix_len as u32;
 
-        match self.alloc_or_reclaim(suffix_len as usize) {
+        let suffix_blocks = suffix_len;
+
+        match self.alloc_or_reclaim(suffix_blocks as usize) {
             Some(suffix_blocks) => blocks.extend(suffix_blocks),
             None => {
                 self.cache_blocks
@@ -127,6 +115,8 @@ impl RadixAllocator {
             prefill_tokens: prefill_tokens.clone(),
         };
 
+        tracing::info!("Blocks {blocks:?}");
+
         self.allocation_id += 1;
         self.allocations.insert(self.allocation_id, allocation);
 
@@ -139,7 +129,7 @@ impl RadixAllocator {
         })
     }
 
-    pub fn free(&mut self, blocks: Vec<u32>, allocation_id: u64) {
+    fn free(&mut self, blocks: Vec<u32>, allocation_id: u64) {
         let allocation = match self.allocations.remove(&allocation_id) {
             Some(allocation) => allocation,
             None => unreachable!("Tried to free an unknown allocation."),
@@ -613,7 +603,21 @@ mod tests {
         cache.free(allocation.blocks.clone(), allocation.allocation_id);
 
         let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
-        assert_eq!(allocation.blocks, vec![1, 2, 3, 8, 9, 10, 11, 7]);
+        assert_eq!(allocation.blocks, vec![4, 5, 6, 7, 8, 9, 10, 11]);
+        assert_eq!(allocation.prefix_len, 0);
+    }
+
+    #[test]
+    fn allocator_block_size() {
+        let mut cache = RadixAllocator::new(256, 12, None, false);
+        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
+        assert_eq!(allocation.blocks, vec![11]);
+        assert_eq!(allocation.slots, allocation.slots);
+        assert_eq!(allocation.prefix_len, 0);
+        cache.free(allocation.blocks.clone(), allocation.allocation_id);
+
+        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
+        assert_eq!(allocation.blocks, vec![11]);
         assert_eq!(allocation.prefix_len, 0);
     }
 

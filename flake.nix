@@ -57,7 +57,7 @@
       {
         devShells = with pkgs; rec {
 
-          default = pure;
+          default = impure;
 
           pure = mkShell {
             buildInputs = [
