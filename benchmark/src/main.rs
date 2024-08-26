@@ -51,7 +51,7 @@ struct Args {
     runs: usize,
 
     /// Number of warmup cycles
-    #[clap(default_value = "1", short, long, env)]
+    #[clap(default_value = "3", short, long, env)]
     warmups: usize,
 
     /// The location of the grpc socket. This benchmark tool bypasses the router

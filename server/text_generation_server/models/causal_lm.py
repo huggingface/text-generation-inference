@@ -33,7 +33,6 @@ from transformers import (
 
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models import Model
-from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.models.types import (
     Batch,
     Tokens,

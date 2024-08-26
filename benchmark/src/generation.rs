@@ -163,7 +163,10 @@ async fn prefill(
 
     // Run prefill
     let start_time = Instant::now();
+
     let (_, decode_batch, _) = client.prefill(batch.clone()).await?;
+
+    let (_, decode_batch, _) = client.decode(vec![decode_batch.clone().unwrap()]).await?;
 
     // Get latency
     let latency = start_time.elapsed();
@@ -180,11 +183,12 @@ async fn prefill(
     };
 
     Ok((step, decode_batch))
+
 }
 
 /// Run a full decode
 async fn decode(batch: CachedBatch, client: &mut ShardedClient) -> Result<Decode, ClientError> {
-    let mut decode_length = 0;
+    let mut decode_length = 1; // 1 decode step was already scheduled in prefill with speculative scheduling
     let batch_size = batch.size;
 
     let start_time = Instant::now();
