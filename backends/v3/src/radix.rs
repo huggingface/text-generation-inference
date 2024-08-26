@@ -131,7 +131,7 @@ impl Allocator for RadixAllocator {
             prefill_tokens: prefill_tokens.clone(),
         };
 
-        tracing::info!("Blocks {blocks:?}");
+        tracing::debug!("Blocks {blocks:?}");
 
         self.allocation_id += 1;
         self.allocations.insert(self.allocation_id, allocation);
