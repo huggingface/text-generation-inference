@@ -43,13 +43,9 @@ impl ToolGrammar {
                         "error": {
                             "type": "string",
                             "description": "The error or issue to notify"
-                        },
-                        "_name": {
-                            "type": "string",
-                            "const": "notify_error"
                         }
                     },
-                    "required": ["error", "_name"]
+                    "required": ["error"]
                 }),
             },
         };
@@ -72,47 +68,42 @@ impl ToolGrammar {
             .map(|tool| {
                 let func = tool.function.clone();
 
-                // Clone the existing parameters, which are expected to be a JSON object
-                let mut params = if let Value::Object(params) = &func.arguments {
-                    params.clone()
-                } else {
-                    Map::new()
-                };
+                let mut params = Map::new();
 
-                // Insert the function's description at the top level, outside of properties
                 params.insert(
                     "description".to_string(),
-                    Value::String(func.description.clone().unwrap_or_default()),
+                    Value::String(func.description.unwrap_or_default()),
                 );
 
-                // Ensure 'properties' exists and is an object
-                let properties = params
-                    .entry("properties".to_string())
-                    .or_insert_with(|| json!({}))
-                    .as_object_mut()
-                    .unwrap();
+                let mut properties = Map::new();
+                let mut required = vec![Value::String("_name".to_string())];
 
-                // Insert the constant for the function name inside 'properties'
                 properties.insert(
                     "_name".to_string(),
                     json!({
                         "type": "string",
                         "const": func.name.clone(),
-                        // "description": "The name of the function"
                     }),
                 );
 
-                // Check if 'required' exists, and it is an array. If not, create an empty array.
-                let required = params
-                    .entry("required".to_string())
-                    .or_insert_with(|| json!([]))
-                    .as_array_mut()
-                    .unwrap();
-
-                // Add 'name' to the 'required' array if it is not already present
-                if !required.iter().any(|r| r == "_name") {
-                    required.push(json!("_name"));
+                if let Value::Object(args) = func.arguments {
+                    if let Some(Value::Object(props)) = args.get("properties") {
+                        properties.extend(props.clone());
+                    }
+                    if let Some(Value::Array(reqs)) = args.get("required") {
+                        required.extend(reqs.clone());
+                    }
+                    params.insert(
+                        "additionalProperties".to_string(),
+                        Value::Bool(
+                            args.get("additionalProperties").and_then(|v| v.as_str())
+                                == Some("true"),
+                        ),
+                    );
                 }
+
+                params.insert("properties".to_string(), Value::Object(properties));
+                params.insert("required".to_string(), Value::Array(required));
 
                 (func.name, Value::Object(params))
             })
@@ -126,9 +117,6 @@ impl ToolGrammar {
                     .map(|tool| FunctionRef {
                         ref_path: format!("#/$functions/{}", tool.function.name.clone()),
                     })
-                    .chain(std::iter::once(FunctionRef {
-                        ref_path: "#/$functions/notify_error".to_string(),
-                    }))
                     .collect(),
             },
         };
