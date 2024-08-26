@@ -658,7 +658,7 @@ class CausalLM(Model):
             from habana_frameworks.torch.hpu import wrap_in_hpu_graph
             model = wrap_in_hpu_graph(model, disable_tensor_cache=True)
         else:
-            if LAZY_MODE == 0: 
+            if LAZY_MODE == 0:
                 # It is said that "keep_input_mutations" is safe for inference to be done
                 dbg_trace(
                     "TORCH COMPILE", f'Torch compiling of model')
@@ -807,14 +807,7 @@ class CausalLM(Model):
         if hq_env.is_quantization_enabled:
             if model.config.model_type == "llama":
                 self.patch_scoped_linear_all_reduce(model)
-            import habana_quantization_toolkit
-            habana_quantization_toolkit.prep_model(model)
-        return model
-
-    def finish_quantization_measurements(self, model):
-        if hq_env.is_quantization_enabled:
-            import habana_quantization_toolkit
-            habana_quantization_toolkit.finish_measurements(self.model)
+            model = hq_env.prepare_model_for_quantization(model)
         return model
 
     def patch_scoped_linear_all_reduce(self, model):
@@ -995,7 +988,7 @@ class CausalLM(Model):
                 bypass_hpu_graph=prefill and self.limit_hpu_graph if self.enable_hpu_graph else None,
             )
         elif all([req.stopping_criteria.max_new_tokens == 1 for req in batch.requests]):
-            # Don't schedule next forward if max_new_tokens for all requests equals 1 
+            # Don't schedule next forward if max_new_tokens for all requests equals 1
             # - we've already generated the first and only needed token in the prefill phase
             pass
         else:
