@@ -691,9 +691,9 @@ class CausalLM(Model):
             "return_dict": True,
         }
 
-        if model.config.model_type in ["llama", "mistral", "starcoder2"]:
+        if model.config.model_type in ["llama", "mistral", "starcoder2", "qwen2"]:
             
-            if model.config.model_type in ["llama", "mistral"]:
+            if model.config.model_type in ["llama", "mistral", "qwen2"]:
                 kwargs["attn_softmax_bf16"] = True
                 kwargs["trim_logits"] = True
 
