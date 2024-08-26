@@ -291,7 +291,11 @@ impl State {
                     None
                 }
                 Some(block_allocator) => {
-                    prefill_tokens += entry.request.input_length;
+                    if entry.request.input_length <= prefill_token_budget {
+                        prefill_tokens += entry.request.input_length;
+                    } else {
+                        prefill_tokens = prefill_token_budget;
+                    }
                     let max_new_tokens = match self.window_size {
                         None => entry.request.stopping_parameters.max_new_tokens,
                         Some(window_size) => min(
