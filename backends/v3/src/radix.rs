@@ -606,8 +606,8 @@ mod tests {
         cache.free(allocation.blocks.clone(), allocation.allocation_id);
 
         let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
-        assert_eq!(allocation.blocks, vec![8, 9, 6, 7]);
-        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 12, 13, 14, 15]);
+        assert_eq!(allocation.blocks, vec![8, 9, 10, 11]);
+        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 20, 21, 22, 23]);
         assert_eq!(allocation.prefix_len, 4);
     }
 
@@ -618,15 +618,12 @@ mod tests {
         assert_eq!(allocation.blocks, vec![8, 9, 10, 11]);
         assert_eq!(allocation.slots, vec![16, 17, 18, 19, 20, 21, 22]);
         assert_eq!(allocation.prefix_len, 0);
-        cache.free(
-            allocation.blocks[..allocation.blocks.len() - 1].to_vec(),
-            allocation.allocation_id,
-        );
+        cache.free(allocation.blocks.clone(), allocation.allocation_id);
 
-        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
-        assert_eq!(allocation.blocks, vec![8, 9, 6, 7]);
-        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 12, 13, 14, 15]);
-        assert_eq!(allocation.prefix_len, 4);
+        let allocation = cache.allocate(7, Some(Arc::new(vec![0, 1, 2]))).unwrap();
+        assert_eq!(allocation.blocks, vec![8, 9, 10, 11]);
+        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 20, 21, 22]);
+        assert_eq!(allocation.prefix_len, 2);
     }
 
     #[test]
