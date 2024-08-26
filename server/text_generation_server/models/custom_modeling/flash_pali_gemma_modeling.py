@@ -34,6 +34,11 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             config=config.vision_config,
             weights=weights,
         )
+        self.post_vision_tower_layernorm = nn.LayerNorm.load(
+            prefix="vision_tower.vision_model.post_layernorm",
+            weights=weights,
+            eps=config.vision_config.layer_norm_eps,
+        )
 
         self.multi_modal_projector = TensorParallelColumnLinear.load(
             config,
@@ -84,7 +89,10 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         if pixel_values is not None:
             pixel_values = pixel_values.to(dtype=inputs_embeds.dtype)
             image_outputs = self.vision_tower(pixel_values)
-            image_features = self.multi_modal_projector(image_outputs.last_hidden_state)
+            last_hidden_state = self.post_vision_tower_layernorm(
+                image_outputs.last_hidden_state
+            )
+            image_features = self.multi_modal_projector(last_hidden_state)
 
             # mask where image or padding tokens
             mask = input_ids == self.config.image_token_index
