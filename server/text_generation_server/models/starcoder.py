@@ -36,10 +36,6 @@ class StarCoder(CausalLM):
         dtype: Optional[torch.dtype] = None,
     ):
 
-        # Bypasses runtime error "Empty tensor optional" with hpu graphs
-        os.environ["ENABLE_HPU_GRAPH"] = "false"
-        logger.warning("Disabling HPU graphs as they are not supported with Starcoder model!")
-
         super(StarCoder, self).__init__(
             model_id=model_id,
             revision=revision,
