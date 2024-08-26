@@ -840,7 +840,7 @@ pub(crate) struct ChatRequest {
     pub tools: Option<Vec<Tool>>,
 
     /// A prompt to be appended before the tools
-    #[serde(default = "default_tool_prompt")]
+    #[serde(default)]
     #[schema(
         nullable = true,
         example = "Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables."
@@ -865,10 +865,8 @@ pub(crate) struct ChatRequest {
     pub guideline: Option<String>,
 }
 
-fn default_tool_prompt() -> Option<String> {
-    Some(
-        "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string(),
-    )
+pub fn default_tool_prompt() -> String {
+    "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]

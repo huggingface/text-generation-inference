@@ -8,7 +8,7 @@ use crate::kserve::{
     kserve_model_metadata, kserve_model_metadata_ready,
 };
 use crate::validation::ValidationError;
-use crate::ChatTokenizeResponse;
+use crate::{default_tool_prompt, ChatTokenizeResponse};
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -1158,7 +1158,9 @@ async fn chat_completions(
     let repetition_penalty = presence_penalty.map(|x| x + 2.0);
     let max_new_tokens = max_tokens.or(Some(100));
     let logprobs = logprobs.unwrap_or(false);
-    let tool_prompt = tool_prompt.unwrap_or_default();
+    let tool_prompt = tool_prompt
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(default_tool_prompt);
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
     let (do_sample, temperature) = match temperature {
