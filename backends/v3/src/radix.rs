@@ -577,14 +577,14 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use super::RadixAllocator;
+    use super::*;
 
     #[test]
     fn allocator_reuses_prefixes() {
-        let mut cache = RadixAllocator::new(1, 12, None, true);
+        let mut cache = RadixAllocator::new(1, 12, None);
         let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
         assert_eq!(allocation.blocks, vec![4, 5, 6, 7, 8, 9, 10, 11]);
-        assert_eq!(allocation.slots, allocation.slots);
+        assert_eq!(allocation.blocks, allocation.slots);
         assert_eq!(allocation.prefix_len, 0);
         cache.free(allocation.blocks.clone(), allocation.allocation_id);
 
@@ -594,36 +594,8 @@ mod tests {
     }
 
     #[test]
-    fn allocator_doesnt_reuses_prefixes() {
-        let mut cache = RadixAllocator::new(1, 12, None, false);
-        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
-        assert_eq!(allocation.blocks, vec![4, 5, 6, 7, 8, 9, 10, 11]);
-        assert_eq!(allocation.slots, allocation.slots);
-        assert_eq!(allocation.prefix_len, 0);
-        cache.free(allocation.blocks.clone(), allocation.allocation_id);
-
-        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
-        assert_eq!(allocation.blocks, vec![4, 5, 6, 7, 8, 9, 10, 11]);
-        assert_eq!(allocation.prefix_len, 0);
-    }
-
-    #[test]
-    fn allocator_block_size() {
-        let mut cache = RadixAllocator::new(256, 12, None, false);
-        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
-        assert_eq!(allocation.blocks, vec![11]);
-        assert_eq!(allocation.slots, allocation.slots);
-        assert_eq!(allocation.prefix_len, 0);
-        cache.free(allocation.blocks.clone(), allocation.allocation_id);
-
-        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
-        assert_eq!(allocation.blocks, vec![11]);
-        assert_eq!(allocation.prefix_len, 0);
-    }
-
-    #[test]
     fn allocator_collects_older_prefixes_first() {
-        let mut cache = RadixAllocator::new(1, 7, None, true);
+        let mut cache = RadixAllocator::new(1, 7, None);
         let allocation1 = cache.allocate(4, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
         assert_eq!(allocation1.blocks, vec![3, 4, 5, 6]);
         assert_eq!(allocation1.prefix_len, 0);
@@ -643,7 +615,7 @@ mod tests {
 
     #[test]
     fn allocator_frees_fully_overlapping_prefills() {
-        let mut cache = RadixAllocator::new(1, 10, None, true);
+        let mut cache = RadixAllocator::new(1, 10, None);
         let allocation1 = cache.allocate(4, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
         let allocation2 = cache.allocate(4, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
 
@@ -659,7 +631,7 @@ mod tests {
 
     #[test]
     fn allocator_frees_partially_overlapping_prefills() {
-        let mut cache = RadixAllocator::new(1, 20, None, true);
+        let mut cache = RadixAllocator::new(1, 20, None);
         let allocation1 = cache.allocate(4, Some(Arc::new(vec![0, 1]))).unwrap();
         assert_eq!(allocation1.blocks, vec![16, 17, 18, 19]);
         assert_eq!(allocation1.prefix_len, 0);
