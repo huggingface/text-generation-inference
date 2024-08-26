@@ -28,7 +28,7 @@ uint64_t huggingface::tgi::backends::TensorRtLlmBackendImpl::Submit(
         float_t repetition_penalty, float_t frequency_penalty, uint64_t seed) {
 
     // This will copy all the items from the initial slice
-    std::vector<int32_t> tokens_(std::make_move_iterator(tokens.begin()), std::make_move_iterator(tokens.end()));
+    std::vector<int32_t> tokens_(std::move_iterator(tokens.begin()), std::move_iterator(tokens.end()));
     return TensorRtLlmBackend::Submit(
             std::move(tokens_), maxNewTokens, topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
 }
