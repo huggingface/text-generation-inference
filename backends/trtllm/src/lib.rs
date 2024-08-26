@@ -4,17 +4,14 @@ pub mod errors;
 mod looper;
 mod utils;
 
-pub(crate) type RequestId = u64;
-pub(crate) type TokenId = u32;
-
 #[cxx::bridge(namespace = "huggingface::tgi::backends")]
 mod ffi {
     /// Struct used as shared type between rust and C++ to represent the result
     /// of a single decoding iteration
     #[derive(Debug, Clone)]
     pub struct GenerationStep {
-        request_id: RequestId,
-        token_id: TokenId,
+        request_id: u64,
+        token_id: u32,
         log_prob: f32,
         is_final: bool,
         has_error: bool,
@@ -53,7 +50,7 @@ mod ffi {
         #[rust_name = "submit"]
         fn Submit(
             self: Pin<&mut TensorRtLlmBackendImpl>,
-            tokens: &[TokenId],
+            tokens: &[u32],
             max_new_tokens: u32,
             top_k: i32,
             top_p: f32,
@@ -68,4 +65,5 @@ mod ffi {
             self: Pin<&mut TensorRtLlmBackendImpl>,
         ) -> Result<UniquePtr<CxxVector<GenerationStep>>>;
     }
+
 }
