@@ -591,7 +591,7 @@ class VlmCausalLM(Model):
             "return_dict": True,
         }
 
-        if model.config.model_type in ["llama", "mistral"]:
+        if model.config.model_type in ["llama", "mistral", "llava_next"]:
             kwargs["attn_softmax_bf16"] = True
             kwargs["trim_logits"] = True
 
