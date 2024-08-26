@@ -265,13 +265,10 @@ class FlashCausalLMBatch(Batch):
 
             orig_input_length = len(tokenized_input)
 
-            if ATTENTION == "flashinfer":
-                prefix_len = r.prefix_len
-                if prefix_len == orig_input_length:
-                    assert prefix_len > 0
-                    prefix_len -= 1
-            else:
-                prefix_len = 0
+            prefix_len = r.prefix_len
+            if prefix_len == orig_input_length:
+                assert prefix_len > 0
+                prefix_len -= 1
 
             prefix_ids.append(tokenized_input[:prefix_len])
             tokenized_input = tokenized_input[prefix_len:]

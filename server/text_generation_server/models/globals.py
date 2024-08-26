@@ -14,8 +14,8 @@ assert (
 ), f"Attention is not valid {ATTENTION}, expected {_expected}"
 log_master(logger.info, f"Using Attention = {ATTENTION}")
 
-if PREFIX_CACHING and ATTENTION != "flashinfer":
-    raise RuntimeError("Prefix caching is only supported with flashinfer")
+# if PREFIX_CACHING and ATTENTION != "flashinfer":
+#     raise RuntimeError("Prefix caching is only supported with flashinfer")
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 

@@ -83,7 +83,7 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                                 "Forcing flash decoding because model {} requires it",
                                 config.model_type.as_ref().unwrap()
                             );
-                            prefix_caching = Some("0".to_string());
+                            prefix_caching = Some("1".to_string());
                             attention = Some("flashdecoding".to_string());
                         }
                     }
@@ -93,7 +93,7 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             _ => {
                 if prefix_caching.is_none() {
                     tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
-                    prefix_caching = Some("0".to_string());
+                    prefix_caching = Some("1".to_string());
                     attention = Some("flashdecoding".to_string());
                 }
             }
@@ -1000,7 +1000,7 @@ impl TryFrom<&[u8]> for PythonLogMessage {
 }
 
 fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
-    let mut buffer = vec![0u8; 4096];
+    let mut buffer = vec![0u8; 8 * 4096];
     let mut stdout = std::io::stdout();
     loop {
         let n = bufread.read(&mut buffer);

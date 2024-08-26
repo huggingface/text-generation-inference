@@ -158,34 +158,40 @@ impl Allocator for RadixAllocator {
         if let Some(prefill_tokens) = allocation.prefill_tokens {
             let prefill_tokens = prefill_tokens.as_slice();
 
-            assert_eq!(prefill_tokens.len() % self.block_size as usize, 0);
             // If there are prefill tokens that did not come from the cache,
             // add them to the cache.
             if prefill_tokens.len() > allocation.cached_prefix_len {
-                let prefix_len = self
-                    .cache_blocks
-                    .insert(
-                        prefill_tokens,
-                        &blocks[..prefill_tokens.len() / self.block_size as usize],
-                    )
-                    // Unwrap, failing is a programming error.
-                    .expect("Failed to store prefill tokens");
+                let aligned =
+                    (prefill_tokens.len() / self.block_size as usize) * self.block_size as usize;
+                if aligned > 0 {
+                    let prefix_len = self
+                        .cache_blocks
+                        .insert(
+                            &prefill_tokens[..aligned],
+                            &blocks[..aligned / self.block_size as usize],
+                        )
+                        // Unwrap, failing is a programming error.
+                        .expect("Failed to store prefill tokens");
 
-                // We can have a prefill with the following structure:
-                //
-                // |---| From the prefix cache.
-                // A B C D E F G
-                //|--------| Found in the trie during insertion.
-                //
-                // This means that while processing this request there was a
-                // partially overlapping request that had A..=E in its
-                // prefill. In this case we need to free the blocks D E.
-                self.free_blocks
-                    .extend(&blocks[allocation.cached_prefix_len..prefix_len]);
+                    // We can have a prefill with the following structure:
+                    //
+                    // |---| From the prefix cache.
+                    // A B C D E F G
+                    //|--------| Found in the trie during insertion.
+                    //
+                    // This means that while processing this request there was a
+                    // partially overlapping request that had A..=E in its
+                    // prefill. In this case we need to free the blocks D E.
+                    self.free_blocks.extend(
+                        &blocks[allocation.cached_prefix_len / self.block_size as usize
+                            ..prefix_len / self.block_size as usize],
+                    );
+                }
             }
 
             // Free non-prefill blocks.
-            self.free_blocks.extend(&blocks[prefill_tokens.len()..]);
+            self.free_blocks
+                .extend(&blocks[prefill_tokens.len() / self.block_size as usize..]);
         } else {
             self.free_blocks.extend(blocks);
         }
@@ -598,6 +604,24 @@ mod tests {
         assert_eq!(allocation.slots, vec![16, 17, 18, 19, 20, 21, 22, 23]);
         assert_eq!(allocation.prefix_len, 0);
         cache.free(allocation.blocks.clone(), allocation.allocation_id);
+
+        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
+        assert_eq!(allocation.blocks, vec![8, 9, 6, 7]);
+        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 12, 13, 14, 15]);
+        assert_eq!(allocation.prefix_len, 4);
+    }
+
+    #[test]
+    fn allocator_block_size_non_aligned() {
+        let mut cache = RadixAllocator::new(2, 12, None);
+        let allocation = cache.allocate(7, Some(Arc::new(vec![0, 1, 2]))).unwrap();
+        assert_eq!(allocation.blocks, vec![8, 9, 10, 11]);
+        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 20, 21, 22]);
+        assert_eq!(allocation.prefix_len, 0);
+        cache.free(
+            allocation.blocks[..allocation.blocks.len() - 1].to_vec(),
+            allocation.allocation_id,
+        );
 
         let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
         assert_eq!(allocation.blocks, vec![8, 9, 6, 7]);
