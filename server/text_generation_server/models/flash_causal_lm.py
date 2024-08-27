@@ -266,6 +266,7 @@ class FlashCausalLMBatch(Batch):
             orig_input_length = len(tokenized_input)
 
             prefix_len = r.prefix_len
+            assert prefix_len <= orig_input_length
             if prefix_len == orig_input_length:
                 assert prefix_len > 0
                 prefix_len -= 1
@@ -282,6 +283,7 @@ class FlashCausalLMBatch(Batch):
             all_input_ids.append(tokenized_input)
 
             # Position ids
+            print(f"Prefix {prefix_len} - Orig {orig_input_length}")
             request_position_ids = torch.arange(
                 prefix_len, orig_input_length, dtype=torch.int32
             )

@@ -158,6 +158,7 @@ async fn get_chat_tokenize(
 
     let generate_request = GenerateRequest {
         inputs,
+        add_special_tokens: false,
         parameters: GenerateParameters {
             best_of: None,
             temperature,
@@ -754,6 +755,7 @@ async fn completions(
         .iter()
         .map(|prompt| GenerateRequest {
             inputs: prompt.to_string(),
+            add_special_tokens: true,
             parameters: GenerateParameters {
                 best_of: None,
                 temperature,
@@ -1180,6 +1182,7 @@ async fn chat_completions(
     // build the request passing some parameters
     let generate_request = GenerateRequest {
         inputs: inputs.to_string(),
+        add_special_tokens: false,
         parameters: GenerateParameters {
             best_of: None,
             temperature,
@@ -1386,6 +1389,7 @@ async fn vertex_compatibility(
         .map(|instance| {
             let generate_request = GenerateRequest {
                 inputs: instance.inputs.clone(),
+                add_special_tokens: true,
                 parameters: GenerateParameters {
                     do_sample: true,
                     max_new_tokens: instance.parameters.as_ref().and_then(|p| p.max_new_tokens),

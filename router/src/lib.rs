@@ -1082,6 +1082,16 @@ pub(crate) struct GenerateRequest {
     pub inputs: String,
     #[serde(default = "default_parameters")]
     pub parameters: GenerateParameters,
+
+    /// This is used internally because some requests
+    /// already contain the templated input therefore
+    /// we shouldn't add the special tokens.
+    #[serde(default = "default_true")]
+    pub add_special_tokens: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]
@@ -1099,6 +1109,7 @@ impl From<CompatGenerateRequest> for GenerateRequest {
     fn from(req: CompatGenerateRequest) -> Self {
         Self {
             inputs: req.inputs,
+            add_special_tokens: true,
             parameters: req.parameters,
         }
     }
