@@ -39,6 +39,9 @@ jobs:
       matrix:
         hardware: ["cuda", "rocm", "intel-xpu", "intel-cpu"]
     uses: ./.github/workflows/build.yaml # calls the one above ^
+    permissions:
+      contents: write
+      packages: write
     with:
       hardware: ${{ matrix.hardware }}
       # https://github.com/actions/runner/issues/2206
