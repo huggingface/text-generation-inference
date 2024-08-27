@@ -46,8 +46,8 @@ ngrok = { version = "0.13.1", features = ["axum"], optional = true }
 init-tracing-opentelemetry = { version = "0.14.1", features = [
   "opentelemetry-otlp",
 ] }
-minijinja = { version = "2.0.2", features = ["json"] }
-minijinja-contrib = { version = "2.0.2", features = ["pycompat"] }
+minijinja = { workspace = true }
+minijinja-contrib = { workspace = true }
 futures-util = "0.3.30"
 regex = "1.10.3"
 once_cell = "1.19.0"
