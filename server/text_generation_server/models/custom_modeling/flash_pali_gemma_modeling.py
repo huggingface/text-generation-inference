@@ -19,6 +19,7 @@ from torch import nn
 from typing import Optional, List, Tuple
 
 from text_generation_server.layers.tensor_parallel import TensorParallelColumnLinear
+from text_generation_server.layers.attention import Seqlen
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
     load_vision_model,
@@ -70,7 +71,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -107,7 +108,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             kv_cache=kv_cache,
             block_tables=block_tables,
             slots=slots,
-            input_lengths=input_lengths,
+            seqlen=seqlen,
             max_s=max_s,
         )
 
