@@ -8,7 +8,7 @@ use crate::kserve::{
     kserve_model_metadata, kserve_model_metadata_ready,
 };
 use crate::validation::ValidationError;
-use crate::ChatTokenizeResponse;
+use crate::{default_tool_prompt, ChatTokenizeResponse};
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -23,7 +23,7 @@ use crate::{
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, VertexRequest,
     VertexResponse,
 };
-use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType, Tools};
+use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -146,7 +146,7 @@ async fn get_chat_tokenize(
     } = req;
 
     let tool_prompt = tool_prompt.unwrap_or_default();
-    let (inputs, _grammar, _tool_grammar) = prepare_chat_input(
+    let (inputs, _grammar, _using_tools) = prepare_chat_input(
         &infer,
         response_format,
         tools,
@@ -1158,14 +1158,16 @@ async fn chat_completions(
     let repetition_penalty = presence_penalty.map(|x| x + 2.0);
     let max_new_tokens = max_tokens.or(Some(100));
     let logprobs = logprobs.unwrap_or(false);
-    let tool_prompt = tool_prompt.unwrap_or_default();
+    let tool_prompt = tool_prompt
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(default_tool_prompt);
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
     let (do_sample, temperature) = match temperature {
         Some(temperature) if temperature == 0.0 => (false, None),
         other => (true, other),
     };
-    let (inputs, grammar, tool_grammar) = prepare_chat_input(
+    let (inputs, grammar, using_tools) = prepare_chat_input(
         &infer,
         response_format,
         tools,
@@ -1221,7 +1223,7 @@ async fn chat_completions(
             });
 
             // replace the content with the tool calls if grammar is present
-            let (content, tool_calls) = if tool_grammar.is_some() {
+            let (content, tool_calls) = if using_tools {
                 (None, Some(vec![stream_token.token.text]))
             } else {
                 let content = if !stream_token.token.special {
@@ -1275,7 +1277,7 @@ async fn chat_completions(
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
 
-        let (tool_calls, output) = if tool_grammar.is_some() {
+        let (tool_calls, output) = if using_tools {
             let gen_text_value: Value =
                 serde_json::from_str(&generation.generated_text).map_err(|e| {
                     InferError::ToolError(format!(
@@ -2539,7 +2541,7 @@ fn create_post_processor(
     Ok(post_processor)
 }
 
-type PreparedInput = (String, Option<GrammarType>, Option<Tools>);
+type PreparedInput = (String, Option<GrammarType>, bool);
 
 fn prepare_chat_input(
     infer: &Infer,
@@ -2556,19 +2558,139 @@ fn prepare_chat_input(
         ));
     }
 
+    // when response_format is set, tools are not included when applying the chat template to generate inputs
     if let Some(format) = response_format {
         let inputs = infer.apply_chat_template(guideline, messages, None)?;
-        return Ok((inputs, Some(format), None));
+        return Ok((inputs, Some(format), false));
     }
 
-    // if tools are set, apply the tool grammar and then the chat template
-    let tool_grammar: Option<Tools> = ToolGrammar::apply(tools, tool_choice)?;
-    let grammar = tool_grammar
-        .as_ref()
-        .map(|t| GrammarType::Json(serde_json::json!(t)));
-    let tools_grammar_prompt = tool_grammar
-        .as_ref()
-        .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt.into()));
-    let inputs = infer.apply_chat_template(guideline, messages, tools_grammar_prompt)?;
-    Ok((inputs, grammar, tool_grammar))
+    // when no response_format is set and tools are included, apply the chat template with the tools
+    // to generate inputs
+    if let Some(tools) = tools {
+        let (updated_tools, tool_schema) = ToolGrammar::apply(tools, tool_choice)?;
+
+        let grammar = tool_schema
+            .as_ref()
+            .map(|t| GrammarType::Json(serde_json::json!(t)));
+
+        let inputs: String = infer.apply_chat_template(
+            guideline,
+            messages,
+            Some((updated_tools, tool_prompt.into())),
+        )?;
+        return Ok((inputs, grammar, tool_schema.is_some()));
+    }
+
+    // if no response_format or tools are set simply apply the chat template to generate inputs
+    let inputs = infer.apply_chat_template(guideline, messages, None)?;
+    Ok((inputs, None, false))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ChatTemplateVersions;
+    use crate::HubTokenizerConfig;
+    use crate::TokenizerConfigToken;
+    use crate::Tool;
+
+    use serde_json::json;
+
+    #[test]
+    fn test_prepare_chat_input() {
+        // Mock Backend to avoid network requests
+        struct MockBackend;
+
+        impl Backend for MockBackend {
+            fn schedule(
+                &self,
+                _request: crate::validation::ValidGenerateRequest,
+            ) -> Result<
+                tokio_stream::wrappers::UnboundedReceiverStream<
+                    Result<InferStreamResponse, InferError>,
+                >,
+                InferError,
+            > {
+                unimplemented!("Never called in this test");
+            }
+            fn health<'a, 'async_trait>(
+                &'a self,
+                _current_health: bool,
+            ) -> core::pin::Pin<
+                Box<dyn core::future::Future<Output = bool> + core::marker::Send + 'async_trait>,
+            >
+            where
+                'a: 'async_trait,
+                Self: 'async_trait,
+            {
+                unimplemented!("Never called in this test");
+            }
+        }
+
+        let backend = MockBackend {};
+
+        let mut tokenizer_config = HubTokenizerConfig::default();
+
+        // mock tokenizer config values
+        tokenizer_config.bos_token = Some(TokenizerConfigToken::String("<s>".to_string()));
+        tokenizer_config.eos_token = Some(TokenizerConfigToken::String("</s>".to_string()));
+        tokenizer_config.chat_template = Some(
+            ChatTemplateVersions::Single("{%- if messages[0][\"role\"] == \"system\" %}\n    {%- set system_message = messages[0][\"content\"] %}\n    {%- set loop_messages = messages[1:] %}\n{%- else %}\n    {%- set loop_messages = messages %}\n{%- endif %}\n{%- if not tools is defined %}\n    {%- set tools = none %}\n{%- endif %}\n{%- set user_messages = loop_messages | selectattr(\"role\", \"equalto\", \"user\") | list %}\n\n{#- This block checks for alternating user/assistant messages, skipping tool calling messages #}\n{%- set ns = namespace() %}\n{%- set ns.index = 0 %}\n{%- for message in loop_messages %}\n    {%- if not (message.role == \"tool\" or message.role == \"tool_results\" or (message.tool_calls is defined and message.tool_calls is not none)) %}\n        {%- if (message[\"role\"] == \"user\") != (ns.index % 2 == 0) %}\n            {{- raise_exception(\"After the optional system message, conversation roles must alternate user/assistant/user/assistant/...\") }}\n        {%- endif %}\n        {%- set ns.index = ns.index + 1 %}\n    {%- endif %}\n{%- endfor %}\n\n{{- bos_token }}\n{%- for message in loop_messages %}\n    {%- if message[\"role\"] == \"user\" %}\n        {%- if tools is not none and (message == user_messages[-1]) %}\n            {{- \"[AVAILABLE_TOOLS] [\" }}\n            {%- for tool in tools %}\n                {%- set tool = tool.function %}\n                {{- '{\"type\": \"function\", \"function\": {' }}\n                {%- for key, val in tool.items() if key != \"return\" %}\n                    {%- if val is string %}\n                        {{- '\"' + key + '\": \"' + val + '\"' }}\n                    {%- else %}\n                        {{- '\"' + key + '\": ' + val|tojson }}\n                    {%- endif %}\n                    {%- if not loop.last %}\n                        {{- \", \" }}\n                    {%- endif %}\n                {%- endfor %}\n                {{- \"}}\" }}\n                {%- if not loop.last %}\n                    {{- \", \" }}\n                {%- else %}\n                    {{- \"]\" }}\n                {%- endif %}\n            {%- endfor %}\n            {{- \"[/AVAILABLE_TOOLS]\" }}\n            {%- endif %}\n        {%- if loop.last and system_message is defined %}\n            {{- \"[INST] \" + system_message + \"\\n\\n\" + message[\"content\"] + \"[/INST]\" }}\n        {%- else %}\n            {{- \"[INST] \" + message[\"content\"] + \"[/INST]\" }}\n        {%- endif %}\n    {%- elif message.tool_calls is defined and message.tool_calls is not none %}\n        {{- \"[TOOL_CALLS] [\" }}\n        {%- for tool_call in message.tool_calls %}\n            {%- set out = tool_call.function|tojson %}\n            {{- out[:-1] }}\n            {%- if not tool_call.id is defined or tool_call.id|length != 9 %}\n                {{- raise_exception(\"Tool call IDs should be alphanumeric strings with length 9!\") }}\n            {%- endif %}\n            {{- ', \"id\": \"' + tool_call.id + '\"}' }}\n            {%- if not loop.last %}\n                {{- \", \" }}\n            {%- else %}\n                {{- \"]\" + eos_token }}\n            {%- endif %}\n        {%- endfor %}\n    {%- elif message[\"role\"] == \"assistant\" %}\n        {{- \" \" + message[\"content\"]|trim + eos_token}}\n    {%- elif message[\"role\"] == \"tool_results\" or message[\"role\"] == \"tool\" %}\n        {%- if message.content is defined and message.content.content is defined %}\n            {%- set content = message.content.content %}\n        {%- else %}\n            {%- set content = message.content %}\n        {%- endif %}\n        {{- '[TOOL_RESULTS] {\"content\": ' + content|string + \", \" }}\n        {%- if not message.tool_call_id is defined or message.tool_call_id|length != 9 %}\n            {{- raise_exception(\"Tool call IDs should be alphanumeric strings with length 9!\") }}\n        {%- endif %}\n        {{- '\"call_id\": \"' + message.tool_call_id + '\"}[/TOOL_RESULTS]' }}\n    {%- else %}\n        {{- raise_exception(\"Only user and assistant roles are supported, with the exception of an initial optional system message!\") }}\n    {%- endif %}\n{%- endfor %}\n".to_string())
+        );
+
+        let infer = Infer::new(
+            backend,
+            Validation::new(1, None, None, None, 1, 1, 1, 1, 1, false),
+            1,
+            tokenizer_config,
+            HubProcessorConfig::default(),
+        );
+        let response_format = None;
+        let tools = Some(vec![Tool {
+            r#type: "function".to_string(),
+            function: FunctionDefinition {
+                name: "get_current_weather".to_string(),
+                description: Some("Get the current weather".to_string()),
+                arguments: json!({
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA"
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "The temperature unit to use. Infer this from the users location."
+                        }
+                    },
+                    "required": ["location", "format"]
+                }),
+            },
+        }]);
+        let tool_prompt = "Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.";
+        let guideline = None;
+        let messages = vec![Message {
+            name: None,
+            role: "user".to_string(),
+            content: MessageContent::SingleText(
+                "What is the weather like in New York?".to_string(),
+            ),
+        }];
+
+        let result = prepare_chat_input(
+            &infer,
+            response_format,
+            tools,
+            ToolChoice(None),
+            tool_prompt,
+            guideline,
+            messages,
+        );
+
+        assert!(result.is_ok());
+        let (inputs, _grammar, using_tools) = result.unwrap();
+        assert_eq!(using_tools, true);
+        assert_eq!(inputs, "<s>[AVAILABLE_TOOLS] [{\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}, \"description\": \"Get the current weather\", \"name\": \"get_current_weather\"}}, {\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"error\":{\"description\":\"The error or issue to notify\",\"type\":\"string\"}},\"required\":[\"error\"],\"type\":\"object\"}, \"description\": \"Notify an error or issue\", \"name\": \"notify_error\"}}][/AVAILABLE_TOOLS][INST] What is the weather like in New York?\n---\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.[/INST]".to_string());
+    }
 }

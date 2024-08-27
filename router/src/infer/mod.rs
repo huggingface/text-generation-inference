@@ -3,7 +3,7 @@ mod chat_template;
 pub mod tool_grammar;
 
 use crate::validation::{ValidGenerateRequest, Validation, ValidationError};
-use crate::GrammarType;
+use crate::Tool;
 use crate::{
     ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig, HubTokenizerConfig,
     Message, PrefillToken, Token,
@@ -140,12 +140,12 @@ impl Infer {
         &self,
         guideline: Option<String>,
         messages: Vec<Message>,
-        grammar_with_prompt: Option<(GrammarType, String)>,
+        tools_and_prompt: Option<(Vec<Tool>, String)>,
     ) -> Result<String, InferError> {
         self.chat_template
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
-            .apply(guideline.as_deref(), messages, grammar_with_prompt)
+            .apply(guideline.as_deref(), messages, tools_and_prompt)
             .map_err(|e| {
                 metrics::counter!("tgi_request_failure", "err" => "template").increment(1);
                 tracing::error!("{e}");
