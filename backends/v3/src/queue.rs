@@ -316,10 +316,15 @@ impl State {
                         + self.speculate
                         - 1;
 
-                    match block_allocator
-                        .allocate(tokens, entry.request.input_ids.clone())
-                        .await
-                    {
+                    // If users wants the prefill logprobs, we cannot reuse the cache.
+                    // So no input_ids for the radix tree.
+                    let input_ids = if entry.request.decoder_input_details {
+                        None
+                    } else {
+                        entry.request.input_ids.clone()
+                    };
+
+                    match block_allocator.allocate(tokens, input_ids).await {
                         None => {
                             // Entry is over budget
                             // Add it back to the front

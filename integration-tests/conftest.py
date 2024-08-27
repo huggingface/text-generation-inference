@@ -257,7 +257,7 @@ class IgnoreLogProbResponseComparator(ResponseComparator):
 
 class LauncherHandle:
     def __init__(self, port: int):
-        self.client = AsyncClient(f"http://localhost:{port}")
+        self.client = AsyncClient(f"http://localhost:{port}", timeout=30)
 
     def _inner_health(self):
         raise NotImplementedError

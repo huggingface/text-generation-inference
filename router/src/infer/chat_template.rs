@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 
 use crate::infer::InferError;
-use crate::{
-    ChatTemplateInputs, GrammarType, Message, MessageChunk, TextMessage, TokenizerConfigToken,
-};
+use crate::{ChatTemplateInputs, Message, MessageChunk, TextMessage, TokenizerConfigToken, Tool};
 use minijinja::{Environment, ErrorKind, Template};
 use minijinja_contrib::pycompat;
 
@@ -32,6 +30,7 @@ impl ChatTemplate {
         env.set_unknown_method_callback(pycompat::unknown_method_callback);
         let template_str = template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
+        tracing::debug!("Loading template: {:#?}", template_str);
 
         // leaking env and template_str as read-only, static resources for performance.
         let template = Box::leak(env)
@@ -42,6 +41,7 @@ impl ChatTemplate {
         let variables = template.undeclared_variables(true);
         // check if the `tools` variable is used in the template
         let use_default_tool_template = !variables.contains("tools");
+        tracing::debug!("Use default tool template: {}", use_default_tool_template);
 
         Self {
             template,
@@ -56,24 +56,35 @@ impl ChatTemplate {
         &self,
         guideline: Option<&str>,
         mut messages: Vec<Message>,
-        grammar_with_prompt: Option<(GrammarType, String)>,
+        tools_and_prompt: Option<(Vec<Tool>, String)>,
     ) -> Result<String, InferError> {
-        if self.use_default_tool_template {
-            if let Some(last_message) = messages.last_mut() {
-                if let Some((GrammarType::Json(tools), tool_prompt)) = grammar_with_prompt {
-                    last_message.content.push(MessageChunk::Text {
-                        text: format!("\n---\n{}\n{}", tool_prompt, tools),
-                    });
-                }
-            }
-        }
-
-        let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
-
         // check if guideline is expected but not provided
         if self.variables.contains("guideline") && guideline.is_none() {
             return Err(InferError::MissingTemplateVariable("guideline".to_string()));
         }
+
+        let tools = match tools_and_prompt {
+            Some((tools, tool_prompt)) => {
+                // check if the `tools` variable is used in the template
+                // if not, we need to append the tools to the last message
+                let text = if self.use_default_tool_template {
+                    match serde_json::to_string(&tools) {
+                        Ok(tools_str) => format!("\n---\n{}\n{}", tools_str, tool_prompt),
+                        Err(e) => return Err(InferError::ToolError(e.to_string())),
+                    }
+                } else {
+                    // if the `tools` variable is used in the template, we just append the tool_prompt
+                    format!("\n---\n{}", tool_prompt)
+                };
+                if let Some(last_message) = messages.last_mut() {
+                    last_message.content.push(MessageChunk::Text { text });
+                }
+                Some(tools)
+            }
+            None => None,
+        };
+
+        let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
 
         self.template
             .render(ChatTemplateInputs {
@@ -82,8 +93,7 @@ impl ChatTemplate {
                 bos_token: self.bos_token.as_deref(),
                 eos_token: self.eos_token.as_deref(),
                 add_generation_prompt: true,
-                tools: None,
-                tools_prompt: None,
+                tools,
             })
             .map_err(InferError::TemplateError)
     }
@@ -95,7 +105,7 @@ mod tests {
     use crate::infer::chat_template::raise_exception;
     use crate::infer::ChatTemplate;
     use crate::{
-        ChatTemplateInputs, GrammarType, Message, MessageContent, TextMessage, TokenizerConfigToken,
+        ChatTemplateInputs, Message, MessageContent, TextMessage, TokenizerConfigToken, Tool,
     };
     use minijinja::Environment;
 
@@ -854,11 +864,12 @@ mod tests {
                 content: MessageContent::SingleText("Just testing".to_string()),
             },
         ];
-        let tools = serde_json::json!("[]");
+        let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
+        let tools: Vec<Tool> = serde_json::from_str(&tools_string).unwrap();
         let tool_prompt = "This default prompt will be used".to_string();
-        let grammer_with_prompt = (GrammarType::Json(tools), tool_prompt);
-        let result = ct.apply(None, msgs, Some(grammer_with_prompt));
-        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\nThis default prompt will be used\n\"[]\" [/INST]".to_string();
+        let tools_and_prompt = Some((tools, tool_prompt));
+        let result = ct.apply(None, msgs, tools_and_prompt);
+        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"arguments\":{\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}}}]\nThis default prompt will be used [/INST]".to_string();
         assert_eq!(result.unwrap(), expected);
     }
 }

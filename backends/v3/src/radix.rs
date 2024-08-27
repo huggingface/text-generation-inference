@@ -205,6 +205,7 @@ pub struct RadixTrie {
     /// call that a real time lookup would require.
     time: u64,
 }
+
 impl Default for RadixTrie {
     fn default() -> Self {
         Self::new()
