@@ -222,6 +222,7 @@ impl Health for ShardedClient {
                 chunks: vec![Chunk::Text("liveness".into()).into()],
             }),
             truncate: 10,
+            add_special_tokens: true,
             prefill_logprobs: false,
             parameters: Some(NextTokenChooserParameters {
                 temperature: 1.0,

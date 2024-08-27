@@ -189,15 +189,22 @@ class FlashCausalLMBatch(Batch):
         cls, requests: Iterable[generate_pb2.Request], tokenizer
     ):
         batch_inputs = []
-        max_truncation = 0
+        max_length = 0
+        all_input_ids = []
+        batch_size = 0
         for r in requests:
+            batch_size += 1
             batch_inputs.append(concat_text_chunks(r.input_chunks.chunks))
-            max_truncation = max(max_truncation, r.truncate)
 
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs, truncation=True, max_length=max_truncation
-        )["input_ids"]
-        return batch_tokenized_inputs
+            input_ids = tokenizer(
+                batch_inputs,
+                truncation=True,
+                max_length=r.truncate,
+                add_special_tokens=r.add_special_tokens,
+            )["input_ids"][0]
+            max_length = max(max_length, len(input_ids))
+            all_input_ids.append(input_ids)
+        return all_input_ids
 
     @classmethod
     def from_tokenized(
@@ -256,20 +263,17 @@ class FlashCausalLMBatch(Batch):
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
 
-            tokenized_input = tokenized_input[-r.truncate :]
-            if (
-                tokenized_input[0] == tokenizer.bos_token_id
-                and tokenized_input[1] == tokenizer.bos_token_id
-            ):
-                tokenized_input = tokenized_input[1:]
+            # tokenized_input = tokenized_input[-r.truncate :]
+            # if (
+            #     tokenized_input[0] == tokenizer.bos_token_id
+            #     and tokenized_input[1] == tokenizer.bos_token_id
+            # ):
+            #     tokenized_input = tokenized_input[1:]
 
             orig_input_length = len(tokenized_input)
 
             prefix_len = r.prefix_len
             assert prefix_len <= orig_input_length
-            if prefix_len == orig_input_length:
-                assert prefix_len > 0
-                prefix_len -= 1
 
             prefix_ids.append(tokenized_input[:prefix_len])
             tokenized_input = tokenized_input[prefix_len:]

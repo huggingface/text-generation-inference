@@ -415,6 +415,7 @@ impl Validation {
         Ok(ValidGenerateRequest {
             inputs,
             input_ids: input_ids.map(Arc::new),
+            add_special_tokens: request.add_special_tokens,
             decoder_input_details,
             input_length: input_length as u32,
             truncate: truncate.unwrap_or(self.max_input_length) as u32,
@@ -738,6 +739,7 @@ pub struct ValidGenerateRequest {
     pub input_ids: Option<Arc<Vec<u32>>>,
     pub input_length: u32,
     pub truncate: u32,
+    pub add_special_tokens: bool,
     pub decoder_input_details: bool,
     pub parameters: ValidParameters,
     pub stopping_parameters: ValidStoppingParameters,

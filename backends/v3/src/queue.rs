@@ -387,6 +387,7 @@ impl State {
                 }),
                 inputs: entry.request.inputs.chunks_to_string(),
                 truncate: entry.request.truncate,
+                add_special_tokens: entry.request.add_special_tokens,
                 parameters: Some(NextTokenChooserParameters::from(
                     entry.request.parameters.clone(),
                 )),
