@@ -1086,7 +1086,7 @@ pub(crate) struct GenerateRequest {
     /// This is used internally because some requests
     /// already contain the templated input therefore
     /// we shouldn't add the special tokens.
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip)]
     pub add_special_tokens: bool,
 }
 
