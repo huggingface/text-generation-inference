@@ -68,14 +68,14 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
     let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
     let mut attention: Option<String> = std::env::var("ATTENTION").ok();
     if let Some(config) = config {
+        if config.vision_config.is_some() && prefix_caching.is_none() {
+            tracing::info!("Disabling prefix caching because of VLM model");
+            prefix_caching = Some("0".to_string());
+        }
         match config.head_dim {
             Some(h) if h == 64 || h == 128 || h == 256 => {
                 if lora_adapters.is_some() && prefix_caching.is_none() {
                     tracing::info!("Disabling prefix caching because of lora adapters");
-                    prefix_caching = Some("0".to_string());
-                }
-                if config.vision_config.is_some() && prefix_caching.is_none() {
-                    tracing::info!("Disabling prefix caching because of VLM model");
                     prefix_caching = Some("0".to_string());
                 }
                 match config.model_type.as_deref() {
