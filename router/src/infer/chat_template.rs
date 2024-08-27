@@ -1,6 +1,5 @@
 use crate::infer::InferError;
 use crate::{ChatTemplateInputs, Message, MessageChunk, TextMessage, TokenizerConfigToken, Tool};
-use minijinja::value::Kwargs;
 use minijinja::{Environment, ErrorKind, Template};
 use minijinja_contrib::pycompat;
 use std::collections::HashSet;
@@ -8,23 +7,6 @@ use std::collections::HashSet;
 /// Raise a exception (custom function) used in the chat templates
 pub(crate) fn raise_exception(err_text: String) -> Result<String, minijinja::Error> {
     Err(minijinja::Error::new(ErrorKind::SyntaxError, err_text))
-}
-
-/// Convert a string to a json string (custom filter) used in the chat templates
-pub(crate) fn tojson(value: String, options: Kwargs) -> Result<String, minijinja::Error> {
-    let indent = options.get("indent").map(|v: i32| v).unwrap_or(0) as usize;
-
-    let value: serde_json::Value = serde_json::from_str(&value)
-        .map_err(|e| minijinja::Error::new(ErrorKind::SyntaxError, e.to_string()))?;
-
-    // TODO: support different numbers of spaces for indentation
-    if indent > 0 {
-        serde_json::to_string_pretty(&value)
-            .map_err(|e| minijinja::Error::new(ErrorKind::SyntaxError, e.to_string()))
-    } else {
-        serde_json::to_string(&value)
-            .map_err(|e| minijinja::Error::new(ErrorKind::SyntaxError, e.to_string()))
-    }
 }
 
 #[derive(Clone)]
@@ -45,23 +27,8 @@ impl ChatTemplate {
         let mut env = Box::new(Environment::new());
         // enable things like .strip() or .capitalize()
         env.set_unknown_method_callback(pycompat::unknown_method_callback);
-
-        // TODO: when minijinja supports indexing into a mutated list, we can remove this
-        let template = "{%- set message_index = 0 -%}".to_string() + &template;
-        let template_str = template
-            .replace(
-                "messages[0]['content']",
-                "messages[message_index]['content']",
-            )
-            // instead of removing the first message, increment the message_index
-            .replace(
-                "{%- set messages = messages[1:] %}",
-                "{%- set message_index = message_index + 1 -%}",
-            );
-
-        let template_str = template_str.into_boxed_str();
+        let template_str = template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
-        env.add_filter("tojson", tojson);
         tracing::debug!("Loading template: {:#?}", template_str);
 
         // leaking env and template_str as read-only, static resources for performance.
@@ -117,8 +84,6 @@ impl ChatTemplate {
         };
 
         let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
-
-        println!("messages: {:#?}", messages);
 
         self.template
             .render(ChatTemplateInputs {
@@ -918,41 +883,6 @@ mod tests {
         let msgs: Vec<Message> = vec![
             Message {
                 name: None,
-                role: "user".to_string(),
-                content: MessageContent::SingleText(
-                    "I'd like to show off how chat templating works!".to_string(),
-                ),
-            },
-            Message {
-                name: None,
-                role: "assistant".to_string(),
-                content: MessageContent::SingleText("Great! How can I help you today?".to_string()),
-            },
-            Message {
-                name: None,
-                role: "user".to_string(),
-                content: MessageContent::SingleText("Just testing".to_string()),
-            },
-        ];
-        let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
-        let tools: Vec<Tool> = serde_json::from_str(&tools_string).unwrap();
-        let tool_prompt = "This default prompt will be used".to_string();
-        let tools_and_prompt = Some((tools, tool_prompt));
-        let result = ct.apply(None, msgs, tools_and_prompt);
-        let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n  \"function\": {\n    \"arguments\": {\n      \"properties\": {\n        \"format\": {\n          \"description\": \"The temperature unit to use. Infer this from the users location.\",\n          \"enum\": [\n            \"celsius\",\n            \"fahrenheit\"\n          ],\n          \"type\": \"string\"\n        },\n        \"location\": {\n          \"description\": \"The city and state, e.g. San Francisco, CA\",\n          \"type\": \"string\"\n        }\n      },\n      \"required\": [\n        \"location\",\n        \"format\"\n      ],\n      \"type\": \"object\"\n    },\n    \"description\": \"Get the current weather\",\n    \"name\": \"get_current_weather\"\n  },\n  \"type\": \"function\"\n}\n\nI'd like to show off how chat templating works!<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\nGreat! How can I help you today?<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nJust testing\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
-        assert_eq!(result.unwrap(), expected);
-    }
-    #[test]
-    fn test_chat_template_with_custom_tool_template_2() {
-        // chat template from meta-llama/Meta-Llama-3.1-8B-Instruct
-        let ct = ChatTemplate::new(
-            "{{- bos_token }}\n{%- if not tools_in_user_message is defined %}\n    {%- set tools_in_user_message = true %}\n{%- endif %}\n{%- if not date_string is defined %}\n    {%- set date_string = \"26 Jul 2024\" %}\n{%- endif %}\n{%- if not tools is defined %}\n    {%- set tools = none %}\n{%- endif %}\n\n{#- This block extracts the system message, so we can slot it into the right place. #}\n{%- if messages[0]['role'] == 'system' %}\n    {%- set system_message = messages[0]['content']|trim %}\n    {%- set messages = messages[1:] %}\n{%- else %}\n    {%- set system_message = \"\" %}\n{%- endif %}\n\n{#- System message + builtin tools #}\n{{- \"<|start_header_id|>system<|end_header_id|>\\n\\n\" }}\n{%- if builtin_tools is defined or tools is not none %}\n    {{- \"Environment: ipython\\n\" }}\n{%- endif %}\n{%- if builtin_tools is defined %}\n    {{- \"Tools: \" + builtin_tools | reject('equalto', 'code_interpreter') | join(\", \") + \"\\n\\n\"}}\n{%- endif %}\n{{- \"Cutting Knowledge Date: December 2023\\n\" }}\n{{- \"Today Date: \" + date_string + \"\\n\\n\" }}\n{%- if tools is not none and not tools_in_user_message %}\n    {{- \"You have access to the following functions. To call a function, please respond with JSON for a function call.\" }}\n    {{- 'Respond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.' }}\n    {{- \"Do not use variables.\\n\\n\" }}\n    {%- for t in tools %}\n        {{- t | tojson(indent=4) }}\n        {{- \"\\n\\n\" }}\n    {%- endfor %}\n{%- endif %}\n{{- system_message }}\n{{- \"<|eot_id|>\" }}\n\n{#- Custom tools are passed in a user message with some extra guidance #}\n{%- if tools_in_user_message and not tools is none %}\n    {#- Extract the first user message so we can plug it in here #}\n    {%- if messages | length != 0 %}\n        {%- set first_user_message = messages[0]['content']|trim %}\n        {%- set messages = messages[1:] %}\n    {%- else %}\n        {{- raise_exception(\"Cannot put tools in the first user message when there's no first user message!\") }}\n{%- endif %}\n    {{- '<|start_header_id|>user<|end_header_id|>\\n\\n' -}}\n    {{- \"Given the following functions, please respond with a JSON for a function call \" }}\n    {{- \"with its proper arguments that best answers the given prompt.\\n\\n\" }}\n    {{- 'Respond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.' }}\n    {{- \"Do not use variables.\\n\\n\" }}\n    {%- for t in tools %}\n        {{- t | tojson(indent=4) }}\n        {{- \"\\n\\n\" }}\n    {%- endfor %}\n    {{- first_user_message + \"<|eot_id|>\"}}\n{%- endif %}\n\n{%- for message in messages %}\n    {%- if not (message.role == 'ipython' or message.role == 'tool' or 'tool_calls' in message) %}\n        {{- '<|start_header_id|>' + message['role'] + '<|end_header_id|>\\n\\n'+ message['content'] | trim + '<|eot_id|>' }}\n    {%- elif 'tool_calls' in message %}\n        {%- if not message.tool_calls|length == 1 %}\n            {{- raise_exception(\"This model only supports single tool-calls at once!\") }}\n        {%- endif %}\n        {%- set tool_call = message.tool_calls[0].function %}\n        {%- if builtin_tools is defined and tool_call.name in builtin_tools %}\n            {{- '<|start_header_id|>assistant<|end_header_id|>\\n\\n' -}}\n            {{- \"<|python_tag|>\" + tool_call.name + \".call(\" }}\n            {%- for arg_name, arg_val in tool_call.arguments | items %}\n                {{- arg_name + '=\"' + arg_val + '\"' }}\n                {%- if not loop.last %}\n                    {{- \", \" }}\n                {%- endif %}\n                {%- endfor %}\n            {{- \")\" }}\n        {%- else  %}\n            {{- '<|start_header_id|>assistant<|end_header_id|>\\n\\n' -}}\n            {{- '{\"name\": \"' + tool_call.name + '\", ' }}\n            {{- '\"parameters\": ' }}\n            {{- tool_call.arguments | tojson }}\n            {{- \"}\" }}\n        {%- endif %}\n        {%- if builtin_tools is defined %}\n            {#- This means we're in ipython mode #}\n            {{- \"<|eom_id|>\" }}\n        {%- else %}\n            {{- \"<|eot_id|>\" }}\n        {%- endif %}\n    {%- elif message.role == \"tool\" or message.role == \"ipython\" %}\n        {{- \"<|start_header_id|>ipython<|end_header_id|>\\n\\n\" }}\n        {%- if message.content is mapping or message.content is iterable %}\n            {{- message.content | tojson }}\n        {%- else %}\n            {{- message.content }}\n        {%- endif %}\n        {{- \"<|eot_id|>\" }}\n    {%- endif %}\n{%- endfor %}\n{%- if add_generation_prompt %}\n    {{- '<|start_header_id|>assistant<|end_header_id|>\\n\\n' }}\n{%- endif %}\n".to_string(),
-            Some(TokenizerConfigToken::String("<s>".to_string())),
-            Some(TokenizerConfigToken::String("</s>".to_string())),
-        );
-        let msgs: Vec<Message> = vec![
-            Message {
-                name: None,
                 role: "system".to_string(),
                 content: MessageContent::SingleText(
                     "Youre a helpful assistant! Answer the users question best you can."
@@ -972,7 +902,7 @@ mod tests {
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
         let result = ct.apply(None, msgs, tools_and_prompt);
-        let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n  \"function\": {\n    \"arguments\": {\n      \"properties\": {\n        \"format\": {\n          \"description\": \"The temperature unit to use. Infer this from the users location.\",\n          \"enum\": [\n            \"celsius\",\n            \"fahrenheit\"\n          ],\n          \"type\": \"string\"\n        },\n        \"location\": {\n          \"description\": \"The city and state, e.g. San Francisco, CA\",\n          \"type\": \"string\"\n        }\n      },\n      \"required\": [\n        \"location\",\n        \"format\"\n      ],\n      \"type\": \"object\"\n    },\n    \"description\": \"Get the current weather\",\n    \"name\": \"get_current_weather\"\n  },\n  \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>system<|end_header_id|>\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
+        let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n    \"function\": {\n        \"arguments\": {\n            \"properties\": {\n                \"format\": {\n                    \"description\": \"The temperature unit to use. Infer this from the users location.\",\n                    \"enum\": [\n                        \"celsius\",\n                        \"fahrenheit\"\n                    ],\n                    \"type\": \"string\"\n                },\n                \"location\": {\n                    \"description\": \"The city and state, e.g. San Francisco, CA\",\n                    \"type\": \"string\"\n                }\n            },\n            \"required\": [\n                \"location\",\n                \"format\"\n            ],\n            \"type\": \"object\"\n        },\n        \"description\": \"Get the current weather\",\n        \"name\": \"get_current_weather\"\n    },\n    \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
         assert_eq!(result.unwrap(), expected);
     }
 }
