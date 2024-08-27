@@ -963,7 +963,6 @@ pub(crate) struct Tool {
 #[derive(Clone, Serialize, Deserialize, Default)]
 pub(crate) struct ChatTemplateInputs<'a> {
     messages: Vec<TextMessage>,
-    // messages: serde_json::Value,
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
     add_generation_prompt: bool,
