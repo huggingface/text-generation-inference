@@ -121,9 +121,13 @@ async fn get_model_info(info: Extension<Info>) -> Json<Info> {
 get,
 tag = "Text Generation Inference",
 path = "/v1/models",
-responses((status = 200, description = "Served model info", body = ModelInfo))
+responses(
+(status = 200, description = "Served model info", body = ModelInfo),
+(status = 404, description = "Model not found", body = ErrorResponse),
+)
 )]
-#[instrument]
+#[instrument(skip(info))]
+/// Get model info
 async fn openai_get_model_info(info: Extension<Info>) -> Json<ModelsInfo> {
     Json(ModelsInfo {
         data: vec![ModelInfo {
@@ -1521,6 +1525,7 @@ chat_completions,
 completions,
 tokenize,
 metrics,
+openai_get_model_info,
 ),
 components(
 schemas(
@@ -1573,6 +1578,7 @@ ToolCall,
 Function,
 FunctionDefinition,
 ToolChoice,
+ModelInfo,
 )
 ),
 tags(
