@@ -2228,7 +2228,7 @@ async fn start(
 
     // Define base and health routes
     let mut base_routes = Router::new()
-        .route("/", post(openai_get_model_info))
+        .route("/", post(compat_generate))
         .route("/generate", post(generate))
         .route("/generate_stream", post(generate_stream))
         .route("/v1/chat/completions", post(chat_completions))
