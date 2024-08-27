@@ -522,6 +522,7 @@ mod tests {
                 inputs: vec![],
                 input_ids: Some(Arc::new(vec![])),
                 input_length: 0,
+                add_special_tokens: true,
                 truncate: 0,
                 decoder_input_details: false,
                 parameters: ValidParameters {
