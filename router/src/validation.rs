@@ -167,7 +167,8 @@ impl Validation {
                 ));
             }
 
-            let input_ids = encoding.get_ids()[..input_length].to_owned();
+            let ids = encoding.get_ids();
+            let input_ids = ids[ids.len().saturating_sub(input_length)..].to_owned();
 
             metrics::histogram!("tgi_request_input_length").record(input_length as f64);
             Ok((inputs, Some(input_ids), input_length, max_new_tokens))
