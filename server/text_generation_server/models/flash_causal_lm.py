@@ -188,20 +188,18 @@ class FlashCausalLMBatch(Batch):
     def batch_tokenized_inputs(
         cls, requests: Iterable[generate_pb2.Request], tokenizer
     ):
-        batch_inputs = []
         max_length = 0
         all_input_ids = []
         batch_size = 0
         for r in requests:
             batch_size += 1
-            batch_inputs.append(concat_text_chunks(r.input_chunks.chunks))
-
+            inputs = concat_text_chunks(r.input_chunks.chunks)
             input_ids = tokenizer(
-                batch_inputs,
+                inputs,
                 truncation=True,
                 max_length=r.truncate,
                 add_special_tokens=r.add_special_tokens,
-            )["input_ids"][0]
+            )["input_ids"]
             max_length = max(max_length, len(input_ids))
             all_input_ids.append(input_ids)
         return all_input_ids
