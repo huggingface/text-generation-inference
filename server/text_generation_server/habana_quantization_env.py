@@ -1,9 +1,6 @@
 # Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
 
 import os
-import sys
-
-assert "habana_frameworks" not in sys.modules
 
 quant_config = os.getenv("QUANT_CONFIG", "")
 is_quantization_enabled = quant_config != ""
