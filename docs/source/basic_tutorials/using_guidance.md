@@ -157,7 +157,12 @@ from huggingface_hub import InferenceClient
 
 client = InferenceClient("http://localhost:3000")
 
-regexp = "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)"
+section_regex = "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+regexp = f"HELLO\.{section_regex}\.WORLD\.{section_regex}"
+
+# This is a more realistic example of an ip address regex
+# regexp = f"{section_regex}\.{section_regex}\.{section_regex}\.{section_regex}"
+
 
 resp = client.text_generation(
     f"Whats Googles DNS? Please use the following regex: {regexp}",
@@ -170,7 +175,7 @@ resp = client.text_generation(
 
 
 print(resp)
-# 7.1.1.1
+# HELLO.255.WORLD.255
 
 ```
 
