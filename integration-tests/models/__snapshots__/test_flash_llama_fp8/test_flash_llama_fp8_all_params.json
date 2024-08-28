@@ -1,8 +1,8 @@
 {
   "details": {
     "best_of_sequences": null,
-    "finish_reason": "length",
-    "generated_tokens": 10,
+    "finish_reason": "stop_sequence",
+    "generated_tokens": 5,
     "prefill": [
       {
         "id": 128000,
@@ -29,61 +29,31 @@
         "text": ":"
       },
       {
-        "id": 2209,
-        "logprob": -2.609375,
+        "id": 923,
+        "logprob": -2.84375,
         "special": false,
-        "text": " Is"
-      },
-      {
-        "id": 279,
-        "logprob": -0.6328125,
-        "special": false,
-        "text": " the"
-      },
-      {
-        "id": 734,
-        "logprob": -2.828125,
-        "special": false,
-        "text": " function"
-      },
-      {
-        "id": 330,
-        "logprob": -0.36523438,
-        "special": false,
-        "text": " \""
-      },
-      {
-        "id": 4110,
-        "logprob": -2.453125,
-        "special": false,
-        "text": "Create"
+        "text": " add"
       },
       {
         "id": 264,
-        "logprob": -0.20117188,
+        "logprob": 0.0,
         "special": false,
         "text": " a"
       },
       {
-        "id": 502,
-        "logprob": -0.29882812,
+        "id": 330,
+        "logprob": -0.31640625,
         "special": false,
-        "text": " new"
+        "text": " \""
       },
       {
-        "id": 1052,
-        "logprob": -1.1953125,
+        "id": 1985,
+        "logprob": 0.0,
         "special": false,
-        "text": " file"
-      },
-      {
-        "id": 1,
-        "logprob": -1.265625,
-        "special": false,
-        "text": "\""
+        "text": "test"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "Test request: Is the function \"Create a new file\""
+  "generated_text": "Test request: add a \"test"
 }
