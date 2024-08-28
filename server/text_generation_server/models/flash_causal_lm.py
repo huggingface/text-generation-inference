@@ -1001,7 +1001,7 @@ class FlashCausalLM(Model):
             config.sliding_window = None
 
         self.num_layers = config.num_hidden_layers
-        self.num_heads = config.num_attention_heads
+        self.num_heads = config.num_attention_heads // self.process_group.size()
         # Validation is done in the model itself
         if num_kv_heads is None:
             num_kv_heads = getattr(config, "num_key_value_heads", None)
