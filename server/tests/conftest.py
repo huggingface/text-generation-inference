@@ -2,8 +2,8 @@ import pytest
 import os
 from text_generation_server.pb import generate_pb2
 
-os.environ["USE_PREFIX_CACHING"] = "0"
-os.environ["ATTENTION"] = "flashdecoding"
+os.environ["USE_PREFIX_CACHING"] = "1"
+os.environ["ATTENTION"] = "flashinfer"
 
 
 @pytest.fixture

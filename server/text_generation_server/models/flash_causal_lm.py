@@ -43,6 +43,7 @@ from text_generation_server.models.globals import (
     ATTENTION,
     BLOCK_SIZE,
     CUDA_GRAPHS,
+    TGI_WIGGLE_ROOM,
     get_adapter_to_index,
 )
 from text_generation_server.layers.attention import Seqlen
@@ -1283,7 +1284,7 @@ class FlashCausalLM(Model):
 
         num_blocks = (
             # Leave 5% for some wiggle room
-            int((free_memory * 0.95) // total_cache_size)
+            int((free_memory * TGI_WIGGLE_ROOM) // total_cache_size)
             # Add batch.num_blocks as we allocated it above, so it is included in the peak memory.
             + batch_num_blocks
         )

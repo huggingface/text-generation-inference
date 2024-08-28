@@ -33,13 +33,13 @@ export function get_options() {
             //     rate: 20,
             //     timeUnit: '1s',
             // },
-            load_test: {
-                executor: 'constant-arrival-rate',
-                duration: '60s',
-                preAllocatedVUs: 100,
-                rate: 1,
-                timeUnit: '1s',
-            },
+            // load_test: {
+            //     executor: 'constant-arrival-rate',
+            //     duration: '60s',
+            //     preAllocatedVUs: 100,
+            //     rate: 1,
+            //     timeUnit: '1s',
+            // },
             // breakpoint: {
             //     executor: 'ramping-arrival-rate', //Assure load increase if the system slows
             //     preAllocatedVUs: 300,
@@ -47,12 +47,12 @@ export function get_options() {
             //         { duration: '60s', target: 100 }, // just slowly ramp-up to a HUGE load
             //     ],
             // },
-            // throughput: {
-            //     executor: 'shared-iterations',
-            //     vus: 100,
-            //     iterations: 200,
-            //     maxDuration: '40s',
-            // },
+            throughput: {
+                executor: 'shared-iterations',
+                vus: 100,
+                iterations: 200,
+                maxDuration: '40s',
+            },
         },
     };
 }

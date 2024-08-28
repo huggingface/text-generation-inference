@@ -14,10 +14,13 @@ assert (
 ), f"Attention is not valid {ATTENTION}, expected {_expected}"
 log_master(logger.info, f"Using Attention = {ATTENTION}")
 
-# if PREFIX_CACHING and ATTENTION != "flashinfer":
-#     raise RuntimeError("Prefix caching is only supported with flashinfer")
+if PREFIX_CACHING and ATTENTION not in {"flashinfer", "flashdecoding"}:
+    raise RuntimeError("Prefix caching is only supported with flashinfer")
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
+TGI_WIGGLE_ROOM = float(os.getenv("TGI_WIGGLE_ROOM", "0.95"))
+assert TGI_WIGGLE_ROOM > 0
+assert TGI_WIGGLE_ROOM < 1
 
 # This is overridden by the cli
 BLOCK_SIZE: int
