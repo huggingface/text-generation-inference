@@ -38,8 +38,6 @@ if ATTENTION in {"flashinfer", "flashdecoding"}:
                 assert max_q is not None
             assert max_k is not None
             cu_seqlen_k = torch.zeros(shape[-1] + 1, device=device, dtype=torch.int32)
-            # if max_q is not None and max_q < 1000 and max_q > 1:
-            #     import ipdb;ipdb.set_trace()
 
             # cuda graphs don't like this and this is necessary to clamp within mistral
             # Although FA2 might not want the clamping
