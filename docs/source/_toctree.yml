@@ -16,7 +16,7 @@
   - local: installation
     title: Installation from source
   - local: supported_models
-    title: Supported Models and Hardware
+    title: Supported Models
   - local: architecture
     title: Internal Architecture
   - local: usage_statistics
