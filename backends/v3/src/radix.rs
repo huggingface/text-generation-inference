@@ -25,7 +25,6 @@ pub struct RadixAllocator {
 
 impl RadixAllocator {
     pub fn new(block_size: u32, n_blocks: u32, window_size: Option<u32>) -> Self {
-
         RadixAllocator {
             allocation_id: 0,
             allocations: HashMap::new(),
