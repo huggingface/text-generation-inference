@@ -28,6 +28,7 @@
   peft,
   safetensors,
   tokenizers,
+  torch,
   sentencepiece,
   transformers,
   typer,

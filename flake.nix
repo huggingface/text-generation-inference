@@ -31,15 +31,12 @@
           src = ./.;
           additionalCargoNixArgs = [ "--all-features" ];
         };
-        config = {
-          allowUnfree = true;
-          cudaSupport = true;
-        };
         pkgs = import nixpkgs {
-          inherit config system;
+          inherit system;
+          inherit (tgi-nix.lib) config;
           overlays = [
             rust-overlay.overlays.default
-            tgi-nix.overlay
+            tgi-nix.overlays.default
           ];
         };
         crateOverrides = import ./nix/crate-overrides.nix { inherit pkgs nix-filter; };
