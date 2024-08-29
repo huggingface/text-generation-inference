@@ -25,14 +25,6 @@ pub struct RadixAllocator {
 
 impl RadixAllocator {
     pub fn new(block_size: u32, n_blocks: u32, window_size: Option<u32>) -> Self {
-        // assert_eq!(
-        //     block_size, 1,
-        //     "Radix tree allocator only works with block_size=1, was: {}",
-        //     block_size
-        // );
-        // if window_size.is_some() {
-        //     unimplemented!("Window size not supported in the prefix-caching block allocator yet");
-        // }
 
         RadixAllocator {
             allocation_id: 0,
