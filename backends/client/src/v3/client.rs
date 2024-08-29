@@ -153,6 +153,8 @@ impl Client {
                 }),
                 // We truncate the input on the server side to be sure that it has the correct size
                 truncate,
+                // Most request will have that
+                add_special_tokens: true,
                 // Blocks and slots will be set on the server side if we use paged attention
                 blocks: vec![],
                 slots: vec![],

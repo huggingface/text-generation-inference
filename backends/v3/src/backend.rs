@@ -35,27 +35,15 @@ impl BackendV3 {
         window_size: Option<u32>,
         speculate: u32,
     ) -> Self {
-        let prefix_caching = if let Ok(prefix_caching) = std::env::var("USE_PREFIX_CACHING") {
-            matches!(prefix_caching.as_str(), "true" | "1")
-        } else {
-            false
-        };
-        let attention = if let Ok(attention) = std::env::var("ATTENTION") {
-            attention
-                .parse()
-                .unwrap_or_else(|_| panic!("Invalid attention was specified :`{attention}`"))
-        } else if prefix_caching {
-            Attention::FlashInfer
-        } else {
-            Attention::Paged
-        };
-        let block_size = if attention == Attention::FlashDecoding {
-            256
-        } else if attention == Attention::FlashInfer {
-            1
-        } else {
-            16
-        };
+        let prefix_caching =
+            std::env::var("USE_PREFIX_CACHING").expect("Expect prefix caching env var");
+        let prefix_caching = matches!(prefix_caching.as_str(), "true" | "1");
+        let attention: String = std::env::var("ATTENTION").expect("attention env var");
+
+        let attention: Attention = attention
+            .parse()
+            .unwrap_or_else(|_| panic!("Invalid attention was specified :`{attention}`"));
+        let block_size = attention.block_size();
 
         let queue = Queue::new(
             requires_padding,

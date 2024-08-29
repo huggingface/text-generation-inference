@@ -1,4 +1,4 @@
-use std::{cmp::min, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::radix::RadixAllocator;
@@ -137,7 +137,6 @@ pub trait Allocator {
 
     fn free(&mut self, blocks: Vec<u32>, allocation_id: u64);
 }
-
 pub struct SimpleAllocator {
     free_blocks: Vec<u32>,
     block_size: u32,
@@ -167,7 +166,7 @@ impl Allocator for SimpleAllocator {
                 None => (tokens, 1),
                 Some(window_size) => {
                     let repeats = (tokens + window_size - 1) / window_size;
-                    let tokens = min(tokens, window_size);
+                    let tokens = core::cmp::min(tokens, window_size);
                     (tokens, repeats as usize)
                 }
             };

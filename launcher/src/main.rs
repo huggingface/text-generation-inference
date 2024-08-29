@@ -8,7 +8,7 @@ use nix::unistd::Pid;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Lines};
+use std::io::{BufRead, BufReader};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -18,11 +18,102 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-use std::{fs, io};
+use std::{
+    fs, io,
+    io::{Read, Write},
+};
 use thiserror::Error;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod env_runtime;
+
+fn get_config(
+    model_id: &str,
+    revision: &Option<String>,
+) -> Result<Config, Box<dyn std::error::Error>> {
+    let mut path = std::path::Path::new(model_id).to_path_buf();
+    let model_id = model_id.to_string();
+    let filename = if !path.exists() {
+        // Assume it's a hub id
+
+        let api = if let Ok(token) = std::env::var("HF_TOKEN") {
+            // env variable has precedence over on file token.
+            ApiBuilder::new().with_token(Some(token)).build()?
+        } else {
+            Api::new()?
+        };
+        let repo = if let Some(ref revision) = revision {
+            api.repo(Repo::with_revision(
+                model_id,
+                RepoType::Model,
+                revision.to_string(),
+            ))
+        } else {
+            api.model(model_id)
+        };
+        repo.get("config.json")?
+    } else {
+        path.push("config.json");
+        path
+    };
+
+    let content = std::fs::read_to_string(filename)?;
+    let config: RawConfig = serde_json::from_str(&content)?;
+
+    let config: Config = config.into();
+    Ok(config)
+}
+
+fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
+    let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
+    let mut attention: Option<String> = std::env::var("ATTENTION").ok();
+    if let Some(config) = config {
+        if prefix_caching.is_none() {
+            if config.vision_config.is_some() {
+                tracing::info!("Disabling prefix caching because of VLM model");
+                prefix_caching = Some("0".to_string());
+            } else if config.is_encoder_decoder {
+                tracing::info!("Disabling prefix caching because of seq2seq model");
+                prefix_caching = Some("0".to_string());
+            }
+        }
+        match config.head_dim {
+            Some(h) if h == 64 || h == 128 || h == 256 => {
+                if lora_adapters.is_some() && prefix_caching.is_none() {
+                    tracing::info!("Disabling prefix caching because of lora adapters");
+                    prefix_caching = Some("0".to_string());
+                }
+                match config.model_type.as_deref() {
+                    Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
+                        // Required because gemma2 needs bfloat16 which is not supported by
+                        // flashinfer ?
+                        if attention.is_none() {
+                            tracing::info!(
+                                "Forcing flash decoding because model {} requires it",
+                                config.model_type.as_ref().unwrap()
+                            );
+                            attention = Some("flashdecoding".to_string());
+                        }
+                    }
+                    Some("t5") => {}
+                    _ => {}
+                }
+            }
+            _ => {
+                if attention.is_none() {
+                    tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
+                    attention = Some("flashdecoding".to_string());
+                }
+                if prefix_caching.is_none() {
+                    prefix_caching = Some("0".to_string());
+                }
+            }
+        }
+    }
+    let prefix_caching = prefix_caching.unwrap_or("true".to_string());
+    let attention = attention.unwrap_or("flashinfer".to_string());
+    (prefix_caching, attention)
+}
 
 #[derive(Deserialize)]
 struct RawConfig {
@@ -31,6 +122,12 @@ struct RawConfig {
     model_type: Option<String>,
     max_seq_len: Option<usize>,
     quantization_config: Option<QuantizationConfig>,
+    n_embd: Option<usize>,
+    hidden_size: Option<usize>,
+    num_attention_heads: Option<usize>,
+    head_dim: Option<usize>,
+    vision_config: Option<VisionConfig>,
+    is_encoder_decoder: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -39,9 +136,16 @@ struct QuantizationConfig {
 }
 
 #[derive(Deserialize)]
+struct VisionConfig {}
+
+#[derive(Deserialize)]
 struct Config {
     max_position_embeddings: Option<usize>,
     quantize: Option<Quantization>,
+    head_dim: Option<usize>,
+    model_type: Option<String>,
+    vision_config: Option<VisionConfig>,
+    is_encoder_decoder: bool,
 }
 
 impl From<RawConfig> for Config {
@@ -51,9 +155,32 @@ impl From<RawConfig> for Config {
             .or(other.max_seq_len)
             .or(other.n_positions);
         let quantize = other.quantization_config.and_then(|q| q.quant_method);
+        let head_dim = other.head_dim.or_else(|| {
+            match (other.hidden_size, other.n_embd, other.num_attention_heads) {
+                (Some(hidden_size), _, Some(num_attention_heads))
+                    if hidden_size % num_attention_heads == 0 =>
+                {
+                    Some(hidden_size / num_attention_heads)
+                }
+                // Legacy
+                (_, Some(hidden_size), Some(num_attention_heads))
+                    if hidden_size % num_attention_heads == 0 =>
+                {
+                    Some(hidden_size / num_attention_heads)
+                }
+                _ => None,
+            }
+        });
+        let model_type = other.model_type;
+        let vision_config = other.vision_config;
+        let is_encoder_decoder = other.is_encoder_decoder.unwrap_or(false);
         Config {
             max_position_embeddings,
             quantize,
+            head_dim,
+            model_type,
+            vision_config,
+            is_encoder_decoder,
         }
     }
 }
@@ -731,6 +858,7 @@ fn shard_manager(
         .args(shard_args)
         .env_clear()
         .envs(envs)
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0)
@@ -752,18 +880,31 @@ fn shard_manager(
     };
 
     // Redirect STDOUT to the console
+    let mut pstdin = p.stdin.take().unwrap();
     let shard_stdout_reader = BufReader::new(p.stdout.take().unwrap());
     let shard_stderr_reader = BufReader::new(p.stderr.take().unwrap());
 
     //stdout tracing thread
     thread::spawn(move || {
-        log_lines(shard_stdout_reader.lines());
+        log_lines(shard_stdout_reader);
     });
     // We read stderr in another thread as it seems that lines() can block in some cases
     let (err_sender, err_receiver) = mpsc::channel();
     thread::spawn(move || {
         for line in shard_stderr_reader.lines().map_while(Result::ok) {
             err_sender.send(line).unwrap_or(());
+        }
+    });
+    // We read stdin in another thread as it seems that lines() can block in some cases
+    thread::spawn(move || {
+        let mut stdin = io::stdin(); // We get `Stdin` here.
+        loop {
+            let mut buffer = vec![0; 4096];
+            if let Ok(n) = stdin.read(&mut buffer) {
+                if n > 0 {
+                    let _ = pstdin.write_all(&buffer[..n]);
+                }
+            }
         }
     });
 
@@ -872,19 +1013,36 @@ impl PythonLogMessage {
     }
 }
 
-impl TryFrom<&String> for PythonLogMessage {
+impl TryFrom<&[u8]> for PythonLogMessage {
     type Error = serde_json::Error;
 
-    fn try_from(value: &String) -> Result<Self, Self::Error> {
-        serde_json::from_str::<Self>(value)
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        serde_json::from_slice::<Self>(value)
     }
 }
 
-fn log_lines<S: Sized + BufRead>(lines: Lines<S>) {
-    for line in lines.map_while(Result::ok) {
-        match PythonLogMessage::try_from(&line) {
-            Ok(log) => log.trace(),
-            Err(_) => tracing::debug!("{line}"),
+fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
+    let mut buffer = vec![0u8; 8 * 4096];
+    let mut stdout = std::io::stdout();
+    loop {
+        let n = bufread.read(&mut buffer);
+        if let Ok(n) = n {
+            if n > 0 {
+                let mut lines = buffer[..n].split(|i| *i == b'\n').peekable();
+                while let Some(line) = lines.next() {
+                    match PythonLogMessage::try_from(line) {
+                        Ok(log) => log.trace(),
+                        // For interactive debugging ?
+                        Err(_) => {
+                            stdout.write_all(line).unwrap();
+                            if lines.peek().is_some() {
+                                stdout.write_all(b"\n").unwrap();
+                            }
+                            stdout.flush().unwrap();
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1044,7 +1202,7 @@ fn download_convert_model(
     let download_stdout = BufReader::new(download_process.stdout.take().unwrap());
 
     thread::spawn(move || {
-        log_lines(download_stdout.lines());
+        log_lines(download_stdout);
     });
 
     let download_stderr = BufReader::new(download_process.stderr.take().unwrap());
@@ -1439,68 +1597,35 @@ fn main() -> Result<(), LauncherError> {
 
     tracing::info!("{:#?}", args);
 
-    let get_max_positions_quantize =
-        || -> Result<(usize, Option<Quantization>), Box<dyn std::error::Error>> {
-            let model_id = args.model_id.clone();
-            let mut path = std::path::Path::new(&args.model_id).to_path_buf();
-            let filename = if !path.exists() {
-                // Assume it's a hub id
+    let config: Option<Config> = get_config(&args.model_id, &args.revision).ok();
+    let quantize = config.as_ref().and_then(|c| c.quantize);
+    // Quantization usually means you're even more RAM constrained.
+    let max_default = 4096;
 
-                let api = if let Ok(token) = std::env::var("HF_TOKEN") {
-                    // env variable has precedence over on file token.
-                    ApiBuilder::new().with_token(Some(token)).build()?
-                } else {
-                    Api::new()?
-                };
-                let repo = if let Some(ref revision) = args.revision {
-                    api.repo(Repo::with_revision(
-                        model_id,
-                        RepoType::Model,
-                        revision.to_string(),
-                    ))
-                } else {
-                    api.model(model_id)
-                };
-                repo.get("config.json")?
-            } else {
-                path.push("config.json");
-                path
-            };
-
-            let content = std::fs::read_to_string(filename)?;
-            let config: RawConfig = serde_json::from_str(&content)?;
-
-            if config.model_type == Some("gemma2".to_string()) {
-                tracing::info!("Forcing flash decoding because of softcap usage");
-                std::env::set_var("ATTENTION", "flashdecoding");
-            }
-            let config: Config = config.into();
-            let quantize = config.quantize;
-
-            // Quantization usually means you're even more RAM constrained.
-            let max_default = 4096;
-
-            if let Some(max_position_embeddings) = config.max_position_embeddings {
-                if max_position_embeddings > max_default {
-                    let max = max_position_embeddings;
-                    if args.max_input_tokens.is_none()
-                        && args.max_total_tokens.is_none()
-                        && args.max_batch_prefill_tokens.is_none()
-                    {
-                        tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
-                    }
-                    Ok((max_default, quantize))
-                } else {
-                    Ok((max_position_embeddings, quantize))
+    let max_position_embeddings = if let Some(config) = &config {
+        if let Some(max_position_embeddings) = config.max_position_embeddings {
+            if max_position_embeddings > max_default {
+                let max = max_position_embeddings;
+                if args.max_input_tokens.is_none()
+                    && args.max_total_tokens.is_none()
+                    && args.max_batch_prefill_tokens.is_none()
+                {
+                    tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
                 }
+                max_default
             } else {
-                Err(Box::new(LauncherError::ArgumentValidation(
-                    "no max defined".to_string(),
-                )))
+                max_position_embeddings
             }
-        };
-    let (max_position_embeddings, quantize): (usize, Option<Quantization>) =
-        get_max_positions_quantize().unwrap_or((4096, None));
+        } else {
+            max_default
+        }
+    } else {
+        max_default
+    };
+    let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
+    tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
+    std::env::set_var("USE_PREFIX_CACHING", prefix_caching);
+    std::env::set_var("ATTENTION", attention);
 
     let max_input_tokens = {
         match (args.max_input_tokens, args.max_input_length) {
