@@ -9,6 +9,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     reshape_and_cache,
+    Seqlen,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -268,7 +269,7 @@ class FlashMQAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         qkv = self.c_attn(hidden_states)
@@ -291,12 +292,10 @@ class FlashMQAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                torch.select(key_value, dim=1, index=0),
-                torch.select(key_value, dim=1, index=1),
                 kv_cache[0],
                 kv_cache[1],
-                cu_seqlen_prefill,
-                max_s,
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
@@ -308,7 +307,7 @@ class FlashMQAttention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -373,7 +372,7 @@ class Block(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         hidden_states, residual = self.ln_1(hidden_states, residual)
@@ -383,7 +382,7 @@ class Block(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -437,7 +436,7 @@ class FlashSantacoderModel(nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = self.wte(input_ids) + self.wpe(position_ids)
@@ -454,7 +453,7 @@ class FlashSantacoderModel(nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -486,7 +485,7 @@ class FlashSantacoderForCausalLM(nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -499,7 +498,7 @@ class FlashSantacoderForCausalLM(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
         if lm_head_indices is not None:

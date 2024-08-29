@@ -25,6 +25,7 @@ from transformers.activations import ACT2FN
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
 )
+from text_generation_server.layers.attention import Seqlen
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 
 from text_generation_server.layers import (
@@ -740,7 +741,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -826,7 +827,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
             kv_cache=kv_cache,
             block_tables=block_tables,
             slots=slots,
-            input_lengths=input_lengths,
+            seqlen=seqlen,
             max_s=max_s,
             true_max_s=max_s,
             prefill_cache_indices=None,

@@ -43,7 +43,7 @@ from text_generation_server.models.globals import (
     ATTENTION,
     BLOCK_SIZE,
     CUDA_GRAPHS,
-    PREFIX_CACHING,
+    TGI_WIGGLE_ROOM,
     get_adapter_to_index,
 )
 from text_generation_server.layers.attention import Seqlen
@@ -189,16 +189,21 @@ class FlashCausalLMBatch(Batch):
     def batch_tokenized_inputs(
         cls, requests: Iterable[generate_pb2.Request], tokenizer
     ):
-        batch_inputs = []
-        max_truncation = 0
+        max_length = 0
+        all_input_ids = []
+        batch_size = 0
         for r in requests:
-            batch_inputs.append(concat_text_chunks(r.input_chunks.chunks))
-            max_truncation = max(max_truncation, r.truncate)
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs, truncation=True, max_length=max_truncation
-        )["input_ids"]
-        return batch_tokenized_inputs
+            batch_size += 1
+            inputs = concat_text_chunks(r.input_chunks.chunks)
+            input_ids = tokenizer(
+                inputs,
+                truncation=True,
+                max_length=r.truncate,
+                add_special_tokens=r.add_special_tokens,
+            )["input_ids"]
+            max_length = max(max_length, len(input_ids))
+            all_input_ids.append(input_ids)
+        return all_input_ids
 
     @classmethod
     def from_tokenized(
@@ -257,22 +262,15 @@ class FlashCausalLMBatch(Batch):
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
 
-            tokenized_input = tokenized_input[-r.truncate :]
-            if (
-                tokenized_input[0] == tokenizer.bos_token_id
-                and tokenized_input[1] == tokenizer.bos_token_id
-            ):
-                tokenized_input = tokenized_input[1:]
-
             orig_input_length = len(tokenized_input)
 
-            if PREFIX_CACHING:
-                prefix_len = r.prefix_len
-                if prefix_len == orig_input_length:
-                    assert prefix_len > 0
-                    prefix_len -= 1
-            else:
-                prefix_len = 0
+            prefix_len = r.prefix_len
+            assert (
+                prefix_len <= orig_input_length
+            ), f"Prefix {prefix_len} vs input {orig_input_length}"
+            if prefix_len == orig_input_length:
+                assert prefix_len > 0
+                prefix_len -= 1
 
             prefix_ids.append(tokenized_input[:prefix_len])
             tokenized_input = tokenized_input[prefix_len:]
@@ -998,7 +996,7 @@ class FlashCausalLM(Model):
             config.sliding_window = None
 
         self.num_layers = config.num_hidden_layers
-        self.num_heads = config.num_attention_heads
+        self.num_heads = config.num_attention_heads // self.process_group.size()
         # Validation is done in the model itself
         if num_kv_heads is None:
             num_kv_heads = getattr(config, "num_key_value_heads", None)
@@ -1160,8 +1158,15 @@ class FlashCausalLM(Model):
             "block_tables": block_tables,
             "slots": slots,
             "input_lengths": input_lengths_tensor,
+            "prefix_lengths": prefix_lengths_tensor,
         }
-        input_lengths_ = Seqlen(input_lengths=input_lengths_tensor)
+        seqlen = Seqlen(
+            input_lengths=input_lengths_tensor,
+            prefix_lengths=prefix_lengths_tensor,
+            cu_seqlen_q=None,
+            max_q=1,
+            max_k=max_s,
+        )
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs]["graph"] = graph
 
@@ -1204,7 +1209,7 @@ class FlashCausalLM(Model):
                 kv_cache=self.kv_cache,
                 block_tables=block_tables,
                 slots=slots,
-                input_lengths=input_lengths_,
+                seqlen=seqlen,
                 max_s=max_s,
                 prefill_cache_indices=None,
                 lm_head_indices=None,
@@ -1213,7 +1218,13 @@ class FlashCausalLM(Model):
             torch.cuda.synchronize()
 
             with torch.cuda.graph(graph, pool=MEM_POOL):
-                input_lengths_tensor = Seqlen(input_lengths=input_lengths_tensor)
+                seqlen = Seqlen(
+                    input_lengths=input_lengths_tensor,
+                    prefix_lengths=prefix_lengths_tensor,
+                    cu_seqlen_q=None,
+                    max_q=1,
+                    max_k=max_s,
+                )
                 logits, speculative_logits = self.model.forward(
                     input_ids=input_ids,
                     position_ids=position_ids,
@@ -1221,7 +1232,7 @@ class FlashCausalLM(Model):
                     kv_cache=self.kv_cache,
                     block_tables=block_tables,
                     slots=slots,
-                    input_lengths=input_lengths_tensor,
+                    seqlen=seqlen,
                     max_s=max_s,
                     prefill_cache_indices=None,
                     lm_head_indices=None,
@@ -1268,7 +1279,7 @@ class FlashCausalLM(Model):
 
         num_blocks = (
             # Leave 5% for some wiggle room
-            int((free_memory * 0.95) // total_cache_size)
+            int((free_memory * TGI_WIGGLE_ROOM) // total_cache_size)
             # Add batch.num_blocks as we allocated it above, so it is included in the peak memory.
             + batch_num_blocks
         )
@@ -1360,18 +1371,26 @@ class FlashCausalLM(Model):
 
         # Dummy value, some models (starcoder2) don't accept `None`.
         input_lengths = torch.ones(seqlen, dtype=torch.int32, device=self.device)
-        input_lengths = Seqlen(input_lengths=input_lengths)
+        prefix_lens_tensor = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
+        cu_seqlen_prefill = torch.tensor(
+            [0, seqlen], device=self.device, dtype=torch.int32
+        )
+        seqlen = Seqlen(
+            input_lengths=input_lengths,
+            prefix_lengths=prefix_lens_tensor,
+            cu_seqlen_q=cu_seqlen_prefill,
+            max_q=1,
+            max_k=seqlen,
+        )
 
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,
-            cu_seqlen_prefill=torch.tensor(
-                [0, seqlen], device=self.device, dtype=torch.int32
-            ),
+            cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=self.kv_cache,
             block_tables=None,
-            input_lengths=input_lengths,
+            seqlen=seqlen,
             slots=slots,
             max_s=seqlen,
             lm_head_indices=None,
@@ -1451,8 +1470,7 @@ class FlashCausalLM(Model):
             cuda_graph = None
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
-            input_lengths = input_lengths + prefix_lens_tensor
-            if PREFIX_CACHING:
+            if ATTENTION == "flashinfer":
                 block_tables = block_tables_to_ragged(
                     block_tables=block_tables,
                     input_lengths=batch.input_lengths,
@@ -1462,11 +1480,18 @@ class FlashCausalLM(Model):
                 block_tables=block_tables,
                 cu_seqlen_prefill=cu_seqlen_prefill,
                 input_lengths=batch.input_lengths,
-                input_lengths_tensor=input_lengths,
+                input_lengths_tensor=input_lengths + prefix_lens_tensor,
                 prefix_lens=batch.prefix_lens,
                 prefix_lens_tensor=prefix_lens_tensor,
             ):
-                input_lengths = Seqlen(input_lengths=input_lengths)
+                max_k = (input_lengths + prefix_lens_tensor).max().item()
+                seqlen = Seqlen(
+                    input_lengths=input_lengths,
+                    prefix_lengths=prefix_lens_tensor,
+                    cu_seqlen_q=cu_seqlen_prefill,
+                    max_q=max_s,
+                    max_k=max_k,
+                )
                 logits, speculative_logits = self.model.forward(
                     input_ids=input_ids,
                     position_ids=position_ids,
@@ -1474,7 +1499,7 @@ class FlashCausalLM(Model):
                     kv_cache=kv_cache,
                     block_tables=block_tables,
                     slots=slots,
-                    input_lengths=input_lengths,
+                    seqlen=seqlen,
                     max_s=max_s,
                     prefill_cache_indices=batch.prefill_cache_indices,
                     lm_head_indices=lm_head_indices,

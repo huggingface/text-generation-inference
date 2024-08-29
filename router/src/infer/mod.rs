@@ -120,10 +120,11 @@ impl Infer {
     ) -> Result<Option<tokenizers::Encoding>, InferError> {
         // Tokenize request
         let inputs = request.inputs;
+        let add_special_tokens = request.add_special_tokens;
         let truncate = request.parameters.truncate;
         let encoding = self
             .validation
-            .tokenize(inputs, truncate)
+            .tokenize(inputs, add_special_tokens, truncate)
             .await
             .map_err(|err| {
                 tracing::error!("Tokenization {err}");

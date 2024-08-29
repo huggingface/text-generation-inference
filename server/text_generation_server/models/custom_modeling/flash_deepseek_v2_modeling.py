@@ -29,8 +29,8 @@ from text_generation_server.layers.attention import (
     attention,
     paged_attention,
     reshape_and_cache,
+    Seqlen,
 )
-from text_generation_server.layers.attention.common import Seqlen
 from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_mscale
 from text_generation_server.utils.import_utils import SYSTEM
@@ -298,7 +298,7 @@ class DeepseekV2Attention(torch.nn.Module):
         kv_cache: Tuple[torch.Tensor, torch.Tensor],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: Seqlen,
+        seqlen: Seqlen,
         max_s: int,
     ):
         if self.q_lora_rank is None:
@@ -363,12 +363,10 @@ class DeepseekV2Attention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                key,
-                value,
                 kv_cache[0],
                 kv_cache[1],
-                cu_seqlen_prefill,
-                max_s,
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
@@ -380,7 +378,7 @@ class DeepseekV2Attention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -666,7 +664,7 @@ class DeepseekV2Layer(nn.Module):
         kv_cache,
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: Seqlen,
+        seqlen: Seqlen,
         max_s: int,
     ):
         normed_hidden_states, residual = self.input_layernorm(hidden_states, residual)
@@ -680,7 +678,7 @@ class DeepseekV2Layer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -729,7 +727,7 @@ class DeepseekV2Model(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
@@ -751,7 +749,7 @@ class DeepseekV2Model(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -781,7 +779,7 @@ class FlashDeepseekV2ForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -794,7 +792,7 @@ class FlashDeepseekV2ForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
         if lm_head_indices is not None:

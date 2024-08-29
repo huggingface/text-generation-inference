@@ -383,6 +383,7 @@ impl State {
                 }),
                 inputs: entry.request.inputs.chunks_to_string(),
                 truncate: entry.request.truncate,
+                add_special_tokens: entry.request.add_special_tokens,
                 parameters: Some(NextTokenChooserParameters::from(
                     entry.request.parameters.clone(),
                 )),
@@ -517,6 +518,7 @@ mod tests {
                 inputs: vec![],
                 input_ids: Some(Arc::new(vec![])),
                 input_length: 0,
+                add_special_tokens: true,
                 truncate: 0,
                 decoder_input_details: false,
                 parameters: ValidParameters {
