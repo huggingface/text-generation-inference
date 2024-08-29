@@ -104,6 +104,9 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                     tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
                     attention = Some("flashdecoding".to_string());
                 }
+                if prefix_caching.is_none() {
+                    prefix_caching = Some("0".to_string());
+                }
             }
         }
     }
