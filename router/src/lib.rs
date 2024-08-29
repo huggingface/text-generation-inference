@@ -1261,6 +1261,34 @@ pub(crate) struct ErrorResponse {
     pub error_type: String,
 }
 
+#[derive(Serialize, Deserialize, ToSchema)]
+pub(crate) struct ModelInfo {
+    #[schema(example = "gpt2")]
+    pub id: String,
+    #[schema(example = "model")]
+    pub object: String,
+    #[schema(example = 1686935002)]
+    pub created: u64,
+    #[schema(example = "openai")]
+    pub owned_by: String,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub(crate) struct ModelsInfo {
+    #[schema(example = "list")]
+    pub object: String,
+    pub data: Vec<ModelInfo>,
+}
+
+impl Default for ModelsInfo {
+    fn default() -> Self {
+        ModelsInfo {
+            object: "list".to_string(),
+            data: Vec::new(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -556,6 +556,37 @@
           }
         }
       }
+    },
+    "/v1/models": {
+      "get": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Get model info",
+        "operationId": "openai_get_model_info",
+        "responses": {
+          "200": {
+            "description": "Served model info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1746,6 +1777,35 @@
             }
           }
         ]
+      },
+      "ModelInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "created",
+          "owned_by"
+        ],
+        "properties": {
+          "created": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1686935002,
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "example": "gpt2"
+          },
+          "object": {
+            "type": "string",
+            "example": "model"
+          },
+          "owned_by": {
+            "type": "string",
+            "example": "openai"
+          }
+        }
       },
       "OutputMessage": {
         "oneOf": [

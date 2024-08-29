@@ -24,6 +24,7 @@ use crate::{
     VertexResponse,
 };
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
+use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -114,6 +115,29 @@ responses((status = 200, description = "Served model info", body = Info))
 #[instrument]
 async fn get_model_info(info: Extension<Info>) -> Json<Info> {
     Json(info.0)
+}
+
+#[utoipa::path(
+get,
+tag = "Text Generation Inference",
+path = "/v1/models",
+responses(
+(status = 200, description = "Served model info", body = ModelInfo),
+(status = 404, description = "Model not found", body = ErrorResponse),
+)
+)]
+#[instrument(skip(info))]
+/// Get model info
+async fn openai_get_model_info(info: Extension<Info>) -> Json<ModelsInfo> {
+    Json(ModelsInfo {
+        data: vec![ModelInfo {
+            id: info.0.model_id.clone(),
+            object: "model".to_string(),
+            created: 0, // TODO: determine how to get this
+            owned_by: info.0.model_id.clone(),
+        }],
+        ..Default::default()
+    })
 }
 
 #[utoipa::path(
@@ -1505,6 +1529,7 @@ chat_completions,
 completions,
 tokenize,
 metrics,
+openai_get_model_info,
 ),
 components(
 schemas(
@@ -1557,6 +1582,7 @@ ToolCall,
 Function,
 FunctionDefinition,
 ToolChoice,
+ModelInfo,
 )
 ),
 tags(
@@ -2250,7 +2276,8 @@ async fn start(
         .route("/info", get(get_model_info))
         .route("/health", get(health))
         .route("/ping", get(health))
-        .route("/metrics", get(metrics));
+        .route("/metrics", get(metrics))
+        .route("/v1/models", get(openai_get_model_info));
 
     // Conditional AWS Sagemaker route
     let aws_sagemaker_route = if messages_api_enabled {
