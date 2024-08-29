@@ -172,7 +172,6 @@ impl Allocator for RadixAllocator {
                         )
                         // Unwrap, failing is a programming error.
                         .expect("Failed to store prefill tokens");
-
                     // We can have a prefill with the following structure:
                     //
                     // |---| From the prefix cache.
@@ -182,10 +181,12 @@ impl Allocator for RadixAllocator {
                     // This means that while processing this request there was a
                     // partially overlapping request that had A..=E in its
                     // prefill. In this case we need to free the blocks D E.
-                    self.free_blocks.extend(
-                        &blocks[allocation.cached_prefix_len / self.block_size as usize
-                            ..prefix_len / self.block_size as usize],
-                    );
+                    if prefix_len > allocation.cached_prefix_len {
+                        self.free_blocks.extend(
+                            &blocks[allocation.cached_prefix_len / self.block_size as usize
+                                ..prefix_len / self.block_size as usize],
+                        );
+                    }
                 }
             }
 
