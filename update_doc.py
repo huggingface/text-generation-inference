@@ -7,7 +7,7 @@ import os
 TEMPLATE = """
 # Supported Models and Hardware
 
-Text Generation Inference enables serving optimized models on specific hardware for the highest performance. The following sections list which models are hardware are supported.
+Text Generation Inference enables serving optimized models on specific hardware for the highest performance. The following sections list which models (VLMs & LLMs) are supported.
 
 ## Supported Models
 
@@ -63,7 +63,7 @@ def check_cli(check: bool):
     final_doc += f"## {header}\n```shell\n{rendered_block}\n```\n"
     block = []
 
-    filename = "docs/source/basic_tutorials/launcher.md"
+    filename = "docs/source/reference/launcher.md"
     if check:
         with open(filename, "r") as f:
             doc = f.read()

@@ -29,6 +29,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     reshape_and_cache,
+    Seqlen,
 )
 from text_generation_server.layers import (
     FastLinear,
@@ -309,7 +310,7 @@ class DbrxAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -335,10 +336,10 @@ class DbrxAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0],
+                kv_cache[1],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
@@ -350,7 +351,7 @@ class DbrxAttention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -387,7 +388,7 @@ class DbrxNormAttentionNorm(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         normed_hidden_states, res = self.norm_1(hidden_states, residual)
@@ -401,7 +402,7 @@ class DbrxNormAttentionNorm(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -620,7 +621,7 @@ class DbrxLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         # Self Attention
@@ -633,7 +634,7 @@ class DbrxLayer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -677,7 +678,7 @@ class DbrxModel(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
@@ -699,7 +700,7 @@ class DbrxModel(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -732,7 +733,7 @@ class FlashDbrxForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -745,7 +746,7 @@ class FlashDbrxForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
         if lm_head_indices is not None:

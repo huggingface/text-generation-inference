@@ -1,5 +1,8 @@
 use crate::infer::InferError;
-use crate::{FunctionRef, FunctionsMap, Properties, Tool, ToolChoice, ToolType, Tools};
+use crate::{
+    FunctionDefinition, FunctionRef, FunctionsMap, JsonSchemaTool, Properties, Tool, ToolChoice,
+    ToolType,
+};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 
@@ -16,16 +19,37 @@ impl ToolGrammar {
     }
 
     pub fn apply(
-        tools: Option<Vec<Tool>>,
+        tools: Vec<Tool>,
         tool_choice: ToolChoice,
-    ) -> Result<Option<Tools>, InferError> {
+    ) -> Result<(Vec<Tool>, Option<JsonSchemaTool>), InferError> {
         // if no tools are provided, we return None
-        let tools = match tools {
-            Some(tools) if !tools.is_empty() => tools,
-            _ => return Ok(None),
-        };
+        if tools.is_empty() {
+            return Ok((tools, None));
+        }
 
         let tool_choice = tool_choice.0.unwrap_or(ToolType::OneOf);
+
+        let mut tools = tools.clone();
+
+        // add the notify_error function to the tools
+        let notify_error = Tool {
+            r#type: "function".to_string(),
+            function: FunctionDefinition {
+                name: "notify_error".to_string(),
+                description: Some("Notify an error or issue".to_string()),
+                arguments: json!({
+                    "type": "object",
+                    "properties": {
+                        "error": {
+                            "type": "string",
+                            "description": "The error or issue to notify"
+                        }
+                    },
+                    "required": ["error"]
+                }),
+            },
+        };
+        tools.push(notify_error);
 
         // if tools are provided and no tool_choice we default to the OneOf
         let tools_to_use = match tool_choice {
@@ -35,87 +59,57 @@ impl ToolGrammar {
             ToolType::Function { function } => {
                 vec![Self::find_tool_by_name(&tools, &function.name)?]
             }
-            ToolType::OneOf => tools,
-            ToolType::NoTool => return Ok(None),
+            ToolType::OneOf => tools.clone(),
+            ToolType::NoTool => return Ok((tools, None)),
         };
-
-        // adds the error notification function for LLM feedback if required
-        let mut text_response_properties = Map::new();
-        text_response_properties.insert(
-            "error".to_string(),
-            serde_json::json!({
-                "type": "string",
-                "description": "The error or issue to notify"
-            }),
-        );
-        text_response_properties.insert(
-            "_name".to_string(),
-            serde_json::json!({
-                "type": "string",
-                "const": "notify_error"
-            }),
-        );
 
         let functions: HashMap<String, serde_json::Value> = tools_to_use
             .iter()
             .map(|tool| {
                 let func = tool.function.clone();
 
-                // Clone the existing parameters, which are expected to be a JSON object
-                let mut params = if let Value::Object(params) = &func.arguments {
-                    params.clone()
-                } else {
-                    Map::new()
-                };
+                let mut params = Map::new();
 
-                // Insert the function's description at the top level, outside of properties
                 params.insert(
                     "description".to_string(),
-                    Value::String(func.description.clone().unwrap_or_default()),
+                    Value::String(func.description.unwrap_or_default()),
                 );
 
-                // Ensure 'properties' exists and is an object
-                let properties = params
-                    .entry("properties".to_string())
-                    .or_insert_with(|| json!({}))
-                    .as_object_mut()
-                    .unwrap();
+                let mut properties = Map::new();
+                let mut required = vec![Value::String("_name".to_string())];
 
-                // Insert the constant for the function name inside 'properties'
                 properties.insert(
                     "_name".to_string(),
                     json!({
                         "type": "string",
                         "const": func.name.clone(),
-                        // "description": "The name of the function"
                     }),
                 );
 
-                // Check if 'required' exists, and it is an array. If not, create an empty array.
-                let required = params
-                    .entry("required".to_string())
-                    .or_insert_with(|| json!([]))
-                    .as_array_mut()
-                    .unwrap();
-
-                // Add 'name' to the 'required' array if it is not already present
-                if !required.iter().any(|r| r == "_name") {
-                    required.push(json!("_name"));
+                if let Value::Object(args) = func.arguments {
+                    if let Some(Value::Object(props)) = args.get("properties") {
+                        properties.extend(props.clone());
+                    }
+                    if let Some(Value::Array(reqs)) = args.get("required") {
+                        required.extend(reqs.clone());
+                    }
+                    params.insert(
+                        "additionalProperties".to_string(),
+                        Value::Bool(
+                            args.get("additionalProperties").and_then(|v| v.as_str())
+                                == Some("true"),
+                        ),
+                    );
                 }
+
+                params.insert("properties".to_string(), Value::Object(properties));
+                params.insert("required".to_string(), Value::Array(required));
 
                 (func.name, Value::Object(params))
             })
-            .chain([(
-                "notify_error".to_string(),
-                serde_json::json!({
-                    "properties": text_response_properties,
-                    "required": ["error", "_name"],
-                    "type": "object"
-                }),
-            )])
             .collect();
 
-        let tools = Tools {
+        let tool_schema = JsonSchemaTool {
             functions_map: FunctionsMap { functions },
             properties: Properties {
                 function: tools_to_use
@@ -123,13 +117,10 @@ impl ToolGrammar {
                     .map(|tool| FunctionRef {
                         ref_path: format!("#/$functions/{}", tool.function.name.clone()),
                     })
-                    .chain(std::iter::once(FunctionRef {
-                        ref_path: "#/$functions/notify_error".to_string(),
-                    }))
                     .collect(),
             },
         };
 
-        Ok(Some(tools))
+        Ok((tools, Some(tool_schema)))
     }
 }

@@ -16,7 +16,7 @@
       },
       {
         "id": 100,
-        "logprob": -0.38549805,
+        "logprob": -0.38305664,
         "text": "_"
       },
       {
@@ -29,7 +29,7 @@
     "tokens": [
       {
         "id": 2284,
-        "logprob": -0.31323242,
+        "logprob": -0.296875,
         "special": false,
         "text": "():"
       },
@@ -59,19 +59,19 @@
       },
       {
         "id": 10914,
-        "logprob": -0.7817383,
+        "logprob": -0.7734375,
         "special": false,
         "text": " World"
       },
       {
         "id": 16013,
-        "logprob": -0.6328125,
+        "logprob": -0.61816406,
         "special": false,
         "text": "!\")"
       },
       {
         "id": 222,
-        "logprob": -0.0619812,
+        "logprob": -0.054870605,
         "special": false,
         "text": "\n"
       },
@@ -83,7 +83,7 @@
       },
       {
         "id": 610,
-        "logprob": -0.4086914,
+        "logprob": -0.4152832,
         "special": false,
         "text": "def"
       },
@@ -113,7 +113,7 @@
       },
       {
         "id": 444,
-        "logprob": -0.21826172,
+        "logprob": -0.21618652,
         "special": false,
         "text": "name"
       },
@@ -173,7 +173,7 @@
       },
       {
         "id": 11571,
-        "logprob": -0.10021973,
+        "logprob": -0.08892822,
         "special": false,
         "text": "!\""
       },

@@ -4,7 +4,7 @@ Text Generation Inference (TGI) now supports [JSON and regex grammars](#grammar-
 
 These feature are available starting from version `1.4.3`. They are accessible via the [`huggingface_hub`](https://pypi.org/project/huggingface-hub/) library. The tool support is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
 
-_note: guidance is supported as grammar in the `/generate` endpoint and as tools in the `/chat/completions` endpoint._
+_note: guidance is supported as grammar in the `/generate` endpoint and as tools in the `v1/chat/completions` endpoint._
 
 ## How it works
 
@@ -157,7 +157,12 @@ from huggingface_hub import InferenceClient
 
 client = InferenceClient("http://localhost:3000")
 
-regexp = "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)"
+section_regex = "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+regexp = f"HELLO\.{section_regex}\.WORLD\.{section_regex}"
+
+# This is a more realistic example of an ip address regex
+# regexp = f"{section_regex}\.{section_regex}\.{section_regex}\.{section_regex}"
+
 
 resp = client.text_generation(
     f"Whats Googles DNS? Please use the following regex: {regexp}",
@@ -170,7 +175,7 @@ resp = client.text_generation(
 
 
 print(resp)
-# 7.1.1.1
+# HELLO.255.WORLD.255
 
 ```
 

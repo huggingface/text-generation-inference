@@ -757,7 +757,12 @@ class AsyncClient:
                         continue
                     payload = byte_payload.decode("utf-8")
                     if payload.startswith("data:"):
-                        json_payload = json.loads(payload.lstrip("data:").rstrip("\n"))
+                        payload_data = (
+                            payload.lstrip("data:").rstrip("\n").removeprefix(" ")
+                        )
+                        if payload_data == "[DONE]":
+                            break
+                        json_payload = json.loads(payload_data)
                         try:
                             response = ChatCompletionChunk(**json_payload)
                             yield response

@@ -556,6 +556,37 @@
           }
         }
       }
+    },
+    "/v1/models": {
+      "get": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Get model info",
+        "operationId": "openai_get_model_info",
+        "responses": {
+          "200": {
+            "description": "Served model info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Model not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -819,6 +850,13 @@
             "example": "1.0",
             "nullable": true
           },
+          "guideline": {
+            "type": "string",
+            "description": "A guideline to be used in the chat_template",
+            "default": "null",
+            "example": "null",
+            "nullable": true
+          },
           "logit_bias": {
             "type": "array",
             "items": {
@@ -917,7 +955,7 @@
           "tool_prompt": {
             "type": "string",
             "description": "A prompt to be appended before the tools",
-            "example": "\"You will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n\"",
+            "example": "Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.",
             "nullable": true
           },
           "tools": {
@@ -1740,6 +1778,35 @@
           }
         ]
       },
+      "ModelInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "created",
+          "owned_by"
+        ],
+        "properties": {
+          "created": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1686935002,
+            "minimum": 0
+          },
+          "id": {
+            "type": "string",
+            "example": "gpt2"
+          },
+          "object": {
+            "type": "string",
+            "example": "model"
+          },
+          "owned_by": {
+            "type": "string",
+            "example": "openai"
+          }
+        }
+      },
       "OutputMessage": {
         "oneOf": [
           {
@@ -1817,13 +1884,20 @@
         "type": "object",
         "required": [
           "finish_reason",
-          "generated_tokens"
+          "generated_tokens",
+          "input_length"
         ],
         "properties": {
           "finish_reason": {
             "$ref": "#/components/schemas/FinishReason"
           },
           "generated_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "example": 1,
+            "minimum": 0
+          },
+          "input_length": {
             "type": "integer",
             "format": "int32",
             "example": 1,

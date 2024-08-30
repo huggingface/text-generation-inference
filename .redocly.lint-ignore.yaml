@@ -77,3 +77,4 @@ docs/openapi.json:
     - '#/paths/~1tokenize/post'
     - '#/paths/~1v1~1chat~1completions/post'
     - '#/paths/~1v1~1completions/post'
+    - '#/paths/~1v1~1models/get'

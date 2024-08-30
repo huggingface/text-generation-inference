@@ -41,22 +41,22 @@
       },
       {
         "id": 1669,
-        "logprob": -1.5664062,
+        "logprob": -1.5595703,
         "text": " il"
       },
       {
         "id": 11580,
-        "logprob": -0.94189453,
+        "logprob": -0.9428711,
         "text": " faut"
       },
       {
         "id": 3913,
-        "logprob": -3.6816406,
+        "logprob": -3.703125,
         "text": " tout"
       },
       {
         "id": 39261,
-        "logprob": -1.7753906,
+        "logprob": -1.7763672,
         "text": " d'abord"
       }
     ],
@@ -64,7 +64,7 @@
     "tokens": [
       {
         "id": 578,
-        "logprob": -1.6318359,
+        "logprob": -1.7822266,
         "special": false,
         "text": " le"
       },
@@ -76,7 +76,7 @@
       },
       {
         "id": 7735,
-        "logprob": -2.4355469,
+        "logprob": -2.4199219,
         "special": false,
         "text": " fond"
       },
@@ -88,19 +88,19 @@
       },
       {
         "id": 693,
-        "logprob": -2.4472656,
+        "logprob": -2.4628906,
         "special": false,
         "text": " à"
       },
       {
         "id": 366,
-        "logprob": -1.1972656,
+        "logprob": -1.1308594,
         "special": false,
         "text": " la"
       },
       {
         "id": 48844,
-        "logprob": -1.7890625,
+        "logprob": -1.7900391,
         "special": false,
         "text": " cass"
       },
@@ -118,7 +118,7 @@
       },
       {
         "id": 2940,
-        "logprob": -1.9335938,
+        "logprob": -1.9306641,
         "special": false,
         "text": " avec"
       }

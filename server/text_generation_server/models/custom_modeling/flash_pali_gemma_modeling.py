@@ -19,6 +19,7 @@ from torch import nn
 from typing import Optional, List, Tuple
 
 from text_generation_server.layers.tensor_parallel import TensorParallelColumnLinear
+from text_generation_server.layers.attention import Seqlen
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
     load_vision_model,
@@ -33,6 +34,11 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             prefix="vision_tower" if not prefix else f"{prefix}.vision_tower",
             config=config.vision_config,
             weights=weights,
+        )
+        self.post_vision_tower_layernorm = nn.LayerNorm.load(
+            prefix="vision_tower.vision_model.post_layernorm",
+            weights=weights,
+            eps=config.vision_config.layer_norm_eps,
         )
 
         self.multi_modal_projector = TensorParallelColumnLinear.load(
@@ -65,7 +71,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -84,7 +90,10 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         if pixel_values is not None:
             pixel_values = pixel_values.to(dtype=inputs_embeds.dtype)
             image_outputs = self.vision_tower(pixel_values)
-            image_features = self.multi_modal_projector(image_outputs.last_hidden_state)
+            last_hidden_state = self.post_vision_tower_layernorm(
+                image_outputs.last_hidden_state
+            )
+            image_features = self.multi_modal_projector(last_hidden_state)
 
             # mask where image or padding tokens
             mask = input_ids == self.config.image_token_index
@@ -99,7 +108,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             kv_cache=kv_cache,
             block_tables=block_tables,
             slots=slots,
-            input_lengths=input_lengths,
+            seqlen=seqlen,
             max_s=max_s,
         )
 

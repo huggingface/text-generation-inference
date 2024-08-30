@@ -1,7 +1,7 @@
 import os
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.models.globals import FLASH_DECODING
+from text_generation_server.models.globals import ATTENTION
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils.log import log_master
 from loguru import logger
@@ -28,7 +28,7 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    if FLASH_DECODING:
+    if ATTENTION == "flashdecoding":
         shape = key_cache.shape
         key_cache.view(-1, shape[-2], shape[-1])[slots] = key
         value_cache.view(-1, shape[-2], shape[-1])[slots] = value

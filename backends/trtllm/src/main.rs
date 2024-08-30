@@ -1,12 +1,10 @@
+use clap::Parser;
 use std::collections::HashMap;
 use std::path::PathBuf;
-
-use clap::Parser;
-use tokenizers::{FromPretrainedParameters, Tokenizer};
-
 use text_generation_backends_trtllm::errors::TensorRtLlmBackendError;
 use text_generation_backends_trtllm::TensorRtLlmBackend;
 use text_generation_router::server;
+use tokenizers::{FromPretrainedParameters, Tokenizer};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -160,6 +158,8 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         messages_api_enabled,
         true,
         max_client_batch_size,
+        false,
+        false,
     )
     .await?;
     Ok(())

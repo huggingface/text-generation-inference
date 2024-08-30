@@ -151,13 +151,17 @@ def get_tmp_expand_size(size: int) -> int:
 def get_tmp_tensors(
     nsegments: int, lora_rank: int, device: torch.device
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    if use_cutlass_shrink(lora_rank) and has_sgmv():
+    use_cutlass = use_cutlass_shrink(lora_rank) and has_sgmv()
+    has_sgmv_available = has_sgmv()
+
+    if use_cutlass:
         tmp = get_tmp_tensor_for_size(nsegments, device)
         return tmp, tmp
+    elif has_sgmv_available:
+        return get_tmp_tensor(device), get_tmp_tensor_for_size(nsegments, device)
     else:
-        tmp_shrink = get_tmp_tensor(device)
-        tmp_expand = get_tmp_tensor_for_size_no_kernels(nsegments, device)
-        return tmp_shrink, tmp_expand
+        tmp = get_tmp_tensor_for_size(nsegments, device)
+        return tmp, tmp
 
 
 def lora_a_sgmv_cutlass(

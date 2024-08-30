@@ -5,12 +5,31 @@ from typing import Dict, Optional
 
 from text_generation_server.utils.log import log_master
 
+PREFIX_CACHING = os.getenv("USE_PREFIX_CACHING").lower() in {"1", "true"}
+log_master(logger.info, f"Using prefix caching = {PREFIX_CACHING}")
+ATTENTION = os.getenv("ATTENTION")
+_expected = {"paged", "flashdecoding", "flashinfer"}
+assert (
+    ATTENTION in _expected
+), f"Attention is not valid {ATTENTION}, expected {_expected}"
+log_master(logger.info, f"Using Attention = {ATTENTION}")
+
+if PREFIX_CACHING and ATTENTION not in {"flashinfer", "flashdecoding"}:
+    raise RuntimeError("Prefix caching is only supported with flashinfer")
+
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
+TGI_WIGGLE_ROOM = float(os.getenv("TGI_WIGGLE_ROOM", "0.95"))
+assert TGI_WIGGLE_ROOM > 0
+assert TGI_WIGGLE_ROOM < 1
+
 # This is overridden by the cli
-FLASH_DECODING = os.getenv("FLASH_DECODING") in {"1", "true", "True"}
-BLOCK_SIZE: int = 256 if FLASH_DECODING else 16
-if FLASH_DECODING:
-    log_master(logger.info, "Using FLASH_DECODING")
+BLOCK_SIZE: int
+if ATTENTION == "flashdecoding":
+    BLOCK_SIZE = 256
+elif ATTENTION == "flashinfer":
+    BLOCK_SIZE = 1
+else:
+    BLOCK_SIZE = 16
 
 cuda_graphs = os.getenv("CUDA_GRAPHS")
 if cuda_graphs is not None:

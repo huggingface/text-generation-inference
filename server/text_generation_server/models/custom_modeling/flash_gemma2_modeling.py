@@ -30,6 +30,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     reshape_and_cache,
+    Seqlen,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -213,7 +214,7 @@ class FlashGemma2Attention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -236,10 +237,10 @@ class FlashGemma2Attention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0],
+                kv_cache[1],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
                 causal=self.causal,
                 window_size_left=self.window_size,
@@ -254,7 +255,7 @@ class FlashGemma2Attention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
                 softcap=self.softcap,
             )
@@ -265,7 +266,7 @@ class FlashGemma2Attention(torch.nn.Module):
 class Gemma2MLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
-        act = config.hidden_act
+        act = config.hidden_activation
         self.act = (
             ACT2FN[act]
             if "gelu" not in act
@@ -341,7 +342,7 @@ class FlashGemma2Layer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -355,7 +356,7 @@ class FlashGemma2Layer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -406,7 +407,7 @@ class FlashGemma2Model(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
@@ -428,7 +429,7 @@ class FlashGemma2Model(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -475,7 +476,7 @@ class FlashGemma2ForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -489,7 +490,7 @@ class FlashGemma2ForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
         if lm_head_indices is not None:

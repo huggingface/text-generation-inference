@@ -118,6 +118,7 @@ class ResponseComparator(JSONSnapshotExtension):
                 and token.text == other.text
                 and (
                     self.ignore_logprob
+                    or (token.logprob == other.logprob and token.logprob is None)
                     or math.isclose(token.logprob, other.logprob, rel_tol=self.rtol)
                 )
                 and token.special == other.special
@@ -256,7 +257,7 @@ class IgnoreLogProbResponseComparator(ResponseComparator):
 
 class LauncherHandle:
     def __init__(self, port: int):
-        self.client = AsyncClient(f"http://localhost:{port}")
+        self.client = AsyncClient(f"http://localhost:{port}", timeout=30)
 
     def _inner_health(self):
         raise NotImplementedError

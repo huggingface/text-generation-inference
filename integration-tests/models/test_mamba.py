@@ -62,6 +62,7 @@ async def test_mamba_load(
     )
 
     assert len(responses) == 4
+    assert responses[0].generated_text == "\n\nDeep learning is a new type of machine"
     assert all([r.generated_text == responses[0].generated_text for r in responses])
     assert responses[0].generated_text == "\n\nDeep learning is a new type of machine"
 

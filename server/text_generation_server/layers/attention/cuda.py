@@ -1,6 +1,9 @@
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.models.globals import FLASH_DECODING, BLOCK_SIZE
+from text_generation_server.models.globals import (
+    ATTENTION,
+    BLOCK_SIZE,
+)
 from text_generation_server.layers.attention import Seqlen
 from typing import Optional
 
@@ -23,7 +26,7 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    if FLASH_DECODING:
+    if ATTENTION in {"flashdecoding", "flashinfer"}:
         shape = key_cache.shape
         key_cache.view(-1, shape[-2], shape[-1])[slots] = key
         value_cache.view(-1, shape[-2], shape[-1])[slots] = value
@@ -72,7 +75,16 @@ def paged_attention(
     # V1 to avoid the overhead of reduction. Also, if the number of
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
-    if FLASH_DECODING:
+    if ATTENTION == "flashinfer":
+        from text_generation_server.layers.attention.flashinfer import decode_state
+
+        return decode_state.get().forward(
+            query.contiguous(),
+            paged_kv_cache=(key_cache, value_cache),
+            logits_soft_cap=softcap,
+            sm_scale=softmax_scale,
+        )
+    elif ATTENTION == "flashdecoding":
         max_q = 1
         max_k = max_s
         import flash_attn_2_cuda
@@ -172,6 +184,10 @@ def paged_attention(
 
 
 try:
+    is_ampere_or_newer = major >= 8 and minor >= 0
+    if not is_ampere_or_newer:
+        raise ImportError("FlashAttention only supports Ampere GPUs or newer.")
+
     import flash_attn_2_cuda
 
     V2 = True
@@ -202,14 +218,40 @@ except ImportError:
 
 SUPPORTS_WINDOWING = V2
 
-if V2:
+if ATTENTION == "flashinfer":
+
+    def attention(
+        q: torch.Tensor,
+        key_cache: torch.Tensor,
+        value_cache: torch.Tensor,
+        seqlen: Seqlen,
+        block_tables: torch.Tensor,
+        softmax_scale,
+        window_size_left=-1,
+        causal=True,
+        softcap=0.0,
+    ):
+        from text_generation_server.layers.attention.flashinfer import (
+            prefill_with_paged_kv_state,
+        )
+
+        return prefill_with_paged_kv_state.get().forward(
+            q.contiguous(),
+            causal=causal,
+            paged_kv_cache=(key_cache, value_cache),
+            logits_soft_cap=softcap,
+            sm_scale=softmax_scale,
+            window_left=window_size_left,
+        )
+
+elif V2:
 
     def attention(
         q,
-        k,
-        v,
-        cu_seqlens,
-        max_s,
+        key_cache: torch.Tensor,
+        value_cache: torch.Tensor,
+        seqlen: Seqlen,
+        block_tables: torch.Tensor,
         softmax_scale,
         window_size_left=-1,
         causal=True,
@@ -220,17 +262,17 @@ if V2:
             raise ValueError("`window_size_left` must be > 0 or -1")
         return flash_attn_2_cuda.varlen_fwd(
             q,
-            k,
-            v,
+            key_cache,
+            value_cache,
             out,
-            cu_seqlens,
-            cu_seqlens,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_k,
             None,
             None,
+            block_tables,
             None,
-            None,
-            max_s,
-            max_s,
+            seqlen.max_q,
+            seqlen.max_k,
             0.0,
             softmax_scale,
             False,
@@ -248,10 +290,13 @@ else:
         q,
         k,
         v,
+        key_cache: torch.Tensor,
+        value_cache: torch.Tensor,
         cu_seqlens,
         max_s,
         softmax_scale,
         window_size_left=-1,
+        causal=None,
         softcap=None,
     ):
         if window_size_left != -1:
@@ -288,8 +333,7 @@ else:
                 )
 
         out = torch.empty_like(q)
-
-        return flash_attn_cuda.fwd(
+        flash_attn_cuda.fwd(
             q,
             k,
             v,
@@ -305,4 +349,5 @@ else:
             False,
             0,
             None,
-        )[0]
+        )
+        return out

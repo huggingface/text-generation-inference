@@ -1,7 +1,8 @@
 mod backend;
-mod block_allocator;
+pub mod block_allocator;
 mod client;
 mod queue;
+pub mod radix;
 
 use crate::client::{ClientError, ShardedClient};
 pub(crate) use backend::BackendV3;
