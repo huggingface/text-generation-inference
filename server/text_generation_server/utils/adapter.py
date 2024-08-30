@@ -3,6 +3,7 @@
 # License:  Apache License Version 2.0, January 2004
 
 import warnings
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Set, Tuple, Optional, List
@@ -27,6 +28,7 @@ BASE_MODEL_ADAPTER_ID = "__base_model__"
 class AdapterInfo:
     id: str
     path: Optional[str]
+    revision: Optional[str] = None
 
 
 @dataclass
@@ -51,11 +53,16 @@ def parse_lora_adapters(lora_adapters: Optional[str]) -> List[AdapterInfo]:
 
     adapter_list = []
     for adapter in lora_adapters.split(","):
-        parts = adapter.strip().split("=")
-        if len(parts) == 1:
-            adapter_list.append(AdapterInfo(id=parts[0], path=None))
-        elif len(parts) == 2:
-            adapter_list.append(AdapterInfo(id=parts[0], path=parts[1]))
+        adapter = adapter.strip()
+        if adapter.count("=") > 1 or adapter.count("@") > 1:
+            raise ValueError(f"Invalid LoRA adapter format: {adapter}")
+        match = re.match(r"^([^=@]+)(?:=([^@]+))?(?:@(.+))?$", adapter)
+
+        if match:
+            adapter_id, path, revision = match.groups()
+            adapter_list.append(
+                AdapterInfo(id=adapter_id, path=path, revision=revision)
+            )
         else:
             raise ValueError(f"Invalid LoRA adapter format: {adapter}")
     return adapter_list
@@ -73,6 +80,7 @@ def load_and_merge_adapters(
         adapter_info = next(iter(adapter_parameters.adapter_info))
         return load_module_map(
             model_id,
+            adapter_info.revision,
             adapter_info.id,
             adapter_info.path,
             weight_names,
@@ -80,7 +88,13 @@ def load_and_merge_adapters(
         )
 
     adapter_params = AdapterParametersContainer(adapter_parameters, adapter_index)
-    return _load_and_merge(model_id, adapter_params, weight_names, trust_remote_code)
+    return _load_and_merge(
+        model_id,
+        adapter_params.revision,
+        adapter_params,
+        weight_names,
+        trust_remote_code,
+    )
 
 
 @dataclass
@@ -95,6 +109,7 @@ class AdapterParametersContainer:
 @lru_cache(maxsize=32)
 def _load_and_merge(
     model_id: str,
+    revision: str,
     adapter_params: AdapterParametersContainer,
     weight_names: Tuple[str],
     trust_remote_code: bool = False,
@@ -171,12 +186,12 @@ def check_architectures(
 @lru_cache(maxsize=128)
 def load_module_map(
     model_id: str,
+    revision: str,
     adapter_id: str,
     adapter_path: Optional[str],
     weight_names: Tuple[str],
     trust_remote_code: bool = False,
 ) -> Tuple["ModuleMap", "AdapterConfig", Set[str], PreTrainedTokenizer]:
-    revision = "main"
 
     adapter_config = LoraConfig.load(adapter_path or adapter_id, None)
 
@@ -190,6 +205,12 @@ def load_module_map(
             adapter_id, revision=revision, extension=".safetensors"
         )
     )
+
+    # throw an error if no adapter weights are found
+    if not adapter_filenames:
+        raise FileNotFoundError(
+            f"No adapter weights found for adapter '{adapter_id}' and revision '{revision}'."
+        )
 
     try:
         adapter_tokenizer = AutoTokenizer.from_pretrained(
@@ -220,6 +241,12 @@ def get_attn_weights(i, layer):
         key = (i, f"{k}_proj")
         value = (f"model.layers.{i}.self_attn.{k}_proj", qkv)
         weights[key] = value
+
+    # also add the qkv_proj weight for the adapter
+    weights[(i, "qkv_proj")] = (
+        f"model.layers.{i}.self_attn.qkv_proj",
+        qkv,
+    )
 
     weights[(i, "o_proj")] = (
         f"model.layers.{i}.self_attn.o_proj",
