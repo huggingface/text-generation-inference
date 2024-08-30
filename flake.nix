@@ -79,16 +79,22 @@
               ]
               ++ (with python3.pkgs; [
                 venvShellHook
+                docker
                 pip
                 ipdb
+                pytest
+                pytest-asyncio
+                syrupy
               ]);
 
             inputsFrom = [ server ];
 
             venvDir = "./.venv";
 
-            postVenv = ''
+            postVenvCreation = ''
               unset SOURCE_DATE_EPOCH
+              ( cd server ; python -m pip install --no-dependencies -e . )
+              ( cd clients/python ; python -m pip install --no-dependencies -e . )
             '';
             postShellHook = ''
               unset SOURCE_DATE_EPOCH
