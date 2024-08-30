@@ -6,16 +6,10 @@ from enum import Enum
 from typing import Any, Dict, List
 
 import numpy as np
-from jinja2 import Environment, PackageLoader, select_autoescape
 from loguru import logger
 from transformers import LlamaTokenizerFast
 
 from benchmarks.utils import kill
-
-env = Environment(
-    loader=PackageLoader("benchmarks"),
-    autoescape=select_autoescape()
-)
 
 
 class ExecutorInputType(Enum):
@@ -148,8 +142,8 @@ class K6Benchmark:
         env_vars = []
         for key, val in self.k6_config.executor.variables.items():
             env_vars += ["-e", f"{key.upper()}={val}"]
-        env_vars += ["-e", f"MAX_NEW_TOKENS={self.k6_config.executor.variables['max_new_tokens']}"]
         env_vars += ["-e", f"INPUT_FILENAME={self.k6_config.executor.input_filename}"]
+        env_vars += ["-e", f"TEST_EXECUTOR={self.k6_config.executor.name}"]
         args = ["k6", "run", "--out", "json=results.json"] + env_vars + ["main.js"]
         logger.info(f"Running k6 with parameters: {args}")
         logger.info(f"K6Config is: {self.k6_config}")

@@ -83,7 +83,7 @@ class TGIDockerRunner(InferenceEngineRunner):
             volumes[v[0]] = {"bind": v[1], "mode": "rw"}
         self.container = run_docker(self.image, params,
                                     "Connected",
-                                    "Error",
+                                    "ERROR",
                                     volumes=volumes)
 
     def stop(self):

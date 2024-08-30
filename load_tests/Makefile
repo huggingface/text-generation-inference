@@ -7,7 +7,7 @@ download-dataset:
 		echo "Dataset already downloaded"; \
 	fi
 
-load-test: export PATH = $(shell pwd)/.bin/:$(PATH)
+load-test: export PATH := $(shell pwd)/.bin/:$(PATH)
 load-test: download-dataset
 	poetry install && poetry run python load_test.py
 

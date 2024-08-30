@@ -23,7 +23,6 @@ const max_new_tokens = parseInt(__ENV.MAX_NEW_TOKENS)
 const input_filename = __ENV.INPUT_FILENAME;
 if (input_filename === undefined) {
     throw new Error('INPUT_FILENAME must be defined');
-
 }
 
 const shareGPT = JSON.parse(open(input_filename))
@@ -138,17 +137,17 @@ export default function run() {
 }
 
 export function get_options() {
-    const test_type = __ENV.TEST_TYPE;
-    if (test_type === undefined) {
-        throw new Error('TEST_TYPE must be defined');
+    const test_executor = __ENV.TEST_EXECUTOR;
+    if (test_executor === undefined) {
+        throw new Error('TEST_EXECUTOR must be defined');
     }
-    switch (test_type) {
+    switch (test_executor) {
         case 'constant_arrival_rate':
             return get_constant_arrival_rate_options();
         case 'constant_vus':
             return get_constant_vus_options();
         default:
-            throw new Error('Invalid test type');
+            throw new Error('Invalid test executor');
     }
 }
 
