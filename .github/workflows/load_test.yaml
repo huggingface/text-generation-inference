@@ -74,6 +74,7 @@ jobs:
         run: |
           export PATH="/home/runner/.local/bin:$PATH"
           cd load_tests
+          make build-k6
           make load-test
         shell: bash
 

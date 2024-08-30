@@ -7,18 +7,13 @@ download-dataset:
 		echo "Dataset already downloaded"; \
 	fi
 
-load-test: download-dataset build-k6
+load-test: export PATH = $(shell pwd)/.bin/:$(PATH)
+load-test: download-dataset
 	poetry install && poetry run python load_test.py
 
 build-k6:
-	mkdir -p /tmp/xk6 && \
-	cd /tmp/xk6 && \
-	git clone https://github.com/mstoykov/xk6-sse.git && \
-	cd xk6-sse && \
-	git checkout useSobek && \
 	go install go.k6.io/xk6/cmd/xk6@latest && \
-	xk6 build --with github.com/phymbert/xk6-sse=. && \
-	mkdir -p ~/.local/bin/ && \
-	mv k6 /tmp/k6-sse && \
-	rm -rf /tmp/xk6 && \
-	/tmp/k6-sse --version
+	xk6 build --with github.com/phymbert/xk6-sse@0abbe3e94fe104a13021524b1b98d26447a7d182 && \
+	mkdir -p .bin/ && \
+	mv k6 .bin/k6 && \
+	.bin/k6 --version

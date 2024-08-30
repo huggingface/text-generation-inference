@@ -16,9 +16,17 @@ const interTokenLatency = new Trend('inter_token_latency', true); // is microsec
 
 const tokensReceived = new Trend('tokens_received');
 
-const max_new_tokens = {{ max_new_tokens }};
+if (__ENV.MAX_NEW_TOKENS === undefined) {
+    throw new Error('MAX_NEW_TOKENS must be defined');
+}
+const max_new_tokens = parseInt(__ENV.MAX_NEW_TOKENS)
+const input_filename = __ENV.INPUT_FILENAME;
+if (input_filename === undefined) {
+    throw new Error('INPUT_FILENAME must be defined');
 
-const shareGPT = JSON.parse(open("{{ cwd }}/{{ input_filename }}"))
+}
+
+const shareGPT = JSON.parse(open(input_filename))
 
 export function handleSummary(data) {
     return {
@@ -127,4 +135,68 @@ export default function run() {
         'http_200': (res) => res.status === 200,
     });
 
+}
+
+export function get_options() {
+    const test_type = __ENV.TEST_TYPE;
+    if (test_type === undefined) {
+        throw new Error('TEST_TYPE must be defined');
+    }
+    switch (test_type) {
+        case 'constant_arrival_rate':
+            return get_constant_arrival_rate_options();
+        case 'constant_vus':
+            return get_constant_vus_options();
+        default:
+            throw new Error('Invalid test type');
+    }
+}
+
+function get_constant_arrival_rate_options() {
+    const duration = __ENV.DURATION;
+    if (duration === undefined) {
+        throw new Error('DURATION must be defined');
+    }
+    if (__ENV.PRE_ALLOCATED_VUS === undefined) {
+        throw new Error('PRE_ALLOCATED_VUS must be defined');
+    }
+    const pre_allocated_vus = parseInt(__ENV.PRE_ALLOCATED_VUS);
+    if (__ENV.RATE === undefined) {
+        throw new Error('RATE must be defined');
+    }
+    const rate = parseInt(__ENV.RATE);
+    return {
+        scenarios: {
+            load_test: {
+                executor: 'constant-arrival-rate',
+                gracefulStop: '0s',
+                duration: duration,
+                preAllocatedVUs: pre_allocated_vus,
+                rate: rate,
+                timeUnit: '1s',
+            },
+        },
+    }
+        ;
+}
+
+function get_constant_vus_options() {
+    const duration = __ENV.DURATION;
+    if (duration === undefined) {
+        throw new Error('DURATION must be defined');
+    }
+    if (__ENV.VUS === undefined) {
+        throw new Error('VUS must be defined');
+    }
+    const vus = parseInt(__ENV.VUS);
+    return {
+        scenarios: {
+            load_test: {
+                executor: 'constant-vus',
+                gracefulStop: '0s',
+                duration: duration,
+                vus: vus,
+            },
+        },
+    };
 }

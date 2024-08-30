@@ -24,8 +24,7 @@ class ExecutorInputType(Enum):
 
 
 class K6Executor:
-    def __init__(self, name, template_name, executor_input_type=ExecutorInputType.SHAREGPT_CONVERSATIONS):
-        self.template_name = template_name
+    def __init__(self, name, executor_input_type=ExecutorInputType.SHAREGPT_CONVERSATIONS):
         self.variables = {}
         self.rendered_file = None
         self.name = name
@@ -34,14 +33,6 @@ class K6Executor:
             self.input_filename = "inputs_constant_tokens.json"
         elif executor_input_type == ExecutorInputType.SHAREGPT_CONVERSATIONS:
             self.input_filename = "inputs_variable_tokens.json"
-
-    def render(self):
-        template = env.get_template(self.template_name)
-        _, path = tempfile.mkstemp("k6", "benchmark")
-        cwd = os.getcwd()
-        with open(path, "w") as f:
-            f.write(template.render(cwd=cwd, input_filename=self.input_filename, **self.variables))
-        self.rendered_file = path
 
     def __str__(self):
         # returns an underscore separated string of the variables for filename generation
@@ -52,7 +43,7 @@ class K6Executor:
 class K6ConstantArrivalRateExecutor(K6Executor):
     def __init__(self, pre_allocated_vus: int, rate_per_second: int, duration: str,
                  executor_input_type: ExecutorInputType):
-        super().__init__("constant_arrival_rate", "k6_constant_arrival_rate.js.j2", executor_input_type)
+        super().__init__("constant_arrival_rate", executor_input_type)
         self.variables = {
             "pre_allocated_vus": pre_allocated_vus,  # it's also the max vus
             "rate": rate_per_second,
@@ -60,21 +51,9 @@ class K6ConstantArrivalRateExecutor(K6Executor):
         }
 
 
-class K6RampingArrivalRateExecutor(K6Executor):
-    def __init__(self, pre_allocated_vus: int, start_rate: int, time_unit: str, stages: List[Dict[str, Any]],
-                 executor_input_type: ExecutorInputType):
-        super().__init__("ramping_arrival_rate", "k6_ramping_arrival_rate.js.j2", executor_input_type)
-        self.variables = {
-            "pre_allocated_vus": pre_allocated_vus,
-            "start_rate": start_rate,
-            "time_unit": time_unit,
-            "stages": stages
-        }
-
-
 class K6ConstantVUsExecutor(K6Executor):
     def __init__(self, vus: int, duration: str, executor_input_type: ExecutorInputType):
-        super().__init__("constant_vus", "k6_constant_vus.js.j2", executor_input_type)
+        super().__init__("constant_vus", executor_input_type)
         self.variables = {
             "vus": vus,
             "duration": duration
@@ -166,13 +145,17 @@ class K6Benchmark:
                 f.write(json.dumps(outputs))
 
     def run(self):
-        self.k6_config.executor.render()
-        args = f"/tmp/k6-sse run --out json=results.json {self.k6_config.executor.rendered_file}"
+        env_vars = []
+        for key, val in self.k6_config.executor.variables.items():
+            env_vars += ["-e", f"{key.upper()}={val}"]
+        env_vars += ["-e", f"MAX_NEW_TOKENS={self.k6_config.executor.variables['max_new_tokens']}"]
+        env_vars += ["-e", f"INPUT_FILENAME={self.k6_config.executor.input_filename}"]
+        args = ["k6", "run", "--out", "json=results.json"] + env_vars + ["main.js"]
         logger.info(f"Running k6 with parameters: {args}")
         logger.info(f"K6Config is: {self.k6_config}")
         # start a k6 subprocess
         self.process = subprocess.Popen(args,
-                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=True)
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         while buffer := os.read(self.process.stdout.fileno(),
                                 2048):  # read the output of the process, don't buffer on new lines
             print(buffer.decode(), end='')
