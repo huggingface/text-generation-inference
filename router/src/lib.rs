@@ -55,11 +55,18 @@ impl std::str::FromStr for Attention {
 }
 
 #[derive(Clone, Deserialize, ToSchema)]
-pub(crate) struct VertexInstance {
+pub(crate) struct GenerateVertexInstance {
     #[schema(example = "What is Deep Learning?")]
     pub inputs: String,
     #[schema(nullable = true, default = "null", example = "null")]
     pub parameters: Option<GenerateParameters>,
+}
+
+#[derive(Clone, Deserialize, ToSchema)]
+#[serde(untagged)]
+enum VertexInstance {
+    Generate(GenerateVertexInstance),
+    Chat(ChatRequest),
 }
 
 #[derive(Deserialize, ToSchema)]
