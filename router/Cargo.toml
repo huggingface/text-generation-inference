@@ -61,6 +61,7 @@ uuid = { version = "1.9.1", default-features = false, features = [
 ] }
 csv = "1.3.0"
 ureq = "=2.9"
+twox-hash = "1.6.3"
 
 
 [build-dependencies]

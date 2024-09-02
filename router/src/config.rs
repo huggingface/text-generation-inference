@@ -129,6 +129,7 @@ pub struct PaliTextConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Paligemma {
+    pub(crate) image_token_index: u32,
     pub(crate) text_config: PaliTextConfig,
 }
 

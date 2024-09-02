@@ -6,17 +6,23 @@ use crate::{
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{ImageFormat, ImageReader};
+use itertools::Itertools;
 use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
 use serde_json::Value;
+use std::collections::HashMap;
+use std::hash::Hasher;
 use std::io::Cursor;
 use std::iter;
 use std::sync::Arc;
 use thiserror::Error;
 use tokenizers::tokenizer::Tokenizer;
+use tokenizers::Encoding;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
+use twox_hash::xxh3::HasherExt;
+use twox_hash::Xxh3Hash128;
 use {once_cell::sync::Lazy, regex::Regex};
 
 /// Validation
@@ -596,6 +602,45 @@ fn image_tokens(
     }
 }
 
+fn image_id(config: &Config) -> u32 {
+    use Config::*;
+    match config {
+        Paligemma(pali_gemma) => pali_gemma.image_token_index,
+        _ => unimplemented!("Images tokens are not supported for this model configuration"),
+    }
+}
+
+fn n_image_tokens(
+    config: &Config,
+    preprocessor_config: Option<&HubPreprocessorConfig>,
+    height: usize,
+    width: usize,
+) -> usize {
+    use Config::*;
+    use HubPreprocessorConfig::*;
+    match config {
+        Idefics => 1,
+        Idefics2(config) => {
+            let repeats = if matches!(
+                preprocessor_config,
+                Some(Idefics2Processor(Idefics2Preprocessor {
+                    do_image_splitting: true,
+                    ..
+                }))
+            ) {
+                5
+            } else {
+                1
+            };
+
+            config.get_number_of_features(height, width) * repeats
+        }
+        Paligemma(config) => config.get_number_of_features(height, width),
+        LlavaNext(config) => config.get_number_of_features(height, width),
+        _ => unimplemented!("Images tokens are not supported for this model configuration"),
+    }
+}
+
 fn image_tokens_fixup(config: &Config, text: String) -> String {
     match config {
         Config::Idefics2(_) => {
@@ -617,8 +662,10 @@ fn prepare_input(
 ) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {
     use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
-    let (tokenizer_query, input_chunks) = match config {
+    let (tokenizer_query, input_chunks, image_token_id, image_hashes, image_lens) = match config {
         Some(config @ (Idefics | Idefics2(_) | Paligemma(_) | LlavaNext(_))) => {
+            let mut image_hashes = Vec::new();
+            let mut image_lens = Vec::new();
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());
             let mut start = 0;
@@ -630,8 +677,15 @@ fn prepare_input(
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
                 let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                input_chunks.push(Chunk::Image(Image { data, mimetype }));
+
                 tokenizer_query.push_str(&image_tokens(config, preprocessor_config, height, width));
+
+                let mut hasher = Xxh3Hash128::default();
+                hasher.write(&data);
+                image_hashes.push(hasher.finish_ext());
+                image_lens.push(n_image_tokens(config, preprocessor_config, height, width));
+
+                input_chunks.push(Chunk::Image(Image { data, mimetype }));
                 start = chunk_end;
             }
             if start != inputs.len() {
@@ -641,15 +695,50 @@ fn prepare_input(
 
             tokenizer_query = image_tokens_fixup(config, tokenizer_query);
 
-            (tokenizer_query, input_chunks)
+            (
+                tokenizer_query,
+                input_chunks,
+                image_id(&config),
+                image_hashes,
+                image_lens,
+            )
         }
-        _ => (inputs.clone(), vec![Chunk::Text(inputs)]),
+        _ => (inputs.clone(), vec![Chunk::Text(inputs)], 0, vec![], vec![]),
     };
 
     // Get the number of tokens in the input
     let encoding = tokenizer
         .encode(tokenizer_query, add_special_tokens)
         .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
+
+    tracing::info!("encoding before hash: {:?}", encoding.get_ids());
+
+    // Replace image tokens by hashes. The first token of an image
+    // must be specific to the image for prefix caching.
+    let mut token_ids = encoding.get_ids().to_owned();
+    let mut iter = token_ids.iter_mut().filter(|id| **id == image_token_id);
+    for (image_hash, n_tokens) in image_hashes.iter().zip(image_lens.iter()) {
+        let image_token = iter.next().ok_or(ValidationError::Tokenizer(
+            "Image token not found".to_string(),
+        ))?;
+        *image_token = *image_hash as u32;
+        // Skip the remaining tokens of the current image.
+        iter = iter.dropping(n_tokens - 1);
+    }
+
+    let encoding = Encoding::new(
+        token_ids,
+        encoding.get_type_ids().to_owned(),
+        encoding.get_tokens().to_owned(),
+        encoding.get_word_ids().to_owned(),
+        encoding.get_offsets().to_owned(),
+        encoding.get_special_tokens_mask().to_owned(),
+        encoding.get_attention_mask().to_owned(),
+        encoding.get_overflowing().to_owned(),
+        HashMap::new(),
+    );
+
+    tracing::info!("encoding after hash: {:?}", encoding.get_ids());
 
     Ok((encoding, input_chunks))
 }
