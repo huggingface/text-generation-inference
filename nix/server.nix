@@ -26,6 +26,7 @@
   opentelemetry-instrumentation-grpc,
   opentelemetry-semantic-conventions,
   peft,
+  punica-kernels,
   safetensors,
   tokenizers,
   torch,
@@ -92,6 +93,7 @@ buildPythonPackage {
     opentelemetry-instrumentation-grpc
     opentelemetry-semantic-conventions
     peft
+    punica-kernels
     safetensors
     sentencepiece
     tokenizers
