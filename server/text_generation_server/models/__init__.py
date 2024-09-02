@@ -777,7 +777,7 @@ def get_model(
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
-                model_class=FlashPhiForCausalLM,
+                model_class=FlashLlamaForCausalLM,
                 revision=revision,
                 quantize=quantize,
                 speculator=speculator,

@@ -47,10 +47,16 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
+from text_generation_server.layers import (
+    FastLinear,
+)
 from text_generation_server.utils.weights import (
     Weights,
 )
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
+
+if SYSTEM != "ipex":
+    from vllm.model_executor.layers.fused_moe import fused_moe
 
 if SYSTEM == "rocm":
     try:
@@ -245,6 +251,103 @@ class FlashLlamaAttention(torch.nn.Module):
         )
 
 
+def _load_experts(config, prefix: str, mat, weights):
+    if config.quantize is not None:
+        raise NotImplementedError("Mixtral does not support weight quantization yet.")
+
+    assert mat in ["w1", "w2", "w3"]
+
+    world_size = weights.process_group.size()
+    rank = weights.process_group.rank()
+
+    assert (
+        config.intermediate_size % world_size == 0
+    ), f"The chosen size {config.intermediate_size} is not compatible with sharding on {world_size} shards"
+
+    block_size = config.intermediate_size // world_size
+    start = rank * block_size
+    stop = (rank + 1) * block_size
+
+    tensor = torch.empty(
+        (config.num_local_experts * block_size, config.hidden_size),
+        dtype=weights.dtype,
+        device=weights.device,
+    )
+
+    for i in range(config.num_local_experts):
+        slice_ = weights._get_slice(f"{prefix}.{i}.{mat}.weight")
+
+        if mat == "w2":
+            expert_slice = slice_[:, start:stop].t().contiguous()
+        else:
+            expert_slice = slice_[start:stop]
+        tensor[i * block_size : (i + 1) * block_size] = expert_slice.to(
+            dtype=weights.dtype
+        ).to(device=weights.device)
+    return tensor
+
+
+class BlockSparseMoE(nn.Module):
+    def __init__(self, prefix, config, weights):
+        super().__init__()
+        self.hidden_dim = config.hidden_size
+        self.ffn_dim = config.intermediate_size // weights.process_group.size()
+        self.num_experts = config.num_local_experts
+        self.top_k = config.num_experts_per_tok
+
+        act = config.hidden_act
+        if "gelu" in act:
+            self.act = lambda x: torch.nn.functional.gelu(
+                x,
+                approximate=(
+                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
+                ),
+            )
+        elif "silu" in act:
+            self.act = torch.nn.functional.silu
+        else:
+            self.act = ACT2FN[act]
+
+        # gating
+        self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
+
+        # merged expert weights, all of size  (n_experts * ffn_dim, hidden_dim)
+        w1 = _load_experts(config, f"{prefix}.experts", "w1", weights).view(
+            self.num_experts, self.ffn_dim, self.hidden_dim
+        )
+        w3 = _load_experts(config, f"{prefix}.experts", "w3", weights).view(
+            self.num_experts, self.ffn_dim, self.hidden_dim
+        )
+        self.w13 = torch.cat([w1, w3], dim=1)
+        self.w2 = (
+            _load_experts(config, f"{prefix}.experts", "w2", weights)
+            .view(self.num_experts, self.ffn_dim, self.hidden_dim)
+            .transpose(1, 2)
+            .contiguous()
+        )
+
+        self.process_group = weights.process_group
+
+    def forward(self, x, adapter_data) -> torch.Tensor:
+        # router_logits: (num_tokens, n_experts)
+        router_logits = self.gate(x)
+        out = fused_moe(
+            x,
+            self.w13,
+            self.w2,
+            router_logits,
+            self.top_k,
+            renormalize=True,
+            inplace=True,
+        )
+
+        # Reduce sum
+        if self.process_group.size() > 1:
+            torch.distributed.all_reduce(out, group=self.process_group)
+
+        return out.view(*x.shape)
+
+
 class LlamaMLP(nn.Module):
     def __init__(self, prefix, config, weights, index):
         super().__init__()
@@ -353,9 +456,14 @@ class FlashLlamaLayer(nn.Module):
                 weights=weights,
             )
 
-        self.mlp = LlamaMLP(
-            prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
-        )
+        self.use_moe = config._name_or_path == "microsoft/Phi-3.5-MoE-instruct"
+
+        if self.use_moe:
+            self.dense = BlockSparseMoE(f"{prefix}.block_sparse_moe", config, weights)
+        else:
+            self.dense = LlamaMLP(
+                prefix=f"{prefix}.mlp", config=config, weights=weights
+            )
 
         self.input_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
@@ -401,7 +509,7 @@ class FlashLlamaLayer(nn.Module):
             attn_output, res
         )
 
-        mlp_output = self.mlp(normed_attn_res_output, adapter_data)
+        mlp_output = self.dense(normed_attn_res_output, adapter_data)
 
         return mlp_output, attn_res
 
