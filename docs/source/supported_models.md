@@ -20,6 +20,7 @@ Text Generation Inference enables serving optimized models on specific hardware 
 - [Mixtral](https://huggingface.co/mistralai/Mixtral-8x22B-Instruct-v0.1)
 - [Gpt Bigcode](https://huggingface.co/bigcode/gpt_bigcode-santacoder)
 - [Phi](https://huggingface.co/microsoft/phi-1_5)
+- [PhiMoe](https://huggingface.co/microsoft/Phi-3.5-MoE-instruct)
 - [Baichuan](https://huggingface.co/baichuan-inc/Baichuan2-7B-Chat)
 - [Falcon](https://huggingface.co/tiiuae/falcon-7b-instruct)
 - [StarCoder 2](https://huggingface.co/bigcode/starcoder2-15b-instruct-v0.1)

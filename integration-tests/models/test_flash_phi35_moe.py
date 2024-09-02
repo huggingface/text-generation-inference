@@ -4,9 +4,7 @@ import pytest
 @pytest.fixture(scope="module")
 def flash_llama_chat_handle(launcher):
     with launcher(
-        "microsoft/Phi-3.5-MoE-instruct", 
-        num_shard=4,
-        cuda_graphs=[1, 2]
+        "microsoft/Phi-3.5-MoE-instruct", num_shard=4, cuda_graphs=[1, 2]
     ) as handle:
         yield handle
 
