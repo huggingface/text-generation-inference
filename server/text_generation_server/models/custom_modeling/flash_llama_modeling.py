@@ -46,6 +46,7 @@ from text_generation_server.layers import (
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
+    FastLayerNorm,
 )
 from text_generation_server.layers import (
     FastLinear,
@@ -456,23 +457,33 @@ class FlashLlamaLayer(nn.Module):
                 weights=weights,
             )
 
-        self.use_moe = config._name_or_path == "microsoft/Phi-3.5-MoE-instruct"
-
-        if self.use_moe:
+        if config._name_or_path == "microsoft/Phi-3.5-MoE-instruct":
             self.dense = BlockSparseMoE(f"{prefix}.block_sparse_moe", config, weights)
+            # with moe the layernorms are are not rmsnorms and they have bias
+            self.input_layernorm = FastLayerNorm.load(
+                prefix=f"{prefix}.input_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
+            self.post_attention_layernorm = FastLayerNorm.load(
+                prefix=f"{prefix}.post_attention_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
         else:
             self.dense = LlamaMLP(
-                prefix=f"{prefix}.mlp", config=config, weights=weights
+                prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
             )
-
-        self.input_layernorm = FastRMSNorm.load(
-            prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
-        )
-        self.post_attention_layernorm = FastRMSNorm.load(
-            prefix=f"{prefix}.post_attention_layernorm",
-            weights=weights,
-            eps=config.rms_norm_eps,
-        )
+            self.input_layernorm = FastRMSNorm.load(
+                prefix=f"{prefix}.input_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
+            self.post_attention_layernorm = FastRMSNorm.load(
+                prefix=f"{prefix}.post_attention_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
 
     def forward(
         self,

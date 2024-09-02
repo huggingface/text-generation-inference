@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "I'keeper services don't have real-time capabilities, however, I can guide you on how to find current weather conditions in Brooklyn, New York.\n\nTo get the most accurate",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1725304474,
+  "id": "",
+  "model": "microsoft/Phi-3.5-MoE-instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "2.2.1-dev0-native",
+  "usage": {
+    "completion_tokens": 40,
+    "prompt_tokens": 31,
+    "total_tokens": 71
+  }
+}
