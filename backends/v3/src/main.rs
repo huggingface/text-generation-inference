@@ -131,9 +131,9 @@ async fn main() -> Result<(), RouterError> {
             "`max_input_tokens` must be < `max_total_tokens`".to_string(),
         ));
     }
-    if max_input_tokens as u32 > max_batch_prefill_tokens {
-        return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {max_batch_prefill_tokens} and {max_input_tokens}")));
-    }
+    // if max_input_tokens as u32 > max_batch_prefill_tokens {
+    //     return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {max_batch_prefill_tokens} and {max_input_tokens}")));
+    // }
 
     if validation_workers == 0 {
         return Err(RouterError::ArgumentValidation(

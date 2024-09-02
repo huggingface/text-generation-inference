@@ -113,16 +113,23 @@ impl Client {
         max_total_tokens: u32,
         max_batch_size: Option<usize>,
     ) -> Result<Option<u32>> {
-        let mut n_tokens = 0;
+        let mut rest_tokens = max_prefill_tokens;
         let mut requests = Vec::new();
+
+        let max_tokens_per_request = core::cmp::min(max_input_length, max_prefill_tokens);
         // Create requests
-        while n_tokens < max_prefill_tokens {
-            let truncate = min(max_input_length, max_prefill_tokens - n_tokens);
+        while rest_tokens > 0 {
+            let curr_tokens = min(max_tokens_per_request, rest_tokens);
+            let truncate = min(max_input_length, rest_tokens);
+            let prefix_len = max_input_length.saturating_sub(max_prefill_tokens);
+            let suffix_len = 0;
 
             let mut input_chunks = Vec::new();
             input_chunks
                 .push(Chunk::Text("_test ".to_string().repeat(max_input_length as usize)).into());
-            if n_tokens == 0 {
+            let mut inputs = String::new();
+            inputs.push_str(&"_test ".to_string().repeat(max_input_length as usize));
+            if rest_tokens == max_prefill_tokens {
                 input_chunks.push(
                     Chunk::Image(Image {
                         // Safe unwrap, because we control the data.
@@ -131,14 +138,6 @@ impl Client {
                     })
                     .into(),
                 );
-            }
-
-            // Send stringly-typed inputs for compatibility for backends that haven't
-            // been updated to support chunks.
-
-            let mut inputs = String::new();
-            inputs.push_str(&"_test ".to_string().repeat(max_input_length as usize));
-            if n_tokens == 0 {
                 // 1 request is enough to test vision heads.
                 // Sending images on other queries messes up easily with truncation.
                 inputs.push_str(&format!(
@@ -158,7 +157,8 @@ impl Client {
                 // Blocks and slots will be set on the server side if we use paged attention
                 blocks: vec![],
                 slots: vec![],
-                prefix_len: 0,
+                prefix_len,
+                suffix_len,
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {
                     temperature: 0.9,
@@ -182,7 +182,7 @@ impl Client {
                 top_n_tokens: 20,
                 adapter_id: None,
             });
-            n_tokens += max_input_length;
+            rest_tokens -= curr_tokens;
 
             // Check max_batch_size
             if Some(requests.len()) == max_batch_size {

@@ -247,6 +247,7 @@ impl Health for ShardedClient {
             blocks: vec![0],
             slots: (0..16).collect(),
             prefix_len: 0,
+            suffix_len: 0,
             adapter_id: None,
         };
         let batch = Batch {

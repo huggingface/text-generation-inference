@@ -159,6 +159,7 @@ impl Client {
                 blocks: vec![],
                 slots: vec![],
                 prefix_len: 0,
+                suffix_len: 0,
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {
                     temperature: 0.9,

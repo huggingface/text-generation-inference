@@ -1675,12 +1675,12 @@ fn main() -> Result<(), LauncherError> {
             "`max_input_tokens must be < `max_total_tokens`".to_string(),
         ));
     }
-    if max_input_tokens as u32 > max_batch_prefill_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {} and {}",
-            max_batch_prefill_tokens, max_input_tokens
-        )));
-    }
+    // if max_input_tokens as u32 > max_batch_prefill_tokens {
+    //     return Err(LauncherError::ArgumentValidation(format!(
+    //         "`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {} and {}",
+    //         max_batch_prefill_tokens, max_input_tokens
+    //     )));
+    // }
 
     if matches!(args.quantize, Some(Quantization::Bitsandbytes)) {
         tracing::warn!("Bitsandbytes is deprecated, use `eetq` instead, which provides better latencies overall and is drop-in in most cases.");

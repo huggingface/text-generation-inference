@@ -269,6 +269,9 @@ class FlashCausalLMBatch(Batch):
             orig_input_length = len(tokenized_input)
 
             prefix_len = r.prefix_len
+            import ipdb
+
+            ipdb.set_trace()
             assert (
                 prefix_len <= orig_input_length
             ), f"Prefix {prefix_len} vs input {orig_input_length}"
@@ -318,11 +321,11 @@ class FlashCausalLMBatch(Batch):
             speculative_length = 0 if speculative_length is None else speculative_length
 
             # Tokens that need to be mapped to blocks.
-            block_tokens = orig_input_length + max_new_tokens - 1 + speculative_length
+            block_tokens = orig_input_length + max_new_tokens + speculative_length
 
             # Tokens that need to be mapped to slots. We don't need slots for the
             # cached prefix (if present).
-            slot_tokens = input_length + max_new_tokens - 1 + speculative_length
+            slot_tokens = input_length + max_new_tokens + speculative_length
 
             # blocks and slots can be empty (for example in warmup)
             if not r.blocks:
