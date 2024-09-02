@@ -70,6 +70,10 @@ def test_get_attn_weights():
             "model.layers.2.self_attn.k_proj",
             mock_layer.self_attn.query_key_value,
         ),
+        (2, "qkv_proj"): (
+            "model.layers.2.self_attn.qkv_proj",
+            mock_layer.self_attn.query_key_value,
+        ),
         (2, "v_proj"): (
             "model.layers.2.self_attn.v_proj",
             mock_layer.self_attn.query_key_value,
@@ -163,6 +167,10 @@ def test_get_attn_weights_llama_compatibility():
             "model.layers.2.self_attn.k_proj",
             mock_layer.self_attn.query_key_value,
         ),
+        (2, "qkv_proj"): (
+            "model.layers.2.self_attn.qkv_proj",
+            mock_layer.self_attn.query_key_value,
+        ),
         (2, "v_proj"): (
             "model.layers.2.self_attn.v_proj",
             mock_layer.self_attn.query_key_value,
@@ -201,6 +209,10 @@ def test_get_attn_weights_gemma_compatibility():
         ),
         (2, "k_proj"): (
             "model.layers.2.self_attn.k_proj",
+            mock_layer.self_attn.query_key_value,
+        ),
+        (2, "qkv_proj"): (
+            "model.layers.2.self_attn.qkv_proj",
             mock_layer.self_attn.query_key_value,
         ),
         (2, "v_proj"): (
