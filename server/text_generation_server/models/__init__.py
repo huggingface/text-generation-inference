@@ -1259,6 +1259,7 @@ def get_model_with_lora_adapters(
                 "gate_proj",
                 "up_proj",
                 "down_proj",
+                "qkv_proj",
             ]
 
             for layer_name in adapter_layers:
@@ -1286,7 +1287,7 @@ def get_model_with_lora_adapters(
 
             if len(unused_weight_names) > 0:
                 logger.warning(
-                    f"{','.join(adapter_parameters.adapter_ids)} unused adapter weights: {unused_weight_names}"
+                    f"{','.join([a.id for a in lora_adapters])} unused adapter weights: {unused_weight_names}"
                 )
 
             if adapter_tokenizer is not None:
