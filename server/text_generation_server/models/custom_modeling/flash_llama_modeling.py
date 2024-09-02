@@ -66,15 +66,15 @@ def load_attention(config, prefix: str, weights, layer_id):
     prefixes = None
 
     if config.model_type == "phi3":
-        prefix = f"{prefix}.qkv_proj"
         base_layer = TensorParallelColumnLinear.load_qkv(
             config,
-            prefix=prefix,
+            prefix=f"{prefix}.qkv_proj",
             weights=weights,
             bias=bias,
             num_heads=config.num_attention_heads,
             num_key_value_heads=config.num_key_value_heads,
         )
+        prefixes = ["qkv_proj"]
     elif config.model_type == "baichuan":
         prefix = f"{prefix}.W_pack"
         base_layer = TensorParallelColumnLinear.load_qkv(
@@ -85,6 +85,7 @@ def load_attention(config, prefix: str, weights, layer_id):
             num_heads=config.num_attention_heads,
             num_key_value_heads=config.num_key_value_heads,
         )
+        prefixes = [prefix]
     else:
         prefixes = ["q_proj", "k_proj", "v_proj"]
         sizes = [
