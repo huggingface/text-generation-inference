@@ -256,8 +256,6 @@ class VlmCausalLM(FlashCausalLM):
         trust_remote_code: bool,
         **kwargs,
     ):
-        if PREFIX_CACHING:
-            raise NotImplementedError("Vlm do not work with prefix caching yet")
         if processor_kwargs is None:
             processor_kwargs = {}
         self.processor = processor_class.from_pretrained(
@@ -347,7 +345,6 @@ class VlmCausalLM(FlashCausalLM):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
 
-        bs = input_ids.shape[0]
         # Try to find an associated cuda graph
         bs = input_ids.shape[0]
         sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
@@ -358,7 +355,7 @@ class VlmCausalLM(FlashCausalLM):
             cuda_graph = None
         if cu_seqlen_prefill is not None or cuda_graph is None:
             input_lengths = input_lengths + prefix_lens_tensor
-            if PREFIX_CACHING:
+            if ATTENTION == "flashinfer":
                 block_tables = block_tables_to_ragged(
                     block_tables=block_tables,
                     input_lengths=batch.input_lengths,

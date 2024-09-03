@@ -58,7 +58,10 @@ fn get_config(
     };
 
     let content = std::fs::read_to_string(filename)?;
-    let config: RawConfig = serde_json::from_str(&content)?;
+    let mut config: RawConfig = serde_json::from_str(&content)?;
+    if let Some(text_config) = config.text_config {
+        config = *text_config;
+    }
 
     let config: Config = config.into();
     Ok(config)
@@ -79,7 +82,7 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                     prefix_caching = Some("0".to_string());
                 }
                 match config.model_type.as_deref() {
-                    Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
+                    Some("gemma") | Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
                         // Required because gemma2 needs bfloat16 which is not supported by
                         // flashinfer ?
                         if attention.is_none() {
@@ -96,7 +99,7 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             }
             _ => {
                 if attention.is_none() {
-                    tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
+                    tracing::info!("Forcing flash decoding because head dim ({:?}) is not supported by flashinfer, also disabling prefix caching", config.head_dim);
                     attention = Some("flashdecoding".to_string());
                 }
                 if prefix_caching.is_none() {
@@ -122,6 +125,7 @@ struct RawConfig {
     num_attention_heads: Option<usize>,
     head_dim: Option<usize>,
     is_encoder_decoder: Option<bool>,
+    text_config: Option<Box<RawConfig>>,
 }
 
 #[derive(Deserialize)]
