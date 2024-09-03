@@ -4,7 +4,9 @@ import pytest
 @pytest.fixture(scope="module")
 def flash_llama_grammar_tools_handle(launcher):
     with launcher(
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0", num_shard=2, disable_grammar_support=False
+        "meta-llama/Meta-Llama-3.1-8B-Instruct",
+        num_shard=2,
+        disable_grammar_support=False,
     ) as handle:
         yield handle
 
@@ -208,7 +210,7 @@ async def test_flash_llama_grammar_tools_stream(
     async for response in responses:
         count += 1
 
-    assert count == 48
+    assert count == 28
     assert response == response_snapshot
 
 

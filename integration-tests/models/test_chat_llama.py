@@ -35,6 +35,6 @@ async def test_flash_llama_simple(flash_llama_chat, response_snapshot):
     print(repr(response.choices[0].message.content))
     assert (
         response.choices[0].message.content
-        == "As of your last question, the weather in Brooklyn, New York, is typically hot and humid throughout the year. The suburbs around New York City are jealously sheltered, and at least in the Lower Bronx, there are very few outdoor environments to appreciate nature.\n\nIn terms of temperature, the warmest times of the year are from June to August, when average high temperatures typically range from around 73°F or 23°C"
+        == "Brooklyn, New York, is located in the northeastern part of the state of New York, and its weather is characterized by a mix of humid and temperate climates. The average temperature in Brooklyn during the winter months is around 32°F (0°C) and in the summer months is around 82°F (28°C).\n\nThe city experiences four distinct seasons, with the spring and fall being the most pleasant and"
     )
     assert response == response_snapshot
