@@ -380,6 +380,7 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
             tracing::error!("Entry response channel error.");
             metrics::counter!("tgi_request_failure", "err" => "dropped").increment(1);
         }).unwrap_or(true);
+        tracing::debug!("Stopped iteration {stopped:?}");
         if stopped {
             entries.remove(&id).expect("ID not found in entries. This is a bug.");
         }
@@ -419,6 +420,7 @@ fn send_responses(
     // Create last Token
     let tokens_ = generation.tokens.expect("Non empty tokens in generation");
     let n = tokens_.ids.len();
+    tracing::info!("Received {n:?} tokens");
     metrics::histogram!("tgi_request_skipped_tokens").record((n - 1) as f64);
     let mut iterator = tokens_
         .ids
@@ -435,6 +437,7 @@ fn send_responses(
             logprob,
             special,
         };
+        tracing::info!("Sent token {token:?}");
         let top_tokens = if let Some(top_tokens_) = generation.top_tokens.get(i) {
             top_tokens_
                 .ids

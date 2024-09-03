@@ -281,7 +281,10 @@ impl State {
                     if total_tokens > token_budget {
                         // Entry is over budget
                         // Add it back to the front
-                        tracing::debug!("Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget} || {prefill_tokens} + {decode_tokens} + {} > {token_budget}", self.speculate);
+                        tracing::debug!(
+                            "Over budget: {prefill_tokens} + {decode_tokens} + {} > {token_budget}",
+                            self.speculate
+                        );
                         self.entries.push_front((id, entry));
                         break 'entry_loop;
                     }
@@ -301,7 +304,10 @@ impl State {
                     if (prefill_tokens + decode_tokens + self.speculate) > token_budget {
                         // Entry is over budget
                         // Add it back to the front
-                        tracing::debug!("Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget} || {prefill_tokens} + {decode_tokens} + {} > {token_budget}", self.speculate);
+                        tracing::debug!(
+                            "Over budget: {prefill_tokens} + {decode_tokens} + {} > {token_budget}",
+                            self.speculate
+                        );
                         self.entries.push_front((id, entry));
                         break;
                     }
@@ -390,7 +396,9 @@ impl State {
                     block_allocation.prefix_len,
                 ),
             };
-            let suffix_len = (slots.len() as u32).saturating_sub(prefix_len);
+            let suffix_len = (slots.len() as u32)
+                .saturating_sub(prefix_len)
+                .saturating_sub(prefill_token_budget);
 
             entry.block_allocation = block_allocation;
 

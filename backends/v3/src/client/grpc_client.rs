@@ -120,7 +120,7 @@ impl Client {
         // Create requests
         while rest_tokens > 0 {
             let curr_tokens = min(max_tokens_per_request, rest_tokens);
-            let truncate = min(max_input_length, rest_tokens);
+            let truncate = max_input_length;
             let prefix_len = max_input_length.saturating_sub(max_prefill_tokens);
             let suffix_len = 0;
 
