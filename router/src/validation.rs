@@ -1,5 +1,5 @@
 /// Payload validation logic
-use crate::config::{Config, Idefics2};
+use crate::config::Config;
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{
     GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor,
@@ -605,10 +605,12 @@ fn image_tokens(
 fn image_id(config: &Config, tokenizer: &Tokenizer) -> u32 {
     use Config::*;
     match config {
-        Idefics => tokenizer.token_to_id("<image>").unwrap(),
-        Idefics2(idefics) => idefics.image_token_id,
-        LlavaNext(llava) => llava.image_token_index,
-        Paligemma(paligemma) => paligemma.image_token_index,
+        // The configuration key for the image token id does not seem to
+        // be standardized, but the image tag is. So let's use that to get
+        // the image token id.
+        Idefics | Idefics2(_) | LlavaNext(_) | Paligemma(_) => {
+            tokenizer.token_to_id("<image>").unwrap()
+        }
         _ => unimplemented!("Images tokens are not supported for this model configuration"),
     }
 }

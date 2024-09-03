@@ -7,7 +7,6 @@ pub struct LlavaNext {
     pub(crate) text_config: TextConfig,
     pub(crate) vision_config: VisionConfig,
     pub(crate) image_grid_pinpoints: Vec<(usize, usize)>,
-    pub(crate) image_token_index: u32,
 }
 
 fn get_anyres_image_grid_shape(
@@ -113,9 +112,7 @@ pub struct ClipVisionModel {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct Idefics2 {
-    pub(crate) image_token_id: u32,
-}
+pub struct Idefics2 {}
 
 impl Idefics2 {
     pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
@@ -132,7 +129,6 @@ pub struct PaliTextConfig {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Paligemma {
-    pub(crate) image_token_index: u32,
     pub(crate) text_config: PaliTextConfig,
 }
 
