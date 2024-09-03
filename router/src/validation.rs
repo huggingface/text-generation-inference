@@ -602,9 +602,10 @@ fn image_tokens(
     }
 }
 
-fn image_id(config: &Config) -> u32 {
+fn image_id(config: &Config, tokenizer: &Tokenizer) -> u32 {
     use Config::*;
     match config {
+        Idefics => tokenizer.token_to_id("<image>").unwrap(),
         Idefics2(idefics) => idefics.image_token_id,
         LlavaNext(llava) => llava.image_token_index,
         Paligemma(paligemma) => paligemma.image_token_index,
@@ -700,7 +701,7 @@ fn prepare_input(
             (
                 tokenizer_query,
                 input_chunks,
-                image_id(&config),
+                image_id(&config, &tokenizer),
                 image_hashes,
                 image_lens,
             )
