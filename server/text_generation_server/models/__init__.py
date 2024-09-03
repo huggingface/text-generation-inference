@@ -782,7 +782,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
-                trust_remote_code=True,  # trust_remote_code,
+                trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
         else:

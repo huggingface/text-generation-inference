@@ -90,7 +90,6 @@ class PositionRotaryEmbedding(nn.Module):
             if rope_type == "linear":
                 pass
             elif rope_type == "longrope":
-                # Phi3LongRoPEScaledRotaryEmbedding
                 short_factor = torch.tensor(
                     rope_scaling["short_factor"], dtype=torch.float32, device=device
                 )
