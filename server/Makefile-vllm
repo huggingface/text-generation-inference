@@ -1,5 +1,5 @@
 commit_cuda := d243e9dc7e2c9c2e36a4150ec8e64809cb55c01b
-commit_rocm := c06ccbf90a213688a2c6a85d2e7af3da7bc4b41b
+commit_rocm := 4e0929e6e4fa0a3d09d358715c288020ea9dc247
 build-vllm-cuda:
 	if [ ! -d 'vllm' ]; then \
 		pip install -U ninja packaging --no-cache-dir && \

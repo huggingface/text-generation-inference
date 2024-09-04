@@ -380,6 +380,7 @@ class DeepseekV2Attention(torch.nn.Module):
                 block_tables,
                 input_lengths,
                 max_s,
+                self.num_key_value_heads,
             )
 
         # Remove padding.
@@ -424,6 +425,7 @@ class DeepseekV2MLP(nn.Module):
     def forward(self, hidden_states: torch.Tensor, reduce: bool = True):
         if (
             SYSTEM == "rocm"
+            and hidden_states.dtype == torch.float16
             and self.hidden_act == "silu"
             and hidden_states.shape[0] == 1
             and not self.quantize

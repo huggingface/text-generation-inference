@@ -352,6 +352,7 @@ class DbrxAttention(torch.nn.Module):
                 block_tables,
                 input_lengths,
                 max_s,
+                self.num_key_value_heads,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

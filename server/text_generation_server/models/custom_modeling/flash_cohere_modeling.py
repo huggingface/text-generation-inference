@@ -313,6 +313,7 @@ class FlashCohereAttention(torch.nn.Module):
                 block_tables,
                 input_lengths,
                 max_s,
+                self.num_key_value_heads,
             )
 
         return self.o_proj(

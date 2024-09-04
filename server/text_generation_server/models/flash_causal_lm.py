@@ -1007,12 +1007,12 @@ class FlashCausalLM(Model):
         else:
             self.kv_cache = [
                 (
-                    torch.empty(
+                    torch.zeros(
                         (num_blocks, num_heads, head_size // x, BLOCK_SIZE, x),
                         dtype=dtype,
                         device=device,
                     ),
-                    torch.empty(
+                    torch.zeros(
                         (num_blocks, num_heads, head_size, BLOCK_SIZE),
                         dtype=dtype,
                         device=device,

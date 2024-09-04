@@ -58,6 +58,7 @@ def paged_attention(
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
+    num_kv_heads: int,
 ):
     out = torch.empty_like(query)
     ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(

@@ -235,6 +235,7 @@ class MistralAttention(torch.nn.Module):
                 block_tables,
                 input_lengths,
                 max_s,
+                self.num_key_value_heads,
             )
 
         return self.o_proj(
@@ -300,6 +301,7 @@ class MistralMLP(nn.Module):
     def forward(self, hidden_states, adapter_data):
         if (
             SYSTEM == "rocm"
+            and hidden_states.dtype == torch.float16
             and self.hidden_act == "silu"
             and hidden_states.shape[0] == 1
             and not self.quantize

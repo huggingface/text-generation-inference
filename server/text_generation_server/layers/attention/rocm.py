@@ -8,10 +8,16 @@ from loguru import logger
 
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
-_PARTITION_SIZE = 512
+
+_PARTITION_SIZE_V1V2 = 512
+_PARTITION_SIZE_CUSTOM = 256
 
 use_triton = os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() in {"true", "1"}
 ENGINE = "triton" if use_triton else "ck"
+
+custom_attn_available = os.getenv("VLLM_USE_ROCM_CUSTOM_PAGED_ATTN", "1") != "0"
+if custom_attn_available:
+    from vllm._custom_C import paged_attention_custom
 
 try:
     import vllm._custom_ops as ops
@@ -45,6 +51,7 @@ def paged_attention(
     block_tables: torch.Tensor,
     input_lengths: Seqlen,
     max_s: int,
+    num_kv_heads: int,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
@@ -66,6 +73,22 @@ def paged_attention(
     # value_cache => [num_blocks, num_heads, head_size, block_size]
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
+
+    gqa_ratio = num_heads // num_kv_heads
+    use_custom = (
+        custom_attn_available
+        and (query.dtype == torch.half or query.dtype == torch.bfloat16)
+        and (head_size == 128 or head_size == 64)
+        and (block_size == 16 or block_size == 32)
+        and (gqa_ratio >= 1 and gqa_ratio <= 16)
+        and max_s <= 32768
+    )
+
+    if not use_custom:
+        _PARTITION_SIZE = _PARTITION_SIZE_V1V2
+    else:
+        _PARTITION_SIZE = _PARTITION_SIZE_CUSTOM
+
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
     input_lengths = input_lengths.input_lengths
 
@@ -78,7 +101,11 @@ def paged_attention(
     # to parallelize.
     import vllm._custom_ops as ops
 
-    use_v1 = max_s <= 8192 and (max_num_partitions == 1 or num_seqs * num_heads > 512)
+    use_v1 = (
+        max_s <= 8192
+        and (max_num_partitions == 1 or num_seqs * num_heads > 512)
+        and not use_custom
+    )
     if use_v1:
         ops.paged_attention_v1(
             out,
@@ -110,24 +137,44 @@ def paged_attention(
         )
         max_logits = torch.empty_like(exp_sums)
 
-        ops.paged_attention_v2(
-            out,
-            exp_sums,
-            max_logits,
-            tmp_output,
-            query,
-            key_cache,
-            value_cache,
-            kv_head_mapping,
-            softmax_scale,
-            block_tables,
-            input_lengths,
-            block_size,
-            max_s,
-            None,
-            "auto",
-            1.0,
-        )
+        if not use_custom:
+            ops.paged_attention_v2(
+                out,
+                exp_sums,
+                max_logits,
+                tmp_output,
+                query,
+                key_cache,
+                value_cache,
+                kv_head_mapping,
+                softmax_scale,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
+                None,
+                "auto",
+                1.0,
+            )
+        else:
+            paged_attention_custom(
+                out,
+                exp_sums,
+                max_logits,
+                tmp_output,
+                query,
+                key_cache,
+                value_cache,
+                num_kv_heads,
+                softmax_scale,
+                block_tables,
+                input_lengths,
+                block_size,
+                max_s,
+                None,
+                "auto",
+            )
+
     return out
 
 

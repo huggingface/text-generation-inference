@@ -39,7 +39,7 @@ COPY launcher launcher
 RUN cargo build --profile release-opt
 
 # Text Generation Inference base image for RoCm
-FROM rocm/dev-ubuntu-22.04:6.1.1_hip_update AS base
+FROM rocm/dev-ubuntu-22.04:6.2 AS base
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
@@ -48,23 +48,25 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     curl \
     git \
     make \
+    libmsgpack-dev \
     libssl-dev \
+    llvm-dev \
     g++ \
     # Needed to build VLLM & flash.
     rocthrust-dev \
     hipsparse-dev \
     hipblas-dev \
-    hipblaslt-dev \
+    hipcub-dev \
     rocblas-dev \
     hiprand-dev \
+    hipfft-dev \
     rocrand-dev \
     miopen-hip-dev \
-    hipfft-dev \
-    hipcub-dev \
     hipsolver-dev \
     rccl-dev \
     cmake \
-    python3-dev && \
+    python3-dev \
+    python3-venv && \
     rm -rf /var/lib/apt/lists/*
 
 # Keep in sync with `server/pyproject.toml
@@ -74,7 +76,30 @@ ARG ROCM_VERSION='6.0.2'
 ARG PYTHON_VERSION='3.10.10'
 # Automatically set by buildx
 ARG TARGETPLATFORM
-ENV PATH /opt/conda/bin:$PATH
+ENV PATH=/opt/conda/bin:$PATH
+
+ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
+
+RUN curl -fsSL -v -o cmake-3.30.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.30.2/cmake-3.30.2-linux-x86_64.sh \
+    && chmod +x cmake-3.30.2-linux-x86_64.sh \
+    && ./cmake-3.30.2-linux-x86_64.sh --skip-license --prefix=/usr/local \
+    && rm cmake-3.30.2-linux-x86_64.sh
+
+RUN pip install joblib msgpack
+
+# Install HIPBLASLt
+ARG HIPBLASLT_BRANCH="6f65c6e"
+RUN git clone https://github.com/ROCm/hipBLASLt \
+    && cd hipBLASLt \
+    && git checkout ${HIPBLASLT_BRANCH} \
+    && SCCACHE_IDLE_TIMEOUT=1800 ./install.sh --architecture ${PYTORCH_ROCM_ARCH} \
+    && cd build/release \
+    && make package
+RUN dpkg -i hipBLASLt/build/release/*.deb \
+    && sed -i 's/, hipblaslt-dev \(.*\), hipcub-dev/, hipcub-dev/g' /var/lib/dpkg/status \
+    && sed -i 's/, hipblaslt \(.*\), hipfft/, hipfft/g' /var/lib/dpkg/status;
+    # && cd .. \
+    # && rm -rf hipBLASLt
 
 # TGI seem to require libssl.so.1.1 instead of libssl.so.3 so we can't use ubuntu 22.04. Ubuntu 20.04 has python==3.8, and TGI requires python>=3.9, hence the need for miniconda.
 # Install mamba
@@ -98,15 +123,15 @@ RUN pip uninstall -y triton && \
     cd triton/python && \
     pip install .
 
+ARG PYTORCH_COMMIT="da320214e66b5af0f7db8fd18a64dbb519d17b27"
 RUN git clone --depth 1 --recursive --single-branch --branch main https://github.com/pytorch/pytorch.git pytorch && \
-    cd pytorch && git fetch --depth 1 origin da320214e66b5af0f7db8fd18a64dbb519d17b27 && \
-    git checkout da320214e66b5af0f7db8fd18a64dbb519d17b27 && \
+    cd pytorch && git fetch --depth 1 origin ${PYTORCH_COMMIT} && \
+    git checkout  ${PYTORCH_COMMIT} && \
+    git submodule update --init --recursive && \
     pip install -r requirements.txt --no-cache-dir
-
 
 ARG _GLIBCXX_USE_CXX11_ABI="1"
 ARG CMAKE_PREFIX_PATH="/opt/conda"
-ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
 ARG BUILD_CAFFE2="0" \
     BUILD_CAFFE2_OPS="0" \
     USE_CUDA="0" \
@@ -221,4 +246,3 @@ COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
 ENTRYPOINT ["/tgi-entrypoint.sh"]
-CMD ["--json-output"]
