@@ -47,6 +47,7 @@ from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
 from text_generation_server.utils.weights import UnquantizedWeight
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 class Starcoder2Config(PretrainedConfig):
@@ -241,8 +242,8 @@ class Starcoder2Attention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache[0] if SYSTEM != "ipex" else kv_to_cache[:, 0],
+                kv_cache[1] if SYSTEM != "ipex" else kv_to_cache[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,

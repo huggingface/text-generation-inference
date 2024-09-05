@@ -24,7 +24,7 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
-
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
@@ -44,7 +44,6 @@ from text_generation_server.layers.rotary import (
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
-from text_generation_server.utils.import_utils import SYSTEM
 
 
 def load_attention(config, prefix: str, weights):
@@ -193,8 +192,8 @@ class FlashGPTJAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache[0] if SYSTEM != "ipex" else key,
+                kv_cache[1] if SYSTEM != "ipex" else value,
                 seqlen,
                 block_tables,
                 self.softmax_scale,

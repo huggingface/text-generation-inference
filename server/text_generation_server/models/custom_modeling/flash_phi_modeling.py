@@ -25,6 +25,7 @@ from text_generation_server.layers.layernorm import (
 from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 class PhiConfig(PretrainedConfig):
@@ -193,8 +194,8 @@ class FlashPhiAttention(torch.nn.Module):
         if cu_seqlen_prefill is not None:
             attn_output = attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache[0] if SYSTEM != "ipex" else kv[:, 0],
+                kv_cache[1] if SYSTEM != "ipex" else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
