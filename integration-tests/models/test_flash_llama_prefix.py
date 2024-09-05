@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_llama_handle(launcher):
-    with launcher("meta-llama/Meta-Llama-3.1-8B-Instruct", num_shard=4) as handle:
+    with launcher("meta-llama/Meta-Llama-3.1-8B-Instruct", num_shard=2) as handle:
         yield handle
 
 

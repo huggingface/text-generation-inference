@@ -70,9 +70,13 @@ impl Allocator for RadixAllocator {
     ) -> Option<BlockAllocation> {
         let mut blocks = vec![];
         let prefix_node = if let Some(prefill_tokens) = prefill_tokens.as_ref() {
-            let node_id = self
-                .cache_blocks
-                .find(prefill_tokens.as_slice(), &mut blocks);
+            let node_id = self.cache_blocks.find(
+                &prefill_tokens.as_slice()[..prefill_tokens.len().saturating_sub(1)],
+                &mut blocks,
+            );
+            // Even if this allocation fails below, we need to increase he
+            // refcount to ensure that the prefix that was found is not evicted.
+
             node_id
         } else {
             self.cache_blocks.root_id()
@@ -88,8 +92,6 @@ impl Allocator for RadixAllocator {
         let suffix_len = tokens - prefix_len as u32;
 
         let suffix_blocks = (suffix_len + self.block_size - 1) / self.block_size;
-
-        tracing::info!("Prefix {prefix_len} - Suffix {suffix_len}");
 
         match self.alloc_or_reclaim(suffix_blocks as usize) {
             Some(suffix_blocks) => blocks.extend(suffix_blocks),

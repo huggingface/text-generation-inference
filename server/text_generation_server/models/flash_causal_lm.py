@@ -268,9 +268,6 @@ class FlashCausalLMBatch(Batch):
             assert (
                 prefix_len <= orig_input_length
             ), f"Prefix {prefix_len} vs input {orig_input_length}"
-            if prefix_len == orig_input_length:
-                assert prefix_len > 0
-                prefix_len -= 1
 
             prefix_ids.append(tokenized_input[:prefix_len])
             tokenized_input = tokenized_input[prefix_len:]

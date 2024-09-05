@@ -168,8 +168,6 @@ pub(crate) async fn batching_task(
                     None
                 } else {
                     // Minimum batch size
-                    // TODO: temporarily disable to avoid incorrect deallocation +
-                    //       reallocation when using prefix caching.
                     Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
                 };
 
