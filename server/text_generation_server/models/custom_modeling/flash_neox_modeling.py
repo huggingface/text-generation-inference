@@ -26,7 +26,7 @@ from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
 from transformers.models.gpt_neox import GPTNeoXConfig as TransformersGPTNeoXConfig
 from typing import Optional, List, Tuple
-
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
@@ -172,8 +172,8 @@ class FlashNeoxAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 qkv[:, 0],
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache[0] if SYSTEM != "ipex" else qkv[:, 1],
+                kv_cache[1] if SYSTEM != "ipex" else qkv[:, 2],
                 seqlen,
                 block_tables,
                 self.softmax_scale,

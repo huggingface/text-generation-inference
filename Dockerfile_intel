@@ -171,5 +171,8 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/loca
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 
 FROM ${PLATFORM} AS final
+ENV ATTENTION=paged
+ENV USE_PREFIX_CACHING=0
+ENV CUDA_GRAPHS=0
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]

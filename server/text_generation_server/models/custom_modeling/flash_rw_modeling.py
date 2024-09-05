@@ -5,7 +5,7 @@ import torch.distributed
 from torch import nn
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
-
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers import (
     SpeculativeHead,
     TensorParallelColumnLinear,
@@ -207,8 +207,8 @@ class FlashRWAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache[0] if SYSTEM != "ipex" else kv[:, 0],
+                kv_cache[1] if SYSTEM != "ipex" else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -325,12 +325,10 @@ class FlashRWLargeAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                torch.select(kv, dim=2, index=0),
-                torch.select(kv, dim=2, index=1),
-                kv_cache[0],
-                kv_cache[1],
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if SYSTEM != "ipex" else kv[:, :, 0].contiguous(),
+                kv_cache[1] if SYSTEM != "ipex" else kv[:, :, 1].contiguous(),
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
