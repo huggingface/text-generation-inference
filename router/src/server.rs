@@ -318,7 +318,10 @@ pub(crate) async fn generate_internal(
     metrics::counter!("tgi_request_count").increment(1);
 
     // Do not long ultra long inputs, like image payloads.
-    tracing::debug!("Input: {}", &req.inputs[..1000.min(req.inputs.len())]);
+    tracing::debug!(
+        "Input: {}",
+        &req.inputs.chars().take(1000).collect::<String>()
+    );
 
     let compute_characters = req.inputs.chars().count();
     let mut add_prompt = None;
