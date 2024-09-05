@@ -1,5 +1,6 @@
 # Streaming
 
+
 ## What is Streaming?
 
 Token streaming is the mode in which the server returns the tokens one by one as the model generates them. This enables showing progressive generations to the user rather than waiting for the whole generation. Streaming is an essential aspect of the end-user experience as it reduces latency, one of the most critical aspects of a smooth experience.
@@ -154,3 +155,7 @@ SSEs are different than:
 * Webhooks: where there is a bi-directional connection. The server can send information to the client, but the client can also send data to the server after the first request. Webhooks are more complex to operate as they don’t only use HTTP.
 
 If there are too many requests at the same time, TGI returns an HTTP Error with an `overloaded` error type (`huggingface_hub` returns `OverloadedError`). This allows the client to manage the overloaded server (e.g., it could display a busy error to the user or retry with a new request). To configure the maximum number of concurrent requests, you can specify `--max_concurrent_requests`, allowing clients to handle backpressure.
+
+## External sources
+
+Adyen wrote a nice recap of how TGI streaming feature works. [LLM inference at scale with TGI](https://www.adyen.com/knowledge-hub/llm-inference-at-scale-with-tgi)

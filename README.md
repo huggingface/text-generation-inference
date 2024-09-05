@@ -189,6 +189,8 @@ overridden with the `--otlp-service-name` argument
 
 ![TGI architecture](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/TGI.png)
 
+Detailed blogpost by Adyen on TGI inner workings: [LLM inference at scale with TGI](https://www.adyen.com/knowledge-hub/llm-inference-at-scale-with-tgi)
+
 ### Local install
 
 You can also opt to install `text-generation-inference` locally.
