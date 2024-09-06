@@ -72,7 +72,7 @@
   - local: conceptual/lora
     title: LoRA (Low-Rank Adaptation)
   - local: conceptual/external
-    title: External sources
+    title: External Resources
 
 
   title: Conceptual Guides
