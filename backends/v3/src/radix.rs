@@ -89,6 +89,8 @@ impl Allocator for RadixAllocator {
 
         let suffix_blocks = (suffix_len + self.block_size - 1) / self.block_size;
 
+        tracing::info!("Prefix {prefix_len} - Suffix {suffix_len}");
+
         match self.alloc_or_reclaim(suffix_blocks as usize) {
             Some(suffix_blocks) => blocks.extend(suffix_blocks),
             None => {

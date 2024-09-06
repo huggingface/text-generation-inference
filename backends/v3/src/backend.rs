@@ -122,7 +122,7 @@ impl Backend for BackendV3 {
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn batching_task(
     mut client: ShardedClient,
-    _waiting_served_ratio: f32,
+    waiting_served_ratio: f32,
     max_batch_prefill_tokens: u32,
     max_batch_total_tokens: u32,
     max_waiting_tokens: usize,
@@ -170,8 +170,7 @@ pub(crate) async fn batching_task(
                     // Minimum batch size
                     // TODO: temporarily disable to avoid incorrect deallocation +
                     //       reallocation when using prefix caching.
-                    // Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
-                    None
+                    Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
                 };
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
