@@ -82,8 +82,10 @@
                 docker
                 pip
                 ipdb
+                pyright
                 pytest
                 pytest-asyncio
+                ruff
                 syrupy
               ]);
 
