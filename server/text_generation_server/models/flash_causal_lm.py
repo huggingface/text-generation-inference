@@ -268,6 +268,9 @@ class FlashCausalLMBatch(Batch):
             assert (
                 prefix_len <= orig_input_length
             ), f"Prefix {prefix_len} vs input {orig_input_length}"
+            if prefix_len == orig_input_length:
+                assert prefix_len > 0
+                prefix_len -= 1
 
             prefix_ids.append(tokenized_input[:prefix_len])
             tokenized_input = tokenized_input[prefix_len:]
@@ -1157,13 +1160,6 @@ class FlashCausalLM(Model):
             "input_lengths": input_lengths_tensor,
             "prefix_lengths": prefix_lengths_tensor,
         }
-        seqlen = Seqlen(
-            input_lengths=input_lengths_tensor,
-            prefix_lengths=prefix_lengths_tensor,
-            cu_seqlen_q=None,
-            max_q=1,
-            max_k=max_s,
-        )
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs]["graph"] = graph
 
@@ -1199,6 +1195,13 @@ class FlashCausalLM(Model):
             prefix_lens=prefix_lengths,
             prefix_lens_tensor=prefix_lengths_tensor,
         ):
+            seqlen = Seqlen(
+                input_lengths=input_lengths_tensor,
+                prefix_lengths=prefix_lengths_tensor,
+                cu_seqlen_q=None,
+                max_q=1,
+                max_k=max_s,
+            )
             self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
@@ -1215,6 +1218,13 @@ class FlashCausalLM(Model):
             torch.cuda.synchronize()
 
             with torch.cuda.graph(graph, pool=MEM_POOL):
+                seqlen = Seqlen(
+                    input_lengths=input_lengths_tensor,
+                    prefix_lengths=prefix_lengths_tensor,
+                    cu_seqlen_q=None,
+                    max_q=1,
+                    max_k=max_s,
+                )
                 logits, speculative_logits = self.model.forward(
                     input_ids=input_ids,
                     position_ids=position_ids,
@@ -1517,9 +1527,7 @@ class FlashCausalLM(Model):
         cuda_graph["slots"].fill_(-1)
         cuda_graph["slots"][: slots.shape[0]] = slots
         cuda_graph["input_lengths"].zero_()
-        cuda_graph["input_lengths"][: input_lengths.shape[0]] = (
-            input_lengths + prefix_lens_tensor
-        )
+        cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
         cuda_graph["prefix_lengths"].zero_()
         cuda_graph["prefix_lengths"][: prefix_lens_tensor.shape[0]] = prefix_lens_tensor
 
