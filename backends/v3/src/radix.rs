@@ -76,9 +76,6 @@ impl Allocator for RadixAllocator {
                 &prefill_tokens.as_slice()[..prefill_tokens.len().saturating_sub(1)],
                 &mut blocks,
             );
-            // Even if this allocation fails below, we need to increase he
-            // refcount to ensure that the prefix that was found is not evicted.
-
             node_id
         } else {
             self.cache_blocks.root_id()

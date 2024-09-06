@@ -398,7 +398,6 @@ def launcher(event_loop):
 
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
-        env["USE_PREFIX_CACHING"] = "0"
 
         with tempfile.TemporaryFile("w+") as tmp:
             # We'll output stdout/stderr to a temporary file. Using a pipe
