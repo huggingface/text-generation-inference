@@ -152,6 +152,7 @@ ENV HIP_FORCE_DEV_KERNARG=1
 # On MI250 and MI300, performances for flash with Triton FA are slightly better than CK.
 # However, Triton requires a tunning for each prompt length, which is prohibitive.
 ENV ROCM_USE_FLASH_ATTN_V2_TRITON=0
+ENV ROCM_USE_CUSTOM_PAGED_ATTN=1
 
 FROM base AS kernel-builder
 
@@ -246,3 +247,4 @@ COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
 ENTRYPOINT ["/tgi-entrypoint.sh"]
+CMD ["--json-output"]

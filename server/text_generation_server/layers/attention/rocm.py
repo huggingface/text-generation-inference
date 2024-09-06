@@ -15,7 +15,7 @@ _PARTITION_SIZE_CUSTOM = 256
 use_triton = os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() in {"true", "1"}
 ENGINE = "triton" if use_triton else "ck"
 
-custom_attn_available = os.getenv("VLLM_USE_ROCM_CUSTOM_PAGED_ATTN", "1") != "0"
+custom_attn_available = os.getenv("ROCM_USE_CUSTOM_PAGED_ATTN", "1") != "0"
 if custom_attn_available:
     from vllm._custom_C import paged_attention_custom
 
