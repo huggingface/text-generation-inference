@@ -64,6 +64,7 @@ class ResponseComparator(JSONSnapshotExtension):
         self,
         data,
         *,
+        include=None,
         exclude=None,
         matcher=None,
     ):
@@ -79,7 +80,12 @@ class ResponseComparator(JSONSnapshotExtension):
             data = [d.model_dump() for d in data]
 
         data = self._filter(
-            data=data, depth=0, path=(), exclude=exclude, matcher=matcher
+            data=data,
+            depth=0,
+            path=(),
+            exclude=exclude,
+            include=include,
+            matcher=matcher,
         )
         return json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
 
