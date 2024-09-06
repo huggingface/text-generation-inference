@@ -102,15 +102,16 @@ class ResponseComparator(JSONSnapshotExtension):
 
         def _convert_data(data):
             if isinstance(data, Dict):
-                choices = data["choices"]
-                if isinstance(choices, List) and len(choices) >= 1:
-                    if "delta" in choices[0]:
-                        return ChatCompletionChunk(**data)
-                    if "text" in choices[0]:
-                        return Completion(**data)
-                return ChatComplete(**data)
-            if isinstance(data, Dict):
-                return Response(**data)
+                if "choices" in data:
+                    choices = data["choices"]
+                    if isinstance(choices, List) and len(choices) >= 1:
+                        if "delta" in choices[0]:
+                            return ChatCompletionChunk(**data)
+                        if "text" in choices[0]:
+                            return Completion(**data)
+                    return ChatComplete(**data)
+                else:
+                    return Response(**data)
             if isinstance(data, List):
                 return [_convert_data(d) for d in data]
             raise NotImplementedError
