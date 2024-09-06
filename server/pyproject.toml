@@ -47,7 +47,6 @@ marlin-kernels = [
   { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.2.0/marlin_kernels-0.2.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl", python = "~3.12", optional = true },
 ]
 rich = "^13.7.1"
-syrupy = "^4.7.1"
 
 [tool.poetry.extras]
 torch = ["torch"]
