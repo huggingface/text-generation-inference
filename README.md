@@ -106,7 +106,7 @@ The following table contains models and configurations we have validated on Gaud
 | CodeLlama-13B         | ✔    | ✔   | ✔           |             |
 | Mixtral-8x7B          | ✔    | ✔   | ✔           | ✔           |
 | Mistral-7B            | ✔    | ✔   | ✔           | ✔           |
-| Llava-v1.6-Mistral-7B | ✔    | ✔   | ✔           |             |
+| Llava-v1.6-Mistral-7B | ✔    | ✔   | ✔           | ✔           |
 
 
 ## Running TGI with BF16 Precision
@@ -245,8 +245,6 @@ docker run -p 8080:80 \
 
 In Llava-v1.6-Mistral-7B, an image usually accounts for 2000 input tokens. For example, an image of size 512x512 is represented by 2800 tokens. Thus, `max-input-tokens` must be larger than the number of tokens associated with the image. Otherwise the image may be truncated. We set `BASE_IMAGE_TOKENS=2048` as the default image token value. This is the minimum value of `max-input-tokens`. You can override the environment variable `BASE_IMAGE_TOKENS` to change this value. The warmup will generate graphs with input length from `BASE_IMAGE_TOKENS` to `max-input-tokens`. For Llava-v1.6-Mistral-7B, the value of `max-batch-prefill-tokens` is 16384, which is calcualted as follows: `prefill_batch_size` = `max-batch-prefill-tokens` / `max-input-tokens`.
 
-> Note: Multi-card Llava-v1.6-Mistral-7B inference is currently not supported.
-
 ```bash
 model=llava-hf/llava-v1.6-mistral-7b-hf
 volume=$PWD/data   # share a volume with the Docker container to avoid downloading weights every run
@@ -256,6 +254,8 @@ docker run -p 8080:80 \
    -v $volume:/data \
    -e HABANA_VISIBLE_DEVICES=all \
    -e OMPI_MCA_btl_vader_single_copy_mechanism=none \
+   -e TEXT_GENERATION_SERVER_IGNORE_EOS_TOKEN=true \
+   -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true \
    -e HF_HUB_ENABLE_HF_TRANSFER=1 \
    -e ENABLE_HPU_GRAPH=true \
    -e LIMIT_HPU_GRAPH=true \
@@ -444,6 +444,8 @@ docker run -p 8080:80 \
    -e QUANT_CONFIG=./quantization_config/maxabs_quant.json \
    -e HABANA_VISIBLE_DEVICES=all \
    -e OMPI_MCA_btl_vader_single_copy_mechanism=none \
+   -e TEXT_GENERATION_SERVER_IGNORE_EOS_TOKEN=true \
+   -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true \
    -e HF_HUB_ENABLE_HF_TRANSFER=1 \
    -e ENABLE_HPU_GRAPH=true \
    -e LIMIT_HPU_GRAPH=true \
@@ -455,6 +457,38 @@ docker run -p 8080:80 \
    --ipc=host \
    ghcr.io/huggingface/tgi-gaudi:2.0.4 \
    --model-id $model \
+   --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
+   --max-total-tokens 8192 --max-batch-total-tokens 32768
+```
+
+### Llava-v1.6-Mistral-7B on 8 Cards
+
+```bash
+model=llava-hf/llava-v1.6-mistral-7b-hf
+volume=$PWD/data   # share a volume with the Docker container to avoid downloading weights every run
+
+docker run -p 8080:80 \
+   --runtime=habana \
+   -v $volume:/data \
+   -v $PWD/quantization_config:/usr/src/quantization_config \
+   -v $PWD/hqt_output:/usr/src/hqt_output \
+   -e QUANT_CONFIG=./quantization_config/maxabs_quant.json \
+   -e HABANA_VISIBLE_DEVICES=all \
+   -e OMPI_MCA_btl_vader_single_copy_mechanism=none \
+   -e TEXT_GENERATION_SERVER_IGNORE_EOS_TOKEN=true \
+   -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true \
+   -e HF_HUB_ENABLE_HF_TRANSFER=1 \
+   -e ENABLE_HPU_GRAPH=true \
+   -e LIMIT_HPU_GRAPH=true \
+   -e USE_FLASH_ATTENTION=true \
+   -e FLASH_ATTENTION_RECOMPUTE=true \
+    -e PREFILL_BATCH_BUCKET_SIZE=1 \
+    -e BATCH_BUCKET_SIZE=1 \
+   --cap-add=sys_nice \
+   --ipc=host \
+   ghcr.io/huggingface/tgi-gaudi:2.0.4 \
+   --model-id $model \
+   --sharded true --num-shard 8 \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-total-tokens 32768
 ```
