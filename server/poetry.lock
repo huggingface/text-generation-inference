@@ -1795,13 +1795,13 @@ tests = ["Pillow", "accelerate", "diffusers (>=0.17.0)", "einops", "invisible-wa
 
 [[package]]
 name = "optimum-habana"
-version = "1.13.1"
+version = "1.13.2"
 description = "Optimum Habana is the interface between the Hugging Face Transformers and Diffusers libraries and Habana's Gaudi processor (HPU). It provides a set of tools enabling easy model loading, training and inference on single- and multi-HPU settings for different downstream tasks."
 optional = false
 python-versions = "*"
 files = [
-    {file = "optimum_habana-1.13.1-py3-none-any.whl", hash = "sha256:4b0ed3cf494e2f42cbda6df229c3aaf573e19b37035d19d6d9d2fa02a4f2af00"},
-    {file = "optimum_habana-1.13.1.tar.gz", hash = "sha256:c85ce2e02464d40cb81c7596972d3203cd60c00ea14909363727e1033649c6ef"},
+    {file = "optimum_habana-1.13.2-py3-none-any.whl", hash = "sha256:fbec406db58e6e24b9d4cfdbc72ac88423eeef3edaf81645dbd502141a29d052"},
+    {file = "optimum_habana-1.13.2.tar.gz", hash = "sha256:6e88c93860e33c8186f6dbd55a61ed287ed3cba241f289fcf4a4001d6e2a41f0"},
 ]
 
 [package.dependencies]
@@ -3740,4 +3740,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "b0d90071c104cde8079436ef325ac79b7725efa4365d69c478c374db285756c0"
+content-hash = "6d54ae94305899e548883c4700e93babc406ec896c114b45978111c514531906"
