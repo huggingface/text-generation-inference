@@ -1,16 +1,15 @@
 /// Inspired by https://github.com/hatoo/oha/blob/bb989ea3cd77727e7743e7daa60a19894bb5e901/src/monitor.rs
 use crate::generation::{Decode, Message, Prefill};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use text_generation_client::ClientError;
-use tokio::sync::mpsc;
-use tui::backend::Backend;
-use tui::layout::{Alignment, Constraint, Direction, Layout};
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Line, Span};
-use tui::widgets::{
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{
     Axis, BarChart, Block, Borders, Chart, Dataset, Gauge, GraphType, Paragraph, Tabs,
 };
-use tui::{symbols, Frame};
+use ratatui::{symbols, Frame};
+use text_generation_client::ClientError;
+use tokio::sync::mpsc;
 
 /// TUI powered App
 pub(crate) struct App {
@@ -153,7 +152,7 @@ impl App {
     }
 
     /// Render frame
-    pub fn render<B: Backend>(&mut self, f: &mut Frame<'_, B>) {
+    pub fn render(&mut self, f: &mut Frame) {
         let batch_progress =
             (self.completed_batch as f64 / self.data.batch_size.len() as f64).clamp(0.0, 1.0);
         let run_progress =
@@ -172,7 +171,7 @@ impl App {
                 ]
                 .as_ref(),
             )
-            .split(f.size());
+            .split(f.area());
 
         // Top row horizontal layout
         let top = Layout::default()
@@ -239,7 +238,7 @@ impl App {
         f.render_widget(helper, row5[0]);
 
         // Batch tabs
-        let titles = self
+        let titles: Vec<Line> = self
             .data
             .batch_size
             .iter()
