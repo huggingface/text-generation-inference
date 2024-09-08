@@ -25,7 +25,7 @@ text-generation-client = { path = "../backends/client" }
 thiserror = "1.0.48"
 tokenizers = { workspace = true }
 tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync", "macros"] }
-ratatui = "0.28.1"
+ratatui = { version = "0.28.1", default-features = false, features = ["crossterm"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 hf-hub = { workspace = true }
