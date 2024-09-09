@@ -8,7 +8,7 @@
         "text": "\n"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -23,7 +23,7 @@
         "text": "\n"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -38,7 +38,7 @@
         "text": "\n"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -53,7 +53,7 @@
         "text": "hd"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -65,10 +65,10 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": "\n"
+        "text": "What"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -80,10 +80,10 @@
         "finish_reason": "",
         "index": 1,
         "logprobs": null,
-        "text": "\n"
+        "text": "Cache"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -98,7 +98,7 @@
         "text": "hd"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -110,10 +110,10 @@
         "finish_reason": "",
         "index": 3,
         "logprobs": null,
-        "text": "hd"
+        "text": ":"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -125,10 +125,10 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": "2"
+        "text": " Mil"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -143,7 +143,7 @@
         "text": "2"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -158,7 +158,7 @@
         "text": " Business"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -173,7 +173,7 @@
         "text": "2"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -185,10 +185,10 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": " Given"
+        "text": "k"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -203,7 +203,7 @@
         "text": "."
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -215,10 +215,10 @@
         "finish_reason": "",
         "index": 2,
         "logprobs": null,
-        "text": " up"
+        "text": "|"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -230,10 +230,10 @@
         "finish_reason": "",
         "index": 3,
         "logprobs": null,
-        "text": " si"
+        "text": "|"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -245,10 +245,10 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": " the"
+        "text": " And"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -260,10 +260,10 @@
         "finish_reason": "",
         "index": 1,
         "logprobs": null,
-        "text": " Is"
+        "text": " And"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -274,26 +274,26 @@
       {
         "finish_reason": "",
         "index": 2,
+        "logprobs": null,
+        "text": " And"
+      }
+    ],
+    "created": 1725868995,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
         "logprobs": null,
         "text": "i"
       }
     ],
-    "created": 1725701598,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 3,
-        "logprobs": null,
-        "text": "ri"
-      }
-    ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -305,10 +305,10 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": " sun"
+        "text": " Stock"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -320,10 +320,10 @@
         "finish_reason": "",
         "index": 1,
         "logprobs": null,
-        "text": " sugar"
+        "text": " How"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -335,10 +335,10 @@
         "finish_reason": "",
         "index": 2,
         "logprobs": null,
-        "text": "2"
+        "text": " i"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -350,10 +350,10 @@
         "finish_reason": "",
         "index": 3,
         "logprobs": null,
-        "text": " away"
+        "text": "'"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -365,10 +365,10 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": "ny"
+        "text": " U"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -380,10 +380,10 @@
         "finish_reason": "",
         "index": 1,
         "logprobs": null,
-        "text": " Moh"
+        "text": " often"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -395,10 +395,10 @@
         "finish_reason": "",
         "index": 2,
         "logprobs": null,
-        "text": "7"
+        "text": "|"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -409,41 +409,41 @@
       {
         "finish_reason": "",
         "index": 3,
-        "logprobs": null,
-        "text": "2"
-      }
-    ],
-    "created": 1725701598,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 0,
-        "logprobs": null,
-        "text": "?"
-      }
-    ],
-    "created": 1725701598,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 1,
         "logprobs": null,
         "text": "s"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": "sa"
+      }
+    ],
+    "created": 1725868995,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " has"
+      }
+    ],
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -458,7 +458,7 @@
         "text": "s"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -473,7 +473,7 @@
         "text": " has"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -484,26 +484,26 @@
       {
         "finish_reason": "",
         "index": 0,
-        "logprobs": null,
-        "text": " a"
-      }
-    ],
-    "created": 1725701598,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 1,
         "logprobs": null,
         "text": "?"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " a"
+      }
+    ],
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -518,7 +518,7 @@
         "text": " a"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -533,7 +533,7 @@
         "text": " a"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -545,10 +545,10 @@
         "finish_reason": "length",
         "index": 0,
         "logprobs": null,
-        "text": " sc"
+        "text": "</s>"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -560,10 +560,10 @@
         "finish_reason": "length",
         "index": 1,
         "logprobs": null,
-        "text": " Is"
+        "text": " sc"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -575,10 +575,10 @@
         "finish_reason": "length",
         "index": 2,
         "logprobs": null,
-        "text": " sc"
+        "text": "|"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
@@ -593,7 +593,7 @@
         "text": " sc"
       }
     ],
-    "created": 1725701598,
+    "created": 1725868995,
     "id": "",
     "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     "object": "text_completion",
