@@ -34,7 +34,7 @@ def test_flash_llama_completion_single_prompt(
         f"{flash_llama_completion.base_url}/v1/completions",
         json={
             "model": "tgi",
-            "prompt": "Say this is a test",
+            "prompt": "What is Deep Learning?",
             "max_tokens": 5,
             "seed": 0,
         },
@@ -43,7 +43,7 @@ def test_flash_llama_completion_single_prompt(
     )
     response = response.json()
     assert len(response["choices"]) == 1
-
+    assert response["choices"][0]["text"] == "\n2.2 How"
     assert response == response_snapshot
 
 
@@ -77,7 +77,7 @@ async def test_flash_llama_completion_many_prompts_stream(
     request = {
         "model": "tgi",
         "prompt": [
-            "What color is the sky?",
+            "What is Deep Learning?",
             "Is water wet?",
             "What is the capital of France?",
             "def mai",
@@ -90,6 +90,7 @@ async def test_flash_llama_completion_many_prompts_stream(
     url = f"{flash_llama_completion.base_url}/v1/completions"
 
     chunks = []
+    strings = [""] * 4
     async with ClientSession(headers=flash_llama_completion.headers) as session:
         async with session.post(url, json=request) as response:
             # iterate over the stream
@@ -108,7 +109,10 @@ async def test_flash_llama_completion_many_prompts_stream(
                 for c in chunk:
                     chunks.append(Completion(**c))
                     assert "choices" in c
-                    assert 0 <= c["choices"][0]["index"] <= 4
+                    index = c["choices"][0]["index"]
+                    assert 0 <= index <= 4
+                    strings[index] += c["choices"][0]["text"]
 
     assert response.status == 200
+    # assert strings == ["What Business: And Stock Mohs`('\\", '\nrig Business Process And Stock ,s, And', '\n\n202 Stock Mohs a Service', 'hd\n20207\nR1']
     assert chunks == response_snapshot

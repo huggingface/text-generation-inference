@@ -4,14 +4,14 @@
       "finish_reason": "length",
       "index": 0,
       "logprobs": null,
-      "text": " PR for flake8"
+      "text": "\n2.2 How"
     }
   ],
-  "created": 1713284454,
+  "created": 1725874238,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "text_completion",
-  "system_fingerprint": "2.0.1-native",
+  "system_fingerprint": "2.2.1-dev0-native",
   "usage": {
     "completion_tokens": 5,
     "prompt_tokens": 6,
