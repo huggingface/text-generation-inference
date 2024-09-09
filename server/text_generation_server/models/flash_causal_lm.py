@@ -1175,7 +1175,8 @@ class FlashCausalLM(Model):
                     log_master(logger.info, f"Warming up TunableOp for seqlen={seqlen}")
                     self.tunableop_warmup(seqlen)
                     torch.cuda.tunable.write_file(tunableop_filepath)
-                torch.cuda.tunable.tuning_enable(False)
+                if os.environ.get("PYTORCH_TUNABLEOP_TUNING_AFTER_WARMUP") != "1":
+                    torch.cuda.tunable.tuning_enable(False)
             else:
                 log_master(
                     logger.info,

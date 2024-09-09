@@ -61,7 +61,11 @@ class FastLinearROCm(torch.nn.Module):
         weight = self.weight
         bias = self.bias
 
-        if SYSTEM == "rocm" and inp.numel() // inp.shape[-1] == 1:
+        if (
+            SYSTEM == "rocm"
+            and inp.numel() // inp.shape[-1] == 1
+            and inp.dtype == torch.float16
+        ):
             batched = False
             inp_shape = inp.shape
 
