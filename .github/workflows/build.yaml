@@ -181,6 +181,11 @@ jobs:
       - name: Install
         run: |
           make install-integration-tests
+      - name: Tailscale
+        uses: huggingface/tailscale-action@main
+        with:
+          authkey: ${{ secrets.TAILSCALE_SSH_AUTHKEY }}
+          debugEnabled: true
       - name: Run tests
         run: |
           export DOCKER_VOLUME=/mnt/cache
@@ -189,3 +194,7 @@ jobs:
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
           pytest -s -vv integration-tests ${PYTEST_FLAGS}
+      - name: Wait for SSH
+        run : |
+          sleep 30s
+          while [ "$(last | grep '^runner.*still logged in$')" ]; do sleep 1m; done
