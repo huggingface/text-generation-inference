@@ -187,7 +187,7 @@ jobs:
           authkey: ${{ secrets.TAILSCALE_SSH_AUTHKEY }}
           debugEnabled: "1"
           debug: "1"
-          waitForSssh: true
+          waitForSSH: true
       - name: Run tests
         run: |
           export DOCKER_VOLUME=/mnt/cache
@@ -197,6 +197,7 @@ jobs:
           echo $DOCKER_IMAGE
           pytest -s -vv integration-tests ${PYTEST_FLAGS}
       - name: Wait for SSH
+        if: ${{ always() }}
         run : |
-          sleep 30s
+          sleep 5m
           while [ "$(last | grep '^runner.*still logged in$')" ]; do sleep 1m; done
