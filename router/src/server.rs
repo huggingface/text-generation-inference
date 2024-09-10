@@ -540,7 +540,6 @@ async fn generate_stream_internal(
         // Inference
         let mut end_reached = false;
         let mut error = false;
-        let mut index = 0;
 
         let mut add_prompt = None;
         if req.parameters.return_full_text.unwrap_or(false) {
@@ -563,6 +562,7 @@ async fn generate_stream_internal(
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
                 Ok((_permit, input_length, response_stream)) => {
+                    let mut index = 0;
                     let mut response_stream = Box::pin(response_stream);
                     // Server-Sent Event stream
                     while let Some(response) = response_stream.next().await {
@@ -679,7 +679,6 @@ async fn generate_stream_internal(
             if !end_reached && !error {
                 let err = InferError::IncompleteGenerationStream;
                 metrics::counter!("tgi_request_failure", "err" => "incomplete").increment(1);
-                tracing::info!("n iterations {index}");
                 tracing::error!("{err}");
                 yield Ok(Event::from(err));
             }

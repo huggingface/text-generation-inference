@@ -1087,12 +1087,12 @@ class FlashCausalLM(Model):
         if ATTENTION in {"flashdecoding", "flashinfer"}:
             self.kv_cache = [
                 (
-                    torch.zeros(
+                    torch.empty(
                         (num_blocks, BLOCK_SIZE, num_heads, head_size),
                         dtype=dtype,
                         device=device,
                     ),
-                    torch.zeros(
+                    torch.empty(
                         (num_blocks, BLOCK_SIZE, num_heads, head_size),
                         dtype=dtype,
                         device=device,
@@ -1103,12 +1103,12 @@ class FlashCausalLM(Model):
         elif SYSTEM == "ipex" and device == torch.device("cpu"):
             self.kv_cache = [
                 (
-                    torch.zeros(
+                    torch.empty(
                         (num_blocks, num_heads, BLOCK_SIZE, head_size),
                         dtype=dtype,
                         device=device,
                     ),
-                    torch.zeros(
+                    torch.empty(
                         (num_blocks, num_heads, BLOCK_SIZE, head_size),
                         dtype=dtype,
                         device=device,
@@ -1520,24 +1520,6 @@ class FlashCausalLM(Model):
             )
             # assert block_tables.shape[0] >= slots.shape[0]
             cuda_graph["block_tables"][: block_tables.shape[0]] = block_tables
-            page_size = BLOCK_SIZE
-            indptr = torch.zeros(
-                input_lengths.shape[0] + 1,
-                device=input_lengths.device,
-                dtype=torch.int32,
-            )
-            # Round up to page size and then calculate the cumulative sum to get
-            # the indices into the block table.
-            torch.add(input_lengths, page_size - 1, out=indptr[1:])
-            indptr[1:].div_(page_size, rounding_mode="floor")
-            indptr[1:].cumsum_(-1)
-            # Get the lengths of the last page in a block.
-            last_page_len = torch.empty(
-                input_lengths.shape[0], dtype=torch.int32, device=input_lengths.device
-            )
-            torch.sub(input_lengths, 1, out=last_page_len)
-            last_page_len.remainder_(page_size)
-            last_page_len += 1
         cuda_graph["slots"].fill_(0)
         cuda_graph["slots"][: slots.shape[0]] = slots
         cuda_graph["input_lengths"].zero_()
@@ -1897,8 +1879,6 @@ class FlashCausalLM(Model):
                     generated_text,
                     top_tokens,
                 )
-
-                # assert all(n is not None for n in next_token_texts)
 
                 generations.append(generation)
 
