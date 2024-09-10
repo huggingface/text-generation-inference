@@ -366,7 +366,7 @@ impl State {
                         break;
                     }
                     Some(block_allocation) => {
-                        // tracing::debug!("Allocation: {block_allocation:?}");
+                        tracing::debug!("Allocation: {block_allocation:?}");
                         max_blocks = max(max_blocks, block_allocation.blocks.len() as u32);
                         Some(block_allocation)
                     }
