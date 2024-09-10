@@ -181,6 +181,8 @@ jobs:
       - name: Install
         run: |
           make install-integration-tests
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
       - name: Tailscale
         uses: huggingface/tailscale-action@main
         with:
