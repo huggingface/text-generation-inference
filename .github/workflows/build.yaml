@@ -185,7 +185,7 @@ jobs:
         uses: huggingface/tailscale-action@main
         with:
           authkey: ${{ secrets.TAILSCALE_SSH_AUTHKEY }}
-          debugEnabled: true
+          debugEnabled: "1"
       - name: Run tests
         run: |
           export DOCKER_VOLUME=/mnt/cache
