@@ -19,3 +19,6 @@ server/exllama_kernels/exllama_kernels/exllama_ext_hip.cpp
 data/
 load_tests/*.json
 server/fbgemmm
+
+.direnv/
+.venv/

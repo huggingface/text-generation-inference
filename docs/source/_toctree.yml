@@ -71,6 +71,8 @@
     title: How Guidance Works (via outlines)
   - local: conceptual/lora
     title: LoRA (Low-Rank Adaptation)
+  - local: conceptual/external
+    title: External Resources
 
 
   title: Conceptual Guides

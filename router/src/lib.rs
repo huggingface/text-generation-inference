@@ -22,6 +22,16 @@ pub enum Attention {
     FlashInfer,
 }
 
+impl Attention {
+    pub fn block_size(&self) -> u32 {
+        match self {
+            Attention::FlashDecoding => 256,
+            Attention::FlashInfer => 1,
+            Attention::Paged => 16,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ParseError;
 
@@ -45,11 +55,18 @@ impl std::str::FromStr for Attention {
 }
 
 #[derive(Clone, Deserialize, ToSchema)]
-pub(crate) struct VertexInstance {
+pub(crate) struct GenerateVertexInstance {
     #[schema(example = "What is Deep Learning?")]
     pub inputs: String,
     #[schema(nullable = true, default = "null", example = "null")]
     pub parameters: Option<GenerateParameters>,
+}
+
+#[derive(Clone, Deserialize, ToSchema)]
+#[serde(untagged)]
+enum VertexInstance {
+    Generate(GenerateVertexInstance),
+    Chat(ChatRequest),
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -840,10 +857,10 @@ pub(crate) struct ChatRequest {
     pub tools: Option<Vec<Tool>>,
 
     /// A prompt to be appended before the tools
-    #[serde(default = "default_tool_prompt")]
+    #[serde(default)]
     #[schema(
         nullable = true,
-        example = "\"You will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n\""
+        example = "Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables."
     )]
     pub tool_prompt: Option<String>,
 
@@ -865,10 +882,8 @@ pub(crate) struct ChatRequest {
     pub guideline: Option<String>,
 }
 
-fn default_tool_prompt() -> Option<String> {
-    Some(
-        "\nYou will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n".to_string(),
-    )
+pub fn default_tool_prompt() -> String {
+    "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -910,7 +925,7 @@ impl From<ToolTypeDeserializer> for ToolChoice {
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
-pub struct Tools {
+pub struct JsonSchemaTool {
     #[serde(flatten)]
     functions_map: FunctionsMap,
     properties: Properties,
@@ -968,8 +983,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
     add_generation_prompt: bool,
-    tools: Option<&'a str>,
-    tools_prompt: Option<&'a str>,
+    tools: Option<Vec<Tool>>,
     guideline: Option<&'a str>,
 }
 
@@ -1075,6 +1089,16 @@ pub(crate) struct GenerateRequest {
     pub inputs: String,
     #[serde(default = "default_parameters")]
     pub parameters: GenerateParameters,
+
+    /// This is used internally because some requests
+    /// already contain the templated input therefore
+    /// we shouldn't add the special tokens.
+    #[serde(default = "default_true", skip)]
+    pub add_special_tokens: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]
@@ -1092,6 +1116,7 @@ impl From<CompatGenerateRequest> for GenerateRequest {
     fn from(req: CompatGenerateRequest) -> Self {
         Self {
             inputs: req.inputs,
+            add_special_tokens: true,
             parameters: req.parameters,
         }
     }
@@ -1241,6 +1266,34 @@ pub(crate) struct StreamResponse {
 pub(crate) struct ErrorResponse {
     pub error: String,
     pub error_type: String,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub(crate) struct ModelInfo {
+    #[schema(example = "gpt2")]
+    pub id: String,
+    #[schema(example = "model")]
+    pub object: String,
+    #[schema(example = 1686935002)]
+    pub created: u64,
+    #[schema(example = "openai")]
+    pub owned_by: String,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub(crate) struct ModelsInfo {
+    #[schema(example = "list")]
+    pub object: String,
+    pub data: Vec<ModelInfo>,
+}
+
+impl Default for ModelsInfo {
+    fn default() -> Self {
+        ModelsInfo {
+            object: "list".to_string(),
+            data: Vec::new(),
+        }
+    }
 }
 
 #[cfg(test)]

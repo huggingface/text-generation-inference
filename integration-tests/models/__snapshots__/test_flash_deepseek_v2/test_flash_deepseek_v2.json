@@ -16,7 +16,7 @@
       },
       {
         "id": 3102,
-        "logprob": -11.1875,
+        "logprob": -11.25,
         "text": " request"
       }
     ],
@@ -24,66 +24,66 @@
     "tokens": [
       {
         "id": 185,
-        "logprob": -1.5546875,
+        "logprob": -1.546875,
         "special": false,
         "text": "\n"
       },
       {
         "id": 549,
-        "logprob": -2.84375,
+        "logprob": -2.859375,
         "special": false,
         "text": "The"
       },
       {
         "id": 1727,
-        "logprob": -2.34375,
+        "logprob": -2.484375,
         "special": false,
         "text": " test"
       },
       {
         "id": 3102,
-        "logprob": -0.8359375,
+        "logprob": -0.83203125,
         "special": false,
         "text": " request"
       },
       {
         "id": 317,
-        "logprob": -1.0859375,
+        "logprob": -1.1484375,
         "special": false,
         "text": " is"
       },
       {
-        "id": 254,
-        "logprob": -1.5390625,
+        "id": 245,
+        "logprob": -1.578125,
         "special": false,
-        "text": " the"
+        "text": " a"
       },
       {
-        "id": 1022,
-        "logprob": -1.1875,
+        "id": 3412,
+        "logprob": -2.578125,
         "special": false,
-        "text": " first"
+        "text": " document"
       },
       {
-        "id": 3458,
-        "logprob": -0.35546875,
+        "id": 344,
+        "logprob": -1.125,
         "special": false,
-        "text": " step"
+        "text": " that"
       },
       {
-        "id": 279,
-        "logprob": -0.8828125,
+        "id": 317,
+        "logprob": -1.6953125,
         "special": false,
-        "text": " in"
+        "text": " is"
       },
       {
-        "id": 254,
-        "logprob": -0.71484375,
+        "id": 1222,
+        "logprob": -1.71875,
         "special": false,
-        "text": " the"
+        "text": " used"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "\nThe test request is the first step in the"
+  "generated_text": "\nThe test request is a document that is used"
 }

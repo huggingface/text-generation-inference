@@ -24,11 +24,12 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
-
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     reshape_and_cache,
+    Seqlen,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -43,7 +44,6 @@ from text_generation_server.layers.rotary import (
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
-from text_generation_server.utils.import_utils import SYSTEM
 
 
 def load_attention(config, prefix: str, weights):
@@ -167,7 +167,7 @@ class FlashGPTJAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         query, key, value = self.query_key_value(hidden_states).split(
@@ -192,10 +192,10 @@ class FlashGPTJAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                key,
-                value,
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if SYSTEM != "ipex" else key,
+                kv_cache[1] if SYSTEM != "ipex" else value,
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
@@ -207,7 +207,7 @@ class FlashGPTJAttention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -268,7 +268,7 @@ class FlashGPTJLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         hidden_states, residual = self.input_layernorm(hidden_states, residual)
@@ -281,7 +281,7 @@ class FlashGPTJLayer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -328,7 +328,7 @@ class FlashGPTJModel(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
@@ -351,7 +351,7 @@ class FlashGPTJModel(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -382,7 +382,7 @@ class FlashGPTJForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -395,7 +395,7 @@ class FlashGPTJForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             prefill_cache_indices=prefill_cache_indices,
         )

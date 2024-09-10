@@ -20,34 +20,52 @@ defaultCrateOverrides
   rav1e = attrs: { env.CARGO_ENCODED_RUSTFLAGS = "-C target-feature=-crt-static"; };
 
   grpc-metadata = attrs: {
-    src =
-      filter {
-        root = ../backends/grpc-metadata;
-        include = with filter; [
-          isDirectory
-          (matchExt "rs")
-        ];
-      };
+    src = filter {
+      root = ../backends/grpc-metadata;
+      include = with filter; [
+        isDirectory
+        (matchExt "rs")
+      ];
+    };
   };
-  text-generation-launcer = attrs: {
-    src =
-      filter {
-        root = ../launcher;
-        include = with filter; [
-          isDirectory
-          (matchExt "rs")
-        ];
-      };
+  text-generation-benchmark = attrs: {
+    src = filter {
+      root = ../benchmark;
+      include = with filter; [
+        isDirectory
+        (matchExt "rs")
+      ];
+    };
+  };
+  text-generation-client = attrs: {
+    src = filter {
+      root = ../.;
+      include = with filter; [
+        isDirectory
+        (and (inDirectory "backends/client") (matchExt "rs"))
+        (and (inDirectory "proto") (matchExt "proto"))
+      ];
+    };
+    postPatch = "cd backends/client";
+    buildInputs = [ protobuf ];
+  };
+  text-generation-launcher = attrs: {
+    src = filter {
+      root = ../launcher;
+      include = with filter; [
+        isDirectory
+        (matchExt "rs")
+      ];
+    };
   };
   text-generation-router = attrs: {
-    src =
-      filter {
-        root = ../router;
-        include = with filter; [
-          isDirectory
-          (matchExt "rs")
-        ];
-      };
+    src = filter {
+      root = ../router;
+      include = with filter; [
+        isDirectory
+        (matchExt "rs")
+      ];
+    };
   };
   text-generation-router-v3 = attrs: {
     # We need to do the src/source root dance so that the build

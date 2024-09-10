@@ -32,6 +32,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     reshape_and_cache,
+    Seqlen,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -65,15 +66,15 @@ def load_attention(config, prefix: str, weights, layer_id):
     prefixes = None
 
     if config.model_type == "phi3":
-        prefix = f"{prefix}.qkv_proj"
         base_layer = TensorParallelColumnLinear.load_qkv(
             config,
-            prefix=prefix,
+            prefix=f"{prefix}.qkv_proj",
             weights=weights,
             bias=bias,
             num_heads=config.num_attention_heads,
             num_key_value_heads=config.num_key_value_heads,
         )
+        prefixes = ["qkv_proj"]
     elif config.model_type == "baichuan":
         prefix = f"{prefix}.W_pack"
         base_layer = TensorParallelColumnLinear.load_qkv(
@@ -84,6 +85,7 @@ def load_attention(config, prefix: str, weights, layer_id):
             num_heads=config.num_attention_heads,
             num_key_value_heads=config.num_key_value_heads,
         )
+        prefixes = [prefix]
     else:
         prefixes = ["q_proj", "k_proj", "v_proj"]
         sizes = [
@@ -194,7 +196,7 @@ class FlashLlamaAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
         adapter_data,
     ):
@@ -218,10 +220,10 @@ class FlashLlamaAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if SYSTEM != "ipex" else kv[:, 0],
+                kv_cache[1] if SYSTEM != "ipex" else kv[:, 1],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
@@ -233,7 +235,7 @@ class FlashLlamaAttention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -373,7 +375,7 @@ class FlashLlamaLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
         adapter_data,
     ):
@@ -388,7 +390,7 @@ class FlashLlamaLayer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             adapter_data,
         )
@@ -477,7 +479,7 @@ class FlashLlamaModel(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
@@ -502,7 +504,7 @@ class FlashLlamaModel(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
                 adapter_data,
             )
@@ -546,7 +548,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -560,7 +562,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,

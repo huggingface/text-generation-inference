@@ -1,11 +1,9 @@
+use crate::block_allocator::{Allocator, BlockAllocation};
+use slotmap::{DefaultKey, SlotMap};
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
 };
-
-use slotmap::{DefaultKey, SlotMap};
-
-use crate::block_allocator::{Allocator, BlockAllocation};
 
 pub struct RadixAllocator {
     allocation_id: u64,
@@ -16,26 +14,26 @@ pub struct RadixAllocator {
 
     /// Blocks that are immediately available for allocation.
     free_blocks: Vec<u32>,
+
+    #[allow(dead_code)]
+    // This isn't used because the prefix need to match without the windowing
+    // mecanism. This at worst is overallocating, not necessarily being wrong.
+    window_size: Option<u32>,
+
+    block_size: u32,
 }
 
 impl RadixAllocator {
     pub fn new(block_size: u32, n_blocks: u32, window_size: Option<u32>) -> Self {
-        assert_eq!(
-            block_size, 1,
-            "Radix tree allocator only works with block_size=1, was: {}",
-            block_size
-        );
-        if window_size.is_some() {
-            unimplemented!("Window size not supported in the prefix-caching block allocator yet");
-        }
-
         RadixAllocator {
             allocation_id: 0,
             allocations: HashMap::new(),
-            cache_blocks: RadixTrie::new(),
+            cache_blocks: RadixTrie::new(block_size as usize),
 
             // Block 0 is reserved for health checks.
             free_blocks: (1..n_blocks).collect(),
+            window_size,
+            block_size,
         }
     }
 
@@ -63,6 +61,7 @@ impl RadixAllocator {
     }
 }
 
+// Allocator trait
 impl Allocator for RadixAllocator {
     fn allocate(
         &mut self,
@@ -74,22 +73,25 @@ impl Allocator for RadixAllocator {
             let node_id = self
                 .cache_blocks
                 .find(prefill_tokens.as_slice(), &mut blocks);
-            // Even if this allocation fails below, we need to increase he
-            // refcount to ensure that the prefix that was found is not evicted.
-
             node_id
         } else {
             self.cache_blocks.root_id()
         };
 
+        // Even if this allocation fails below, we need to increase he
+        // refcount to ensure that the prefix that was found is not evicted.
         self.cache_blocks
             .incref(prefix_node)
             .expect("Failed to increment refcount");
 
-        let prefix_len = blocks.len();
+        let prefix_len = blocks.len() * self.block_size as usize;
         let suffix_len = tokens - prefix_len as u32;
 
-        match self.alloc_or_reclaim(suffix_len as usize) {
+        let suffix_blocks = (suffix_len + self.block_size - 1) / self.block_size;
+
+        tracing::info!("Prefix {prefix_len} - Suffix {suffix_len}");
+
+        match self.alloc_or_reclaim(suffix_blocks as usize) {
             Some(suffix_blocks) => blocks.extend(suffix_blocks),
             None => {
                 self.cache_blocks
@@ -100,13 +102,28 @@ impl Allocator for RadixAllocator {
         }
 
         // 1:1 mapping of blocks and slots.
-        let slots = blocks.clone();
+        let slots = if self.block_size == 1 {
+            blocks.clone()
+        } else {
+            let mut slots = Vec::with_capacity(blocks.len() * self.block_size as usize);
+            'slots: for block_id in &blocks {
+                for s in (block_id * self.block_size)..((block_id + 1) * self.block_size) {
+                    slots.push(s);
+                    if slots.len() as u32 == tokens {
+                        break 'slots;
+                    }
+                }
+            }
+            slots
+        };
 
         let allocation = RadixAllocation {
             prefix_node,
             cached_prefix_len: prefix_len,
             prefill_tokens: prefill_tokens.clone(),
         };
+
+        tracing::debug!("Blocks {blocks:?}");
 
         self.allocation_id += 1;
         self.allocations.insert(self.allocation_id, allocation);
@@ -136,27 +153,38 @@ impl Allocator for RadixAllocator {
             // If there are prefill tokens that did not come from the cache,
             // add them to the cache.
             if prefill_tokens.len() > allocation.cached_prefix_len {
-                let prefix_len = self
-                    .cache_blocks
-                    .insert(prefill_tokens, &blocks[..prefill_tokens.len()])
-                    // Unwrap, failing is a programming error.
-                    .expect("Failed to store prefill tokens");
-
-                // We can have a prefill with the following structure:
-                //
-                // |---| From the prefix cache.
-                // A B C D E F G
-                //|--------| Found in the trie during insertion.
-                //
-                // This means that while processing this request there was a
-                // partially overlapping request that had A..=E in its
-                // prefill. In this case we need to free the blocks D E.
-                self.free_blocks
-                    .extend(&blocks[allocation.cached_prefix_len..prefix_len]);
+                let aligned =
+                    (prefill_tokens.len() / self.block_size as usize) * self.block_size as usize;
+                if aligned > 0 {
+                    let prefix_len = self
+                        .cache_blocks
+                        .insert(
+                            &prefill_tokens[..aligned],
+                            &blocks[..aligned / self.block_size as usize],
+                        )
+                        // Unwrap, failing is a programming error.
+                        .expect("Failed to store prefill tokens");
+                    // We can have a prefill with the following structure:
+                    //
+                    // |---| From the prefix cache.
+                    // A B C D E F G
+                    //|--------| Found in the trie during insertion.
+                    //
+                    // This means that while processing this request there was a
+                    // partially overlapping request that had A..=E in its
+                    // prefill. In this case we need to free the blocks D E.
+                    if prefix_len > allocation.cached_prefix_len {
+                        self.free_blocks.extend(
+                            &blocks[allocation.cached_prefix_len / self.block_size as usize
+                                ..prefix_len / self.block_size as usize],
+                        );
+                    }
+                }
             }
 
             // Free non-prefill blocks.
-            self.free_blocks.extend(&blocks[prefill_tokens.len()..]);
+            self.free_blocks
+                .extend(&blocks[prefill_tokens.len() / self.block_size as usize..]);
         } else {
             self.free_blocks.extend(blocks);
         }
@@ -204,16 +232,14 @@ pub struct RadixTrie {
     /// Time as a monotonically increating counter to avoid the system
     /// call that a real time lookup would require.
     time: u64,
-}
-impl Default for RadixTrie {
-    fn default() -> Self {
-        Self::new()
-    }
+
+    /// All blocks need to be aligned with this
+    block_size: usize,
 }
 
 impl RadixTrie {
     /// Construct a new radix trie.
-    pub fn new() -> Self {
+    pub fn new(block_size: usize) -> Self {
         let root = TrieNode::new(vec![], vec![], 0, None);
         let mut nodes = SlotMap::new();
         let root = nodes.insert(root);
@@ -222,13 +248,14 @@ impl RadixTrie {
             nodes,
             root,
             time: 0,
+            block_size,
         }
     }
 
     /// Find the prefix of the given tokens.
     ///
     /// The blocks corresponding to the part of the prefix that could be found
-    /// are writteng to `blocks`. The number of blocks is in `0..=tokens.len()`.
+    /// are written to `blocks`. The number of blocks is in `0..=tokens.len()`.
     /// Returns the identifier of the trie node that contains the longest
     /// prefix. The node identifier can be used by callers to e.g. increase its
     /// reference count.
@@ -246,8 +273,9 @@ impl RadixTrie {
         if let Some(&child_id) = node.children.get(&key[0]) {
             self.update_access_time(child_id);
             let child = self.nodes.get(child_id).expect("Invalid child identifier");
-            let shared_prefix_len = child.key.shared_prefix_len(key);
-            blocks.extend(&child.blocks[..shared_prefix_len]);
+            let shared_prefix_len = shared_prefix(&child.key, key, self.block_size);
+            assert_eq!(shared_prefix_len % self.block_size, 0);
+            blocks.extend(&child.blocks[..shared_prefix_len / self.block_size]);
 
             let key = &key[shared_prefix_len..];
             if !key.is_empty() {
@@ -276,6 +304,11 @@ impl RadixTrie {
 
         node.ref_count -= 1;
         if node.ref_count == 0 {
+            assert!(
+                node.children.is_empty(),
+                "Nodes with children must have refcount > 0"
+            );
+
             self.leaves.insert((node.last_accessed, node_id));
         }
 
@@ -303,7 +336,7 @@ impl RadixTrie {
     /// Evict `n_blocks` from the trie.
     ///
     /// Returns the evicted blocks. When the length is less than `n_blocks`,
-    /// not enough blocks could beevicted.
+    /// not enough blocks could be evicted.
     pub fn evict(&mut self, n_blocks: usize) -> Vec<u32> {
         // NOTE: we don't return Result here. If any of the unwrapping fails,
         // it's a programming error in the trie implementation, not a user
@@ -318,6 +351,12 @@ impl RadixTrie {
             let blocks_needed = n_blocks - evicted.len();
 
             let node = self.nodes.get(node_id).expect("Leave does not exist");
+            assert_eq!(
+                node.ref_count, 0,
+                "Leaf must have refcount of 0, got {}",
+                node.ref_count
+            );
+
             if blocks_needed >= node.blocks.len() {
                 // We need to evict the whole node if we need more blocks than it has.
                 let node = self.remove_node(node_id);
@@ -348,7 +387,8 @@ impl RadixTrie {
     /// the first 10 elements of the tree **the blocks are not updated**.
     pub fn insert(&mut self, tokens: &[u32], blocks: &[u32]) -> Result<usize, TrieError> {
         self.time += 1;
-        self.insert_(self.root, tokens, blocks)
+        let common = self.insert_(self.root, tokens, blocks)?;
+        Ok(common)
     }
 
     /// Insertion worker.
@@ -362,7 +402,7 @@ impl RadixTrie {
         // the part of the prefix that is already in the trie to detect
         // mismatches.
 
-        if tokens.len() != blocks.len() {
+        if tokens.len() != blocks.len() * self.block_size {
             return Err(TrieError::BlockTokenCountMismatch);
         }
 
@@ -373,10 +413,10 @@ impl RadixTrie {
                 .get_mut(child_id)
                 // Unwrap here, since failure is a bug.
                 .expect("Child node does not exist");
-            let shared_prefix_len = child.key.shared_prefix_len(tokens);
+            let shared_prefix_len = shared_prefix(&child.key, tokens, self.block_size);
 
             // We are done, the prefix is already in the trie.
-            if shared_prefix_len == tokens.len() {
+            if shared_prefix_len == tokens.len() || shared_prefix_len == 0 {
                 return Ok(shared_prefix_len);
             }
 
@@ -386,7 +426,7 @@ impl RadixTrie {
                     + self.insert_(
                         child_id,
                         &tokens[shared_prefix_len..],
-                        &blocks[shared_prefix_len..],
+                        &blocks[shared_prefix_len / self.block_size..],
                     )?);
             }
 
@@ -395,7 +435,7 @@ impl RadixTrie {
             // remainder of the prefix into the node again
             let child_id = self.split_node(child_id, shared_prefix_len);
             let key = &tokens[shared_prefix_len..];
-            let blocks = &blocks[shared_prefix_len..];
+            let blocks = &blocks[shared_prefix_len / self.block_size..];
             Ok(shared_prefix_len + self.insert_(child_id, key, blocks)?)
         } else {
             self.add_node(node_id, tokens, blocks);
@@ -472,12 +512,16 @@ impl RadixTrie {
     fn remove_node(&mut self, node_id: NodeId) -> TrieNode {
         // Unwrap here, passing in an unknown id is a programming error.
         let node = self.nodes.remove(node_id).expect("Unknown node");
+        assert!(
+            node.children.is_empty(),
+            "Tried to remove a node with {} children",
+            node.children.len()
+        );
         let parent_id = node.parent.expect("Attempted to remove root node");
         let parent = self.nodes.get_mut(parent_id).expect("Unknown parent node");
         parent.children.remove(&node.key[0]);
         self.decref(parent_id)
             .expect("Failed to decrease parent refcount");
-        self.nodes.remove(node_id);
         node
     }
 
@@ -549,34 +593,56 @@ impl TrieNode {
     }
 }
 
-/// Helper trait to get the length of the shared prefix of two sequences.
-trait SharedPrefixLen {
-    fn shared_prefix_len(&self, other: &Self) -> usize;
-}
-
-impl<T> SharedPrefixLen for [T]
-where
-    T: PartialEq,
-{
-    fn shared_prefix_len(&self, other: &Self) -> usize {
-        self.iter().zip(other).take_while(|(a, b)| a == b).count()
-    }
+fn shared_prefix(left: &[u32], right: &[u32], block_size: usize) -> usize {
+    let full = left.iter().zip(right).take_while(|(a, b)| a == b).count();
+    // NOTE: this is the case because the child node was chosen based on
+    //       matching the first character of the key/prefix.
+    assert!(full > 0, "Prefixes must at least share 1 token");
+    (full / block_size) * block_size
 }
 
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
-    use crate::block_allocator::Allocator;
+    use super::*;
 
-    use super::RadixAllocator;
+    #[test]
+    fn allocator_block_size() {
+        let mut cache = RadixAllocator::new(2, 12, None);
+        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
+        assert_eq!(allocation.blocks, vec![8, 9, 10, 11]);
+        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 20, 21, 22, 23]);
+        assert_eq!(allocation.prefix_len, 0);
+        cache.free(allocation.blocks.clone(), allocation.allocation_id);
+
+        let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
+        assert_eq!(allocation.blocks, vec![8, 9, 10, 11]);
+        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 20, 21, 22, 23]);
+        assert_eq!(allocation.prefix_len, 4);
+    }
+
+    #[test]
+    fn allocator_block_size_non_aligned() {
+        let mut cache = RadixAllocator::new(2, 12, None);
+        let allocation = cache.allocate(7, Some(Arc::new(vec![0, 1, 2]))).unwrap();
+        assert_eq!(allocation.blocks, vec![8, 9, 10, 11]);
+        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 20, 21, 22]);
+        assert_eq!(allocation.prefix_len, 0);
+        cache.free(allocation.blocks.clone(), allocation.allocation_id);
+
+        let allocation = cache.allocate(7, Some(Arc::new(vec![0, 1, 2]))).unwrap();
+        assert_eq!(allocation.blocks, vec![8, 9, 10, 11]);
+        assert_eq!(allocation.slots, vec![16, 17, 18, 19, 20, 21, 22]);
+        assert_eq!(allocation.prefix_len, 2);
+    }
 
     #[test]
     fn allocator_reuses_prefixes() {
         let mut cache = RadixAllocator::new(1, 12, None);
         let allocation = cache.allocate(8, Some(Arc::new(vec![0, 1, 2, 3]))).unwrap();
         assert_eq!(allocation.blocks, vec![4, 5, 6, 7, 8, 9, 10, 11]);
-        assert_eq!(allocation.slots, allocation.slots);
+        assert_eq!(allocation.blocks, allocation.slots);
         assert_eq!(allocation.prefix_len, 0);
         cache.free(allocation.blocks.clone(), allocation.allocation_id);
 
@@ -665,7 +731,7 @@ mod tests {
 
     #[test]
     fn trie_insertions_have_correct_prefix_len() {
-        let mut trie = super::RadixTrie::new();
+        let mut trie = RadixTrie::new(1);
 
         assert_eq!(trie.insert(&[0, 1, 2], &[0, 1, 2]).unwrap(), 0);
 
@@ -687,8 +753,32 @@ mod tests {
     }
 
     #[test]
+    fn trie_insertions_block_size() {
+        let mut trie = RadixTrie::new(2);
+
+        assert_eq!(trie.insert(&[0, 1, 2, 3], &[0, 1]).unwrap(), 0);
+
+        // Already exists.
+        // But needs to be block_size aligned
+        assert_eq!(trie.insert(&[0, 1, 2, 3], &[0, 1]).unwrap(), 4);
+
+        // Completely new at root-level
+        assert_eq!(trie.insert(&[1, 2, 3, 4], &[1, 2]).unwrap(), 0);
+
+        // Contains full prefix, but longer.
+        assert_eq!(trie.insert(&[0, 1, 2, 3, 4, 5], &[0, 1, 2]).unwrap(), 4);
+
+        // Shares partial prefix, we need a split.
+        assert_eq!(
+            trie.insert(&[0, 1, 3, 4, 5, 6, 7, 8], &[0, 1, 2, 3])
+                .unwrap(),
+            2
+        );
+    }
+
+    #[test]
     fn trie_get_returns_correct_blocks() {
-        let mut trie = super::RadixTrie::new();
+        let mut trie = RadixTrie::new(1);
         trie.insert(&[0, 1, 2], &[0, 1, 2]).unwrap();
         trie.insert(&[1, 2, 3], &[1, 2, 3]).unwrap();
         trie.insert(&[0, 1, 2, 3, 4], &[0, 1, 2, 3, 4]).unwrap();
@@ -722,7 +812,7 @@ mod tests {
 
     #[test]
     fn trie_evict_removes_correct_blocks() {
-        let mut trie = super::RadixTrie::new();
+        let mut trie = RadixTrie::new(1);
         trie.insert(&[0, 1, 2], &[0, 1, 2]).unwrap();
         trie.insert(&[0, 1, 2, 3, 5, 6, 7], &[0, 1, 2, 3, 5, 6, 7])
             .unwrap();

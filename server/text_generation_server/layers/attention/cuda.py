@@ -76,7 +76,7 @@ def paged_attention(
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
     if ATTENTION == "flashinfer":
-        from text_generation_server.layers.attention.flash_infer import decode_state
+        from text_generation_server.layers.attention.flashinfer import decode_state
 
         return decode_state.get().forward(
             query.contiguous(),
@@ -221,36 +221,37 @@ SUPPORTS_WINDOWING = V2
 if ATTENTION == "flashinfer":
 
     def attention(
-        q,
-        k,
-        v,
-        cu_seqlens,
-        max_s,
+        q: torch.Tensor,
+        key_cache: torch.Tensor,
+        value_cache: torch.Tensor,
+        seqlen: Seqlen,
+        block_tables: torch.Tensor,
         softmax_scale,
         window_size_left=-1,
         causal=True,
         softcap=0.0,
     ):
-        from text_generation_server.layers.attention.flash_infer import prefill_state
+        from text_generation_server.layers.attention.flashinfer import (
+            prefill_with_paged_kv_state,
+        )
 
-        return prefill_state.get().forward(
-            q,
-            k,
-            v,
+        return prefill_with_paged_kv_state.get().forward(
+            q.contiguous(),
             causal=causal,
-            window_left=window_size_left,
+            paged_kv_cache=(key_cache, value_cache),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
+            window_left=window_size_left,
         )
 
 elif V2:
 
     def attention(
         q,
-        k,
-        v,
-        cu_seqlens,
-        max_s,
+        key_cache: torch.Tensor,
+        value_cache: torch.Tensor,
+        seqlen: Seqlen,
+        block_tables: torch.Tensor,
         softmax_scale,
         window_size_left=-1,
         causal=True,
@@ -261,17 +262,17 @@ elif V2:
             raise ValueError("`window_size_left` must be > 0 or -1")
         return flash_attn_2_cuda.varlen_fwd(
             q,
-            k,
-            v,
+            key_cache,
+            value_cache,
             out,
-            cu_seqlens,
-            cu_seqlens,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_k,
             None,
             None,
+            block_tables,
             None,
-            None,
-            max_s,
-            max_s,
+            seqlen.max_q,
+            seqlen.max_k,
             0.0,
             softmax_scale,
             False,
@@ -289,6 +290,8 @@ else:
         q,
         k,
         v,
+        key_cache: torch.Tensor,
+        value_cache: torch.Tensor,
         cu_seqlens,
         max_s,
         softmax_scale,

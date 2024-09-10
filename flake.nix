@@ -8,7 +8,6 @@
     tgi-nix.url = "github:danieldk/tgi-nix";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
-    poetry2nix.url = "github:nix-community/poetry2nix";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
@@ -23,7 +22,6 @@
       flake-utils,
       rust-overlay,
       tgi-nix,
-      poetry2nix,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -33,25 +31,40 @@
           src = ./.;
           additionalCargoNixArgs = [ "--all-features" ];
         };
-        config = {
-          allowUnfree = true;
-          cudaSupport = true;
-        };
         pkgs = import nixpkgs {
-          inherit config system;
+          inherit system;
+          inherit (tgi-nix.lib) config;
           overlays = [
             rust-overlay.overlays.default
-            tgi-nix.overlay
+            tgi-nix.overlays.default
           ];
         };
-        inherit (poetry2nix.lib.mkPoetry2Nix { inherit pkgs; }) mkPoetryEditablePackage;
-        text-generation-server = mkPoetryEditablePackage { editablePackageSources = ./server; };
         crateOverrides = import ./nix/crate-overrides.nix { inherit pkgs nix-filter; };
+        benchmark = cargoNix.workspaceMembers.text-generation-benchmark.build.override {
+          inherit crateOverrides;
+        };
+        launcher = cargoNix.workspaceMembers.text-generation-launcher.build.override {
+          inherit crateOverrides;
+        };
+        router = cargoNix.workspaceMembers.text-generation-router-v3.build.override {
+          inherit crateOverrides;
+        };
+        server = pkgs.python3.pkgs.callPackage ./nix/server.nix { inherit nix-filter; };
       in
       {
-        devShells.default =
-          with pkgs;
-          mkShell {
+        devShells = with pkgs; rec {
+          default = pure;
+
+          pure = mkShell {
+            buildInputs = [
+              benchmark
+              launcher
+              router
+              server
+            ];
+          };
+
+          impure = mkShell {
             buildInputs =
               [
                 openssl.dev
@@ -62,51 +75,46 @@
                     "rust-src"
                   ];
                 })
+                protobuf
               ]
               ++ (with python3.pkgs; [
                 venvShellHook
+                docker
                 pip
-
-                causal-conv1d
-                click
-                einops
-                exllamav2
-                fbgemm-gpu
-                flashinfer
-                flash-attn
-                flash-attn-layer-norm
-                flash-attn-rotary
-                grpc-interceptor
-                grpcio-reflection
-                grpcio-status
-                grpcio-tools
-                hf-transfer
-                loguru
-                mamba-ssm
-                marlin-kernels
-                opentelemetry-api
-                opentelemetry-exporter-otlp
-                opentelemetry-instrumentation-grpc
-                opentelemetry-semantic-conventions
-                peft
-                tokenizers
-                torch
-                transformers
-                vllm
-
-                (cargoNix.workspaceMembers.text-generation-launcher.build.override { inherit crateOverrides; })
-                (cargoNix.workspaceMembers.text-generation-router-v3.build.override { inherit crateOverrides; })
+                ipdb
+                pyright
+                pytest
+                pytest-asyncio
+                ruff
+                syrupy
               ]);
+
+            inputsFrom = [ server ];
 
             venvDir = "./.venv";
 
-            postVenv = ''
+            postVenvCreation = ''
               unset SOURCE_DATE_EPOCH
+              ( cd server ; python -m pip install --no-dependencies -e . )
+              ( cd clients/python ; python -m pip install --no-dependencies -e . )
             '';
             postShellHook = ''
               unset SOURCE_DATE_EPOCH
+              export PATH=$PATH:~/.cargo/bin
             '';
           };
+        };
+
+        packages.default = pkgs.writeShellApplication {
+          name = "text-generation-inference";
+          runtimeInputs = [
+            server
+            router
+          ];
+          text = ''
+            ${launcher}/bin/text-generation-launcher "$@"
+          '';
+        };
       }
     );
 }

@@ -12,7 +12,24 @@ volume=$PWD/data # share a volume with the Docker container to avoid downloading
 docker run --rm --privileged --cap-add=sys_nice \
     --device=/dev/dri \
     --ipc=host --shm-size 1g --net host -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:2.2.0-intel \
+    ghcr.io/huggingface/text-generation-inference:2.2.0-intel-xpu \
+    --model-id $model --cuda-graphs 0
+```
+
+# Using TGI with Intel CPUs
+
+Intel® Extension for PyTorch (IPEX) also provides further optimizations for Intel CPUs. The IPEX provides optimization operations such as flash attention, page attention, Add + LayerNorm, ROPE and more.
+
+On a server powered by Intel CPU, TGI can be launched with the following command:
+
+```bash
+model=teknium/OpenHermes-2.5-Mistral-7B
+volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
+
+docker run --rm --privileged --cap-add=sys_nice \
+    --device=/dev/dri \
+    --ipc=host --shm-size 1g --net host -v $volume:/data \
+    ghcr.io/huggingface/text-generation-inference:2.2.0-intel-cpu \
     --model-id $model --cuda-graphs 0
 ```
 
