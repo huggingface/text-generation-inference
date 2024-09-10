@@ -181,15 +181,6 @@ jobs:
       - name: Install
         run: |
           make install-integration-tests
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-      - name: Tailscale
-        uses: huggingface/tailscale-action@main
-        with:
-          authkey: ${{ secrets.TAILSCALE_SSH_AUTHKEY }}
-          debugEnabled: "1"
-          debug: "1"
-          waitForSSH: true
       - name: Run tests
         run: |
           export DOCKER_VOLUME=/mnt/cache
@@ -198,8 +189,3 @@ jobs:
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
           pytest -s -vv integration-tests ${PYTEST_FLAGS}
-      - name: Wait for SSH
-        if: ${{ always() }}
-        run : |
-          sleep 5m
-          while [ "$(last | grep '^runner.*still logged in$')" ]; do sleep 1m; done
