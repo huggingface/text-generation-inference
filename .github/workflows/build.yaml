@@ -186,6 +186,7 @@ jobs:
         with:
           authkey: ${{ secrets.TAILSCALE_SSH_AUTHKEY }}
           debugEnabled: "1"
+          debug: "1"
       - name: Run tests
         run: |
           export DOCKER_VOLUME=/mnt/cache
