@@ -1520,6 +1520,9 @@ class FlashCausalLM(Model):
             )
             # assert block_tables.shape[0] >= slots.shape[0]
             cuda_graph["block_tables"][: block_tables.shape[0]] = block_tables
+
+        # XXX: This is working only because block 0 is reserved for the healthcheck
+        # so it doesn't matter if we override it with bogus values.
         cuda_graph["slots"].fill_(0)
         cuda_graph["slots"][: slots.shape[0]] = slots
         cuda_graph["input_lengths"].zero_()
