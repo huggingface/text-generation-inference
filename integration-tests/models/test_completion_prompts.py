@@ -11,7 +11,7 @@ from text_generation.types import (
 @pytest.fixture(scope="module")
 def flash_llama_completion_handle(launcher):
     with launcher(
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+        "meta-llama/Meta-Llama-3.1-8B-Instruct",
     ) as handle:
         yield handle
 
@@ -35,15 +35,18 @@ def test_flash_llama_completion_single_prompt(
         json={
             "model": "tgi",
             "prompt": "What is Deep Learning?",
-            "max_tokens": 5,
-            "seed": 0,
+            "max_tokens": 10,
+            "temperature": 0.0,
         },
         headers=flash_llama_completion.headers,
         stream=False,
     )
     response = response.json()
     assert len(response["choices"]) == 1
-    assert response["choices"][0]["text"] == "\n2.2 How"
+    assert (
+        response["choices"][0]["text"]
+        == " A Beginner’s Guide\nDeep learning is a subset"
+    )
     assert response == response_snapshot
 
 
@@ -53,9 +56,15 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
         f"{flash_llama_completion.base_url}/v1/completions",
         json={
             "model": "tgi",
-            "prompt": ["Say", "this", "is", "a"],
+            "prompt": [
+                "What is Deep Learning?",
+                "Is water wet?",
+                "What is the capital of France?",
+                "def mai",
+            ],
             "max_tokens": 10,
             "seed": 0,
+            "temperature": 0.0,
         },
         headers=flash_llama_completion.headers,
         stream=False,
@@ -63,9 +72,16 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
     response = response.json()
     assert len(response["choices"]) == 4
 
-    all_indexes = [choice["index"] for choice in response["choices"]]
+    all_indexes = [(choice["index"], choice["text"]) for choice in response["choices"]]
     all_indexes.sort()
-    assert all_indexes == [0, 1, 2, 3]
+    all_indices, all_strings = zip(*all_indexes)
+    assert list(all_indices) == [0, 1, 2, 3]
+    assert list(all_strings) == [
+        " A Beginner’s Guide\nDeep learning is a subset",
+        " This is a question that has puzzled many people for",
+        " Paris\nWhat is the capital of France?\nThe",
+        'usculas_minusculas(s):\n    """\n',
+    ]
 
     assert response == response_snapshot
 
@@ -84,6 +100,7 @@ async def test_flash_llama_completion_many_prompts_stream(
         ],
         "max_tokens": 10,
         "seed": 0,
+        "temperature": 0.0,
         "stream": True,
     }
 
@@ -114,5 +131,10 @@ async def test_flash_llama_completion_many_prompts_stream(
                     strings[index] += c["choices"][0]["text"]
 
     assert response.status == 200
-    # assert strings == ["What Business: And Stock Mohs`('\\", '\nrig Business Process And Stock ,s, And', '\n\n202 Stock Mohs a Service', 'hd\n20207\nR1']
+    assert list(strings) == [
+        " A Beginner’s Guide\nDeep learning is a subset",
+        " This is a question that has puzzled many people for",
+        " Paris\nWhat is the capital of France?\nThe",
+        'usculas_minusculas(s):\n    """\n',
+    ]
     assert chunks == response_snapshot
