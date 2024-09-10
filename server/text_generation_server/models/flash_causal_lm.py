@@ -272,6 +272,8 @@ class FlashCausalLMBatch(Batch):
                 assert prefix_len > 0
                 prefix_len -= 1
 
+            # Commented as it's costly.
+            # log_master(logger.debug, "Tokenized input ids {tokenized_input}")
             prefix_ids.append(tokenized_input[:prefix_len])
             tokenized_input = tokenized_input[prefix_len:]
 

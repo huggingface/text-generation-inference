@@ -357,6 +357,7 @@ impl State {
             let block_allocation = if let (Some((tokens, input_ids)), Some(block_allocator)) =
                 (block_allocation, &self.block_allocator)
             {
+                tracing::debug!("Allocating {tokens} with {input_ids:?}");
                 match block_allocator.allocate(tokens, input_ids).await {
                     None => {
                         // Entry is over budget
