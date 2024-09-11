@@ -103,6 +103,9 @@ class ResponseComparator(JSONSnapshotExtension):
         def _convert_data(data):
             if isinstance(data, Dict):
                 if "choices" in data:
+                    data["choices"] = list(
+                        sorted(data["choices"], key=lambda x: x["index"])
+                    )
                     choices = data["choices"]
                     if isinstance(choices, List) and len(choices) >= 1:
                         if "delta" in choices[0]:

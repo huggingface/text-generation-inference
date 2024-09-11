@@ -2,6 +2,12 @@
   "choices": [
     {
       "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "text": " A Beginner’s Guide\nDeep learning is a subset"
+    },
+    {
+      "finish_reason": "length",
       "index": 1,
       "logprobs": null,
       "text": " This is a question that has puzzled many people for"
@@ -11,12 +17,6 @@
       "index": 3,
       "logprobs": null,
       "text": "usculas_minusculas(s):\n    \"\"\"\n"
-    },
-    {
-      "finish_reason": "length",
-      "index": 0,
-      "logprobs": null,
-      "text": " A Beginner’s Guide\nDeep learning is a subset"
     },
     {
       "finish_reason": "length",

@@ -181,8 +181,6 @@ jobs:
       - name: Install
         run: |
           make install-integration-tests
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
       - name: Run tests
         run: |
           export DOCKER_VOLUME=/mnt/cache
