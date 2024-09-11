@@ -25,7 +25,7 @@ homepage = "https://github.com/huggingface/text-generation-inference"
 
 [workspace.dependencies]
 base64 = "0.22.0"
-tokenizers = { version = "0.19.1", features = ["http"] }
+tokenizers = { version = "0.20.0", features = ["http"] }
 hf-hub = { version = "0.3.1", features = ["tokio"] }
 metrics = { version = "0.23.0" }
 metrics-exporter-prometheus = { version = "0.15.1", features = [] }
