@@ -29,7 +29,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v1
         with:
-          python-version: 3.9
+          python-version: 3.11
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -81,6 +81,8 @@ jobs:
           pre-commit run --all-files
       - name: Run Rust tests
         run: |
+          export LD_LIBRARY_PATH=${{ pythonLocation }}/lib/
+          echo $LD_LIBRARY_PATH
           cargo test
       - name: sccache stats
         run: |
