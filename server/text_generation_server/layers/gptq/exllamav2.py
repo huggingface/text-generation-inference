@@ -12,7 +12,10 @@ from text_generation_server.layers.gptq import GPTQWeight
 from text_generation_server.utils.log import log_master
 
 try:
-    from exllamav2_kernels import make_q_matrix, gemm_half_q_half
+    from exllamav2.ext import exllamav2_ext
+
+    make_q_matrix = exllamav2_ext.make_q_matrix
+    gemm_half_q_half = exllamav2_ext.gemm_half_q_half
 except ImportError:
     log_master(logger.warning, "exllamav2_kernels not installed.")
     raise
@@ -70,6 +73,10 @@ def ext_make_q_matrix(
     """
     Create Q matrix
     """
+    # max_dq_size = 512*(1024**2)
+    # max_dq_rows = max_dq_size // out_features[0]
+    max_dq_rows = 0
+
     # EXL2
     if isinstance(w, Exl2Weight):
         extra.q_group_map = make_group_map(w.q_groups, w.q_weight.shape[0])
@@ -83,10 +90,12 @@ def ext_make_q_matrix(
             w.q_scale_max,
             w.q_groups,
             extra.q_group_map,
-            none_tensor,
-            none_tensor,
-            none_tensor,
+            none_tensor,  # zeros
+            none_tensor,  # scales
+            none_tensor,  # g_idx
+            none_tensor,  # bias
             temp_dq,
+            max_dq_rows,
         )
     # GPTQ
     elif isinstance(w, GPTQWeight):
@@ -106,29 +115,33 @@ def ext_make_q_matrix(
                 w.qweight,
                 extra.q_perm,
                 extra.q_invperm,
-                none_tensor,
-                none_tensor,
-                none_tensor,
-                none_tensor,
+                none_tensor,  # q_scale
+                none_tensor,  # q_scale_max
+                none_tensor,  # q_groups
+                none_tensor,  # q_group_map
                 w.qzeros,
                 w.scales,
                 w.g_idx.cpu(),
+                none_tensor,  # bias
                 temp_dq,
+                max_dq_rows,
             )
         # GPTQ without g_idx
         else:
             return make_q_matrix(
                 w.qweight,
-                none_tensor,
-                none_tensor,
-                none_tensor,
-                none_tensor,
-                none_tensor,
-                none_tensor,
+                none_tensor,  # q_perm
+                none_tensor,  # q_invperm
+                none_tensor,  # q_scale
+                none_tensor,  # q_scale_max
+                none_tensor,  # q_groups
+                none_tensor,  # q_group_map
                 w.qzeros,
                 w.scales,
-                none_tensor,
+                none_tensor,  # g_idx
+                none_tensor,  # bias
                 temp_dq,
+                max_dq_rows,
             )
     else:
         RuntimeError("Cannot create handle")

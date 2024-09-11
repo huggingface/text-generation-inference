@@ -9,6 +9,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     reshape_and_cache,
+    Seqlen,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -20,6 +21,7 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 def load_attention(config, prefix, weights):
@@ -104,7 +106,7 @@ class Qwen2Attention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
         prefill_cache_indices,
     ):
@@ -135,10 +137,10 @@ class Qwen2Attention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if SYSTEM != "ipex" else kv_to_cache[:, 0],
+                kv_cache[1] if SYSTEM != "ipex" else kv_to_cache[:, 1],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
                 window_size_left=self.max_past,
             )
@@ -151,7 +153,7 @@ class Qwen2Attention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
                 self.num_key_value_heads,
             )
@@ -224,7 +226,7 @@ class Qwen2Layer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
         prefill_cache_indices,
     ):
@@ -239,7 +241,7 @@ class Qwen2Layer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             prefill_cache_indices,
         )
@@ -295,7 +297,7 @@ class Qwen2Model(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
@@ -319,7 +321,7 @@ class Qwen2Model(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
                 prefill_cache_indices,
             )
@@ -360,7 +362,7 @@ class Qwen2ForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -373,7 +375,7 @@ class Qwen2ForCausalLM(torch.nn.Module):
         elif self.max_past is not None:
             # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
             # kernel requires the true values
-            input_lengths = input_lengths.clamp(max=self.max_past_tensor)
+            seqlen = seqlen.clamp(max=self.max_past_tensor)
 
         hidden_states = self.model(
             input_ids,
@@ -382,7 +384,7 @@ class Qwen2ForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             true_max_s,
             prefill_cache_indices,

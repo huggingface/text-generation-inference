@@ -1,7 +1,8 @@
 import os
+from typing import Optional
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.models.globals import FLASH_DECODING
+from text_generation_server.models.globals import ATTENTION
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils.log import log_master
 from loguru import logger
@@ -34,7 +35,7 @@ def reshape_and_cache(
     value_cache: torch.Tensor,
     slots: torch.Tensor,
 ):
-    if FLASH_DECODING:
+    if ATTENTION == "flashdecoding":
         shape = key_cache.shape
         key_cache.view(-1, shape[-2], shape[-1])[slots] = key
         value_cache.view(-1, shape[-2], shape[-1])[slots] = value
@@ -52,6 +53,7 @@ def paged_attention(
     input_lengths: Seqlen,
     max_s: int,
     num_kv_heads: int,
+    softcap: Optional[float] = None,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights

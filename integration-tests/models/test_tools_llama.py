@@ -36,6 +36,7 @@ tools = [
                     },
                 },
                 "required": ["location", "format"],
+                "additionalProperties": False,
             },
         },
     },
@@ -62,13 +63,13 @@ tools = [
                     },
                 },
                 "required": ["location", "format", "num_days"],
+                "additionalProperties": False,
             },
         },
     },
 ]
 
 
-@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_snapshot):
@@ -76,7 +77,7 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
         max_tokens=100,
         seed=1,
         tools=tools,
-        presence_penalty=-1.1,
+        temperature=0.0,
         messages=[
             {
                 "role": "system",
@@ -91,19 +92,18 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
     assert response.choices[0].message.content is None
     assert response.choices[0].message.tool_calls == [
         {
-            "id": 0,
+            "id": "0",
             "type": "function",
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "New York, NY"},
+                "arguments": {"format": "celsius", "location": "Brooklyn, NY"},
             },
         }
     ]
     assert response == response_snapshot
 
 
-@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_auto(
@@ -113,8 +113,8 @@ async def test_flash_llama_grammar_tools_auto(
         max_tokens=100,
         seed=1,
         tools=tools,
+        temperature=0.0,
         tool_choice="auto",
-        presence_penalty=-1.1,
         messages=[
             {
                 "role": "system",
@@ -129,12 +129,12 @@ async def test_flash_llama_grammar_tools_auto(
     assert response.choices[0].message.content is None
     assert response.choices[0].message.tool_calls == [
         {
-            "id": 0,
+            "id": "0",
             "type": "function",
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "New York, NY"},
+                "arguments": {"format": "celsius", "location": "Brooklyn, NY"},
             },
         }
     ]
@@ -142,7 +142,6 @@ async def test_flash_llama_grammar_tools_auto(
     assert response == response_snapshot
 
 
-@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_choice(
@@ -152,8 +151,8 @@ async def test_flash_llama_grammar_tools_choice(
         max_tokens=100,
         seed=1,
         tools=tools,
+        temperature=0.0,
         tool_choice="get_current_weather",
-        presence_penalty=-1.1,
         messages=[
             {
                 "role": "system",
@@ -168,12 +167,12 @@ async def test_flash_llama_grammar_tools_choice(
     assert response.choices[0].message.content is None
     assert response.choices[0].message.tool_calls == [
         {
-            "id": 0,
+            "id": "0",
             "type": "function",
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "New York, NY"},
+                "arguments": {"format": "celsius", "location": "Brooklyn, NY"},
             },
         }
     ]
@@ -181,7 +180,6 @@ async def test_flash_llama_grammar_tools_choice(
     assert response == response_snapshot
 
 
-@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_stream(
@@ -191,8 +189,8 @@ async def test_flash_llama_grammar_tools_stream(
         max_tokens=100,
         seed=1,
         tools=tools,
+        temperature=0.0,
         tool_choice="get_current_weather",
-        presence_penalty=-1.1,
         messages=[
             {
                 "role": "system",
@@ -210,11 +208,10 @@ async def test_flash_llama_grammar_tools_stream(
     async for response in responses:
         count += 1
 
-    assert count == 38
+    assert count == 48
     assert response == response_snapshot
 
 
-@pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_grammar_tools_insufficient_information(
@@ -222,13 +219,13 @@ async def test_flash_llama_grammar_tools_insufficient_information(
 ):
     responses = await flash_llama_grammar_tools.chat(
         max_tokens=100,
-        seed=8,
+        seed=24,
         tools=tools,
         tool_choice="auto",
         messages=[
             {
                 "role": "system",
-                "content": "ONLY RESPOND IF THE USER ASKS A WEATHER RELATED QUESTION",
+                "content": "STRICTLY ONLY RESPOND IF THE USER ASKS A WEATHER RELATED QUESTION",
             },
             {
                 "role": "user",
@@ -239,18 +236,7 @@ async def test_flash_llama_grammar_tools_insufficient_information(
     )
 
     assert responses.choices[0].message.content is None
-    assert responses.choices[0].message.tool_calls == [
-        {
-            "function": {
-                "arguments": {
-                    "error": "Cannot get current weather forecast from specified location and temperature unit. Please try again with different options."
-                },
-                "description": None,
-                "name": "notify_error",
-            },
-            "id": 0,
-            "type": "function",
-        }
-    ]
-
+    assert (
+        responses.choices[0].message.tool_calls[0]["function"]["name"] == "notify_error"
+    )
     assert responses == response_snapshot

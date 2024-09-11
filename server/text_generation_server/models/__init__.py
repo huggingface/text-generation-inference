@@ -132,6 +132,9 @@ try:
     from text_generation_server.models.custom_modeling.flash_gpt2_modeling import (
         FlashGPT2ForCausalLM,
     )
+    from text_generation_server.models.custom_modeling.flash_gptj_modeling import (
+        FlashGPTJForCausalLM,
+    )
     from text_generation_server.models.custom_modeling.idefics2 import (
         Idefics2ForConditionalGeneration,
     )
@@ -177,7 +180,7 @@ class ModelType(enum.Enum):
     LLAMA = {
         "type": "llama",
         "name": "Llama",
-        "url": "https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct",
+        "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
     }
     PHI3 = {
         "type": "phi3",
@@ -197,7 +200,7 @@ class ModelType(enum.Enum):
     GEMMA2 = {
         "type": "gemma2",
         "name": "Gemma2",
-        "url": "https://huggingface.co/google/gemma2-9b",
+        "url": "https://huggingface.co/collections/google/gemma-2-release-667d6600fd5220e7b967f315",
     }
     COHERE = {
         "type": "cohere",
@@ -217,7 +220,7 @@ class ModelType(enum.Enum):
     MISTRAL = {
         "type": "mistral",
         "name": "Mistral",
-        "url": "https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.2",
+        "url": "https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407",
     }
     MIXTRAL = {
         "type": "mixtral",
@@ -293,6 +296,11 @@ class ModelType(enum.Enum):
         "type": "gpt_neox",
         "name": "Gpt Neox",
         "url": "https://huggingface.co/EleutherAI/gpt-neox-20b",
+    }
+    GPTJ = {
+        "type": "gptj",
+        "name": "Gptj",
+        "url": "https://huggingface.co/EleutherAI/gpt-j-6b",
     }
     IDEFICS = {
         "type": "idefics",
@@ -450,6 +458,11 @@ def get_model(
                     revision=mlp_revision,
                     filename=filename,
                 )
+            speculator_dir_path = Path(mlp_speculator_config).parent
+            # if these are downloaded, they get converted to safetensors
+            filenames.extend(
+                [p for p in os.listdir(speculator_dir_path) if p.endswith(extension)]
+            )
             speculator = {
                 "path": Path(mlp_speculator_config).parent,
                 "model_paths": filenames,
@@ -482,13 +495,18 @@ def get_model(
         raise RuntimeError(
             "Sharding is currently not supported with `exl2` quantization"
         )
-    sliding_window = config_dict.get("sliding_window", -1)
 
-    if (
-        (sliding_window is not None and sliding_window != -1)
-        and not SUPPORTS_WINDOWING
-        and max_input_tokens > sliding_window
-    ):
+    sliding_window = (
+        config_dict.get("sliding_window")
+        if config_dict.get("sliding_window") is not None
+        else -1
+    )
+
+    use_sliding_window = sliding_window is not None and sliding_window != -1
+    needs_sliding_window = (
+        max_input_tokens is not None and max_input_tokens > sliding_window
+    )
+    if use_sliding_window and needs_sliding_window and not SUPPORTS_WINDOWING:
         raise ValueError(
             f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
         )
@@ -629,6 +647,41 @@ def get_model(
                 )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded GPT-2"))
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == GPTJ:
+        if FLASH_ATTENTION:
+            try:
+                return FlashCausalLM(
+                    model_id=model_id,
+                    model_class=FlashGPTJForCausalLM,
+                    revision=revision,
+                    quantize=quantize,
+                    speculator=speculator,
+                    dtype=dtype,
+                    trust_remote_code=trust_remote_code,
+                    lora_adapter_ids=lora_adapter_ids,
+                )
+            except RuntimeError as e:
+                # Lots of legacy models with various weight names.
+                log_master(logger.warning, f"Couldn't load flash gptj variant: {e}")
+                return CausalLM.fallback(
+                    model_id,
+                    revision,
+                    quantize=quantize,
+                    speculator=speculator,
+                    dtype=dtype,
+                    trust_remote_code=trust_remote_code,
+                )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded GPT-J"))
         else:
             return CausalLM.fallback(
                 model_id,
@@ -1206,6 +1259,7 @@ def get_model_with_lora_adapters(
                 "gate_proj",
                 "up_proj",
                 "down_proj",
+                "qkv_proj",
             ]
 
             for layer_name in adapter_layers:
@@ -1233,7 +1287,7 @@ def get_model_with_lora_adapters(
 
             if len(unused_weight_names) > 0:
                 logger.warning(
-                    f"{','.join(adapter_parameters.adapter_ids)} unused adapter weights: {unused_weight_names}"
+                    f"{','.join([a.id for a in lora_adapters])} unused adapter weights: {unused_weight_names}"
                 )
 
             if adapter_tokenizer is not None:

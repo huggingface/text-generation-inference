@@ -150,6 +150,14 @@ async fn main() -> Result<(), RouterError> {
         }
     }
 
+    if let Some(max_batch_size) = max_batch_size {
+        if max_batch_size == 0 {
+            return Err(RouterError::ArgumentValidation(
+                "`max_batch_size` must be > 0".to_string(),
+            ));
+        }
+    }
+
     let (backend, _backend_info) = connect_backend(
         max_input_tokens,
         max_total_tokens,

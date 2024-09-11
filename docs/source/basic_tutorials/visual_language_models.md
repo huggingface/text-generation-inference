@@ -84,7 +84,7 @@ print(chat)
 
 ```
 
-or with OpenAi's library:
+or with OpenAI's [client library](https://github.com/openai/openai-python):
 
 ```python
 from openai import OpenAI

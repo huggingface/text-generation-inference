@@ -50,12 +50,12 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         self,
         model: Model,
         cache: Cache,
-        quantize: Optional[str],
         server_urls: List[str],
     ):
         self.cache = cache
         self.model = model
-        self.quantize = quantize
+        # Quantize is resolved during model loading
+        self.quantize = model.quantize
         self.server_urls = server_urls
         # For some reason, inference_mode does not work well with GLOO which we use on CPU
         if model.device.type == "cuda":
@@ -255,7 +255,7 @@ def serve(
             ],
         )
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
-            TextGenerationService(model, Cache(), quantize, server_urls), server
+            TextGenerationService(model, Cache(), server_urls), server
         )
         SERVICE_NAMES = (
             generate_pb2.DESCRIPTOR.services_by_name["TextGenerationService"].full_name,

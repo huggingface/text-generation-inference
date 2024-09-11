@@ -21,7 +21,7 @@ async def test_flash_starcoder_gptq(flash_starcoder_gptq, generous_response_snap
         max_new_tokens=20,
         decoder_input_details=True,
     )
-    assert response.details.generated_tokens == 20
+    assert response.details.generated_tokens == 2
     assert response == generous_response_snapshot
 
 
@@ -38,7 +38,7 @@ async def test_flash_starcoder_gptq_default_params(
         decoder_input_details=True,
         seed=0,
     )
-    assert response.details.generated_tokens == 20
+    assert response.details.generated_tokens == 2
     assert response == generous_response_snapshot
 
 

@@ -12,12 +12,12 @@
         },
         {
           "id": 2323,
-          "logprob": -9.421875,
+          "logprob": -9.5625,
           "text": "Test"
         },
         {
           "id": 1715,
-          "logprob": -10.546875,
+          "logprob": -10.375,
           "text": " request"
         }
       ],
@@ -25,61 +25,61 @@
       "tokens": [
         {
           "id": 369,
-          "logprob": -2.1816406,
+          "logprob": -2.15625,
           "special": false,
           "text": " for"
         },
         {
           "id": 279,
-          "logprob": -2.6992188,
+          "logprob": -2.703125,
           "special": false,
           "text": " the"
         },
         {
           "id": 220,
-          "logprob": -3.6308594,
+          "logprob": -3.640625,
           "special": false,
           "text": " "
         },
         {
           "id": 679,
-          "logprob": -1.7988281,
+          "logprob": -1.703125,
           "special": false,
           "text": "201"
         },
         {
           "id": 24,
-          "logprob": -1.3535156,
+          "logprob": -1.421875,
           "special": false,
           "text": "9"
         },
         {
           "id": 12,
-          "logprob": -2.0058594,
+          "logprob": -2.03125,
           "special": false,
           "text": "-"
         },
         {
           "id": 2366,
-          "logprob": -0.45410156,
+          "logprob": -0.49023438,
           "special": false,
           "text": "202"
         },
         {
           "id": 15,
-          "logprob": -0.037109375,
+          "logprob": -0.041503906,
           "special": false,
           "text": "0"
         },
         {
           "id": 2978,
-          "logprob": -0.8095703,
+          "logprob": -0.87109375,
           "special": false,
           "text": " school"
         },
         {
           "id": 1060,
-          "logprob": -0.013053894,
+          "logprob": -0.012939453,
           "special": false,
           "text": " year"
         }
@@ -101,12 +101,12 @@
         },
         {
           "id": 2323,
-          "logprob": -9.421875,
+          "logprob": -9.5625,
           "text": "Test"
         },
         {
           "id": 1715,
-          "logprob": -10.546875,
+          "logprob": -10.375,
           "text": " request"
         }
       ],
@@ -114,61 +114,61 @@
       "tokens": [
         {
           "id": 369,
-          "logprob": -2.1816406,
+          "logprob": -2.15625,
           "special": false,
           "text": " for"
         },
         {
           "id": 279,
-          "logprob": -2.6992188,
+          "logprob": -2.703125,
           "special": false,
           "text": " the"
         },
         {
           "id": 220,
-          "logprob": -3.6308594,
+          "logprob": -3.640625,
           "special": false,
           "text": " "
         },
         {
           "id": 679,
-          "logprob": -1.7988281,
+          "logprob": -1.703125,
           "special": false,
           "text": "201"
         },
         {
           "id": 24,
-          "logprob": -1.3535156,
+          "logprob": -1.421875,
           "special": false,
           "text": "9"
         },
         {
           "id": 12,
-          "logprob": -2.0058594,
+          "logprob": -2.03125,
           "special": false,
           "text": "-"
         },
         {
           "id": 2366,
-          "logprob": -0.45410156,
+          "logprob": -0.49023438,
           "special": false,
           "text": "202"
         },
         {
           "id": 15,
-          "logprob": -0.037109375,
+          "logprob": -0.041503906,
           "special": false,
           "text": "0"
         },
         {
           "id": 2978,
-          "logprob": -0.8095703,
+          "logprob": -0.87109375,
           "special": false,
           "text": " school"
         },
         {
           "id": 1060,
-          "logprob": -0.013053894,
+          "logprob": -0.012939453,
           "special": false,
           "text": " year"
         }
@@ -190,12 +190,12 @@
         },
         {
           "id": 2323,
-          "logprob": -9.421875,
+          "logprob": -9.5625,
           "text": "Test"
         },
         {
           "id": 1715,
-          "logprob": -10.546875,
+          "logprob": -10.375,
           "text": " request"
         }
       ],
@@ -203,61 +203,61 @@
       "tokens": [
         {
           "id": 369,
-          "logprob": -2.1816406,
+          "logprob": -2.15625,
           "special": false,
           "text": " for"
         },
         {
           "id": 279,
-          "logprob": -2.6992188,
+          "logprob": -2.703125,
           "special": false,
           "text": " the"
         },
         {
           "id": 220,
-          "logprob": -3.6308594,
+          "logprob": -3.640625,
           "special": false,
           "text": " "
         },
         {
           "id": 679,
-          "logprob": -1.7988281,
+          "logprob": -1.703125,
           "special": false,
           "text": "201"
         },
         {
           "id": 24,
-          "logprob": -1.3535156,
+          "logprob": -1.421875,
           "special": false,
           "text": "9"
         },
         {
           "id": 12,
-          "logprob": -2.0058594,
+          "logprob": -2.03125,
           "special": false,
           "text": "-"
         },
         {
           "id": 2366,
-          "logprob": -0.45410156,
+          "logprob": -0.49023438,
           "special": false,
           "text": "202"
         },
         {
           "id": 15,
-          "logprob": -0.037109375,
+          "logprob": -0.041503906,
           "special": false,
           "text": "0"
         },
         {
           "id": 2978,
-          "logprob": -0.8095703,
+          "logprob": -0.87109375,
           "special": false,
           "text": " school"
         },
         {
           "id": 1060,
-          "logprob": -0.013053894,
+          "logprob": -0.012939453,
           "special": false,
           "text": " year"
         }
@@ -279,12 +279,12 @@
         },
         {
           "id": 2323,
-          "logprob": -9.421875,
+          "logprob": -9.5625,
           "text": "Test"
         },
         {
           "id": 1715,
-          "logprob": -10.546875,
+          "logprob": -10.375,
           "text": " request"
         }
       ],
@@ -292,61 +292,61 @@
       "tokens": [
         {
           "id": 369,
-          "logprob": -2.1816406,
+          "logprob": -2.15625,
           "special": false,
           "text": " for"
         },
         {
           "id": 279,
-          "logprob": -2.6992188,
+          "logprob": -2.703125,
           "special": false,
           "text": " the"
         },
         {
           "id": 220,
-          "logprob": -3.6308594,
+          "logprob": -3.640625,
           "special": false,
           "text": " "
         },
         {
           "id": 679,
-          "logprob": -1.7988281,
+          "logprob": -1.703125,
           "special": false,
           "text": "201"
         },
         {
           "id": 24,
-          "logprob": -1.3535156,
+          "logprob": -1.421875,
           "special": false,
           "text": "9"
         },
         {
           "id": 12,
-          "logprob": -2.0058594,
+          "logprob": -2.03125,
           "special": false,
           "text": "-"
         },
         {
           "id": 2366,
-          "logprob": -0.45410156,
+          "logprob": -0.49023438,
           "special": false,
           "text": "202"
         },
         {
           "id": 15,
-          "logprob": -0.037109375,
+          "logprob": -0.041503906,
           "special": false,
           "text": "0"
         },
         {
           "id": 2978,
-          "logprob": -0.8095703,
+          "logprob": -0.87109375,
           "special": false,
           "text": " school"
         },
         {
           "id": 1060,
-          "logprob": -0.013053894,
+          "logprob": -0.012939453,
           "special": false,
           "text": " year"
         }

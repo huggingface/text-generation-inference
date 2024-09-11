@@ -8,6 +8,7 @@ use crate::kserve::{
     kserve_model_metadata, kserve_model_metadata_ready,
 };
 use crate::validation::ValidationError;
+use crate::{default_tool_prompt, ChatTokenizeResponse, VertexInstance};
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -23,6 +24,7 @@ use crate::{
     VertexResponse,
 };
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
+use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -113,6 +115,133 @@ responses((status = 200, description = "Served model info", body = Info))
 #[instrument]
 async fn get_model_info(info: Extension<Info>) -> Json<Info> {
     Json(info.0)
+}
+
+#[utoipa::path(
+get,
+tag = "Text Generation Inference",
+path = "/v1/models",
+responses(
+(status = 200, description = "Served model info", body = ModelInfo),
+(status = 404, description = "Model not found", body = ErrorResponse),
+)
+)]
+#[instrument(skip(info))]
+/// Get model info
+async fn openai_get_model_info(info: Extension<Info>) -> Json<ModelsInfo> {
+    Json(ModelsInfo {
+        data: vec![ModelInfo {
+            id: info.0.model_id.clone(),
+            object: "model".to_string(),
+            created: 0, // TODO: determine how to get this
+            owned_by: info.0.model_id.clone(),
+        }],
+        ..Default::default()
+    })
+}
+
+#[utoipa::path(
+    post,
+    tag = "Text Generation Inference",
+    path = "/chat_tokenize",
+    request_body = ChatRequest,
+    responses((status = 200, description = "Templated and tokenized ChatRequest", body = ChatTokenizeResponse))
+)]
+async fn get_chat_tokenize(
+    Extension(infer): Extension<Infer>,
+    Json(req): Json<ChatRequest>,
+) -> Result<(HeaderMap, Json<ChatTokenizeResponse>), (StatusCode, Json<ErrorResponse>)> {
+    metrics::counter!("tgi_request_count").increment(1);
+
+    let ChatRequest {
+        model,
+        max_tokens,
+        messages,
+        seed,
+        stop,
+        stream,
+        tools,
+        tool_choice,
+        tool_prompt,
+        temperature,
+        response_format,
+        guideline,
+        ..
+    } = req;
+
+    let tool_prompt = tool_prompt.unwrap_or_default();
+    let (inputs, _grammar, _using_tools) = prepare_chat_input(
+        &infer,
+        response_format,
+        tools,
+        tool_choice,
+        &tool_prompt,
+        guideline,
+        messages,
+    )?;
+
+    let generate_request = GenerateRequest {
+        inputs,
+        add_special_tokens: false,
+        parameters: GenerateParameters {
+            best_of: None,
+            temperature,
+            repetition_penalty: None,
+            frequency_penalty: None,
+            top_k: None,
+            top_p: None,
+            typical_p: None,
+            do_sample: true,
+            max_new_tokens: max_tokens,
+            return_full_text: None,
+            stop: stop.unwrap_or_default(),
+            truncate: None,
+            watermark: false,
+            details: false,
+            decoder_input_details: !stream,
+            seed,
+            top_n_tokens: None,
+            grammar: _grammar,
+            adapter_id: model.as_ref().filter(|m| *m != "tgi").map(String::from),
+        },
+    };
+
+    let input = generate_request.inputs.clone();
+    let encoding = infer.tokenize(generate_request).await?;
+    if let Some(encoding) = encoding {
+        let tokens: Vec<SimpleToken> = encoding
+            .get_ids()
+            .iter()
+            .zip(encoding.get_offsets())
+            .map(|(&id, &(start, stop))| {
+                let text = input
+                    .chars()
+                    .skip(start)
+                    .take(stop - start)
+                    .collect::<String>();
+                SimpleToken {
+                    id,
+                    text,
+                    start,
+                    stop,
+                }
+            })
+            .collect();
+
+        let resp = ChatTokenizeResponse {
+            tokenize_response: TokenizeResponse(tokens),
+            templated_text: input,
+        };
+        Ok((HeaderMap::new(), Json(resp)))
+    } else {
+        Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: "No fast tokenizer or tokenizer.json for this model".to_string(),
+                error_type: "no fast tokenizer".to_string(),
+            }),
+        ))
+    }
 }
 
 #[utoipa::path(
@@ -429,7 +558,7 @@ async fn generate_stream_internal(
         } else {
             match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
-                Ok((_permit, _input_length, response_stream)) => {
+                Ok((_permit, input_length, response_stream)) => {
                     let mut index = 0;
                     let mut response_stream = Box::pin(response_stream);
                     // Server-Sent Event stream
@@ -472,6 +601,7 @@ async fn generate_stream_internal(
                                                 finish_reason: generated_text.finish_reason,
                                                 generated_tokens: generated_text.generated_tokens,
                                                 seed: generated_text.seed,
+                                                input_length,
                                             }),
                                             false => None,
                                         };
@@ -649,6 +779,7 @@ async fn completions(
         .iter()
         .map(|prompt| GenerateRequest {
             inputs: prompt.to_string(),
+            add_special_tokens: true,
             parameters: GenerateParameters {
                 best_of: None,
                 temperature,
@@ -697,21 +828,46 @@ async fn completions(
                         .unwrap_or_else(|_| std::time::Duration::from_secs(0))
                         .as_secs();
 
-                    event
-                        .json_data(Completion::Chunk(Chunk {
-                            id: "".to_string(),
-                            created: current_time,
+                    let message = match stream_token.details {
+                        Some(details) => {
+                            let completion_tokens = details.generated_tokens;
+                            let prompt_tokens = details.input_length;
+                            let total_tokens = prompt_tokens + completion_tokens;
 
+                            Completion::Final(CompletionFinal {
+                                id: String::new(),
+                                created: current_time,
+                                model: model_id.clone(),
+                                system_fingerprint: system_fingerprint.clone(),
+                                choices: vec![CompletionComplete {
+                                    finish_reason: details.finish_reason.to_string(),
+                                    index: index as u32,
+                                    logprobs: None,
+                                    text: stream_token.token.text,
+                                }],
+                                usage: Usage {
+                                    prompt_tokens,
+                                    completion_tokens,
+                                    total_tokens,
+                                },
+                            })
+                        }
+                        None => Completion::Chunk(Chunk {
+                            id: String::new(),
+                            created: current_time,
                             choices: vec![CompletionComplete {
-                                finish_reason: "".to_string(),
+                                finish_reason: String::new(),
                                 index: index as u32,
                                 logprobs: None,
                                 text: stream_token.token.text,
                             }],
-
                             model: model_id.clone(),
                             system_fingerprint: system_fingerprint.clone(),
-                        }))
+                        }),
+                    };
+
+                    event
+                        .json_data(message)
                         .unwrap_or_else(|_e| Event::default())
                 };
 
@@ -919,7 +1075,7 @@ async fn completions(
                 total_tokens += details.prefill.len() as u32 + details.generated_tokens;
 
                 Ok(CompletionComplete {
-                    finish_reason: details.finish_reason.to_string(),
+                    finish_reason: details.finish_reason.format(true),
                     index: index as u32,
                     logprobs: None,
                     text: generation.generated_text,
@@ -1021,80 +1177,36 @@ async fn chat_completions(
         tool_prompt,
         temperature,
         response_format,
+        guideline,
         ..
     } = req;
 
     let repetition_penalty = presence_penalty.map(|x| x + 2.0);
     let max_new_tokens = max_tokens.or(Some(100));
     let logprobs = logprobs.unwrap_or(false);
-    let tool_prompt = tool_prompt.unwrap_or_default();
+    let tool_prompt = tool_prompt
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(default_tool_prompt);
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
     let (do_sample, temperature) = match temperature {
         Some(temperature) if temperature == 0.0 => (false, None),
         other => (true, other),
     };
-
-    // response_format and tools are mutually exclusive
-    if response_format.is_some() && tools.as_ref().is_some() {
-        metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
-        return Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse {
-                error: "Grammar and tools are mutually exclusive".to_string(),
-                error_type: "grammar and tools".to_string(),
-            }),
-        ));
-    }
-
-    // extract tool grammar if present
-    let tool_grammar = match ToolGrammar::apply(tools, tool_choice) {
-        Ok(grammar) => grammar,
-        Err(err) => {
-            metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
-            tracing::error!("{err}");
-            return Err((
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorResponse {
-                    error: err.to_string(),
-                    error_type: err.error_type().to_string(),
-                }),
-            ));
-        }
-    };
-
-    // determine the appropriate arguments for apply_chat_template
-    let tools_grammar_prompt = tool_grammar
-        .as_ref()
-        .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt));
-
-    let (tools_grammar_prompt, grammar) = match response_format {
-        Some(response_format) => (None, Some(response_format)),
-        None => (
-            tools_grammar_prompt.clone(),
-            tools_grammar_prompt.map(|(grammar, _)| grammar.clone()),
-        ),
-    };
-
-    // apply chat template to flatten the request into a single input
-    let inputs = match infer.apply_chat_template(messages, tools_grammar_prompt) {
-        Ok(inputs) => inputs,
-        Err(err) => {
-            metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
-            tracing::error!("{err}");
-            return Err((
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorResponse {
-                    error: err.to_string(),
-                    error_type: err.error_type().to_string(),
-                }),
-            ));
-        }
-    };
+    let (inputs, grammar, using_tools) = prepare_chat_input(
+        &infer,
+        response_format,
+        tools,
+        tool_choice,
+        &tool_prompt,
+        guideline,
+        messages,
+    )?;
 
     // build the request passing some parameters
     let generate_request = GenerateRequest {
         inputs: inputs.to_string(),
+        add_special_tokens: false,
         parameters: GenerateParameters {
             best_of: None,
             temperature,
@@ -1138,7 +1250,7 @@ async fn chat_completions(
             });
 
             // replace the content with the tool calls if grammar is present
-            let (content, tool_calls) = if tool_grammar.is_some() {
+            let (content, tool_calls) = if using_tools {
                 (None, Some(vec![stream_token.token.text]))
             } else {
                 let content = if !stream_token.token.special {
@@ -1159,7 +1271,7 @@ async fn chat_completions(
                         tool_calls,
                         current_time,
                         logprobs,
-                        stream_token.details.map(|d| d.finish_reason.to_string()),
+                        stream_token.details.map(|d| d.finish_reason.format(true)),
                     ),
                 ))
                 .unwrap_or_else(|e| {
@@ -1192,10 +1304,14 @@ async fn chat_completions(
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
 
-        let (tool_calls, output) = if tool_grammar.is_some() {
-            let gen_text_value: Value = serde_json::from_str(&generation.generated_text)
-                .map_err(|e| InferError::ToolError(e.to_string()))?;
-
+        let (tool_calls, output) = if using_tools {
+            let gen_text_value: Value =
+                serde_json::from_str(&generation.generated_text).map_err(|e| {
+                    InferError::ToolError(format!(
+                        "Failed to parse generated text: {} {:?}",
+                        e, generation.generated_text
+                    ))
+                })?;
             let function = gen_text_value.get("function").ok_or(InferError::ToolError(
                 "No function found in generated text".to_string(),
             ))?;
@@ -1290,13 +1406,14 @@ async fn vertex_compatibility(
         ));
     }
 
-    // Process all instances
-    let predictions = req
-        .instances
-        .iter()
-        .map(|instance| {
-            let generate_request = GenerateRequest {
+    // Prepare futures for all instances
+    let mut futures = Vec::with_capacity(req.instances.len());
+
+    for instance in req.instances.iter() {
+        let generate_request = match instance {
+            VertexInstance::Generate(instance) => GenerateRequest {
                 inputs: instance.inputs.clone(),
+                add_special_tokens: true,
                 parameters: GenerateParameters {
                     do_sample: true,
                     max_new_tokens: instance.parameters.as_ref().and_then(|p| p.max_new_tokens),
@@ -1305,31 +1422,117 @@ async fn vertex_compatibility(
                     decoder_input_details: true,
                     ..Default::default()
                 },
-            };
+            },
+            VertexInstance::Chat(instance) => {
+                let ChatRequest {
+                    model,
+                    max_tokens,
+                    messages,
+                    seed,
+                    stop,
+                    stream,
+                    tools,
+                    tool_choice,
+                    tool_prompt,
+                    temperature,
+                    response_format,
+                    guideline,
+                    presence_penalty,
+                    frequency_penalty,
+                    top_p,
+                    top_logprobs,
+                    ..
+                } = instance.clone();
 
-            async {
-                generate_internal(
-                    Extension(infer.clone()),
-                    compute_type.clone(),
-                    Json(generate_request),
-                    span.clone(),
-                )
-                .await
-                .map(|(_, Json(generation))| generation.generated_text)
-                .map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse {
-                            error: "Incomplete generation".into(),
-                            error_type: "Incomplete generation".into(),
-                        }),
-                    )
-                })
+                let repetition_penalty = presence_penalty.map(|x| x + 2.0);
+                let max_new_tokens = max_tokens.or(Some(100));
+                let tool_prompt = tool_prompt
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(default_tool_prompt);
+                let stop = stop.unwrap_or_default();
+                // enable greedy only when temperature is 0
+                let (do_sample, temperature) = match temperature {
+                    Some(temperature) if temperature == 0.0 => (false, None),
+                    other => (true, other),
+                };
+                let (inputs, grammar, _using_tools) = match prepare_chat_input(
+                    &infer,
+                    response_format,
+                    tools,
+                    tool_choice,
+                    &tool_prompt,
+                    guideline,
+                    messages,
+                ) {
+                    Ok(result) => result,
+                    Err(e) => {
+                        return Err((
+                            StatusCode::BAD_REQUEST,
+                            Json(ErrorResponse {
+                                error: format!("Failed to prepare chat input: {}", e),
+                                error_type: "Input preparation error".to_string(),
+                            }),
+                        ));
+                    }
+                };
+
+                GenerateRequest {
+                    inputs: inputs.to_string(),
+                    add_special_tokens: false,
+                    parameters: GenerateParameters {
+                        best_of: None,
+                        temperature,
+                        repetition_penalty,
+                        frequency_penalty,
+                        top_k: None,
+                        top_p,
+                        typical_p: None,
+                        do_sample,
+                        max_new_tokens,
+                        return_full_text: None,
+                        stop,
+                        truncate: None,
+                        watermark: false,
+                        details: true,
+                        decoder_input_details: !stream,
+                        seed,
+                        top_n_tokens: top_logprobs,
+                        grammar,
+                        adapter_id: model.filter(|m| *m != "tgi").map(String::from),
+                    },
+                }
             }
-        })
-        .collect::<FuturesUnordered<_>>()
-        .try_collect::<Vec<_>>()
-        .await?;
+        };
+
+        let infer_clone = infer.clone();
+        let compute_type_clone = compute_type.clone();
+        let span_clone = span.clone();
+
+        futures.push(async move {
+            generate_internal(
+                Extension(infer_clone),
+                compute_type_clone,
+                Json(generate_request),
+                span_clone,
+            )
+            .await
+            .map(|(_, Json(generation))| generation.generated_text)
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "Incomplete generation".into(),
+                        error_type: "Incomplete generation".into(),
+                    }),
+                )
+            })
+        });
+    }
+
+    // execute all futures in parallel, collect results, returning early if any error occurs
+    let results = futures::future::join_all(futures).await;
+    let predictions: Result<Vec<_>, _> = results.into_iter().collect();
+    let predictions = predictions?;
 
     let response = VertexResponse { predictions };
     Ok((HeaderMap::new(), Json(response)).into_response())
@@ -1360,8 +1563,11 @@ async fn tokenize(
             .iter()
             .zip(encoding.get_offsets())
             .map(|(&id, &(start, stop))| {
-                let text: String =
-                    String::from_utf8_lossy(&input.as_bytes()[start..stop]).to_string();
+                let text = input
+                    .chars()
+                    .skip(start)
+                    .take(stop - start)
+                    .collect::<String>();
                 SimpleToken {
                     id,
                     text,
@@ -1409,6 +1615,7 @@ chat_completions,
 completions,
 tokenize,
 metrics,
+openai_get_model_info,
 ),
 components(
 schemas(
@@ -1461,6 +1668,7 @@ ToolCall,
 Function,
 FunctionDefinition,
 ToolChoice,
+ModelInfo,
 )
 ),
 tags(
@@ -1913,6 +2121,120 @@ async fn start(
         .install_recorder()
         .expect("failed to install metrics recorder");
 
+    // Metrics descriptions
+    metrics::describe_counter!("tgi_request_success", "Number of successful requests");
+    metrics::describe_histogram!(
+        "tgi_request_duration",
+        metrics::Unit::Seconds,
+        "Request duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_validation_duration",
+        metrics::Unit::Seconds,
+        "Request validation duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_queue_duration",
+        metrics::Unit::Seconds,
+        "Request queue duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_inference_duration",
+        metrics::Unit::Seconds,
+        "Request inference duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_mean_time_per_token_duration",
+        metrics::Unit::Seconds,
+        "Mean time per token per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_generated_tokens",
+        metrics::Unit::Count,
+        "Generated tokens per request"
+    );
+    metrics::describe_counter!(
+        "tgi_batch_inference_count",
+        metrics::Unit::Count,
+        "Inference calls per method (prefill or decode)"
+    );
+    metrics::describe_counter!(
+        "tgi_request_count",
+        metrics::Unit::Count,
+        "Total number of requests"
+    );
+    metrics::describe_counter!(
+        "tgi_batch_inference_success",
+        metrics::Unit::Count,
+        "Number of successful inference calls per method (prefill or decode)"
+    );
+    metrics::describe_gauge!(
+        "tgi_batch_current_size",
+        metrics::Unit::Count,
+        "Current batch size"
+    );
+    metrics::describe_gauge!("tgi_queue_size", metrics::Unit::Count, "Current queue size");
+    metrics::describe_gauge!(
+        "tgi_batch_current_max_tokens",
+        metrics::Unit::Count,
+        "Maximum tokens for the current batch"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_max_new_tokens",
+        metrics::Unit::Count,
+        "Maximum new tokens per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_inference_duration",
+        metrics::Unit::Seconds,
+        "Batch inference duration"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_forward_duration",
+        metrics::Unit::Seconds,
+        "Batch forward duration per method (prefill or decode)"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_skipped_tokens",
+        metrics::Unit::Count,
+        "Speculated tokens per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_filter_duration",
+        metrics::Unit::Seconds,
+        "Time spent filtering batches and sending generated tokens per method (prefill or decode)"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_queue_duration",
+        metrics::Unit::Seconds,
+        "Time spent in the queue per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_validation_duration",
+        metrics::Unit::Seconds,
+        "Time spent validating the request"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_duration",
+        metrics::Unit::Seconds,
+        "Total time spent processing the request"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_decode_duration",
+        metrics::Unit::Seconds,
+        "Time spent decoding a batch per method (prefill or decode)"
+    );
+    metrics::describe_histogram!(
+        "tgi_request_input_length",
+        metrics::Unit::Count,
+        "Input token length per request"
+    );
+    metrics::describe_histogram!(
+        "tgi_batch_next_size",
+        metrics::Unit::Count,
+        "Batch size of the next batch"
+    );
+
     // CORS layer
     let allow_origin = allow_origin.unwrap_or(AllowOrigin::any());
     let cors_layer = CorsLayer::new()
@@ -2036,10 +2358,12 @@ async fn start(
     }
     let info_routes = Router::new()
         .route("/", get(health))
+        .route("/chat_tokenize", post(get_chat_tokenize))
         .route("/info", get(get_model_info))
         .route("/health", get(health))
         .route("/ping", get(health))
-        .route("/metrics", get(metrics));
+        .route("/metrics", get(metrics))
+        .route("/v1/models", get(openai_get_model_info));
 
     // Conditional AWS Sagemaker route
     let aws_sagemaker_route = if messages_api_enabled {
@@ -2232,6 +2556,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
             InferError::TemplateError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            InferError::MissingTemplateVariable(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::ToolError(_) => StatusCode::UNPROCESSABLE_ENTITY,
         };
 
@@ -2331,4 +2656,158 @@ fn create_post_processor(
         .build()?;
 
     Ok(post_processor)
+}
+
+type PreparedInput = (String, Option<GrammarType>, bool);
+
+fn prepare_chat_input(
+    infer: &Infer,
+    response_format: Option<GrammarType>,
+    tools: Option<Vec<Tool>>,
+    tool_choice: ToolChoice,
+    tool_prompt: &str,
+    guideline: Option<String>,
+    messages: Vec<Message>,
+) -> Result<PreparedInput, InferError> {
+    if response_format.is_some() && tools.is_some() {
+        return Err(InferError::ToolError(
+            "Grammar and tools are mutually exclusive".into(),
+        ));
+    }
+
+    // when response_format is set, tools are not included when applying the chat template to generate inputs
+    if let Some(format) = response_format {
+        let inputs = infer.apply_chat_template(guideline, messages, None)?;
+        return Ok((inputs, Some(format), false));
+    }
+
+    // when no response_format is set and tools are included, apply the chat template with the tools
+    // to generate inputs
+    if let Some(tools) = tools {
+        let (updated_tools, tool_schema) = ToolGrammar::apply(tools, tool_choice)?;
+
+        let grammar = tool_schema
+            .as_ref()
+            .map(|t| GrammarType::Json(serde_json::json!(t)));
+
+        let inputs: String = infer.apply_chat_template(
+            guideline,
+            messages,
+            Some((updated_tools, tool_prompt.into())),
+        )?;
+        return Ok((inputs, grammar, tool_schema.is_some()));
+    }
+
+    // if no response_format or tools are set simply apply the chat template to generate inputs
+    let inputs = infer.apply_chat_template(guideline, messages, None)?;
+    Ok((inputs, None, false))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ChatTemplateVersions;
+    use crate::HubTokenizerConfig;
+    use crate::TokenizerConfigToken;
+    use crate::Tool;
+
+    use serde_json::json;
+
+    #[test]
+    fn test_prepare_chat_input() {
+        // Mock Backend to avoid network requests
+        struct MockBackend;
+
+        impl Backend for MockBackend {
+            fn schedule(
+                &self,
+                _request: crate::validation::ValidGenerateRequest,
+            ) -> Result<
+                tokio_stream::wrappers::UnboundedReceiverStream<
+                    Result<InferStreamResponse, InferError>,
+                >,
+                InferError,
+            > {
+                unimplemented!("Never called in this test");
+            }
+            fn health<'a, 'async_trait>(
+                &'a self,
+                _current_health: bool,
+            ) -> core::pin::Pin<
+                Box<dyn core::future::Future<Output = bool> + core::marker::Send + 'async_trait>,
+            >
+            where
+                'a: 'async_trait,
+                Self: 'async_trait,
+            {
+                unimplemented!("Never called in this test");
+            }
+        }
+
+        let backend = MockBackend {};
+
+        let mut tokenizer_config = HubTokenizerConfig::default();
+
+        // mock tokenizer config values
+        tokenizer_config.bos_token = Some(TokenizerConfigToken::String("<s>".to_string()));
+        tokenizer_config.eos_token = Some(TokenizerConfigToken::String("</s>".to_string()));
+        tokenizer_config.chat_template = Some(
+            ChatTemplateVersions::Single("{%- if messages[0][\"role\"] == \"system\" %}\n    {%- set system_message = messages[0][\"content\"] %}\n    {%- set loop_messages = messages[1:] %}\n{%- else %}\n    {%- set loop_messages = messages %}\n{%- endif %}\n{%- if not tools is defined %}\n    {%- set tools = none %}\n{%- endif %}\n{%- set user_messages = loop_messages | selectattr(\"role\", \"equalto\", \"user\") | list %}\n\n{#- This block checks for alternating user/assistant messages, skipping tool calling messages #}\n{%- set ns = namespace() %}\n{%- set ns.index = 0 %}\n{%- for message in loop_messages %}\n    {%- if not (message.role == \"tool\" or message.role == \"tool_results\" or (message.tool_calls is defined and message.tool_calls is not none)) %}\n        {%- if (message[\"role\"] == \"user\") != (ns.index % 2 == 0) %}\n            {{- raise_exception(\"After the optional system message, conversation roles must alternate user/assistant/user/assistant/...\") }}\n        {%- endif %}\n        {%- set ns.index = ns.index + 1 %}\n    {%- endif %}\n{%- endfor %}\n\n{{- bos_token }}\n{%- for message in loop_messages %}\n    {%- if message[\"role\"] == \"user\" %}\n        {%- if tools is not none and (message == user_messages[-1]) %}\n            {{- \"[AVAILABLE_TOOLS] [\" }}\n            {%- for tool in tools %}\n                {%- set tool = tool.function %}\n                {{- '{\"type\": \"function\", \"function\": {' }}\n                {%- for key, val in tool.items() if key != \"return\" %}\n                    {%- if val is string %}\n                        {{- '\"' + key + '\": \"' + val + '\"' }}\n                    {%- else %}\n                        {{- '\"' + key + '\": ' + val|tojson }}\n                    {%- endif %}\n                    {%- if not loop.last %}\n                        {{- \", \" }}\n                    {%- endif %}\n                {%- endfor %}\n                {{- \"}}\" }}\n                {%- if not loop.last %}\n                    {{- \", \" }}\n                {%- else %}\n                    {{- \"]\" }}\n                {%- endif %}\n            {%- endfor %}\n            {{- \"[/AVAILABLE_TOOLS]\" }}\n            {%- endif %}\n        {%- if loop.last and system_message is defined %}\n            {{- \"[INST] \" + system_message + \"\\n\\n\" + message[\"content\"] + \"[/INST]\" }}\n        {%- else %}\n            {{- \"[INST] \" + message[\"content\"] + \"[/INST]\" }}\n        {%- endif %}\n    {%- elif message.tool_calls is defined and message.tool_calls is not none %}\n        {{- \"[TOOL_CALLS] [\" }}\n        {%- for tool_call in message.tool_calls %}\n            {%- set out = tool_call.function|tojson %}\n            {{- out[:-1] }}\n            {%- if not tool_call.id is defined or tool_call.id|length != 9 %}\n                {{- raise_exception(\"Tool call IDs should be alphanumeric strings with length 9!\") }}\n            {%- endif %}\n            {{- ', \"id\": \"' + tool_call.id + '\"}' }}\n            {%- if not loop.last %}\n                {{- \", \" }}\n            {%- else %}\n                {{- \"]\" + eos_token }}\n            {%- endif %}\n        {%- endfor %}\n    {%- elif message[\"role\"] == \"assistant\" %}\n        {{- \" \" + message[\"content\"]|trim + eos_token}}\n    {%- elif message[\"role\"] == \"tool_results\" or message[\"role\"] == \"tool\" %}\n        {%- if message.content is defined and message.content.content is defined %}\n            {%- set content = message.content.content %}\n        {%- else %}\n            {%- set content = message.content %}\n        {%- endif %}\n        {{- '[TOOL_RESULTS] {\"content\": ' + content|string + \", \" }}\n        {%- if not message.tool_call_id is defined or message.tool_call_id|length != 9 %}\n            {{- raise_exception(\"Tool call IDs should be alphanumeric strings with length 9!\") }}\n        {%- endif %}\n        {{- '\"call_id\": \"' + message.tool_call_id + '\"}[/TOOL_RESULTS]' }}\n    {%- else %}\n        {{- raise_exception(\"Only user and assistant roles are supported, with the exception of an initial optional system message!\") }}\n    {%- endif %}\n{%- endfor %}\n".to_string())
+        );
+
+        let infer = Infer::new(
+            backend,
+            Validation::new(1, None, None, None, 1, 1, 1, 1, 1, false),
+            1,
+            tokenizer_config,
+            HubProcessorConfig::default(),
+        );
+        let response_format = None;
+        let tools = Some(vec![Tool {
+            r#type: "function".to_string(),
+            function: FunctionDefinition {
+                name: "get_current_weather".to_string(),
+                description: Some("Get the current weather".to_string()),
+                arguments: json!({
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA"
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "The temperature unit to use. Infer this from the users location."
+                        }
+                    },
+                    "required": ["location", "format"]
+                }),
+            },
+        }]);
+        let tool_prompt = "Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.";
+        let guideline = None;
+        let messages = vec![Message {
+            name: None,
+            role: "user".to_string(),
+            content: MessageContent::SingleText(
+                "What is the weather like in New York?".to_string(),
+            ),
+        }];
+
+        let result = prepare_chat_input(
+            &infer,
+            response_format,
+            tools,
+            ToolChoice(None),
+            tool_prompt,
+            guideline,
+            messages,
+        );
+
+        assert!(result.is_ok());
+        let (inputs, _grammar, using_tools) = result.unwrap();
+        assert_eq!(using_tools, true);
+        assert_eq!(inputs, "<s>[AVAILABLE_TOOLS] [{\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}, \"description\": \"Get the current weather\", \"name\": \"get_current_weather\"}}, {\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"error\":{\"description\":\"The error or issue to notify\",\"type\":\"string\"}},\"required\":[\"error\"],\"type\":\"object\"}, \"description\": \"Notify an error or issue\", \"name\": \"notify_error\"}}][/AVAILABLE_TOOLS][INST] What is the weather like in New York?\n---\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.[/INST]".to_string());
+    }
 }

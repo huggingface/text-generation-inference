@@ -26,11 +26,12 @@ from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
 from transformers.models.gpt_neox import GPTNeoXConfig as TransformersGPTNeoXConfig
 from typing import Optional, List, Tuple
-
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     reshape_and_cache,
+    Seqlen,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -147,14 +148,22 @@ class FlashNeoxAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
 
+        # Compute rotary embeddings on rotary_ndims
+        query_rot = qkv[:, 0][..., : self.rotary_dim]
+        query_pass = qkv[:, 0][..., self.rotary_dim :]
+        key_rot = qkv[:, 1][..., : self.rotary_dim]
+        key_pass = qkv[:, 1][..., self.rotary_dim :]
+
         # Inplace rotary
-        self.rotary_emb(qkv[:, 0], qkv[:, 1], cos, sin)
+        self.rotary_emb(query_rot, key_rot, cos, sin)
+        qkv[:, 0] = torch.cat((query_rot, query_pass), dim=-1)
+        qkv[:, 1] = torch.cat((key_rot, key_pass), dim=-1)
 
         reshape_and_cache(qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots)
 
@@ -163,10 +172,10 @@ class FlashNeoxAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 qkv[:, 0],
-                qkv[:, 1],
-                qkv[:, 2],
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if SYSTEM != "ipex" else qkv[:, 1],
+                kv_cache[1] if SYSTEM != "ipex" else qkv[:, 2],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
@@ -178,7 +187,7 @@ class FlashNeoxAttention(torch.nn.Module):
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
                 self.num_key_value_heads,
             )
@@ -249,7 +258,7 @@ class FlashNeoXLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         if self.use_parallel_residual:
@@ -263,7 +272,7 @@ class FlashNeoXLayer(nn.Module):
                 kv_cache,
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -287,7 +296,7 @@ class FlashNeoXLayer(nn.Module):
                 kv_cache,
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -341,7 +350,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = self.embed_in(input_ids)
@@ -363,7 +372,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -395,7 +404,7 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -408,7 +417,7 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
         if lm_head_indices is not None:

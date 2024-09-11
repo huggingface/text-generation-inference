@@ -1,6 +1,54 @@
 import pytest
 from unittest.mock import Mock
-from text_generation_server.utils.adapter import get_attn_weights, get_mlp_weights
+from text_generation_server.utils.adapter import (
+    get_attn_weights,
+    get_mlp_weights,
+    parse_lora_adapters,
+    AdapterInfo,
+)
+
+
+def test_parse_lora_adapters_empty():
+    assert parse_lora_adapters(None) == []
+    assert parse_lora_adapters("") == []
+
+
+def test_parse_lora_adapters_single():
+    result = parse_lora_adapters("adapter1")
+    assert result == [AdapterInfo(id="adapter1", path=None, revision=None)]
+
+
+def test_parse_lora_adapters_with_path():
+    result = parse_lora_adapters("adapter1=path/to/adapter1")
+    assert result == [
+        AdapterInfo(id="adapter1", path="path/to/adapter1", revision=None)
+    ]
+
+
+def test_parse_lora_adapters_with_path_and_revision():
+    result = parse_lora_adapters("adapter1=path/to/adapter1@main")
+    assert result == [
+        AdapterInfo(id="adapter1", path="path/to/adapter1", revision="main")
+    ]
+
+
+def test_parse_lora_adapters_multiple():
+    result = parse_lora_adapters(
+        "adapter1,adapter2=path/to/adapter2,adapter3=path/to/adapter3@dev"
+    )
+    assert result == [
+        AdapterInfo(id="adapter1", path=None, revision=None),
+        AdapterInfo(id="adapter2", path="path/to/adapter2", revision=None),
+        AdapterInfo(id="adapter3", path="path/to/adapter3", revision="dev"),
+    ]
+
+
+def test_parse_lora_adapters_invalid_format():
+    try:
+        parse_lora_adapters("adapter1,invalid=format=test,adapter3")
+        assert False, "Should have raised ValueError"
+    except ValueError as e:
+        assert str(e) == "Invalid LoRA adapter format: invalid=format=test"
 
 
 def test_get_attn_weights():
@@ -20,6 +68,10 @@ def test_get_attn_weights():
         ),
         (2, "k_proj"): (
             "model.layers.2.self_attn.k_proj",
+            mock_layer.self_attn.query_key_value,
+        ),
+        (2, "qkv_proj"): (
+            "model.layers.2.self_attn.qkv_proj",
             mock_layer.self_attn.query_key_value,
         ),
         (2, "v_proj"): (
@@ -115,6 +167,10 @@ def test_get_attn_weights_llama_compatibility():
             "model.layers.2.self_attn.k_proj",
             mock_layer.self_attn.query_key_value,
         ),
+        (2, "qkv_proj"): (
+            "model.layers.2.self_attn.qkv_proj",
+            mock_layer.self_attn.query_key_value,
+        ),
         (2, "v_proj"): (
             "model.layers.2.self_attn.v_proj",
             mock_layer.self_attn.query_key_value,
@@ -153,6 +209,10 @@ def test_get_attn_weights_gemma_compatibility():
         ),
         (2, "k_proj"): (
             "model.layers.2.self_attn.k_proj",
+            mock_layer.self_attn.query_key_value,
+        ),
+        (2, "qkv_proj"): (
+            "model.layers.2.self_attn.qkv_proj",
             mock_layer.self_attn.query_key_value,
         ),
         (2, "v_proj"): (

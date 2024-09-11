@@ -3,7 +3,7 @@ mod chat_template;
 pub mod tool_grammar;
 
 use crate::validation::{ValidGenerateRequest, Validation, ValidationError};
-use crate::GrammarType;
+use crate::Tool;
 use crate::{
     ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig, HubTokenizerConfig,
     Message, PrefillToken, Token,
@@ -120,10 +120,11 @@ impl Infer {
     ) -> Result<Option<tokenizers::Encoding>, InferError> {
         // Tokenize request
         let inputs = request.inputs;
+        let add_special_tokens = request.add_special_tokens;
         let truncate = request.parameters.truncate;
         let encoding = self
             .validation
-            .tokenize(inputs, truncate)
+            .tokenize(inputs, add_special_tokens, truncate)
             .await
             .map_err(|err| {
                 tracing::error!("Tokenization {err}");
@@ -138,13 +139,14 @@ impl Infer {
     #[instrument(skip_all)]
     pub(crate) fn apply_chat_template(
         &self,
+        guideline: Option<String>,
         messages: Vec<Message>,
-        grammar_with_prompt: Option<(GrammarType, String)>,
+        tools_and_prompt: Option<(Vec<Tool>, String)>,
     ) -> Result<String, InferError> {
         self.chat_template
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
-            .apply(messages, grammar_with_prompt)
+            .apply(guideline.as_deref(), messages, tools_and_prompt)
             .map_err(|e| {
                 metrics::counter!("tgi_request_failure", "err" => "template").increment(1);
                 tracing::error!("{e}");
@@ -336,6 +338,8 @@ pub enum InferError {
     IncompleteGeneration,
     #[error("Template error: {0}")]
     TemplateError(#[from] minijinja::Error),
+    #[error("Missing template vatiable: {0}")]
+    MissingTemplateVariable(String),
     #[error("Tool error: {0}")]
     ToolError(String),
 }
@@ -348,6 +352,7 @@ impl InferError {
             InferError::ValidationError(_) => "validation",
             InferError::IncompleteGeneration => "incomplete_generation",
             InferError::TemplateError(_) => "template_error",
+            InferError::MissingTemplateVariable(_) => "missing_template_variable",
             InferError::ToolError(_) => "tool_error",
         }
     }

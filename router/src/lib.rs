@@ -15,12 +15,58 @@ use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
 
+#[derive(PartialEq)]
+pub enum Attention {
+    Paged,
+    FlashDecoding,
+    FlashInfer,
+}
+
+impl Attention {
+    pub fn block_size(&self) -> u32 {
+        match self {
+            Attention::FlashDecoding => 256,
+            Attention::FlashInfer => 1,
+            Attention::Paged => 16,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ParseError;
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Cannot parse attention value")
+    }
+}
+impl std::error::Error for ParseError {}
+
+impl std::str::FromStr for Attention {
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "paged" => Ok(Attention::Paged),
+            "flashdecoding" => Ok(Attention::FlashDecoding),
+            "flashinfer" => Ok(Attention::FlashInfer),
+            _ => Err(ParseError),
+        }
+    }
+}
+
 #[derive(Clone, Deserialize, ToSchema)]
-pub(crate) struct VertexInstance {
+pub(crate) struct GenerateVertexInstance {
     #[schema(example = "What is Deep Learning?")]
     pub inputs: String,
     #[schema(nullable = true, default = "null", example = "null")]
     pub parameters: Option<GenerateParameters>,
+}
+
+#[derive(Clone, Deserialize, ToSchema)]
+#[serde(untagged)]
+enum VertexInstance {
+    Generate(GenerateVertexInstance),
+    Chat(ChatRequest),
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -619,7 +665,7 @@ impl ChatCompletion {
                 message,
                 logprobs: return_logprobs
                     .then(|| ChatCompletionLogprobs::from((details.tokens, details.top_tokens))),
-                finish_reason: details.finish_reason.to_string(),
+                finish_reason: details.finish_reason.format(true),
             }],
             usage: Usage {
                 prompt_tokens: details.prefill.len() as u32,
@@ -811,10 +857,10 @@ pub(crate) struct ChatRequest {
     pub tools: Option<Vec<Tool>>,
 
     /// A prompt to be appended before the tools
-    #[serde(default = "default_tool_prompt")]
+    #[serde(default)]
     #[schema(
         nullable = true,
-        example = "\"You will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n\""
+        example = "Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables."
     )]
     pub tool_prompt: Option<String>,
 
@@ -829,12 +875,15 @@ pub(crate) struct ChatRequest {
     #[serde(default)]
     #[schema(nullable = true, default = "null", example = "null")]
     pub response_format: Option<GrammarType>,
+
+    /// A guideline to be used in the chat_template
+    #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
+    pub guideline: Option<String>,
 }
 
-fn default_tool_prompt() -> Option<String> {
-    Some(
-        "\nYou will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n".to_string(),
-    )
+pub fn default_tool_prompt() -> String {
+    "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -876,7 +925,7 @@ impl From<ToolTypeDeserializer> for ToolChoice {
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
-pub struct Tools {
+pub struct JsonSchemaTool {
     #[serde(flatten)]
     functions_map: FunctionsMap,
     properties: Properties,
@@ -934,8 +983,8 @@ pub(crate) struct ChatTemplateInputs<'a> {
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
     add_generation_prompt: bool,
-    tools: Option<&'a str>,
-    tools_prompt: Option<&'a str>,
+    tools: Option<Vec<Tool>>,
+    guideline: Option<&'a str>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug, PartialEq)]
@@ -981,8 +1030,10 @@ impl MessageContent {
     pub fn push(&mut self, chunk: MessageChunk) {
         match self {
             MessageContent::SingleText(text) => {
-                *self =
-                    MessageContent::MultipleChunks(vec![MessageChunk::Text { text: text.clone() }]);
+                *self = MessageContent::MultipleChunks(vec![
+                    MessageChunk::Text { text: text.clone() },
+                    chunk,
+                ]);
             }
             MessageContent::MultipleChunks(chunks) => {
                 chunks.push(chunk);
@@ -1038,6 +1089,16 @@ pub(crate) struct GenerateRequest {
     pub inputs: String,
     #[serde(default = "default_parameters")]
     pub parameters: GenerateParameters,
+
+    /// This is used internally because some requests
+    /// already contain the templated input therefore
+    /// we shouldn't add the special tokens.
+    #[serde(default = "default_true", skip)]
+    pub add_special_tokens: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]
@@ -1055,6 +1116,7 @@ impl From<CompatGenerateRequest> for GenerateRequest {
     fn from(req: CompatGenerateRequest) -> Self {
         Self {
             inputs: req.inputs,
+            add_special_tokens: true,
             parameters: req.parameters,
         }
     }
@@ -1117,6 +1179,15 @@ impl std::fmt::Display for FinishReason {
     }
 }
 
+impl FinishReason {
+    pub fn format(&self, use_stop: bool) -> String {
+        match self {
+            FinishReason::EndOfSequenceToken if use_stop => "stop".to_string(),
+            _ => self.to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, ToSchema)]
 pub(crate) struct BestOfSequence {
     #[schema(example = "test")]
@@ -1158,6 +1229,12 @@ pub(crate) struct GenerateResponse {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(crate) struct ChatTokenizeResponse {
+    pub(crate) tokenize_response: TokenizeResponse,
+    pub(crate) templated_text: String,
+}
+
+#[derive(Serialize, ToSchema)]
 #[serde(transparent)]
 pub(crate) struct TokenizeResponse(Vec<SimpleToken>);
 
@@ -1169,6 +1246,8 @@ pub(crate) struct StreamDetails {
     pub generated_tokens: u32,
     #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
+    #[schema(example = 1)]
+    pub input_length: u32,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -1187,6 +1266,34 @@ pub(crate) struct StreamResponse {
 pub(crate) struct ErrorResponse {
     pub error: String,
     pub error_type: String,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub(crate) struct ModelInfo {
+    #[schema(example = "gpt2")]
+    pub id: String,
+    #[schema(example = "model")]
+    pub object: String,
+    #[schema(example = 1686935002)]
+    pub created: u64,
+    #[schema(example = "openai")]
+    pub owned_by: String,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub(crate) struct ModelsInfo {
+    #[schema(example = "list")]
+    pub object: String,
+    pub data: Vec<ModelInfo>,
+}
+
+impl Default for ModelsInfo {
+    fn default() -> Self {
+        ModelsInfo {
+            object: "list".to_string(),
+            data: Vec::new(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1294,6 +1401,35 @@ mod tests {
                 name: None
             }
         );
+    }
+
+    #[test]
+    fn test_message_content_append() {
+        let mut content = MessageContent::SingleText("Initial text".to_string());
+        let chunk = MessageChunk::Text {
+            text: "Additional text".to_string(),
+        };
+
+        content.push(chunk);
+
+        match content {
+            MessageContent::MultipleChunks(chunks) => {
+                assert_eq!(chunks.len(), 2);
+                assert_eq!(
+                    chunks[0],
+                    MessageChunk::Text {
+                        text: "Initial text".to_string()
+                    }
+                );
+                assert_eq!(
+                    chunks[1],
+                    MessageChunk::Text {
+                        text: "Additional text".to_string()
+                    }
+                );
+            }
+            _ => panic!("Expected MultipleChunks, but got a different variant"),
+        }
     }
 
     #[test]

@@ -6,7 +6,7 @@ use nohash_hasher::IntMap;
 use std::sync::Arc;
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::ValidGenerateRequest;
-use text_generation_router::{FinishReason, PrefillToken, Token};
+use text_generation_router::{Attention, FinishReason, PrefillToken, Token};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify};
 use tokio::time::Instant;
@@ -35,16 +35,20 @@ impl BackendV3 {
         window_size: Option<u32>,
         speculate: u32,
     ) -> Self {
-        let flashdecoding = if let Ok(flashdecoding) = std::env::var("FLASH_DECODING") {
-            matches!(flashdecoding.to_lowercase().as_str(), "1" | "true")
-        } else {
-            false
-        };
-        let block_size = if flashdecoding { 256 } else { 16 };
+        let prefix_caching =
+            std::env::var("USE_PREFIX_CACHING").expect("Expect prefix caching env var");
+        let prefix_caching = matches!(prefix_caching.as_str(), "true" | "1");
+        let attention: String = std::env::var("ATTENTION").expect("attention env var");
+
+        let attention: Attention = attention
+            .parse()
+            .unwrap_or_else(|_| panic!("Invalid attention was specified :`{attention}`"));
+        let block_size = attention.block_size();
 
         let queue = Queue::new(
             requires_padding,
             block_size,
+            prefix_caching,
             window_size,
             speculate,
             max_batch_total_tokens,
@@ -164,11 +168,14 @@ pub(crate) async fn batching_task(
                     None
                 } else {
                     // Minimum batch size
+                    // TODO: temporarily disable to avoid incorrect deallocation +
+                    //       reallocation when using prefix caching.
                     Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
                 };
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
-                let max_size = max_batch_size.map(|max_size| max_size - batch_size as usize);
+                let max_size =
+                    max_batch_size.map(|max_size| max_size.saturating_sub(batch_size as usize));
 
                 // Try to get a new batch
                 if let Some((mut new_entries, new_batch, span)) = queue

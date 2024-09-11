@@ -221,6 +221,7 @@ impl Health for ShardedClient {
                 chunks: vec![Chunk::Text("liveness".into()).into()],
             }),
             truncate: 10,
+            add_special_tokens: true,
             prefill_logprobs: false,
             parameters: Some(NextTokenChooserParameters {
                 temperature: 1.0,
@@ -244,6 +245,7 @@ impl Health for ShardedClient {
             // Block 0 is reserved for health checks
             blocks: vec![0],
             slots: (0..16).collect(),
+            prefix_len: 0,
             adapter_id: None,
         };
         let batch = Batch {
