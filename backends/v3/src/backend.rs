@@ -376,10 +376,9 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
         // Send generation responses back to the infer task
         // If the receive an error from the Flume channel, it means that the client dropped the
         // request and we need to stop generating hence why we unwrap_or(true)
-        let stopped = send_responses(generation, entry).map_err(|err| {
+        let stopped = send_responses(generation, entry).inspect_err(|_err| {
             tracing::error!("Entry response channel error.");
             metrics::counter!("tgi_request_failure", "err" => "dropped").increment(1);
-            err
         }).unwrap_or(true);
         if stopped {
             entries.remove(&id).expect("ID not found in entries. This is a bug.");
