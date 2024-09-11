@@ -71,9 +71,10 @@ jobs:
           #       ~/.cargo/git
       - name: Install
         run: |
-          export LD_LIBRARY_PATH="${{ env.pythonLocation }}/lib/:$LD_LIBRARY_PATH"
+          # export LD_LIBRARY_PATH="${{ env.pythonLocation }}/lib/:$LD_LIBRARY_PATH"
           echo $LD_LIBRARY_PATH
           ls ${{ env.pythonLocation }}/lib/
+          LD_LIBRARY_PATH
           make install-cpu
       - name: Run server tests
         run: |
