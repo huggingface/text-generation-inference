@@ -19,7 +19,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    python3-dev
+    python3.11-dev
 RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
     unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
@@ -49,7 +49,7 @@ FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS pytorch-install
 # NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
 ARG PYTORCH_VERSION=2.4.0
 
-ARG PYTHON_VERSION=3.10
+ARG PYTHON_VERSION=3.11
 # Keep in sync with `server/pyproject.toml
 ARG CUDA_VERSION=12.4
 ARG MAMBA_VERSION=24.3.0-0
