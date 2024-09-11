@@ -99,6 +99,7 @@
                 docker
                 pip
                 ipdb
+                click
                 pyright
                 pytest
                 pytest-asyncio
