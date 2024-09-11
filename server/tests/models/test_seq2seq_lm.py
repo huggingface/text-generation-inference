@@ -281,7 +281,7 @@ def test_batch_concatenate(
     assert next_batch.max_decoder_input_length == 3
 
     assert next_batch.requests[0] == next_batch_0.requests[0]
-    assert next_batch.requests[1:] == next_batch_1.requests
+    assert next_batch.requests[1:] == list(next_batch_1.requests)
 
     assert next_batch.next_token_choosers[0] == next_batch_0.next_token_choosers[0]
     assert next_batch.next_token_choosers[1:] == next_batch_1.next_token_choosers
