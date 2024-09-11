@@ -84,7 +84,7 @@ jobs:
         run: |
           export LD_PRELOAD_PATH=${{ env.pythonLocation }}/lib/
           echo $LD_PRELOAD_PATH
-          ls ${{ env.pythonLocation}/lib/
+          ls ${{ env.pythonLocation }}/lib/
           cargo test
       - name: sccache stats
         run: |
