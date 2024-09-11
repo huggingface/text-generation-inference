@@ -71,7 +71,7 @@ jobs:
           #       ~/.cargo/git
       - name: Install
         run: |
-          export LD_LIBRARY_PATH=${{ env.pythonLocation }}/lib/
+          export LD_LIBRARY_PATH="${{ env.pythonLocation }}/lib/:$LD_LIBRARY_PATH"
           echo $LD_LIBRARY_PATH
           ls ${{ env.pythonLocation }}/lib/
           make install-cpu
@@ -87,7 +87,7 @@ jobs:
           pre-commit run --all-files
       - name: Run Rust tests
         run: |
-          export LD_LIBRARY_PATH=${{ env.pythonLocation }}/lib/
+          export LD_LIBRARY_PATH="${{ env.pythonLocation }}/lib/:$LD_LIBRARY_PATH"
           echo $LD_LIBRARY_PATH
           ls ${{ env.pythonLocation }}/lib/
           cargo test
