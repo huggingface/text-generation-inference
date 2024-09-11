@@ -31,8 +31,6 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         id: python
-        env:
-          AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache
         with:
           python-version: 3.11
       - name: Install Rust
@@ -71,6 +69,8 @@ jobs:
           #     path: |
           #       ~/.cargo/registry
           #       ~/.cargo/git
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
       - name: Install
         run: |
           # export LD_LIBRARY_PATH="${{ env.pythonLocation }}/lib/:$LD_LIBRARY_PATH"
