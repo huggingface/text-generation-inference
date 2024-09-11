@@ -1162,6 +1162,10 @@ class FlashCausalLM(Model):
                     f"PyTorch TunableOp is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
                 )
 
+                torch.cuda.tunable.set_filename(
+                    tunableop_filepath, insert_device_ordinal=False
+                )
+
                 if os.path.isfile(tunableop_filepath):
                     log_master(
                         logger.info,
