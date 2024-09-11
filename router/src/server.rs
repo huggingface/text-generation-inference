@@ -318,7 +318,10 @@ pub(crate) async fn generate_internal(
     metrics::counter!("tgi_request_count").increment(1);
 
     // Do not long ultra long inputs, like image payloads.
-    tracing::debug!("Input: {}", &req.inputs[..1000.min(req.inputs.len())]);
+    tracing::debug!(
+        "Input: {}",
+        &req.inputs.chars().take(1000).collect::<String>()
+    );
 
     let compute_characters = req.inputs.chars().count();
     let mut add_prompt = None;
@@ -674,7 +677,7 @@ async fn generate_stream_internal(
             // Check if generation reached the end
             // Skip if we already sent an error
             if !end_reached && !error {
-                let err = InferError::IncompleteGeneration;
+                let err = InferError::IncompleteGenerationStream;
                 metrics::counter!("tgi_request_failure", "err" => "incomplete").increment(1);
                 tracing::error!("{err}");
                 yield Ok(Event::from(err));
@@ -2555,6 +2558,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::Overloaded(_) => StatusCode::TOO_MANY_REQUESTS,
             InferError::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
+            InferError::IncompleteGenerationStream => StatusCode::INTERNAL_SERVER_ERROR,
             InferError::TemplateError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::MissingTemplateVariable(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::ToolError(_) => StatusCode::UNPROCESSABLE_ENTITY,

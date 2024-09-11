@@ -336,6 +336,8 @@ pub enum InferError {
     ValidationError(#[from] ValidationError),
     #[error("Incomplete generation")]
     IncompleteGeneration,
+    #[error("Incomplete generation stream")]
+    IncompleteGenerationStream,
     #[error("Template error: {0}")]
     TemplateError(#[from] minijinja::Error),
     #[error("Missing template vatiable: {0}")]
@@ -351,6 +353,7 @@ impl InferError {
             InferError::Overloaded(_) => "overloaded",
             InferError::ValidationError(_) => "validation",
             InferError::IncompleteGeneration => "incomplete_generation",
+            InferError::IncompleteGenerationStream => "incomplete_generation_stream",
             InferError::TemplateError(_) => "template_error",
             InferError::MissingTemplateVariable(_) => "missing_template_variable",
             InferError::ToolError(_) => "tool_error",
