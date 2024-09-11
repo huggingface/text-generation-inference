@@ -39,6 +39,7 @@ jobs:
           # Released on: 02 May, 2024
           # https://releases.rs/docs/1.78.0/
           toolchain: 1.80.0
+          override: true
           components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
@@ -68,12 +69,9 @@ jobs:
           #     path: |
           #       ~/.cargo/registry
           #       ~/.cargo/git
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
       - name: Install
         run: |
-          # export LD_LIBRARY_PATH="${{ env.pythonLocation }}/lib/:$LD_LIBRARY_PATH"
-          ls ${{ env.pythonLocation }}/lib/
+          sudo apt install python3.11-dev
           make install-cpu
       - name: Run server tests
         run: |
@@ -87,9 +85,6 @@ jobs:
           pre-commit run --all-files
       - name: Run Rust tests
         run: |
-          export LD_LIBRARY_PATH="${{ env.pythonLocation }}/lib/:$LD_LIBRARY_PATH"
-          echo $LD_LIBRARY_PATH
-          ls ${{ env.pythonLocation }}/lib/
           cargo test
           # - name: sccache stats
           #   run: |
