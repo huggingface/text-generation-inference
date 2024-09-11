@@ -2,7 +2,7 @@ name: "Nix Tests"
 on:
   pull_request:
     paths:
-      - ".github/workflows/tests.yaml"
+      - ".github/workflows/nix_tests.yaml"
       - "server/**"
       - "proto/**"
       - "router/**"
