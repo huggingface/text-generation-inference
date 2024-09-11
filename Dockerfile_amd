@@ -94,7 +94,7 @@ RUN chmod +x ~/mambaforge.sh && \
 # Install flash-attention, torch dependencies
 RUN pip install numpy einops ninja --no-cache-dir
 
-RUN conda install intel::mkl-static intel::mkl-include
+# RUN conda install intel::mkl-static intel::mkl-include
 RUN pip uninstall -y triton && \
     git clone --depth 1 --single-branch https://github.com/ROCm/triton.git && \
     cd triton/python && \
