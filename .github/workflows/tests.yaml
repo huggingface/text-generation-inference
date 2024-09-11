@@ -17,7 +17,9 @@ concurrency:
 
 jobs:
   run_tests:
-    runs-on: ubuntu-latest
+    runs-on:
+      group: aws-highmemory-32-plus-priv
+
 
     env:
       SCCACHE_GHA_ENABLED: "on"
@@ -82,8 +84,8 @@ jobs:
           pre-commit run --all-files
       - name: Run Rust tests
         run: |
-          export LD_PRELOAD_PATH=${{ env.pythonLocation }}/lib/
-          echo $LD_PRELOAD_PATH
+          export LD_LIBRARY_PATH=${{ env.pythonLocation }}/lib/
+          echo $LD_LIBRARY_PATH
           ls ${{ env.pythonLocation }}/lib/
           cargo test
       - name: sccache stats
