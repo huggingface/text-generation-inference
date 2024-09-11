@@ -71,7 +71,7 @@ jobs:
           #       ~/.cargo/git
       - name: Install
         run: |
-          sudo apt install python3.11-dev
+          sudo apt install python3.11-dev -y
           make install-cpu
       - name: Run server tests
         run: |
@@ -85,7 +85,4 @@ jobs:
           pre-commit run --all-files
       - name: Run Rust tests
         run: |
-          cargo test
-          # - name: sccache stats
-          #   run: |
           #     /usr/local/bin/sccache --show-stats
