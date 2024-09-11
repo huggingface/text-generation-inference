@@ -31,6 +31,8 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         id: python
+        env:
+          AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache
         with:
           python-version: 3.11
       - name: Install Rust
