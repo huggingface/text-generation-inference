@@ -25,10 +25,6 @@ Experimentally, on MI300X, we noticed a 6-8% latency improvement when using Tuna
 
 TunableOp is enabled by default, the warmup may take 1-2 minutes. In case you would like to disable TunableOp, please pass `--env PYTORCH_TUNABLEOP_ENABLED="0"` when launcher TGI's docker container.
 
-TunableOps tuning is disabled by default after the warmup phase. If you wish to keep tuning enabled for the entire run, set the environment variable `PYTORCH_TUNABLEOP_TUNING_AFTER_WARMUP=1`.
-
-Note: With tuning enabled, every time a new input shape is encountered, tuning will be performed, which can slow down the first inference for that shape.
-
 ## Flash attention implementation
 
 Two implementations of Flash Attention are available for ROCm, the first is [ROCm/flash-attention](https://github.com/ROCm/flash-attention) based on a [Composable Kernel](https://github.com/ROCm/composable_kernel) (CK) implementation, and the second is a [Triton implementation](https://github.com/huggingface/text-generation-inference/blob/main/server/text_generation_server/layers/attention/flash_attn_triton.py).
