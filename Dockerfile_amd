@@ -66,7 +66,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     hipsolver-dev \
     rccl-dev \
     cmake \
-    python3-dev && \
+    python3.11-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Keep in sync with `server/pyproject.toml
@@ -91,10 +91,18 @@ RUN chmod +x ~/mambaforge.sh && \
     mamba init && \
     rm ~/mambaforge.sh
 
+# RUN conda install intel::mkl-static intel::mkl-include
+# Install pytorch
+# On arm64 we exit with an error code
+RUN case ${TARGETPLATFORM} in \
+         "linux/arm64")  exit 1 ;; \
+         *)              /opt/conda/bin/conda update -y conda &&  \
+                         /opt/conda/bin/conda install -y "python=${PYTHON_VERSION}" ;; \
+    esac && \
+    /opt/conda/bin/conda clean -ya
 # Install flash-attention, torch dependencies
 RUN pip install numpy einops ninja --no-cache-dir
 
-# RUN conda install intel::mkl-static intel::mkl-include
 RUN pip uninstall -y triton && \
     git clone --depth 1 --single-branch https://github.com/ROCm/triton.git && \
     cd triton/python && \
