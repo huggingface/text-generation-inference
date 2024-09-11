@@ -82,8 +82,9 @@ jobs:
           pre-commit run --all-files
       - name: Run Rust tests
         run: |
-          export LD_LIBRARY_PATH=${{ steps.python.outputs.pythonLocation }}/lib/
-          echo $LD_LIBRARY_PATH
+          export LD_PRELOAD_PATH=${{ env.pythonLocation }}/lib/
+          echo $LD_PRELOAD_PATH
+          ls ${{ env.pythonLocation}/lib/
           cargo test
       - name: sccache stats
         run: |
