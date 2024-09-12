@@ -46,9 +46,26 @@
         launcher = cargoNix.workspaceMembers.text-generation-launcher.build.override {
           inherit crateOverrides;
         };
-        router = cargoNix.workspaceMembers.text-generation-router-v3.build.override {
-          inherit crateOverrides;
-        };
+        router =
+          let
+            routerUnwrapped = cargoNix.workspaceMembers.text-generation-router-v3.build.override {
+              inherit crateOverrides;
+            };
+            packagePath =
+              with pkgs.python3.pkgs;
+              makePythonPath [
+                protobuf
+                sentencepiece
+                torch
+                transformers
+              ];
+          in
+          pkgs.writeShellApplication {
+            name = "text-generation-router";
+            text = ''
+              PYTHONPATH="${packagePath}" ${routerUnwrapped}/bin/text-generation-router "$@"
+            '';
+          };
         server = pkgs.python3.pkgs.callPackage ./nix/server.nix { inherit nix-filter; };
       in
       {
