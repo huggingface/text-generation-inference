@@ -86,7 +86,13 @@
               launcher
               router
               server
-            ];
+            ]
+            ++ (with python3.pkgs; [
+              docker
+              pytest
+              pytest-asyncio
+              syrupy
+            ]);
           };
 
           impure = mkShell {
