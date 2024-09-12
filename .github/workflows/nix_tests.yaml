@@ -27,6 +27,8 @@ jobs:
         name: text-generation-inference
         # If you chose signing key for write access
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+      env:
+        USER: root
     - name: Build
       run: nix build
     - name: Run tests.
