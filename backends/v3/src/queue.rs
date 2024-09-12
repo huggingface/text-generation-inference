@@ -436,6 +436,12 @@ impl State {
             batch_entries.insert(id, entry);
         }
 
+        // Empty batch
+        if batch_requests.is_empty() {
+            tracing::debug!("Filterered out all entries");
+            return None;
+        }
+
         // Final batch size
         let size = batch_requests.len() as u32;
         next_batch_span.record("batch_size", size);
