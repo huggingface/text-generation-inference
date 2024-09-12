@@ -5,12 +5,12 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": "\n"
+        "text": " A"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -20,12 +20,72 @@
         "finish_reason": "",
         "index": 1,
         "logprobs": null,
-        "text": "\n"
+        "text": " This"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": " Paris"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "us"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " Beginner"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " is"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -38,9 +98,9 @@
         "text": "\n"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -50,12 +110,12 @@
         "finish_reason": "",
         "index": 3,
         "logprobs": null,
-        "text": "hd"
+        "text": "cul"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -65,12 +125,12 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": "\n"
+        "text": "’s"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -80,12 +140,12 @@
         "finish_reason": "",
         "index": 1,
         "logprobs": null,
-        "text": "\n"
+        "text": " a"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -95,12 +155,12 @@
         "finish_reason": "",
         "index": 2,
         "logprobs": null,
-        "text": "\n"
+        "text": "What"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -110,12 +170,12 @@
         "finish_reason": "",
         "index": 3,
         "logprobs": null,
-        "text": "aho"
+        "text": "as"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -125,12 +185,12 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": "2"
+        "text": " Guide"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -140,252 +200,12 @@
         "finish_reason": "",
         "index": 1,
         "logprobs": null,
-        "text": "2"
+        "text": " question"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 2,
-        "logprobs": null,
-        "text": "2"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 3,
-        "logprobs": null,
-        "text": "ima"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 0,
-        "logprobs": null,
-        "text": "."
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 1,
-        "logprobs": null,
-        "text": "."
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 2,
-        "logprobs": null,
-        "text": "."
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 3,
-        "logprobs": null,
-        "text": "\n"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 0,
-        "logprobs": null,
-        "text": " Sarah"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 1,
-        "logprobs": null,
-        "text": " Yes"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 2,
-        "logprobs": null,
-        "text": " And"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 3,
-        "logprobs": null,
-        "text": "i"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 0,
-        "logprobs": null,
-        "text": "'"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 1,
-        "logprobs": null,
-        "text": ","
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 2,
-        "logprobs": null,
-        "text": " what"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 3,
-        "logprobs": null,
-        "text": "'"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 0,
-        "logprobs": null,
-        "text": "s"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-    "object": "text_completion",
-    "system_fingerprint": "2.2.1-dev0-native"
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "",
-        "index": 1,
-        "logprobs": null,
-        "text": " Moh"
-      }
-    ],
-    "created": 1724833943,
-    "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -398,9 +218,9 @@
         "text": " is"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -410,12 +230,12 @@
         "finish_reason": "",
         "index": 3,
         "logprobs": null,
-        "text": "m"
+        "text": "_minus"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -425,12 +245,12 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": " Room"
+        "text": "\n"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -440,12 +260,12 @@
         "finish_reason": "",
         "index": 1,
         "logprobs": null,
-        "text": "s"
+        "text": " that"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -458,9 +278,9 @@
         "text": " the"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -470,12 +290,12 @@
         "finish_reason": "",
         "index": 3,
         "logprobs": null,
-        "text": " tired"
+        "text": "cul"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -485,12 +305,12 @@
         "finish_reason": "",
         "index": 0,
         "logprobs": null,
-        "text": ":"
+        "text": "Deep"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -500,12 +320,12 @@
         "finish_reason": "",
         "index": 1,
         "logprobs": null,
-        "text": "'"
+        "text": " has"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -518,9 +338,9 @@
         "text": " capital"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -530,12 +350,192 @@
         "finish_reason": "",
         "index": 3,
         "logprobs": null,
-        "text": ","
+        "text": "as"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " learning"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " puzzled"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": " of"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "(s"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " is"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " many"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": " France"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "):\n"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " a"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " people"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": "?\n"
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "   "
+      }
+    ],
+    "created": 1725883643,
+    "id": "",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -545,12 +545,12 @@
         "finish_reason": "length",
         "index": 0,
         "logprobs": null,
-        "text": " She"
+        "text": " subset"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -560,12 +560,12 @@
         "finish_reason": "length",
         "index": 1,
         "logprobs": null,
-        "text": " scale"
+        "text": " for"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -575,12 +575,12 @@
         "finish_reason": "length",
         "index": 2,
         "logprobs": null,
-        "text": " of"
+        "text": "The"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   },
@@ -590,12 +590,12 @@
         "finish_reason": "length",
         "index": 3,
         "logprobs": null,
-        "text": " its"
+        "text": " \"\"\"\n"
       }
     ],
-    "created": 1724833943,
+    "created": 1725883643,
     "id": "",
-    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
     "object": "text_completion",
     "system_fingerprint": "2.2.1-dev0-native"
   }

@@ -61,6 +61,7 @@ uuid = { version = "1.9.1", default-features = false, features = [
 ] }
 csv = "1.3.0"
 ureq = "=2.9"
+pyo3 = { version = "0.22.2", features = ["auto-initialize"] }
 
 
 [build-dependencies]

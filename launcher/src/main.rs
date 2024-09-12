@@ -1843,9 +1843,8 @@ fn main() -> Result<(), LauncherError> {
         shutdown.clone(),
         &shutdown_receiver,
     )
-    .map_err(|err| {
+    .inspect_err(|_| {
         shutdown_shards(shutdown.clone(), &shutdown_receiver);
-        err
     })?;
 
     // Default exit code

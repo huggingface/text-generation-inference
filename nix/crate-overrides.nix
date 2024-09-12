@@ -28,6 +28,9 @@ defaultCrateOverrides
       ];
     };
   };
+  pyo3-build-config = attrs: {
+    buildInputs = [ python3 ];
+  };
   text-generation-benchmark = attrs: {
     src = filter {
       root = ../benchmark;

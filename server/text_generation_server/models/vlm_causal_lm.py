@@ -367,9 +367,7 @@ class VlmCausalLM(FlashCausalLM):
             with self._forward_context(
                 block_tables=block_tables,
                 cu_seqlen_prefill=cu_seqlen_prefill,
-                input_lengths=batch.input_lengths,
                 input_lengths_tensor=input_lengths,
-                prefix_lens=batch.prefix_lens,
                 prefix_lens_tensor=prefix_lens_tensor,
             ):
                 max_k = (input_lengths + prefix_lens_tensor).max().item()
