@@ -90,6 +90,7 @@
                 server
                 openssl.dev
                 pkg-config
+                cargo
               ]
               ++ (with python3.pkgs; [
                 docker
