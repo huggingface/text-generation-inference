@@ -84,13 +84,15 @@
           test = mkShell {
             buildInputs =
               [
-                benchmark
-                launcher
-                router
+                # benchmark
+                # launcher
+                # router
                 server
                 openssl.dev
                 pkg-config
                 cargo
+                rustfmt
+                clippy
               ]
               ++ (with python3.pkgs; [
                 docker
