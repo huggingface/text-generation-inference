@@ -62,7 +62,6 @@ def paged_attention(
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
-    num_kv_heads: int,
     softcap: Optional[float] = None,
 ):
     out = torch.empty_like(query)

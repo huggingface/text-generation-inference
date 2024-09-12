@@ -45,7 +45,6 @@ def paged_attention(
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
-    num_kv_heads: int,
     softcap: Optional[float] = None,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py

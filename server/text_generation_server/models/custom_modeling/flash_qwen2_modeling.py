@@ -1,3 +1,4 @@
+from text_generation_server.models.globals import PAGED_KV
 import torch
 import torch.distributed
 
@@ -21,7 +22,6 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
-from text_generation_server.utils.import_utils import SYSTEM
 
 
 def load_attention(config, prefix, weights):
@@ -137,8 +137,8 @@ class Qwen2Attention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else kv_to_cache[:, 0],
-                kv_cache[1] if SYSTEM != "ipex" else kv_to_cache[:, 1],
+                kv_cache[0] if PAGED_KV else kv_to_cache[:, 0],
+                kv_cache[1] if PAGED_KV else kv_to_cache[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -155,7 +155,6 @@ class Qwen2Attention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
-                self.num_key_value_heads,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

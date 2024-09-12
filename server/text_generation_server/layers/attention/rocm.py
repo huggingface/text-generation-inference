@@ -50,9 +50,8 @@ def paged_attention(
     kv_head_mapping: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
-    input_lengths: Seqlen,
+    seqlen: Seqlen,
     max_s: int,
-    num_kv_heads: int,
     softcap: Optional[float] = None,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
@@ -76,6 +75,7 @@ def paged_attention(
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
 
+    num_kv_heads = key_cache.shape[1]
     gqa_ratio = num_heads // num_kv_heads
     use_custom = (
         custom_attn_available
@@ -92,7 +92,7 @@ def paged_attention(
         _PARTITION_SIZE = _PARTITION_SIZE_CUSTOM
 
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
-    input_lengths = input_lengths.input_lengths
+    input_lengths = seqlen.input_lengths
 
     out = torch.empty_like(query)
 
@@ -220,10 +220,10 @@ if ENGINE == "ck":
 
     def attention(
         q,
-        k,
-        v,
-        cu_seqlens,
-        max_s,
+        key_cache: torch.Tensor,
+        value_cache: torch.Tensor,
+        seqlen: Seqlen,
+        block_tables: torch.Tensor,
         softmax_scale,
         window_size_left=-1,
         causal=True,
@@ -237,17 +237,17 @@ if ENGINE == "ck":
         # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
         return flash_attn_2_cuda.varlen_fwd(
             q,
-            k,
-            v,
+            key_cache,
+            value_cache,
             out,
-            cu_seqlens,
-            cu_seqlens,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_q,
             None,
             None,
             None,
             None,
-            max_s,
-            max_s,
+            seqlen.max_q,
+            seqlen.max_k,
             0.0,
             softmax_scale,
             False,
@@ -264,26 +264,27 @@ elif ENGINE == "triton":
 
     def attention(
         q,
-        k,
-        v,
-        cu_seqlens,
-        max_s,
+        key_cache: torch.Tensor,
+        value_cache: torch.Tensor,
+        seqlen: Seqlen,
+        block_tables: torch.Tensor,
         softmax_scale,
         window_size_left=-1,
         causal=True,
+        softcap=0.0,
     ):
         out = torch.empty_like(q)
 
         # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
         output, _ = triton_attention(
             q,
-            k,
-            v,
+            key_cache,
+            value_cache,
             out,
-            cu_seqlens,
-            cu_seqlens,
-            max_s,
-            max_s,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_q,
+            seqlen.max_q,
+            seqlen.max_k,
             causal,
             softmax_scale,
         )

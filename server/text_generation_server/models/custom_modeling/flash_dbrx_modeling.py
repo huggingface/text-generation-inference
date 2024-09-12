@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from text_generation_server.models.globals import PAGED_KV
 import torch
 import torch.distributed
 
@@ -336,8 +337,8 @@ class DbrxAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else kv[:, 0],
-                kv_cache[1] if SYSTEM != "ipex" else kv[:, 1],
+                kv_cache[0] if PAGED_KV else kv[:, 0],
+                kv_cache[1] if PAGED_KV else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -353,7 +354,6 @@ class DbrxAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
-                self.num_key_value_heads,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

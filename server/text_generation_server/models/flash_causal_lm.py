@@ -1379,6 +1379,7 @@ class FlashCausalLM(Model):
         cu_seqlen_prefill = torch.tensor(
             [0, seqlen], device=self.device, dtype=torch.int32
         )
+        max_s = seqlen
         seqlen = Seqlen(
             input_lengths=input_lengths,
             prefix_lengths=prefix_lens_tensor,
@@ -1396,7 +1397,7 @@ class FlashCausalLM(Model):
             block_tables=None,
             seqlen=seqlen,
             slots=slots,
-            max_s=seqlen,
+            max_s=max_s,
             lm_head_indices=None,
             prefill_cache_indices=None,
         )

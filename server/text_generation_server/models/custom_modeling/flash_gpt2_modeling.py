@@ -18,13 +18,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from text_generation_server.models.globals import PAGED_KV
 import torch
 import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
@@ -231,8 +231,8 @@ class FlashGPT2Attention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else key,
-                kv_cache[1] if SYSTEM != "ipex" else value,
+                kv_cache[0] if PAGED_KV else key,
+                kv_cache[1] if PAGED_KV else value,
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -248,7 +248,6 @@ class FlashGPT2Attention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
-                self.num_key_value_heads,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

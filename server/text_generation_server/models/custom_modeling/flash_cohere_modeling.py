@@ -18,6 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from text_generation_server.models.globals import PAGED_KV
 import torch
 import torch.distributed
 
@@ -297,8 +298,8 @@ class FlashCohereAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else key,
-                kv_cache[1] if SYSTEM != "ipex" else value,
+                kv_cache[0] if PAGED_KV else key,
+                kv_cache[1] if PAGED_KV else value,
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -314,7 +315,6 @@ class FlashCohereAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
-                self.num_key_value_heads,
             )
 
         return self.o_proj(

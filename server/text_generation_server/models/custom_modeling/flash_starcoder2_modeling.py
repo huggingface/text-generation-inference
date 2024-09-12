@@ -18,6 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from text_generation_server.models.globals import PAGED_KV
 import torch
 import torch.distributed
 
@@ -47,7 +48,6 @@ from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
 from text_generation_server.utils.weights import UnquantizedWeight
-from text_generation_server.utils.import_utils import SYSTEM
 
 
 class Starcoder2Config(PretrainedConfig):
@@ -242,8 +242,8 @@ class Starcoder2Attention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else kv_to_cache[:, 0],
-                kv_cache[1] if SYSTEM != "ipex" else kv_to_cache[:, 1],
+                kv_cache[0] if PAGED_KV else kv_to_cache[:, 0],
+                kv_cache[1] if PAGED_KV else kv_to_cache[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -260,7 +260,6 @@ class Starcoder2Attention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
-                self.num_key_value_heads,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
