@@ -88,6 +88,8 @@
                 launcher
                 router
                 server
+                openssl.dev
+                pkg-config
               ]
               ++ (with python3.pkgs; [
                 docker
@@ -95,6 +97,7 @@
                 pytest-asyncio
                 syrupy
               ]);
+
           };
 
           impure = mkShell {

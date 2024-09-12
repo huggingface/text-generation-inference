@@ -31,7 +31,11 @@ jobs:
         USER: github_runner
     - name: Build
       run: nix build
-    - name: Run tests.
+    - name: Pre-commit tests.
+      run: nix develop .#test --command pre-commit run --all-files
+    - name: Python tests.
       run: nix develop .#test --command python -m pytest server/tests/
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    - name: Rust tests.
+      run: nix develop .#test --command cargo test
