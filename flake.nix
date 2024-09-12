@@ -96,6 +96,8 @@
                 pytest
                 pytest-asyncio
                 syrupy
+                pre-commit
+                ruff
               ]);
 
           };
