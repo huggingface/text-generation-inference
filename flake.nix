@@ -80,6 +80,14 @@
               server
             ];
           };
+          test = mkShell {
+            buildInputs = [
+              benchmark
+              launcher
+              router
+              server
+            ];
+          };
 
           impure = mkShell {
             buildInputs =
