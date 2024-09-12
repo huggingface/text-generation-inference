@@ -30,14 +30,12 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       env:
         USER: github_runner
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
     - name: Build
       run: nix develop .#test --command echo "Ok"
     - name: Python tests.
       run: |
         sudo mkdir -p /run/opengl-driver/lib
-        sudo find /usr/lib . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/
+        sudo find /usr/lib . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         nix develop .#test --command python -m pytest -svvx integration-tests/
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
