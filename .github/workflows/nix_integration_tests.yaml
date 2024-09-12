@@ -30,8 +30,6 @@ jobs:
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       env:
         USER: github_runner
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
     - name: Build
       run: nix develop .#test --command echo "Ok"
     - name: Python tests.
