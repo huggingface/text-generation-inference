@@ -33,7 +33,7 @@ jobs:
     - name: Build
       run: nix develop .#test --command echo "Ok"
     - name: Python tests.
-      run:
+      run: |
         sudo mkdir -p /run/opengl-driver/lib
         sudo find /usr/lib . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/
         nix develop .#test --command python -m pytest -svvx integration-tests/
