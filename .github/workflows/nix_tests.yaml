@@ -28,7 +28,7 @@ jobs:
         # If you chose signing key for write access
         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
       env:
-        USER: root
+        USER: github_runner
     - name: Build
       run: nix build
     - name: Run tests.
