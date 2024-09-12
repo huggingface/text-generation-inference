@@ -9,6 +9,7 @@ on:
       - "launcher/**"
       - "Cargo.lock"
       - "rust-toolchain.toml"
+      - "flake.nix"
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -32,6 +33,6 @@ jobs:
     - name: Build
       run: nix develop .#test --command echo "Ok"
     - name: Python tests.
-      run: nix develop .#test --command python -m pytest integration-tests/
+      run: nix develop .#test --command python -m pytest -svvx integration-tests/
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
