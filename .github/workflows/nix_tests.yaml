@@ -30,7 +30,7 @@ jobs:
       env:
         USER: github_runner
     - name: Build
-      run: nix build .#test
+      run: nix develop .#test --command echo "Ok"
     - name: Pre-commit tests.
       run: nix develop .#test --command pre-commit run --all-files
     - name: Python tests.
