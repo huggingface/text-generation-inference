@@ -1,0 +1,41 @@
+name: "Nix Tests"
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/nix_tests.yaml"
+      - "server/**"
+      - "proto/**"
+      - "router/**"
+      - "launcher/**"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on:
+      group: aws-highmemory-32-plus-priv
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cachix/install-nix-action@v27
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+    - uses: cachix/cachix-action@v14
+      with:
+        name: text-generation-inference
+        # If you chose signing key for write access
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      env:
+        USER: github_runner
+    - name: Build
+      run: nix develop .#test --command echo "Ok"
+    - name: Pre-commit tests.
+      run: nix develop .#test --command pre-commit run --all-files
+    - name: Python tests.
+      run: nix develop .#test --command python -m pytest server/tests/
+      env:
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    - name: Rust tests.
+      run: nix develop .#test --command cargo test
