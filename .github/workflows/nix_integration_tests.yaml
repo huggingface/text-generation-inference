@@ -16,7 +16,7 @@ concurrency:
 jobs:
   tests:
     runs-on:
-      group: aws-highmemory-32-plus-priv
+      group: aws-g6-12xlarge-plus-priv
     steps:
     - uses: actions/checkout@v4
     - uses: cachix/install-nix-action@v27
