@@ -67,7 +67,7 @@
             '';
           };
         server = pkgs.python3.pkgs.callPackage ./nix/server.nix { inherit nix-filter; };
-        client = pkgs.python3.pkgs.callPackage ./nix/client.nix { inherit nix-filter; };
+        client = pkgs.python3.pkgs.callPackage ./nix/client.nix { };
       in
       {
         formatter = pkgs.nixfmt-rfc-style;

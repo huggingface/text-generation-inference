@@ -20,7 +20,6 @@ buildPythonPackage {
 
   dependencies = [
     huggingface-hub
-    transformers
     pydantic
   ];
 }
