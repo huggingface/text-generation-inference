@@ -69,6 +69,7 @@
         server = pkgs.python3.pkgs.callPackage ./nix/server.nix { inherit nix-filter; };
       in
       {
+        formatter = pkgs.nixfmt-rfc-style;
         devShells = with pkgs; rec {
           default = pure;
 
@@ -79,6 +80,29 @@
               router
               server
             ];
+          };
+          test = mkShell {
+            buildInputs =
+              [
+                # benchmark
+                # launcher
+                # router
+                server
+                openssl.dev
+                pkg-config
+                cargo
+                rustfmt
+                clippy
+              ]
+              ++ (with python3.pkgs; [
+                docker
+                pytest
+                pytest-asyncio
+                syrupy
+                pre-commit
+                ruff
+              ]);
+
           };
 
           impure = mkShell {
@@ -99,6 +123,7 @@
                 docker
                 pip
                 ipdb
+                click
                 pyright
                 pytest
                 pytest-asyncio
