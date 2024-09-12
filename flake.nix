@@ -105,7 +105,6 @@
                 pytest-asyncio
                 ruff
                 syrupy
-                server
               ]);
 
             inputsFrom = [ server ];
