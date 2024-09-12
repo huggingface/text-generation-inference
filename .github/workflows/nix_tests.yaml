@@ -37,5 +37,6 @@ jobs:
       run: nix develop .#test --command python -m pytest server/tests/
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        HF_HOME: /mnt/cache/tgi/
     - name: Rust tests.
       run: nix develop .#test --command cargo test
