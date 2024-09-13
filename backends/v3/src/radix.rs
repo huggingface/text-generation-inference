@@ -225,7 +225,6 @@ struct RadixAllocation {
 pub enum TrieError {
     InvalidNodeId,
     RefCountUnderflow,
-    BlockTokenCountMismatch,
 }
 
 pub type NodeId = DefaultKey;
@@ -422,11 +421,10 @@ impl RadixTrie {
         // the part of the prefix that is already in the trie to detect
         // mismatches.
 
-        if tokens.len() != blocks.len() * self.block_size {
-            return Err(TrieError::BlockTokenCountMismatch);
-        }
+        assert_eq!(tokens.len(), blocks.len() * self.block_size);
 
-        if let Some(&child_id) = self.nodes[node_id].children.get(&tokens[0]) {
+        let node_key = hash_(&tokens[..self.block_size]);
+        if let Some(&child_id) = self.nodes[node_id].children.get(&node_key) {
             self.update_access_time(child_id);
             let child = self
                 .nodes
