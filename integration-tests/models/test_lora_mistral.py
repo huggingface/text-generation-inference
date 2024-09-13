@@ -100,10 +100,7 @@ async def test_lora_mistral_with_customer_support_adapter(
 
     assert response.status_code == 200
     data = response.json()
-    from text_generation.types import Response
 
-    print(data)
-    response = Response(**data)
     assert data["generated_text"] == " check balance"
     assert data == response_snapshot
 
