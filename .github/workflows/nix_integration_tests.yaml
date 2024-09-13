@@ -36,11 +36,6 @@ jobs:
       run: |
         sudo mkdir -p /run/opengl-driver/lib
         sudo find /usr/lib . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-        sudo find /usr/lib . -name 'libcudart.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-        sudo find /usr/lib . -name 'libcufft.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-        sudo find /usr/lib . -name 'libcublas.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-        sudo find /usr/lib . -name 'libcublasLt.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-        sudo find /usr/lib . -name 'libcurand.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         sudo find /usr/lib . -name 'libnvidia-ml.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         export LD_LIBRARY_PATH=/run/opengl-driver/lib
         nix develop .#test --command python -m pytest -svvx integration-tests/
