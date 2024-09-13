@@ -2,21 +2,23 @@ import pytest
 
 
 @pytest.fixture(scope="module")
-def flash_llama_handle(launcher):
-    with launcher("meta-llama/Meta-Llama-3.1-8B-Instruct", num_shard=2) as handle:
+def flash_llama_handle_fd(launcher):
+    with launcher(
+        "meta-llama/Meta-Llama-3.1-8B-Instruct", num_shard=2, attention="flashdecoding"
+    ) as handle:
         yield handle
 
 
 @pytest.fixture(scope="module")
-async def flash_llama(flash_llama_handle):
-    await flash_llama_handle.health(300)
-    return flash_llama_handle.client
+async def flash_llama_fd(flash_llama_handle_fd):
+    await flash_llama_handle_fd.health(300)
+    return flash_llama_handle_fd.client
 
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama_load(
-    flash_llama, generate_multi, generous_response_snapshot
+async def test_flash_llama_flashdecoding(
+    flash_llama_fd, generate_multi, generous_response_snapshot
 ):
     prompts = [
         "Summarize the main ideas of Jeff Walker's Product Launch Formula into bullet points as it pertains to a growth marketing agency implementing these strategies and tactics for their clients...",
@@ -120,7 +122,7 @@ async def test_flash_llama_load(
         "How to load image here ?",
     ]
 
-    responses = await generate_multi(flash_llama, prompts, max_new_tokens=10)
+    responses = await generate_multi(flash_llama_fd, prompts, max_new_tokens=10)
 
     assert len(responses) == len(prompts)
     outputs = [r.choices[0].message.content for r in responses]

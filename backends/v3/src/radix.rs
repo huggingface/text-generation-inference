@@ -1,9 +1,16 @@
 use crate::block_allocator::{Allocator, BlockAllocation};
 use slotmap::{DefaultKey, SlotMap};
+use std::hash::{Hash, Hasher};
 use std::{
     collections::{BTreeSet, HashMap},
     sync::Arc,
 };
+
+fn hash_(slice: &[u32]) -> u32 {
+    let mut s = std::hash::DefaultHasher::new();
+    slice.hash(&mut s);
+    s.finish() as u32
+}
 
 pub struct RadixAllocator {
     allocation_id: u64,
@@ -44,6 +51,10 @@ impl RadixAllocator {
             // the free list if we cannot allocate enough blocks. This is only
             // temporary, the trie needs to be able to report whether it can
             // allocate the requested amount. Just not implemented yet.
+            tracing::debug!(
+                "Free blocks {}  need {n_blocks_needed}",
+                self.free_blocks.len()
+            );
             self.free_blocks.extend(
                 self.cache_blocks
                     .evict(n_blocks_needed - self.free_blocks.len()),
@@ -94,10 +105,12 @@ impl Allocator for RadixAllocator {
         match self.alloc_or_reclaim(suffix_blocks as usize) {
             Some(suffix_blocks) => blocks.extend(suffix_blocks),
             None => {
+                tracing::debug!("Cannot allocate {:?}", self.cache_blocks);
+                tracing::debug!("Found {prefix_len} prefix tokens need {suffix_blocks} suffix blocks for {tokens} tokens");
+                tracing::debug!("Block size {}", self.block_size);
                 self.cache_blocks
                     .decref(prefix_node)
                     .expect("Failed to decrement refcount");
-                tracing::debug!("Cannot allocate {:?}", self.cache_blocks);
                 return None;
             }
         }
@@ -269,16 +282,19 @@ impl RadixTrie {
     fn find_(&mut self, mut node_id: NodeId, key: &[u32], blocks: &mut Vec<u32>) -> NodeId {
         let node = &self.nodes[node_id];
 
-        if let Some(&child_id) = node.children.get(&key[0]) {
-            self.update_access_time(child_id);
-            let child = self.nodes.get(child_id).expect("Invalid child identifier");
-            let shared_prefix_len = shared_prefix(&child.key, key, self.block_size);
-            assert_eq!(shared_prefix_len % self.block_size, 0);
-            blocks.extend(&child.blocks[..shared_prefix_len / self.block_size]);
+        if key.len() >= self.block_size {
+            let node_key = hash_(&key[..self.block_size]);
+            if let Some(&child_id) = node.children.get(&node_key) {
+                self.update_access_time(child_id);
+                let child = self.nodes.get(child_id).expect("Invalid child identifier");
+                let shared_prefix_len = shared_prefix(&child.key, key, self.block_size);
+                assert_eq!(shared_prefix_len % self.block_size, 0);
+                blocks.extend(&child.blocks[..shared_prefix_len / self.block_size]);
 
-            let key = &key[shared_prefix_len..];
-            if !key.is_empty() {
-                node_id = self.find_(child_id, key, blocks);
+                let key = &key[shared_prefix_len..];
+                if !key.is_empty() {
+                    node_id = self.find_(child_id, key, blocks);
+                }
             }
         }
 
@@ -345,9 +361,11 @@ impl RadixTrie {
         // evict n_blocks and return `None` if we can't. We are now needlessly
         // evicting prefixes from the cache in such a case.
         let mut evicted = Vec::new();
+        tracing::debug!("Evicting in search of {n_blocks}");
 
         while let Some((last_access, node_id)) = self.leaves.pop_first() {
-            let blocks_needed = n_blocks - evicted.len();
+            let blocks_needed = n_blocks.saturating_sub(evicted.len());
+            tracing::debug!("Evicting node {node_id:?} ");
 
             let node = self.nodes.get(node_id).expect("Leave does not exist");
             assert_eq!(
@@ -369,8 +387,11 @@ impl RadixTrie {
                 // the required number of blocks and leave the remaining blocks
                 // untouched.
                 let node = self.nodes.get_mut(node_id).expect("Leave does not exist");
-                node.key.truncate(node.blocks.len() - blocks_needed);
-                evicted.extend(node.blocks.split_off(node.blocks.len() - blocks_needed));
+
+                let truncate_blocks = node.blocks.len() - blocks_needed;
+                let truncate_tokens = truncate_blocks * self.block_size;
+                node.key.truncate(truncate_tokens);
+                evicted.extend(node.blocks.split_off(truncate_blocks));
                 self.leaves.insert((last_access, node_id));
                 break;
             }
@@ -453,14 +474,15 @@ impl RadixTrie {
             .get_mut(node_id)
             .expect("Node to-be split does not exist");
         let mut parent_key = node.key.split_off(prefix_len);
-        let mut parent_blocks = node.blocks.split_off(prefix_len);
+        let prefix_blocks = prefix_len / self.block_size;
+        let mut parent_blocks = node.blocks.split_off(prefix_blocks);
 
         // Move first part of the prefix to the parent. We swap to avoid
         // an allocation + copy for both splits of the key/blocks.
         std::mem::swap(&mut node.key, &mut parent_key);
         std::mem::swap(&mut node.blocks, &mut parent_blocks);
 
-        let node_key = node.key[0];
+        let node_key = hash_(&node.key[..self.block_size]);
 
         let grandparent_id = node.parent.expect("Node does not have a parent");
         let parent_id = self.add_node(grandparent_id, parent_key, parent_blocks);
@@ -485,7 +507,7 @@ impl RadixTrie {
     ) -> NodeId {
         let key = key.into();
         let blocks = blocks.into();
-        let first = key[0];
+        let first = hash_(&key[..self.block_size]);
 
         let child = TrieNode::new(key, blocks, self.time, Some(parent_id));
         let child_id = self.nodes.insert(child);
@@ -518,7 +540,9 @@ impl RadixTrie {
         );
         let parent_id = node.parent.expect("Attempted to remove root node");
         let parent = self.nodes.get_mut(parent_id).expect("Unknown parent node");
-        parent.children.remove(&node.key[0]);
+
+        let node_key = hash_(&node.key[..self.block_size]);
+        parent.children.remove(&node_key);
         self.decref(parent_id)
             .expect("Failed to decrease parent refcount");
         node
