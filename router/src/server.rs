@@ -41,6 +41,7 @@ use hf_hub::api::tokio::{Api, ApiBuilder, ApiRepo};
 use hf_hub::{Cache, Repo, RepoType};
 use http::header::AUTHORIZATION;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use pyo3::types::IntoPyDict;
 use serde_json::Value;
 use std::convert::Infallible;
 use std::fs::File;
@@ -48,7 +49,6 @@ use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tokenizers::processors::template::TemplateProcessing;
 use tokenizers::Tokenizer;
 use tokio::select;
 use tokio::signal;
@@ -318,7 +318,10 @@ pub(crate) async fn generate_internal(
     metrics::counter!("tgi_request_count").increment(1);
 
     // Do not long ultra long inputs, like image payloads.
-    tracing::debug!("Input: {}", &req.inputs[..1000.min(req.inputs.len())]);
+    tracing::debug!(
+        "Input: {}",
+        &req.inputs.chars().take(1000).collect::<String>()
+    );
 
     let compute_characters = req.inputs.chars().count();
     let mut add_prompt = None;
@@ -674,7 +677,7 @@ async fn generate_stream_internal(
             // Check if generation reached the end
             // Skip if we already sent an error
             if !end_reached && !error {
-                let err = InferError::IncompleteGeneration;
+                let err = InferError::IncompleteGenerationStream;
                 metrics::counter!("tgi_request_failure", "err" => "incomplete").increment(1);
                 tracing::error!("{err}");
                 yield Ok(Event::from(err));
@@ -1857,18 +1860,34 @@ pub async fn run(
     });
 
     let tokenizer: Option<Tokenizer> = tokenizer_filename.and_then(|filename| {
-        let mut tokenizer = Tokenizer::from_file(filename).ok();
-        if let Some(tokenizer) = &mut tokenizer {
-            if let Some(class) = &tokenizer_config.tokenizer_class {
-                if class == "LlamaTokenizer" || class == "LlamaTokenizerFast"{
-                    if let Ok(post_processor) = create_post_processor(tokenizer, &tokenizer_config) {
-                        tracing::info!("Overriding LlamaTokenizer with TemplateProcessing to follow python override defined in https://github.com/huggingface/transformers/blob/4aa17d00690b7f82c95bb2949ea57e22c35b4336/src/transformers/models/llama/tokenization_llama_fast.py#L203-L205");
-                        tokenizer.with_post_processor(post_processor);
-                    }
-                }
-            }
-        }
-        tokenizer
+        use pyo3::prelude::*;
+        let convert = pyo3::Python::with_gil(|py| -> PyResult<()> {
+            let transformers = py.import_bound("transformers")?;
+            let auto = transformers.getattr("AutoTokenizer")?;
+            let from_pretrained = auto.getattr("from_pretrained")?;
+            let args = (tokenizer_name.to_string(),);
+            let kwargs = [(
+                "revision",
+                revision.clone().unwrap_or_else(|| "main".to_string()),
+            )]
+            .into_py_dict_bound(py);
+            let tokenizer = from_pretrained.call(args, Some(&kwargs))?;
+            let save = tokenizer.getattr("save_pretrained")?;
+            let args = ("out".to_string(),);
+            save.call1(args)?;
+            Ok(())
+        })
+        .inspect_err(|err| {
+            tracing::error!("Failed to import python tokenizer {err}");
+        });
+        let filename = if convert.is_ok() {
+            // If we have correctly loaded and resaved with transformers
+            // We might have modified the tokenizer.json according to transformers
+            "out/tokenizer.json".into()
+        } else {
+            filename
+        };
+        Tokenizer::from_file(filename).ok()
     });
 
     let config: Option<Config> = config_filename.and_then(|filename| {
@@ -2555,6 +2574,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::Overloaded(_) => StatusCode::TOO_MANY_REQUESTS,
             InferError::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
+            InferError::IncompleteGenerationStream => StatusCode::INTERNAL_SERVER_ERROR,
             InferError::TemplateError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::MissingTemplateVariable(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::ToolError(_) => StatusCode::UNPROCESSABLE_ENTITY,
@@ -2585,77 +2605,6 @@ impl From<InferError> for Event {
 pub enum WebServerError {
     #[error("Axum error: {0}")]
     Axum(#[from] axum::BoxError),
-}
-
-/// Create a post_processor for the LlamaTokenizer
-fn create_post_processor(
-    tokenizer: &Tokenizer,
-    tokenizer_config: &HubTokenizerConfig,
-) -> Result<TemplateProcessing, tokenizers::processors::template::TemplateProcessingBuilderError> {
-    let add_bos_token = tokenizer_config.add_bos_token.unwrap_or(true);
-    let add_eos_token = tokenizer_config.add_eos_token.unwrap_or(false);
-
-    let bos_token = tokenizer_config.bos_token.as_ref();
-    let eos_token = tokenizer_config.eos_token.as_ref();
-
-    if add_bos_token && bos_token.is_none() {
-        panic!("add_bos_token = true but bos_token is None");
-    }
-
-    if add_eos_token && eos_token.is_none() {
-        panic!("add_eos_token = true but eos_token is None");
-    }
-
-    let mut single = Vec::new();
-    let mut pair = Vec::new();
-    let mut special_tokens = Vec::new();
-
-    if add_bos_token {
-        if let Some(bos) = bos_token {
-            let bos_token_id = tokenizer
-                .token_to_id(bos.as_str())
-                .expect("Should have found the bos token id");
-            special_tokens.push((bos.as_str(), bos_token_id));
-            single.push(format!("{}:0", bos.as_str()));
-            pair.push(format!("{}:0", bos.as_str()));
-        }
-    }
-
-    single.push("$A:0".to_string());
-    pair.push("$A:0".to_string());
-
-    if add_eos_token {
-        if let Some(eos) = eos_token {
-            let eos_token_id = tokenizer
-                .token_to_id(eos.as_str())
-                .expect("Should have found the eos token id");
-            special_tokens.push((eos.as_str(), eos_token_id));
-            single.push(format!("{}:0", eos.as_str()));
-            pair.push(format!("{}:0", eos.as_str()));
-        }
-    }
-
-    if add_bos_token {
-        if let Some(bos) = bos_token {
-            pair.push(format!("{}:1", bos.as_str()));
-        }
-    }
-
-    pair.push("$B:1".to_string());
-
-    if add_eos_token {
-        if let Some(eos) = eos_token {
-            pair.push(format!("{}:1", eos.as_str()));
-        }
-    }
-
-    let post_processor = TemplateProcessing::builder()
-        .try_single(single)?
-        .try_pair(pair)?
-        .special_tokens(special_tokens)
-        .build()?;
-
-    Ok(post_processor)
 }
 
 type PreparedInput = (String, Option<GrammarType>, bool);
