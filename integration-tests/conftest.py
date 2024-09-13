@@ -117,7 +117,7 @@ class ResponseComparator(JSONSnapshotExtension):
                     return Response(**data)
             if isinstance(data, List):
                 return [_convert_data(d) for d in data]
-            raise NotImplementedError
+            raise NotImplementedError(f"Type {type(data)} is not supported")
 
         def eq_token(token: Token, other: Token) -> bool:
             return (
