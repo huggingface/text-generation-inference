@@ -364,7 +364,7 @@ impl State {
                         // Add it back to the front
                         tracing::debug!("Over budget: not enough free blocks");
                         self.entries.push_front((id, entry));
-                        break;
+                        continue;
                     }
                     Some(block_allocation) => {
                         tracing::debug!("Allocation: {block_allocation:?}");

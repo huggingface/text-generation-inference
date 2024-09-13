@@ -97,6 +97,7 @@ impl Allocator for RadixAllocator {
                 self.cache_blocks
                     .decref(prefix_node)
                     .expect("Failed to decrement refcount");
+                tracing::debug!("Cannot allocate {:?}", self.cache_blocks);
                 return None;
             }
         }
