@@ -1686,8 +1686,8 @@ fn main() -> Result<(), LauncherError> {
         tracing::warn!("Bitsandbytes is deprecated, use `eetq` instead, which provides better latencies overall and is drop-in in most cases.");
     }
     let quantize = args.quantize.or(quantize);
-    let cuda_graphs = match (&args.cuda_graphs, &quantize) {
-        (Some(cuda_graphs), _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
+    let cuda_graphs = match (&args.cuda_graphs, &quantize, &args.lora_adapters) {
+        (Some(cuda_graphs), _, _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
         #[allow(deprecated)]
         (
             None,
@@ -1696,12 +1696,17 @@ fn main() -> Result<(), LauncherError> {
                 | Quantization::BitsandbytesNf4
                 | Quantization::BitsandbytesFp4,
             ),
+            _,
         ) => {
             tracing::warn!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
             vec![]
         }
-        (None, Some(Quantization::Exl2)) => {
+        (None, Some(Quantization::Exl2), _) => {
             tracing::warn!("Exl2 doesn't work with cuda graphs, deactivating them");
+            vec![]
+        }
+        (None, _, Some(_lora_adapter)) => {
+            tracing::warn!("Lora adapters do no work with cuda graphs, deactivating them");
             vec![]
         }
         _ => {

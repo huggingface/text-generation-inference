@@ -1,0 +1,104 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 1824,
+        "logprob": -6.0625,
+        "text": "What"
+      },
+      {
+        "id": 349,
+        "logprob": -1.4746094,
+        "text": "is"
+      },
+      {
+        "id": 14972,
+        "logprob": -8.7578125,
+        "text": "Deep"
+      },
+      {
+        "id": 17504,
+        "logprob": -2.125,
+        "text": "Learning"
+      },
+      {
+        "id": 28804,
+        "logprob": -0.32128906,
+        "text": "?"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": -0.39331055,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 13,
+        "logprob": -0.20532227,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 23229,
+        "logprob": -0.5996094,
+        "special": false,
+        "text": "Deep"
+      },
+      {
+        "id": 5168,
+        "logprob": -0.67578125,
+        "special": false,
+        "text": " learning"
+      },
+      {
+        "id": 349,
+        "logprob": -0.24951172,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 264,
+        "logprob": -0.38110352,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 19804,
+        "logprob": -1.3125,
+        "special": false,
+        "text": " subset"
+      },
+      {
+        "id": 302,
+        "logprob": -0.009246826,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 5599,
+        "logprob": -0.13928223,
+        "special": false,
+        "text": " machine"
+      },
+      {
+        "id": 5168,
+        "logprob": -0.004638672,
+        "special": false,
+        "text": " learning"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "\n\nDeep learning is a subset of machine learning"
+}
