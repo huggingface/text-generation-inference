@@ -7,12 +7,12 @@ mod utils;
 use crate::app::App;
 use crate::event::Event;
 use crossterm::ExecutableCommand;
+use ratatui::backend::CrosstermBackend;
+use ratatui::Terminal;
 use std::io;
 use text_generation_client::v3::{GrammarType, NextTokenChooserParameters, ShardedClient};
 use tokenizers::Tokenizer;
 use tokio::sync::{broadcast, mpsc};
-use tui::backend::CrosstermBackend;
-use tui::Terminal;
 
 /// Run benchmarking app
 #[allow(clippy::too_many_arguments)]
