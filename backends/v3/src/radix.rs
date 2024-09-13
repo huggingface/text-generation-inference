@@ -6,10 +6,10 @@ use std::{
     sync::Arc,
 };
 
-fn hash_(slice: &[u32]) -> u32 {
+fn hash_(slice: &[u32]) -> u64 {
     let mut s = std::hash::DefaultHasher::new();
     slice.hash(&mut s);
-    s.finish() as u32
+    s.finish()
 }
 
 pub struct RadixAllocator {
@@ -517,10 +517,10 @@ impl RadixTrie {
     }
 
     /// Add a node to the parent.
-    fn add_node_to_parent(&mut self, parent_id: NodeId, first: u32, child_id: NodeId) {
+    fn add_node_to_parent(&mut self, parent_id: NodeId, hash: u64, child_id: NodeId) {
         // Unwrap here, passing in an unknown id is a programming error.
         let parent = self.nodes.get_mut(parent_id).expect("Unknown parent node");
-        if parent.children.insert(first, child_id).is_none() {
+        if parent.children.insert(hash, child_id).is_none() {
             // Only increase reference count if child does not replace another child.
             self.incref(parent_id)
                 .expect("Failed to increase parent refcount");
@@ -594,7 +594,7 @@ impl RadixTrie {
 #[derive(Debug)]
 struct TrieNode {
     blocks: Vec<u32>,
-    children: HashMap<u32, NodeId>,
+    children: HashMap<u64, NodeId>,
     key: Vec<u32>,
     last_accessed: u64,
     parent: Option<NodeId>,
