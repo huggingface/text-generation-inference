@@ -95,7 +95,6 @@
                 cargo
                 rustfmt
                 clippy
-                cudaPackages.cudatoolkit
               ]
               ++ (with python3.pkgs; [
                 docker
