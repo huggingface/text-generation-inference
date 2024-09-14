@@ -30,6 +30,8 @@ jobs:
         USER: github_runner
     - name: Build
       run: nix develop .#test --command echo "Ok"
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
     - name: Python tests.
       run: |
         sudo mkdir -p /run/opengl-driver/lib
