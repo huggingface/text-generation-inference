@@ -30,13 +30,8 @@ jobs:
         USER: github_runner
     - name: Build
       run: nix develop .#test --command echo "Ok"
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
     - name: Python tests.
       run: |
-        sudo mkdir -p /run/opengl-driver/lib
-        sudo find /usr/lib . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-        sudo find /usr/lib . -name 'libnvidia-ml.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         nix develop .#test --command pytest -svv integration-tests/ --release
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
