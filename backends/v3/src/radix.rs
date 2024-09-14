@@ -6,10 +6,15 @@ use std::{
     sync::Arc,
 };
 
-fn hash_(slice: &[u32]) -> u64 {
-    let mut s = std::hash::DefaultHasher::new();
-    slice.hash(&mut s);
-    s.finish()
+fn hash(slice: &[u32]) -> u64 {
+    assert!(!slice.is_empty());
+    if slice.len() == 1 {
+        slice[0] as u64
+    } else {
+        let mut s = std::hash::DefaultHasher::new();
+        slice.hash(&mut s);
+        s.finish()
+    }
 }
 
 pub struct RadixAllocator {
@@ -282,7 +287,7 @@ impl RadixTrie {
         let node = &self.nodes[node_id];
 
         if key.len() >= self.block_size {
-            let node_key = hash_(&key[..self.block_size]);
+            let node_key = hash(&key[..self.block_size]);
             if let Some(&child_id) = node.children.get(&node_key) {
                 self.update_access_time(child_id);
                 let child = self.nodes.get(child_id).expect("Invalid child identifier");
@@ -423,7 +428,7 @@ impl RadixTrie {
 
         assert_eq!(tokens.len(), blocks.len() * self.block_size);
 
-        let node_key = hash_(&tokens[..self.block_size]);
+        let node_key = hash(&tokens[..self.block_size]);
         if let Some(&child_id) = self.nodes[node_id].children.get(&node_key) {
             self.update_access_time(child_id);
             let child = self
@@ -480,7 +485,7 @@ impl RadixTrie {
         std::mem::swap(&mut node.key, &mut parent_key);
         std::mem::swap(&mut node.blocks, &mut parent_blocks);
 
-        let node_key = hash_(&node.key[..self.block_size]);
+        let node_key = hash(&node.key[..self.block_size]);
 
         let grandparent_id = node.parent.expect("Node does not have a parent");
         let parent_id = self.add_node(grandparent_id, parent_key, parent_blocks);
@@ -505,7 +510,7 @@ impl RadixTrie {
     ) -> NodeId {
         let key = key.into();
         let blocks = blocks.into();
-        let first = hash_(&key[..self.block_size]);
+        let first = hash(&key[..self.block_size]);
 
         let child = TrieNode::new(key, blocks, self.time, Some(parent_id));
         let child_id = self.nodes.insert(child);
@@ -539,7 +544,7 @@ impl RadixTrie {
         let parent_id = node.parent.expect("Attempted to remove root node");
         let parent = self.nodes.get_mut(parent_id).expect("Unknown parent node");
 
-        let node_key = hash_(&node.key[..self.block_size]);
+        let node_key = hash(&node.key[..self.block_size]);
         parent.children.remove(&node_key);
         self.decref(parent_id)
             .expect("Failed to decrease parent refcount");
