@@ -589,7 +589,6 @@ def generate_multi():
         max_new_tokens: int,
         seed: Optional[int] = None,
     ) -> List[Response]:
-
         import numpy as np
 
         arange = np.arange(len(prompts))
