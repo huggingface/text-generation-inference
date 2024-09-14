@@ -52,7 +52,7 @@
       },
       {
         "id": 9830,
-        "logprob": -2.25,
+        "logprob": -2.359375,
         "special": false,
         "text": " colors"
       },
@@ -64,13 +64,13 @@
       },
       {
         "id": 329,
-        "logprob": -2.171875,
+        "logprob": -2.296875,
         "special": false,
         "text": " A"
       },
       {
         "id": 1180,
-        "logprob": -2.046875,
+        "logprob": -1.84375,
         "special": false,
         "text": " number"
       },
@@ -82,13 +82,13 @@
       },
       {
         "id": 1027,
-        "logprob": -1.5546875,
+        "logprob": -1.1015625,
         "special": false,
         "text": " different"
       },
       {
         "id": 3295,
-        "logprob": -0.97265625,
+        "logprob": -1.0546875,
         "special": false,
         "text": " color"
       }
