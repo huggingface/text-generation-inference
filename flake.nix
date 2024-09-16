@@ -149,7 +149,6 @@
           };
         };
 
-        packages.nvidia-libs = pkgs.linuxPackages.nvidia_x11_legacy535.lib32;
         packages.default = pkgs.writeShellApplication {
           name = "text-generation-inference";
           runtimeInputs = [
