@@ -32,10 +32,7 @@ jobs:
       run: nix develop .#test --command echo "Ok"
     - name: Python tests.
       run: |
-        sudo mkdir -p /run/opengl-driver/lib
-        sudo find /usr/lib . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-        sudo find /usr/lib . -name 'libnvidia-ml.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-
+        export LD_LIBRARY_PATH=$(nix-build -E 'with import <nixpkgs> { config = { allowUnfree = true; }; }; linuxPackages.nvidia_x11')
         nix develop .#test --command pytest -svv integration-tests/ --release
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
