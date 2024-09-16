@@ -342,6 +342,7 @@ def launcher(event_loop):
         max_total_tokens: Optional[int] = None,
         lora_adapters: Optional[List[str]] = None,
         cuda_graphs: Optional[List[int]] = None,
+        attention: Optional[str] = None,
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -401,6 +402,8 @@ def launcher(event_loop):
 
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
+        if attention is not None:
+            env["ATTENTION"] = attention
 
         with tempfile.TemporaryFile("w+") as tmp:
             # We'll output stdout/stderr to a temporary file. Using a pipe
@@ -437,6 +440,7 @@ def launcher(event_loop):
         max_total_tokens: Optional[int] = None,
         lora_adapters: Optional[List[str]] = None,
         cuda_graphs: Optional[List[int]] = None,
+        attention: Optional[str] = None,
     ):
         port = random.randint(8000, 10_000)
 
@@ -491,6 +495,8 @@ def launcher(event_loop):
         }
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
+        if attention is not None:
+            env["ATTENTION"] = attention
 
         if HF_TOKEN is not None:
             env["HF_TOKEN"] = HF_TOKEN
@@ -522,6 +528,7 @@ def launcher(event_loop):
             devices=devices,
             volumes=volumes,
             ports={"80/tcp": port},
+            healthcheck={"timeout": int(10 * 1e9)},
             shm_size="1G",
         )
 
