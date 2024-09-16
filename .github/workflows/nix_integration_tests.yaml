@@ -33,9 +33,9 @@ jobs:
     - name: Python tests.
       run: |
         sudo mkdir -p /run/opengl-driver/lib/
-        export NVIDIA=$(nix build --print-out-paths .#nvidia-driver)
+        export NVIDIA=$(nix build --print-out-paths .#nvidia-driver)/lib/
         sudo find $NVIDIA . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         sudo find $NVIDIA . -name 'libnvidia-ml.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-        nix develop .#test --command pytest -svv integration-tests/ --release
+        nix develop .#test --command pytest -svvx integration-tests/ --release
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
