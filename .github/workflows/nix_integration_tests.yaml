@@ -33,7 +33,7 @@ jobs:
     - name: Python tests.
       run: |
         sudo mkdir -p /run/opengl-driver/lib/
-        export NVIDIA=$(nix-build -E 'with import <nixpkgs> { config = { allowUnfree = true; }; }; linuxPackages.nvidia_x11')
+        export NVIDIA=$(nix build --print-out-paths .#nvidia-driver)
         sudo find $NVIDIA . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         sudo find $NVIDIA . -name 'libnvidia-ml.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         nix develop .#test --command pytest -svv integration-tests/ --release

@@ -149,6 +149,7 @@
           };
         };
 
+        packages.nvidia-driver = pkgs.linuxPackages.nvidia_x11;
         packages.default = pkgs.writeShellApplication {
           name = "text-generation-inference";
           runtimeInputs = [
