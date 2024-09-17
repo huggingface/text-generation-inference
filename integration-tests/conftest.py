@@ -19,6 +19,7 @@ from syrupy.extensions.json import JSONSnapshotExtension
 from text_generation import AsyncClient
 from text_generation.types import (
     BestOfSequence,
+    Message,
     ChatComplete,
     ChatCompletionChunk,
     ChatCompletionComplete,
@@ -64,6 +65,7 @@ class ResponseComparator(JSONSnapshotExtension):
         self,
         data,
         *,
+        include=None,
         exclude=None,
         matcher=None,
     ):
@@ -79,7 +81,12 @@ class ResponseComparator(JSONSnapshotExtension):
             data = [d.model_dump() for d in data]
 
         data = self._filter(
-            data=data, depth=0, path=(), exclude=exclude, matcher=matcher
+            data=data,
+            depth=0,
+            path=(),
+            exclude=exclude,
+            include=include,
+            matcher=matcher,
         )
         return json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
 
@@ -91,25 +98,25 @@ class ResponseComparator(JSONSnapshotExtension):
     ) -> bool:
         def convert_data(data):
             data = json.loads(data)
-            if isinstance(data, Dict) and "choices" in data:
-                choices = data["choices"]
-                if isinstance(choices, List) and len(choices) >= 1:
-                    if "delta" in choices[0]:
-                        return ChatCompletionChunk(**data)
-                    if "text" in choices[0]:
-                        return Completion(**data)
-                return ChatComplete(**data)
+            return _convert_data(data)
 
+        def _convert_data(data):
             if isinstance(data, Dict):
-                return Response(**data)
+                if "choices" in data:
+                    data["choices"] = list(
+                        sorted(data["choices"], key=lambda x: x["index"])
+                    )
+                    choices = data["choices"]
+                    if isinstance(choices, List) and len(choices) >= 1:
+                        if "delta" in choices[0]:
+                            return ChatCompletionChunk(**data)
+                        if "text" in choices[0]:
+                            return Completion(**data)
+                    return ChatComplete(**data)
+                else:
+                    return Response(**data)
             if isinstance(data, List):
-                if (
-                    len(data) > 0
-                    and "object" in data[0]
-                    and data[0]["object"] == "text_completion"
-                ):
-                    return [Completion(**d) for d in data]
-                return [Response(**d) for d in data]
+                return [_convert_data(d) for d in data]
             raise NotImplementedError
 
         def eq_token(token: Token, other: Token) -> bool:
@@ -257,7 +264,7 @@ class IgnoreLogProbResponseComparator(ResponseComparator):
 
 class LauncherHandle:
     def __init__(self, port: int):
-        self.client = AsyncClient(f"http://localhost:{port}")
+        self.client = AsyncClient(f"http://localhost:{port}", timeout=30)
 
     def _inner_health(self):
         raise NotImplementedError
@@ -335,6 +342,7 @@ def launcher(event_loop):
         max_total_tokens: Optional[int] = None,
         lora_adapters: Optional[List[str]] = None,
         cuda_graphs: Optional[List[int]] = None,
+        attention: Optional[str] = None,
     ):
         port = random.randint(8000, 10_000)
         master_port = random.randint(10_000, 20_000)
@@ -394,6 +402,8 @@ def launcher(event_loop):
 
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
+        if attention is not None:
+            env["ATTENTION"] = attention
 
         with tempfile.TemporaryFile("w+") as tmp:
             # We'll output stdout/stderr to a temporary file. Using a pipe
@@ -430,6 +440,7 @@ def launcher(event_loop):
         max_total_tokens: Optional[int] = None,
         lora_adapters: Optional[List[str]] = None,
         cuda_graphs: Optional[List[int]] = None,
+        attention: Optional[str] = None,
     ):
         port = random.randint(8000, 10_000)
 
@@ -484,6 +495,8 @@ def launcher(event_loop):
         }
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
+        if attention is not None:
+            env["ATTENTION"] = attention
 
         if HF_TOKEN is not None:
             env["HF_TOKEN"] = HF_TOKEN
@@ -515,6 +528,7 @@ def launcher(event_loop):
             devices=devices,
             volumes=volumes,
             ports={"80/tcp": port},
+            healthcheck={"timeout": int(10 * 1e9)},
             shm_size="1G",
         )
 
@@ -563,5 +577,40 @@ def generate_load():
         ]
 
         return await asyncio.gather(*futures)
+
+    return generate_load_inner
+
+
+@pytest.fixture(scope="module")
+def generate_multi():
+    async def generate_load_inner(
+        client: AsyncClient,
+        prompts: List[str],
+        max_new_tokens: int,
+        seed: Optional[int] = None,
+    ) -> List[Response]:
+
+        import numpy as np
+
+        arange = np.arange(len(prompts))
+        perm = np.random.permutation(arange)
+        rperm = [-1] * len(perm)
+        for i, p in enumerate(perm):
+            rperm[p] = i
+
+        shuffled_prompts = [prompts[p] for p in perm]
+        futures = [
+            client.chat(
+                messages=[Message(role="user", content=prompt)],
+                max_tokens=max_new_tokens,
+                temperature=0,
+                seed=seed,
+            )
+            for prompt in shuffled_prompts
+        ]
+
+        shuffled_responses = await asyncio.gather(*futures)
+        responses = [shuffled_responses[p] for p in rperm]
+        return responses
 
     return generate_load_inner

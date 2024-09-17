@@ -8,7 +8,7 @@ use crate::kserve::{
     kserve_model_metadata, kserve_model_metadata_ready,
 };
 use crate::validation::ValidationError;
-use crate::ChatTokenizeResponse;
+use crate::{default_tool_prompt, ChatTokenizeResponse, VertexInstance};
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -23,7 +23,8 @@ use crate::{
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, VertexRequest,
     VertexResponse,
 };
-use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType, Tools};
+use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
+use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -40,6 +41,7 @@ use hf_hub::api::tokio::{Api, ApiBuilder, ApiRepo};
 use hf_hub::{Cache, Repo, RepoType};
 use http::header::AUTHORIZATION;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use pyo3::types::IntoPyDict;
 use serde_json::Value;
 use std::convert::Infallible;
 use std::fs::File;
@@ -47,7 +49,6 @@ use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tokenizers::processors::template::TemplateProcessing;
 use tokenizers::Tokenizer;
 use tokio::select;
 use tokio::signal;
@@ -117,6 +118,29 @@ async fn get_model_info(info: Extension<Info>) -> Json<Info> {
 }
 
 #[utoipa::path(
+get,
+tag = "Text Generation Inference",
+path = "/v1/models",
+responses(
+(status = 200, description = "Served model info", body = ModelInfo),
+(status = 404, description = "Model not found", body = ErrorResponse),
+)
+)]
+#[instrument(skip(info))]
+/// Get model info
+async fn openai_get_model_info(info: Extension<Info>) -> Json<ModelsInfo> {
+    Json(ModelsInfo {
+        data: vec![ModelInfo {
+            id: info.0.model_id.clone(),
+            object: "model".to_string(),
+            created: 0, // TODO: determine how to get this
+            owned_by: info.0.model_id.clone(),
+        }],
+        ..Default::default()
+    })
+}
+
+#[utoipa::path(
     post,
     tag = "Text Generation Inference",
     path = "/chat_tokenize",
@@ -146,7 +170,7 @@ async fn get_chat_tokenize(
     } = req;
 
     let tool_prompt = tool_prompt.unwrap_or_default();
-    let (inputs, _grammar, _tool_grammar) = prepare_chat_input(
+    let (inputs, _grammar, _using_tools) = prepare_chat_input(
         &infer,
         response_format,
         tools,
@@ -158,6 +182,7 @@ async fn get_chat_tokenize(
 
     let generate_request = GenerateRequest {
         inputs,
+        add_special_tokens: false,
         parameters: GenerateParameters {
             best_of: None,
             temperature,
@@ -293,7 +318,10 @@ pub(crate) async fn generate_internal(
     metrics::counter!("tgi_request_count").increment(1);
 
     // Do not long ultra long inputs, like image payloads.
-    tracing::debug!("Input: {}", &req.inputs[..1000.min(req.inputs.len())]);
+    tracing::debug!(
+        "Input: {}",
+        &req.inputs.chars().take(1000).collect::<String>()
+    );
 
     let compute_characters = req.inputs.chars().count();
     let mut add_prompt = None;
@@ -649,7 +677,7 @@ async fn generate_stream_internal(
             // Check if generation reached the end
             // Skip if we already sent an error
             if !end_reached && !error {
-                let err = InferError::IncompleteGeneration;
+                let err = InferError::IncompleteGenerationStream;
                 metrics::counter!("tgi_request_failure", "err" => "incomplete").increment(1);
                 tracing::error!("{err}");
                 yield Ok(Event::from(err));
@@ -754,6 +782,7 @@ async fn completions(
         .iter()
         .map(|prompt| GenerateRequest {
             inputs: prompt.to_string(),
+            add_special_tokens: true,
             parameters: GenerateParameters {
                 best_of: None,
                 temperature,
@@ -1158,14 +1187,16 @@ async fn chat_completions(
     let repetition_penalty = presence_penalty.map(|x| x + 2.0);
     let max_new_tokens = max_tokens.or(Some(100));
     let logprobs = logprobs.unwrap_or(false);
-    let tool_prompt = tool_prompt.unwrap_or_default();
+    let tool_prompt = tool_prompt
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(default_tool_prompt);
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
     let (do_sample, temperature) = match temperature {
         Some(temperature) if temperature == 0.0 => (false, None),
         other => (true, other),
     };
-    let (inputs, grammar, tool_grammar) = prepare_chat_input(
+    let (inputs, grammar, using_tools) = prepare_chat_input(
         &infer,
         response_format,
         tools,
@@ -1178,6 +1209,7 @@ async fn chat_completions(
     // build the request passing some parameters
     let generate_request = GenerateRequest {
         inputs: inputs.to_string(),
+        add_special_tokens: false,
         parameters: GenerateParameters {
             best_of: None,
             temperature,
@@ -1221,7 +1253,7 @@ async fn chat_completions(
             });
 
             // replace the content with the tool calls if grammar is present
-            let (content, tool_calls) = if tool_grammar.is_some() {
+            let (content, tool_calls) = if using_tools {
                 (None, Some(vec![stream_token.token.text]))
             } else {
                 let content = if !stream_token.token.special {
@@ -1275,7 +1307,7 @@ async fn chat_completions(
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
 
-        let (tool_calls, output) = if tool_grammar.is_some() {
+        let (tool_calls, output) = if using_tools {
             let gen_text_value: Value =
                 serde_json::from_str(&generation.generated_text).map_err(|e| {
                     InferError::ToolError(format!(
@@ -1377,13 +1409,14 @@ async fn vertex_compatibility(
         ));
     }
 
-    // Process all instances
-    let predictions = req
-        .instances
-        .iter()
-        .map(|instance| {
-            let generate_request = GenerateRequest {
+    // Prepare futures for all instances
+    let mut futures = Vec::with_capacity(req.instances.len());
+
+    for instance in req.instances.iter() {
+        let generate_request = match instance {
+            VertexInstance::Generate(instance) => GenerateRequest {
                 inputs: instance.inputs.clone(),
+                add_special_tokens: true,
                 parameters: GenerateParameters {
                     do_sample: true,
                     max_new_tokens: instance.parameters.as_ref().and_then(|p| p.max_new_tokens),
@@ -1392,31 +1425,117 @@ async fn vertex_compatibility(
                     decoder_input_details: true,
                     ..Default::default()
                 },
-            };
+            },
+            VertexInstance::Chat(instance) => {
+                let ChatRequest {
+                    model,
+                    max_tokens,
+                    messages,
+                    seed,
+                    stop,
+                    stream,
+                    tools,
+                    tool_choice,
+                    tool_prompt,
+                    temperature,
+                    response_format,
+                    guideline,
+                    presence_penalty,
+                    frequency_penalty,
+                    top_p,
+                    top_logprobs,
+                    ..
+                } = instance.clone();
 
-            async {
-                generate_internal(
-                    Extension(infer.clone()),
-                    compute_type.clone(),
-                    Json(generate_request),
-                    span.clone(),
-                )
-                .await
-                .map(|(_, Json(generation))| generation.generated_text)
-                .map_err(|_| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(ErrorResponse {
-                            error: "Incomplete generation".into(),
-                            error_type: "Incomplete generation".into(),
-                        }),
-                    )
-                })
+                let repetition_penalty = presence_penalty.map(|x| x + 2.0);
+                let max_new_tokens = max_tokens.or(Some(100));
+                let tool_prompt = tool_prompt
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(default_tool_prompt);
+                let stop = stop.unwrap_or_default();
+                // enable greedy only when temperature is 0
+                let (do_sample, temperature) = match temperature {
+                    Some(temperature) if temperature == 0.0 => (false, None),
+                    other => (true, other),
+                };
+                let (inputs, grammar, _using_tools) = match prepare_chat_input(
+                    &infer,
+                    response_format,
+                    tools,
+                    tool_choice,
+                    &tool_prompt,
+                    guideline,
+                    messages,
+                ) {
+                    Ok(result) => result,
+                    Err(e) => {
+                        return Err((
+                            StatusCode::BAD_REQUEST,
+                            Json(ErrorResponse {
+                                error: format!("Failed to prepare chat input: {}", e),
+                                error_type: "Input preparation error".to_string(),
+                            }),
+                        ));
+                    }
+                };
+
+                GenerateRequest {
+                    inputs: inputs.to_string(),
+                    add_special_tokens: false,
+                    parameters: GenerateParameters {
+                        best_of: None,
+                        temperature,
+                        repetition_penalty,
+                        frequency_penalty,
+                        top_k: None,
+                        top_p,
+                        typical_p: None,
+                        do_sample,
+                        max_new_tokens,
+                        return_full_text: None,
+                        stop,
+                        truncate: None,
+                        watermark: false,
+                        details: true,
+                        decoder_input_details: !stream,
+                        seed,
+                        top_n_tokens: top_logprobs,
+                        grammar,
+                        adapter_id: model.filter(|m| *m != "tgi").map(String::from),
+                    },
+                }
             }
-        })
-        .collect::<FuturesUnordered<_>>()
-        .try_collect::<Vec<_>>()
-        .await?;
+        };
+
+        let infer_clone = infer.clone();
+        let compute_type_clone = compute_type.clone();
+        let span_clone = span.clone();
+
+        futures.push(async move {
+            generate_internal(
+                Extension(infer_clone),
+                compute_type_clone,
+                Json(generate_request),
+                span_clone,
+            )
+            .await
+            .map(|(_, Json(generation))| generation.generated_text)
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "Incomplete generation".into(),
+                        error_type: "Incomplete generation".into(),
+                    }),
+                )
+            })
+        });
+    }
+
+    // execute all futures in parallel, collect results, returning early if any error occurs
+    let results = futures::future::join_all(futures).await;
+    let predictions: Result<Vec<_>, _> = results.into_iter().collect();
+    let predictions = predictions?;
 
     let response = VertexResponse { predictions };
     Ok((HeaderMap::new(), Json(response)).into_response())
@@ -1499,6 +1618,7 @@ chat_completions,
 completions,
 tokenize,
 metrics,
+openai_get_model_info,
 ),
 components(
 schemas(
@@ -1551,6 +1671,7 @@ ToolCall,
 Function,
 FunctionDefinition,
 ToolChoice,
+ModelInfo,
 )
 ),
 tags(
@@ -1739,18 +1860,34 @@ pub async fn run(
     });
 
     let tokenizer: Option<Tokenizer> = tokenizer_filename.and_then(|filename| {
-        let mut tokenizer = Tokenizer::from_file(filename).ok();
-        if let Some(tokenizer) = &mut tokenizer {
-            if let Some(class) = &tokenizer_config.tokenizer_class {
-                if class == "LlamaTokenizer" || class == "LlamaTokenizerFast"{
-                    if let Ok(post_processor) = create_post_processor(tokenizer, &tokenizer_config) {
-                        tracing::info!("Overriding LlamaTokenizer with TemplateProcessing to follow python override defined in https://github.com/huggingface/transformers/blob/4aa17d00690b7f82c95bb2949ea57e22c35b4336/src/transformers/models/llama/tokenization_llama_fast.py#L203-L205");
-                        tokenizer.with_post_processor(post_processor);
-                    }
-                }
-            }
-        }
-        tokenizer
+        use pyo3::prelude::*;
+        let convert = pyo3::Python::with_gil(|py| -> PyResult<()> {
+            let transformers = py.import_bound("transformers")?;
+            let auto = transformers.getattr("AutoTokenizer")?;
+            let from_pretrained = auto.getattr("from_pretrained")?;
+            let args = (tokenizer_name.to_string(),);
+            let kwargs = [(
+                "revision",
+                revision.clone().unwrap_or_else(|| "main".to_string()),
+            )]
+            .into_py_dict_bound(py);
+            let tokenizer = from_pretrained.call(args, Some(&kwargs))?;
+            let save = tokenizer.getattr("save_pretrained")?;
+            let args = ("out".to_string(),);
+            save.call1(args)?;
+            Ok(())
+        })
+        .inspect_err(|err| {
+            tracing::error!("Failed to import python tokenizer {err}");
+        });
+        let filename = if convert.is_ok() {
+            // If we have correctly loaded and resaved with transformers
+            // We might have modified the tokenizer.json according to transformers
+            "out/tokenizer.json".into()
+        } else {
+            filename
+        };
+        Tokenizer::from_file(filename).ok()
     });
 
     let config: Option<Config> = config_filename.and_then(|filename| {
@@ -2244,7 +2381,8 @@ async fn start(
         .route("/info", get(get_model_info))
         .route("/health", get(health))
         .route("/ping", get(health))
-        .route("/metrics", get(metrics));
+        .route("/metrics", get(metrics))
+        .route("/v1/models", get(openai_get_model_info));
 
     // Conditional AWS Sagemaker route
     let aws_sagemaker_route = if messages_api_enabled {
@@ -2436,6 +2574,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::Overloaded(_) => StatusCode::TOO_MANY_REQUESTS,
             InferError::ValidationError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::IncompleteGeneration => StatusCode::INTERNAL_SERVER_ERROR,
+            InferError::IncompleteGenerationStream => StatusCode::INTERNAL_SERVER_ERROR,
             InferError::TemplateError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::MissingTemplateVariable(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::ToolError(_) => StatusCode::UNPROCESSABLE_ENTITY,
@@ -2468,78 +2607,7 @@ pub enum WebServerError {
     Axum(#[from] axum::BoxError),
 }
 
-/// Create a post_processor for the LlamaTokenizer
-fn create_post_processor(
-    tokenizer: &Tokenizer,
-    tokenizer_config: &HubTokenizerConfig,
-) -> Result<TemplateProcessing, tokenizers::processors::template::TemplateProcessingBuilderError> {
-    let add_bos_token = tokenizer_config.add_bos_token.unwrap_or(true);
-    let add_eos_token = tokenizer_config.add_eos_token.unwrap_or(false);
-
-    let bos_token = tokenizer_config.bos_token.as_ref();
-    let eos_token = tokenizer_config.eos_token.as_ref();
-
-    if add_bos_token && bos_token.is_none() {
-        panic!("add_bos_token = true but bos_token is None");
-    }
-
-    if add_eos_token && eos_token.is_none() {
-        panic!("add_eos_token = true but eos_token is None");
-    }
-
-    let mut single = Vec::new();
-    let mut pair = Vec::new();
-    let mut special_tokens = Vec::new();
-
-    if add_bos_token {
-        if let Some(bos) = bos_token {
-            let bos_token_id = tokenizer
-                .token_to_id(bos.as_str())
-                .expect("Should have found the bos token id");
-            special_tokens.push((bos.as_str(), bos_token_id));
-            single.push(format!("{}:0", bos.as_str()));
-            pair.push(format!("{}:0", bos.as_str()));
-        }
-    }
-
-    single.push("$A:0".to_string());
-    pair.push("$A:0".to_string());
-
-    if add_eos_token {
-        if let Some(eos) = eos_token {
-            let eos_token_id = tokenizer
-                .token_to_id(eos.as_str())
-                .expect("Should have found the eos token id");
-            special_tokens.push((eos.as_str(), eos_token_id));
-            single.push(format!("{}:0", eos.as_str()));
-            pair.push(format!("{}:0", eos.as_str()));
-        }
-    }
-
-    if add_bos_token {
-        if let Some(bos) = bos_token {
-            pair.push(format!("{}:1", bos.as_str()));
-        }
-    }
-
-    pair.push("$B:1".to_string());
-
-    if add_eos_token {
-        if let Some(eos) = eos_token {
-            pair.push(format!("{}:1", eos.as_str()));
-        }
-    }
-
-    let post_processor = TemplateProcessing::builder()
-        .try_single(single)?
-        .try_pair(pair)?
-        .special_tokens(special_tokens)
-        .build()?;
-
-    Ok(post_processor)
-}
-
-type PreparedInput = (String, Option<GrammarType>, Option<Tools>);
+type PreparedInput = (String, Option<GrammarType>, bool);
 
 fn prepare_chat_input(
     infer: &Infer,
@@ -2556,19 +2624,139 @@ fn prepare_chat_input(
         ));
     }
 
+    // when response_format is set, tools are not included when applying the chat template to generate inputs
     if let Some(format) = response_format {
         let inputs = infer.apply_chat_template(guideline, messages, None)?;
-        return Ok((inputs, Some(format), None));
+        return Ok((inputs, Some(format), false));
     }
 
-    // if tools are set, apply the tool grammar and then the chat template
-    let tool_grammar: Option<Tools> = ToolGrammar::apply(tools, tool_choice)?;
-    let grammar = tool_grammar
-        .as_ref()
-        .map(|t| GrammarType::Json(serde_json::json!(t)));
-    let tools_grammar_prompt = tool_grammar
-        .as_ref()
-        .map(|t| (GrammarType::Json(serde_json::json!(t)), tool_prompt.into()));
-    let inputs = infer.apply_chat_template(guideline, messages, tools_grammar_prompt)?;
-    Ok((inputs, grammar, tool_grammar))
+    // when no response_format is set and tools are included, apply the chat template with the tools
+    // to generate inputs
+    if let Some(tools) = tools {
+        let (updated_tools, tool_schema) = ToolGrammar::apply(tools, tool_choice)?;
+
+        let grammar = tool_schema
+            .as_ref()
+            .map(|t| GrammarType::Json(serde_json::json!(t)));
+
+        let inputs: String = infer.apply_chat_template(
+            guideline,
+            messages,
+            Some((updated_tools, tool_prompt.into())),
+        )?;
+        return Ok((inputs, grammar, tool_schema.is_some()));
+    }
+
+    // if no response_format or tools are set simply apply the chat template to generate inputs
+    let inputs = infer.apply_chat_template(guideline, messages, None)?;
+    Ok((inputs, None, false))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ChatTemplateVersions;
+    use crate::HubTokenizerConfig;
+    use crate::TokenizerConfigToken;
+    use crate::Tool;
+
+    use serde_json::json;
+
+    #[test]
+    fn test_prepare_chat_input() {
+        // Mock Backend to avoid network requests
+        struct MockBackend;
+
+        impl Backend for MockBackend {
+            fn schedule(
+                &self,
+                _request: crate::validation::ValidGenerateRequest,
+            ) -> Result<
+                tokio_stream::wrappers::UnboundedReceiverStream<
+                    Result<InferStreamResponse, InferError>,
+                >,
+                InferError,
+            > {
+                unimplemented!("Never called in this test");
+            }
+            fn health<'a, 'async_trait>(
+                &'a self,
+                _current_health: bool,
+            ) -> core::pin::Pin<
+                Box<dyn core::future::Future<Output = bool> + core::marker::Send + 'async_trait>,
+            >
+            where
+                'a: 'async_trait,
+                Self: 'async_trait,
+            {
+                unimplemented!("Never called in this test");
+            }
+        }
+
+        let backend = MockBackend {};
+
+        let mut tokenizer_config = HubTokenizerConfig::default();
+
+        // mock tokenizer config values
+        tokenizer_config.bos_token = Some(TokenizerConfigToken::String("<s>".to_string()));
+        tokenizer_config.eos_token = Some(TokenizerConfigToken::String("</s>".to_string()));
+        tokenizer_config.chat_template = Some(
+            ChatTemplateVersions::Single("{%- if messages[0][\"role\"] == \"system\" %}\n    {%- set system_message = messages[0][\"content\"] %}\n    {%- set loop_messages = messages[1:] %}\n{%- else %}\n    {%- set loop_messages = messages %}\n{%- endif %}\n{%- if not tools is defined %}\n    {%- set tools = none %}\n{%- endif %}\n{%- set user_messages = loop_messages | selectattr(\"role\", \"equalto\", \"user\") | list %}\n\n{#- This block checks for alternating user/assistant messages, skipping tool calling messages #}\n{%- set ns = namespace() %}\n{%- set ns.index = 0 %}\n{%- for message in loop_messages %}\n    {%- if not (message.role == \"tool\" or message.role == \"tool_results\" or (message.tool_calls is defined and message.tool_calls is not none)) %}\n        {%- if (message[\"role\"] == \"user\") != (ns.index % 2 == 0) %}\n            {{- raise_exception(\"After the optional system message, conversation roles must alternate user/assistant/user/assistant/...\") }}\n        {%- endif %}\n        {%- set ns.index = ns.index + 1 %}\n    {%- endif %}\n{%- endfor %}\n\n{{- bos_token }}\n{%- for message in loop_messages %}\n    {%- if message[\"role\"] == \"user\" %}\n        {%- if tools is not none and (message == user_messages[-1]) %}\n            {{- \"[AVAILABLE_TOOLS] [\" }}\n            {%- for tool in tools %}\n                {%- set tool = tool.function %}\n                {{- '{\"type\": \"function\", \"function\": {' }}\n                {%- for key, val in tool.items() if key != \"return\" %}\n                    {%- if val is string %}\n                        {{- '\"' + key + '\": \"' + val + '\"' }}\n                    {%- else %}\n                        {{- '\"' + key + '\": ' + val|tojson }}\n                    {%- endif %}\n                    {%- if not loop.last %}\n                        {{- \", \" }}\n                    {%- endif %}\n                {%- endfor %}\n                {{- \"}}\" }}\n                {%- if not loop.last %}\n                    {{- \", \" }}\n                {%- else %}\n                    {{- \"]\" }}\n                {%- endif %}\n            {%- endfor %}\n            {{- \"[/AVAILABLE_TOOLS]\" }}\n            {%- endif %}\n        {%- if loop.last and system_message is defined %}\n            {{- \"[INST] \" + system_message + \"\\n\\n\" + message[\"content\"] + \"[/INST]\" }}\n        {%- else %}\n            {{- \"[INST] \" + message[\"content\"] + \"[/INST]\" }}\n        {%- endif %}\n    {%- elif message.tool_calls is defined and message.tool_calls is not none %}\n        {{- \"[TOOL_CALLS] [\" }}\n        {%- for tool_call in message.tool_calls %}\n            {%- set out = tool_call.function|tojson %}\n            {{- out[:-1] }}\n            {%- if not tool_call.id is defined or tool_call.id|length != 9 %}\n                {{- raise_exception(\"Tool call IDs should be alphanumeric strings with length 9!\") }}\n            {%- endif %}\n            {{- ', \"id\": \"' + tool_call.id + '\"}' }}\n            {%- if not loop.last %}\n                {{- \", \" }}\n            {%- else %}\n                {{- \"]\" + eos_token }}\n            {%- endif %}\n        {%- endfor %}\n    {%- elif message[\"role\"] == \"assistant\" %}\n        {{- \" \" + message[\"content\"]|trim + eos_token}}\n    {%- elif message[\"role\"] == \"tool_results\" or message[\"role\"] == \"tool\" %}\n        {%- if message.content is defined and message.content.content is defined %}\n            {%- set content = message.content.content %}\n        {%- else %}\n            {%- set content = message.content %}\n        {%- endif %}\n        {{- '[TOOL_RESULTS] {\"content\": ' + content|string + \", \" }}\n        {%- if not message.tool_call_id is defined or message.tool_call_id|length != 9 %}\n            {{- raise_exception(\"Tool call IDs should be alphanumeric strings with length 9!\") }}\n        {%- endif %}\n        {{- '\"call_id\": \"' + message.tool_call_id + '\"}[/TOOL_RESULTS]' }}\n    {%- else %}\n        {{- raise_exception(\"Only user and assistant roles are supported, with the exception of an initial optional system message!\") }}\n    {%- endif %}\n{%- endfor %}\n".to_string())
+        );
+
+        let infer = Infer::new(
+            backend,
+            Validation::new(1, None, None, None, 1, 1, 1, 1, 1, false),
+            1,
+            tokenizer_config,
+            HubProcessorConfig::default(),
+        );
+        let response_format = None;
+        let tools = Some(vec![Tool {
+            r#type: "function".to_string(),
+            function: FunctionDefinition {
+                name: "get_current_weather".to_string(),
+                description: Some("Get the current weather".to_string()),
+                arguments: json!({
+                    "type": "object",
+                    "properties": {
+                        "location": {
+                            "type": "string",
+                            "description": "The city and state, e.g. San Francisco, CA"
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["celsius", "fahrenheit"],
+                            "description": "The temperature unit to use. Infer this from the users location."
+                        }
+                    },
+                    "required": ["location", "format"]
+                }),
+            },
+        }]);
+        let tool_prompt = "Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.";
+        let guideline = None;
+        let messages = vec![Message {
+            name: None,
+            role: "user".to_string(),
+            content: MessageContent::SingleText(
+                "What is the weather like in New York?".to_string(),
+            ),
+        }];
+
+        let result = prepare_chat_input(
+            &infer,
+            response_format,
+            tools,
+            ToolChoice(None),
+            tool_prompt,
+            guideline,
+            messages,
+        );
+
+        assert!(result.is_ok());
+        let (inputs, _grammar, using_tools) = result.unwrap();
+        assert_eq!(using_tools, true);
+        assert_eq!(inputs, "<s>[AVAILABLE_TOOLS] [{\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}, \"description\": \"Get the current weather\", \"name\": \"get_current_weather\"}}, {\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"error\":{\"description\":\"The error or issue to notify\",\"type\":\"string\"}},\"required\":[\"error\"],\"type\":\"object\"}, \"description\": \"Notify an error or issue\", \"name\": \"notify_error\"}}][/AVAILABLE_TOOLS][INST] What is the weather like in New York?\n---\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.[/INST]".to_string());
+    }
 }

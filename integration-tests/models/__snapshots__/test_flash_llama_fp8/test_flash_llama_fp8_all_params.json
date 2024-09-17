@@ -1,8 +1,8 @@
 {
   "details": {
     "best_of_sequences": null,
-    "finish_reason": "length",
-    "generated_tokens": 10,
+    "finish_reason": "stop_sequence",
+    "generated_tokens": 5,
     "prefill": [
       {
         "id": 128000,
@@ -16,7 +16,7 @@
       },
       {
         "id": 1715,
-        "logprob": -10.375,
+        "logprob": -10.4375,
         "text": " request"
       }
     ],
@@ -29,61 +29,31 @@
         "text": ":"
       },
       {
-        "id": 2209,
-        "logprob": -2.78125,
+        "id": 923,
+        "logprob": -2.84375,
         "special": false,
-        "text": " Is"
+        "text": " add"
       },
       {
-        "id": 279,
-        "logprob": -0.6328125,
+        "id": 264,
+        "logprob": 0.0,
         "special": false,
-        "text": " the"
-      },
-      {
-        "id": 734,
-        "logprob": -2.703125,
-        "special": false,
-        "text": " function"
+        "text": " a"
       },
       {
         "id": 330,
-        "logprob": -0.34179688,
+        "logprob": -0.31640625,
         "special": false,
         "text": " \""
       },
       {
-        "id": 4110,
-        "logprob": -2.359375,
+        "id": 1985,
+        "logprob": 0.0,
         "special": false,
-        "text": "Create"
-      },
-      {
-        "id": 7575,
-        "logprob": -2.1875,
-        "special": false,
-        "text": "Process"
-      },
-      {
-        "id": 1,
-        "logprob": -0.07910156,
-        "special": false,
-        "text": "\""
-      },
-      {
-        "id": 304,
-        "logprob": -0.83203125,
-        "special": false,
-        "text": " in"
-      },
-      {
-        "id": 12468,
-        "logprob": -1.8203125,
-        "special": false,
-        "text": " Win"
+        "text": "test"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "Test request: Is the function \"CreateProcess\" in Win"
+  "generated_text": "Test request: add a \"test"
 }

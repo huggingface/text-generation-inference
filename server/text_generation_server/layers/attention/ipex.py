@@ -8,11 +8,11 @@ SUPPORTS_WINDOWING = False
 
 
 def attention(
-    q,
-    k,
-    v,
-    cu_seqlens,
-    max_s,
+    q: torch.Tensor,
+    key_cache: torch.Tensor,
+    value_cache: torch.Tensor,
+    seqlen: Seqlen,
+    block_tables: torch.Tensor,
     softmax_scale,
     window_size_left=-1,
     causal=True,
@@ -22,14 +22,14 @@ def attention(
 
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
     ipex.llm.functional.varlen_attention(
-        q,
-        k,
-        v,
+        q.contiguous() if q.device.type == "xpu" else q,
+        key_cache.contiguous() if key_cache.device.type == "xpu" else key_cache,
+        value_cache.contiguous() if value_cache.device.type == "xpu" else value_cache,
         out,
-        cu_seqlens,
-        cu_seqlens,
-        max_s,
-        max_s,
+        seqlen.cu_seqlen_q,
+        seqlen.cu_seqlen_q,
+        seqlen.max_q,
+        seqlen.max_q,
         0.0,
         softmax_scale,
         False,

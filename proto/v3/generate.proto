@@ -137,6 +137,8 @@ message Request {
   optional string adapter_id = 11;
   /// Prefix length that can be retrieved from the KV cache.
   uint32 prefix_len = 12;
+  /// Context truncation
+  bool add_special_tokens = 13;
 }
 
 message Batch {

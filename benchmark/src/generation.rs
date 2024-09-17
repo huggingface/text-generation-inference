@@ -148,6 +148,7 @@ async fn prefill(
             }),
             inputs: sequence.clone(),
             truncate: sequence_length,
+            add_special_tokens: true,
             parameters: Some(parameters.clone()),
             stopping_parameters: Some(StoppingCriteriaParameters {
                 max_new_tokens: decode_length,

@@ -31,15 +31,12 @@
           src = ./.;
           additionalCargoNixArgs = [ "--all-features" ];
         };
-        config = {
-          allowUnfree = true;
-          cudaSupport = true;
-        };
         pkgs = import nixpkgs {
-          inherit config system;
+          inherit system;
+          inherit (tgi-nix.lib) config;
           overlays = [
             rust-overlay.overlays.default
-            tgi-nix.overlay
+            tgi-nix.overlays.default
           ];
         };
         crateOverrides = import ./nix/crate-overrides.nix { inherit pkgs nix-filter; };
@@ -49,12 +46,52 @@
         launcher = cargoNix.workspaceMembers.text-generation-launcher.build.override {
           inherit crateOverrides;
         };
-        router = cargoNix.workspaceMembers.text-generation-router-v3.build.override {
-          inherit crateOverrides;
-        };
+        router =
+          let
+            routerUnwrapped = cargoNix.workspaceMembers.text-generation-router-v3.build.override {
+              inherit crateOverrides;
+            };
+            packagePath =
+              with pkgs.python3.pkgs;
+              makePythonPath [
+                protobuf
+                sentencepiece
+                torch
+                transformers
+              ];
+          in
+          pkgs.writeShellApplication {
+            name = "text-generation-router";
+            text = ''
+              PYTHONPATH="${packagePath}" ${routerUnwrapped}/bin/text-generation-router "$@"
+            '';
+          };
         server = pkgs.python3.pkgs.callPackage ./nix/server.nix { inherit nix-filter; };
       in
       {
+        checks = {
+          rust = with pkgs; rustPlatform.buildRustPackage {
+            name = "rust-checks";
+            src = ./.;
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+            };
+            buildInputs = [ openssl.dev ];
+            nativeBuildInputs = [ clippy pkg-config protobuf python3 rustfmt ];
+            buildPhase = ''
+              cargo check
+            '';
+            checkPhase = ''
+              cargo fmt -- --check
+              cargo test -j $NIX_BUILD_CORES
+              cargo clippy
+            '';
+            installPhase = "touch $out";
+          } ;
+        };
+
+        formatter = pkgs.nixfmt-rfc-style;
+
         devShells = with pkgs; rec {
           default = pure;
 
@@ -65,6 +102,29 @@
               router
               server
             ];
+          };
+          test = mkShell {
+            buildInputs =
+              [
+                # benchmark
+                # launcher
+                # router
+                server
+                openssl.dev
+                pkg-config
+                cargo
+                rustfmt
+                clippy
+              ]
+              ++ (with python3.pkgs; [
+                docker
+                pytest
+                pytest-asyncio
+                syrupy
+                pre-commit
+                ruff
+              ]);
+
           };
 
           impure = mkShell {
@@ -82,22 +142,42 @@
               ]
               ++ (with python3.pkgs; [
                 venvShellHook
+                docker
                 pip
                 ipdb
+                click
+                pyright
+                pytest
+                pytest-asyncio
+                ruff
+                syrupy
               ]);
 
             inputsFrom = [ server ];
 
             venvDir = "./.venv";
 
-            postVenv = ''
+            postVenvCreation = ''
               unset SOURCE_DATE_EPOCH
+              ( cd server ; python -m pip install --no-dependencies -e . )
+              ( cd clients/python ; python -m pip install --no-dependencies -e . )
             '';
             postShellHook = ''
               unset SOURCE_DATE_EPOCH
               export PATH=$PATH:~/.cargo/bin
             '';
           };
+        };
+
+        packages.default = pkgs.writeShellApplication {
+          name = "text-generation-inference";
+          runtimeInputs = [
+            server
+            router
+          ];
+          text = ''
+            ${launcher}/bin/text-generation-launcher "$@"
+          '';
         };
       }
     );

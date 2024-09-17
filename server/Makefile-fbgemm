@@ -1,7 +1,9 @@
 fbgemm_commit := v0.8.0
 
 build-fbgemm:
-	git clone https://github.com/pytorch/FBGEMM.git fbgemm && \
+	@if [ ! -d "fbgemm" ]; then \
+		git clone https://github.com/pytorch/FBGEMM.git fbgemm; \
+	fi
 	cd fbgemm && git fetch && git checkout $(fbgemm_commit)  && \
 	git submodule update --init --recursive && \
 	cd fbgemm_gpu && \

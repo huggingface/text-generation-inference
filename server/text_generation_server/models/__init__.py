@@ -458,6 +458,11 @@ def get_model(
                     revision=mlp_revision,
                     filename=filename,
                 )
+            speculator_dir_path = Path(mlp_speculator_config).parent
+            # if these are downloaded, they get converted to safetensors
+            filenames.extend(
+                [p for p in os.listdir(speculator_dir_path) if p.endswith(extension)]
+            )
             speculator = {
                 "path": Path(mlp_speculator_config).parent,
                 "model_paths": filenames,
@@ -497,15 +502,14 @@ def get_model(
         else -1
     )
 
-    should_use_sliding_window = (
-        sliding_window is not None and sliding_window != -1 and SUPPORTS_WINDOWING
+    use_sliding_window = sliding_window is not None and sliding_window != -1
+    needs_sliding_window = (
+        max_input_tokens is not None and max_input_tokens > sliding_window
     )
-
-    if should_use_sliding_window:
-        if max_input_tokens is not None and max_input_tokens > sliding_window:
-            raise ValueError(
-                f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
-            )
+    if use_sliding_window and needs_sliding_window and not SUPPORTS_WINDOWING:
+        raise ValueError(
+            f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
+        )
 
     if model_type == DEEPSEEK_V2:
         if FLASH_ATTENTION:
@@ -1255,6 +1259,7 @@ def get_model_with_lora_adapters(
                 "gate_proj",
                 "up_proj",
                 "down_proj",
+                "qkv_proj",
             ]
 
             for layer_name in adapter_layers:
@@ -1282,7 +1287,7 @@ def get_model_with_lora_adapters(
 
             if len(unused_weight_names) > 0:
                 logger.warning(
-                    f"{','.join(adapter_parameters.adapter_ids)} unused adapter weights: {unused_weight_names}"
+                    f"{','.join([a.id for a in lora_adapters])} unused adapter weights: {unused_weight_names}"
                 )
 
             if adapter_tokenizer is not None:

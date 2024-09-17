@@ -222,18 +222,15 @@ if ATTENTION == "flashinfer":
 
     def attention(
         q: torch.Tensor,
-        k: torch.Tensor,
-        v: torch.Tensor,
         key_cache: torch.Tensor,
         value_cache: torch.Tensor,
-        cu_seqlens,
-        max_s,
+        seqlen: Seqlen,
+        block_tables: torch.Tensor,
         softmax_scale,
         window_size_left=-1,
         causal=True,
         softcap=0.0,
     ):
-        assert window_size_left == -1, "Windowing is not supported with flash infer"
         from text_generation_server.layers.attention.flashinfer import (
             prefill_with_paged_kv_state,
         )
@@ -244,18 +241,17 @@ if ATTENTION == "flashinfer":
             paged_kv_cache=(key_cache, value_cache),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
+            window_left=window_size_left,
         )
 
 elif V2:
 
     def attention(
         q,
-        k,
-        v,
         key_cache: torch.Tensor,
         value_cache: torch.Tensor,
-        cu_seqlens,
-        max_s,
+        seqlen: Seqlen,
+        block_tables: torch.Tensor,
         softmax_scale,
         window_size_left=-1,
         causal=True,
@@ -266,17 +262,17 @@ elif V2:
             raise ValueError("`window_size_left` must be > 0 or -1")
         return flash_attn_2_cuda.varlen_fwd(
             q,
-            k,
-            v,
+            key_cache,
+            value_cache,
             out,
-            cu_seqlens,
-            cu_seqlens,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_k,
             None,
             None,
+            block_tables,
             None,
-            None,
-            max_s,
-            max_s,
+            seqlen.max_q,
+            seqlen.max_k,
             0.0,
             softmax_scale,
             False,

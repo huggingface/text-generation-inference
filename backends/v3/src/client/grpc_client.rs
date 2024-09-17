@@ -149,6 +149,7 @@ impl Client {
             requests.push(Request {
                 id: 0,
                 inputs,
+                add_special_tokens: true,
                 input_chunks: Some(Input {
                     chunks: input_chunks,
                 }),
