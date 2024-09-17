@@ -37,7 +37,7 @@ jobs:
         sudo find $NVIDIA . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         sudo find $NVIDIA . -name 'libnvidia-ml.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         sudo chown -R runner /mnt/hf_cache/hub
-        nix develop .#test --command pytest -svvx integration-tests/ --release
+        nix develop .#test --command pytest -svv integration-tests/ --release
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         HF_HOME: /mnt/hf_cache/
