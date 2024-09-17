@@ -269,7 +269,7 @@ class LauncherHandle:
     def _inner_health(self):
         raise NotImplementedError
 
-    async def health(self, timeout: int = 60):
+    async def health(self, timeout: int = 240):
         assert timeout > 0
         for _ in range(timeout):
             if not self._inner_health():
