@@ -26,7 +26,7 @@ jobs:
         sudo mkdir -p /nix
         sudo chown -R runner /mnt/hf_cache/nix
         sudo chown -R runner /nix
-        sudo mount --bind /mnt/hf_cache/nix /nix
+        sudo mount -o bind /mnt/hf_cache/nix /nix
     - uses: cachix/install-nix-action@v27
     - uses: cachix/cachix-action@v14
       with:
