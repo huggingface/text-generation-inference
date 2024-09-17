@@ -4,6 +4,7 @@ use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput}
 use crate::{
     GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor,
 };
+use crate::{OwnedTokenizer, Tokenizer};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{ImageFormat, ImageReader};
 use jsonschema::{Draft, JSONSchema};
@@ -13,7 +14,6 @@ use std::io::Cursor;
 use std::iter;
 use std::sync::Arc;
 use thiserror::Error;
-use tokenizers::tokenizer::Tokenizer;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
@@ -30,14 +30,14 @@ pub struct Validation {
     max_total_tokens: usize,
     disable_grammar_support: bool,
     /// Channel to communicate with the background tokenization task
-    sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
+    sender: mpsc::UnboundedSender<TokenizerRequest>,
 }
 
 impl Validation {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         workers: usize,
-        tokenizer: Option<Tokenizer>,
+        tokenizer: Tokenizer,
         config: Option<Config>,
         preprocessor_config: Option<HubPreprocessorConfig>,
         max_best_of: usize,
@@ -47,8 +47,13 @@ impl Validation {
         max_total_tokens: usize,
         disable_grammar_support: bool,
     ) -> Self {
+        let workers = if let Tokenizer::Python { .. } = &tokenizer {
+            1
+        } else {
+            workers
+        };
         // If we have a fast tokenizer
-        let sender = if let Some(tokenizer) = tokenizer {
+        let sender = {
             // Create round robin channel
             let (validation_sender, validation_round_robin_receiver) = mpsc::unbounded_channel();
             let mut senders = Vec::with_capacity(workers);
@@ -75,9 +80,7 @@ impl Validation {
             // Create tokenization round robin task
             tokio::spawn(round_robin_task(validation_round_robin_receiver, senders));
 
-            Some(validation_sender)
-        } else {
-            None
+            validation_sender
         };
 
         Self {
@@ -97,28 +100,25 @@ impl Validation {
         inputs: String,
         add_special_tokens: bool,
         truncate: Option<usize>,
-    ) -> Result<Option<(tokenizers::Encoding, Vec<Chunk>)>, ValidationError> {
+    ) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {
         // If we have a fast tokenizer
-        if let Some(sender) = &self.sender {
-            // Create response channel
-            let (response_sender, response_receiver) = oneshot::channel();
-            // Send request to the background validation task
-            // Unwrap is safe here
-            sender
-                .send((
-                    (inputs, add_special_tokens, truncate),
-                    response_sender,
-                    Span::current(),
-                ))
-                .unwrap();
+        // Create response channel
+        let (response_sender, response_receiver) = oneshot::channel();
+        // Send request to the background validation task
+        // Unwrap is safe here
+        let _ = &self
+            .sender
+            .send((
+                (inputs, add_special_tokens, truncate),
+                response_sender,
+                Span::current(),
+            ))
+            .unwrap();
 
-            // Await on response channel
-            // Unwrap is safe here
-            let encoding = response_receiver.await.unwrap()?;
-            Ok(Some(encoding))
-        } else {
-            Ok(None)
-        }
+        // Await on response channel
+        // Unwrap is safe here
+        let encoding = response_receiver.await.unwrap()?;
+        Ok(encoding)
     }
 
     #[allow(clippy::type_complexity)]
@@ -131,76 +131,46 @@ impl Validation {
         max_new_tokens: Option<u32>,
     ) -> Result<(Vec<Chunk>, Option<Vec<u32>>, usize, u32), ValidationError> {
         // If we have a fast tokenizer
-        if let Some((encoding, inputs)) = self
+        let (encoding, inputs) = self
             .tokenize(inputs.clone(), add_special_tokens, truncate)
-            .await?
-        {
-            // Create response channel
-            let input_length = if let Some(truncate) = truncate {
-                std::cmp::min(encoding.len(), truncate)
-            } else {
-                encoding.len()
-            };
+            .await?;
+        // Create response channel
+        let input_length = if let Some(truncate) = truncate {
+            std::cmp::min(encoding.len(), truncate)
+        } else {
+            encoding.len()
+        };
 
-            // Get total tokens
-            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
-                max_new_tokens
-            } else {
-                self.max_total_tokens.saturating_sub(input_length) as u32
-            };
-            let total_tokens = input_length + max_new_tokens as usize;
+        // Get total tokens
+        let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
+            max_new_tokens
+        } else {
+            self.max_total_tokens.saturating_sub(input_length) as u32
+        };
+        let total_tokens = input_length + max_new_tokens as usize;
 
-            // Validate MaxTotalTokens
-            if total_tokens > self.max_total_tokens {
-                return Err(ValidationError::MaxTotalTokens(
-                    self.max_total_tokens,
-                    input_length,
-                    max_new_tokens,
-                ));
-            }
-
-            // Validate InputLength
-            if input_length > self.max_input_length {
-                return Err(ValidationError::InputLength(
-                    self.max_input_length,
-                    input_length,
-                ));
-            }
-
-            let ids = encoding.get_ids();
-            let input_ids = ids[ids.len().saturating_sub(input_length)..].to_owned();
-
-            metrics::histogram!("tgi_request_input_length").record(input_length as f64);
-            Ok((inputs, Some(input_ids), input_length, max_new_tokens))
-        }
-        // Return inputs without validation
-        else {
-            // In this case, we don't know the real length in tokens of the inputs
-            // However, the inputs will be truncated by the python servers
-            // We make sure that truncate + max_new_tokens <= self.max_total_tokens
-            let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
-                max_new_tokens
-            } else if let Some(truncate) = truncate {
-                self.max_total_tokens.saturating_sub(truncate) as u32
-            } else {
-                return Err(ValidationError::UnsetMaxNewTokens);
-            };
-            let mut input_length = truncate.unwrap_or(self.max_input_length);
-
-            // We don't have a tokenizer, therefore we have no idea how long is the query, let
-            // them through and hope for the best.
-            // Validate MaxNewTokens
-            if (input_length as u32 + max_new_tokens) > self.max_total_tokens as u32 {
-                input_length = input_length.saturating_sub(max_new_tokens as usize);
-            }
-
-            Ok((
-                vec![Chunk::Text(inputs)],
-                None,
+        // Validate MaxTotalTokens
+        if total_tokens > self.max_total_tokens {
+            return Err(ValidationError::MaxTotalTokens(
+                self.max_total_tokens,
                 input_length,
                 max_new_tokens,
-            ))
+            ));
         }
+
+        // Validate InputLength
+        if input_length > self.max_input_length {
+            return Err(ValidationError::InputLength(
+                self.max_input_length,
+                input_length,
+            ));
+        }
+
+        let ids = encoding.get_ids();
+        let input_ids = ids[ids.len().saturating_sub(input_length)..].to_owned();
+
+        metrics::histogram!("tgi_request_input_length").record(input_length as f64);
+        Ok((inputs, Some(input_ids), input_length, max_new_tokens))
     }
 
     /// Validate a payload and get the number of tokens in the input
@@ -464,23 +434,26 @@ fn tokenizer_worker(
     preprocessor_config: Option<HubPreprocessorConfig>,
     mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>,
 ) {
-    // Loop over requests
-    while let Some(((inputs, add_special_tokens, truncate), response_tx, parent_span)) =
-        receiver.blocking_recv()
-    {
-        parent_span.in_scope(|| {
-            response_tx
-                .send(prepare_input(
-                    inputs,
-                    truncate,
-                    add_special_tokens,
-                    &tokenizer,
-                    config.as_ref(),
-                    preprocessor_config.as_ref(),
-                ))
-                .unwrap_or(())
-        })
-    }
+    pyo3::Python::with_gil(|py| {
+        let tokenizer = tokenizer.into_owned(py);
+        // Loop over requests
+        while let Some(((inputs, add_special_tokens, truncate), response_tx, parent_span)) =
+            receiver.blocking_recv()
+        {
+            parent_span.in_scope(|| {
+                response_tx
+                    .send(prepare_input(
+                        inputs,
+                        truncate,
+                        add_special_tokens,
+                        &tokenizer,
+                        config.as_ref(),
+                        preprocessor_config.as_ref(),
+                    ))
+                    .unwrap_or(())
+            })
+        }
+    });
 }
 
 fn format_from_mimetype(mimetype: &str) -> Option<ImageFormat> {
@@ -611,7 +584,7 @@ fn prepare_input(
     inputs: String,
     _truncate: Option<usize>,
     add_special_tokens: bool,
-    tokenizer: &Tokenizer,
+    tokenizer: &OwnedTokenizer,
     config: Option<&Config>,
     preprocessor_config: Option<&HubPreprocessorConfig>,
 ) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {

@@ -135,7 +135,7 @@ impl Infer {
     pub(crate) async fn tokenize(
         &self,
         request: GenerateRequest,
-    ) -> Result<Option<tokenizers::Encoding>, InferError> {
+    ) -> Result<tokenizers::Encoding, InferError> {
         // Tokenize request
         let inputs = request.inputs;
         let add_special_tokens = request.add_special_tokens;
@@ -150,7 +150,7 @@ impl Infer {
             })?;
 
         // Return Encoding
-        Ok(encoding.map(|(encoding, _)| encoding))
+        Ok(encoding.0)
     }
 
     /// Apply the chat template to the chat request
