@@ -45,7 +45,7 @@ jobs:
                 export dockerfile="Dockerfile"
                 export label_extension=""
                 export docker_devices=""
-                export runs_on="aws-g6-12xlarge-plus-priv"
+                export runs_on="aws-g6-12xl-plus-priv-cache"
                 export platform=""
                 ;;
             rocm)
