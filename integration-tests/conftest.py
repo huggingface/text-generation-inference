@@ -456,6 +456,12 @@ def launcher(event_loop):
             args.append("--disable-grammar-support")
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
+        else:
+            try:
+                os.environ["WORLD_SIZE"] = 1
+                del os.environ["NUM_SHARD"]
+            except Exception:
+                pass
         if quantize is not None:
             args.append("--quantize")
             args.append(quantize)

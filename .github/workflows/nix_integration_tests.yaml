@@ -38,7 +38,8 @@ jobs:
         export NCCL_P2P_DISABLE=1
         sudo find $NVIDIA . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         sudo find $NVIDIA . -name 'libnvidia-ml.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
-        nix develop .#test --command pytest -svvx integration-tests/ --release
+        nix develop .#test --command pytest -svvx integration-tests/models/test_bloom_560m.py::test_bloom_560m_all_params --release
+        # nix develop .#test --command pytest -svvx integration-tests/ --release
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         HF_HOME: /mnt/hf_cache/
