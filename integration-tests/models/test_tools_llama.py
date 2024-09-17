@@ -205,11 +205,25 @@ async def test_flash_llama_grammar_tools_stream(
     )
 
     count = 0
+    tool_call = ""
+    string = ""
+    all_responses = []
     async for response in responses:
         count += 1
+        content = response.choices[0].delta.content
+        if content is None:
+            tool_call += response.choices[0].delta.tool_calls.function.arguments
+        else:
+            string += content
+        all_responses.append(response)
 
-    assert count == 48
-    assert response == response_snapshot
+    assert count == 39
+    assert string == ""
+    assert (
+        tool_call
+        == '{ "function": { "_name": "get_current_weather", "format": "celsius", "location": "Paris, France" } }</s>'
+    )
+    assert all_responses == response_snapshot
 
 
 @pytest.mark.asyncio

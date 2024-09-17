@@ -22,3 +22,4 @@ server/fbgemmm
 
 .direnv/
 .venv/
+out/

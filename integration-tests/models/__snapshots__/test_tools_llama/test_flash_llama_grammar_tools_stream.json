@@ -1,27 +1,1055 @@
-{
-  "choices": [
-    {
-      "delta": {
-        "content": null,
-        "role": "assistant",
-        "tool_calls": {
-          "function": {
-            "arguments": "</s>",
-            "name": null
-          },
-          "id": "",
-          "index": 0,
-          "type": "function"
-        }
-      },
-      "finish_reason": "eos_token",
-      "index": 0,
-      "logprobs": null
-    }
-  ],
-  "created": 1712788218,
-  "id": "",
-  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-  "object": "text_completion",
-  "system_fingerprint": "2.0.1-native"
-}
+[
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "{",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " \"",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "function",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "\":",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " {",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " \"",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "_",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "name",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "\":",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " \"",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "get",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "_",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "current",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "_",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "we",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "ather",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "\",",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " \"",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "form",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "a",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "t",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "\":",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " \"",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "cel",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "si",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "us",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "\",",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " \"",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "location",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "\":",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " \"",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "Par",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "is",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": ",",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " France",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "\"",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " }",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": " }",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": null,
+          "role": "assistant",
+          "tool_calls": {
+            "function": {
+              "arguments": "</s>",
+              "name": null
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        },
+        "finish_reason": "stop",
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1726234243,
+    "id": "",
+    "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "2.2.1-dev0-native"
+  }
+]

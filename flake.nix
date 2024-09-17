@@ -67,6 +67,7 @@
             '';
           };
         server = pkgs.python3.pkgs.callPackage ./nix/server.nix { inherit nix-filter; };
+        client = pkgs.python3.pkgs.callPackage ./nix/client.nix { };
       in
       {
         checks = {
@@ -106,10 +107,11 @@
           test = mkShell {
             buildInputs =
               [
-                # benchmark
-                # launcher
-                # router
+                benchmark
+                launcher
+                router
                 server
+                client
                 openssl.dev
                 pkg-config
                 cargo

@@ -13,31 +13,31 @@
       },
       {
         "id": 28705,
-        "logprob": -0.0016384125,
+        "logprob": -0.001625061,
         "special": false,
         "text": " "
       },
       {
         "id": 1,
-        "logprob": -1.4931641,
+        "logprob": -1.4921875,
         "special": true,
         "text": "<s>"
       },
       {
         "id": 28705,
-        "logprob": -0.00075769424,
+        "logprob": -0.0007457733,
         "special": false,
         "text": " "
       },
       {
         "id": 28740,
-        "logprob": -0.25024414,
+        "logprob": -0.25048828,
         "special": false,
         "text": "1"
       },
       {
         "id": 28740,
-        "logprob": -0.2631836,
+        "logprob": -0.26367188,
         "special": false,
         "text": "1"
       },

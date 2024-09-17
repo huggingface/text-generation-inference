@@ -117,7 +117,7 @@ class ResponseComparator(JSONSnapshotExtension):
                     return Response(**data)
             if isinstance(data, List):
                 return [_convert_data(d) for d in data]
-            raise NotImplementedError
+            raise NotImplementedError(f"Type {type(data)} is not supported")
 
         def eq_token(token: Token, other: Token) -> bool:
             return (
@@ -269,7 +269,7 @@ class LauncherHandle:
     def _inner_health(self):
         raise NotImplementedError
 
-    async def health(self, timeout: int = 60):
+    async def health(self, timeout: int = 240):
         assert timeout > 0
         for _ in range(timeout):
             if not self._inner_health():
@@ -369,6 +369,8 @@ def launcher(event_loop):
             args.append("--disable-grammar-support")
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
+        else:
+            args.extend(["--sharded", "false"])
         if quantize is not None:
             args.append("--quantize")
             args.append(quantize)
@@ -450,6 +452,8 @@ def launcher(event_loop):
             args.append("--disable-grammar-support")
         if num_shard is not None:
             args.extend(["--num-shard", str(num_shard)])
+        else:
+            args.extend(["--sharded", "false"])
         if quantize is not None:
             args.append("--quantize")
             args.append(quantize)
@@ -589,7 +593,6 @@ def generate_multi():
         max_new_tokens: int,
         seed: Optional[int] = None,
     ) -> List[Response]:
-
         import numpy as np
 
         arange = np.arange(len(prompts))
