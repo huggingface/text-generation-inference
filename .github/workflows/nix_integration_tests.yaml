@@ -34,7 +34,7 @@ jobs:
       run: |
         sudo mkdir -p /run/opengl-driver/lib/
         export NVIDIA=/usr/lib/
-        export NCCL_DEBUG=1
+        export NCCL_DEBUG=INFO
         export NCCL_P2P_DISABLE=1
         sudo find $NVIDIA . -name 'libcuda.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
         sudo find $NVIDIA . -name 'libnvidia-ml.so*' -exec ln -s {} /run/opengl-driver/lib/ \;
