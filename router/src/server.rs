@@ -68,10 +68,9 @@ fn encoding_to_tokens(encoding: &tokenizers::Encoding, input: &str) -> Vec<Simpl
     let offsets = encoding.get_offsets();
     let input_ids = encoding.get_ids();
     if offsets.len() == input_ids.len() {
-        encoding
-            .get_ids()
+        input_ids
             .iter()
-            .zip(encoding.get_offsets())
+            .zip(offsets)
             .map(|(&id, &(start, stop))| {
                 let text = input
                     .chars()
