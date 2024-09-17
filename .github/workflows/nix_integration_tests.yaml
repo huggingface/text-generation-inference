@@ -20,13 +20,6 @@ jobs:
       group: aws-g6-12xl-plus-priv-cache
     steps:
     - uses: actions/checkout@v4
-    - name: Attempt to bind nix store
-      run: |
-        sudo mkdir -p /mnt/hf_cache/nix
-        sudo mkdir -p /nix
-        sudo mount -o bind /mnt/hf_cache/nix /nix
-        # sudo chown -R runner /mnt/hf_cache/nix
-        # sudo chown -R runner /nix
     - uses: cachix/install-nix-action@v27
     - uses: cachix/cachix-action@v14
       with:
