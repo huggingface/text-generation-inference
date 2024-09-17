@@ -14,10 +14,90 @@ mod vertex;
 
 use crate::infer::{Infer, InferError};
 use crate::server::prepare_chat_input;
+use pyo3::prelude::*;
+use pyo3::types::IntoPyDict;
 use serde::{Deserialize, Serialize};
+use tokenizers::Encoding;
 use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
+
+#[derive(Clone)]
+pub enum Tokenizer {
+    Python {
+        tokenizer_name: String,
+        revision: Option<String>,
+    },
+    Rust(tokenizers::Tokenizer),
+}
+
+impl Tokenizer {
+    fn into_owned<'a>(self, py: Python<'a>) -> OwnedTokenizer<'a> {
+        match self {
+            Self::Python {
+                tokenizer_name,
+                revision,
+            } => {
+                let pytok = || -> pyo3::PyResult<pyo3::Bound<'a, pyo3::PyAny>> {
+                    let transformers = py.import_bound("transformers")?;
+                    let auto = transformers.getattr("AutoTokenizer")?;
+                    let from_pretrained = auto.getattr("from_pretrained")?;
+                    let args = (tokenizer_name.to_string(),);
+                    let kwargs = if let Some(rev) = &revision {
+                        [("revision", rev.to_string())].into_py_dict_bound(py)
+                    } else {
+                        pyo3::types::PyDict::new_bound(py)
+                    };
+                    let tokenizer = from_pretrained.call(args, Some(&kwargs))?;
+                    Ok(tokenizer)
+                }()
+                .expect("Cannot load the tokenizer");
+                tracing::info!("Loaded a python tokenizer");
+                OwnedTokenizer::Python(pytok)
+            }
+            Self::Rust(tok) => OwnedTokenizer::Rust(tok),
+        }
+    }
+}
+
+pub enum OwnedTokenizer<'a> {
+    Python(pyo3::Bound<'a, pyo3::PyAny>),
+    Rust(tokenizers::Tokenizer),
+}
+
+impl<'a> OwnedTokenizer<'a> {
+    fn encode(
+        &self,
+        query: String,
+        add_special_tokens: bool,
+    ) -> Result<tokenizers::Encoding, Box<dyn std::error::Error + Send + Sync>> {
+        match self {
+            Self::Python(pytok) => {
+                let py = pytok.py();
+                let kwargs = [
+                    ("text", query.into_py(py)),
+                    ("add_special_tokens", add_special_tokens.into_py(py)),
+                ]
+                .into_py_dict_bound(py);
+                let encode = pytok.getattr("encode")?;
+                let input_ids: Vec<u32> = encode.call((), Some(&kwargs))?.extract()?;
+                Ok(Encoding::new(
+                    input_ids,
+                    vec![],                           // type ids
+                    vec![],                           // tokens (strings)
+                    vec![],                           // words
+                    vec![],                           // offsets
+                    vec![],                           // special_tokens_mask
+                    vec![],                           // attention_mask
+                    vec![],                           // overflowing
+                    std::collections::HashMap::new(), //sequence_ranges
+                ))
+            }
+            Self::Rust(tok) => tok.encode(query, add_special_tokens),
+        }
+    }
+}
+
 
 /// Hub type
 #[derive(Clone, Debug, Deserialize)]

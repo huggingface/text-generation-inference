@@ -19,7 +19,8 @@ use crate::{
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
     HubProcessorConfig, HubTokenizerConfig, Info, Message, MessageChunk, MessageContent,
     OutputMessage, PrefillToken, SimpleToken, StreamDetails, StreamOptions, StreamResponse,
-    TextMessage, Token, TokenizeResponse, ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
+    TextMessage, Token, TokenizeResponse, Tokenizer, ToolCallDelta, ToolCallMessage, Url, Usage,
+    Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -52,9 +53,8 @@ use std::convert::Infallible;
 use std::fs::File;
 use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use thiserror::Error;
-use tokenizers::Tokenizer;
 use tokio::select;
 use tokio::signal;
 use tokio::sync::oneshot;
@@ -161,40 +161,30 @@ async fn get_chat_tokenize(
     let generate_request: GenerateRequest = chat.try_into_generate(&infer)?.0;
     let input = generate_request.inputs.clone();
     let encoding = infer.tokenize(generate_request).await?;
-    if let Some(encoding) = encoding {
-        let tokens: Vec<SimpleToken> = encoding
-            .get_ids()
-            .iter()
-            .zip(encoding.get_offsets())
-            .map(|(&id, &(start, stop))| {
-                let text = input
-                    .chars()
-                    .skip(start)
-                    .take(stop - start)
-                    .collect::<String>();
-                SimpleToken {
-                    id,
-                    text,
-                    start,
-                    stop,
-                }
-            })
-            .collect();
+    let tokens: Vec<SimpleToken> = encoding
+        .get_ids()
+        .iter()
+        .zip(encoding.get_offsets())
+        .map(|(&id, &(start, stop))| {
+            let text = input
+                .chars()
+                .skip(start)
+                .take(stop - start)
+                .collect::<String>();
+            SimpleToken {
+                id,
+                text,
+                start,
+                stop,
+            }
+        })
+        .collect();
 
-        let resp = ChatTokenizeResponse {
-            tokenize_response: TokenizeResponse(tokens),
-            templated_text: input,
-        };
-        Ok((HeaderMap::new(), Json(resp)))
-    } else {
-        Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: "No fast tokenizer or tokenizer.json for this model".to_string(),
-                error_type: "no fast tokenizer".to_string(),
-            }),
-        ))
-    }
+    let resp = ChatTokenizeResponse {
+        tokenize_response: TokenizeResponse(tokens),
+        templated_text: input,
+    };
+    Ok((HeaderMap::new(), Json(resp)))
 }
 
 #[utoipa::path(
@@ -1458,35 +1448,25 @@ async fn tokenize(
 ) -> Result<Json<TokenizeResponse>, (StatusCode, Json<ErrorResponse>)> {
     let input = req.inputs.clone();
     let encoding = infer.tokenize(req).await?;
-    if let Some(encoding) = encoding {
-        let tokens: Vec<SimpleToken> = encoding
-            .get_ids()
-            .iter()
-            .zip(encoding.get_offsets())
-            .map(|(&id, &(start, stop))| {
-                let text = input
-                    .chars()
-                    .skip(start)
-                    .take(stop - start)
-                    .collect::<String>();
-                SimpleToken {
-                    id,
-                    text,
-                    start,
-                    stop,
-                }
-            })
-            .collect();
-        Ok(Json(TokenizeResponse(tokens)))
-    } else {
-        Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: "No fast tokenizer or tokenizer.json for this model".to_string(),
-                error_type: "no fast tokenizer".to_string(),
-            }),
-        ))
-    }
+    let tokens: Vec<SimpleToken> = encoding
+        .get_ids()
+        .iter()
+        .zip(encoding.get_offsets())
+        .map(|(&id, &(start, stop))| {
+            let text = input
+                .chars()
+                .skip(start)
+                .take(stop - start)
+                .collect::<String>();
+            SimpleToken {
+                id,
+                text,
+                start,
+                stop,
+            }
+        })
+        .collect();
+    Ok(Json(TokenizeResponse(tokens)))
 }
 
 /// Prometheus metrics scrape endpoint
@@ -1687,7 +1667,6 @@ pub async fn run(
 
     // Load tokenizer and model info
     let (
-        tokenizer_filename,
         config_filename,
         tokenizer_config_filename,
         preprocessor_config_filename,
@@ -1695,7 +1674,6 @@ pub async fn run(
         model_info,
     ) = match api {
         Type::None => (
-            Some(local_path.join("tokenizer.json")),
             Some(local_path.join("config.json")),
             Some(local_path.join("tokenizer_config.json")),
             Some(local_path.join("preprocessor_config.json")),
@@ -1709,10 +1687,6 @@ pub async fn run(
                 revision.clone().unwrap_or_else(|| "main".to_string()),
             ));
 
-            let tokenizer_filename = match api_repo.get("tokenizer.json").await {
-                Ok(tokenizer_filename) => Some(tokenizer_filename),
-                Err(_) => get_base_tokenizer(&api, &api_repo).await,
-            };
             let config_filename = api_repo.get("config.json").await.ok();
             let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
             let preprocessor_config_filename = api_repo.get("preprocessor_config.json").await.ok();
@@ -1725,7 +1699,6 @@ pub async fn run(
                 None
             };
             (
-                tokenizer_filename,
                 config_filename,
                 tokenizer_config_filename,
                 preprocessor_config_filename,
@@ -1740,7 +1713,6 @@ pub async fn run(
                 revision.clone().unwrap_or_else(|| "main".to_string()),
             ));
             (
-                repo.get("tokenizer.json"),
                 repo.get("config.json"),
                 repo.get("tokenizer_config.json"),
                 repo.get("preprocessor_config.json"),
@@ -1762,21 +1734,22 @@ pub async fn run(
         HubTokenizerConfig::default()
     });
 
-    let tokenizer: Option<Tokenizer> = tokenizer_filename.and_then(|filename| {
+    let tokenizer: Tokenizer = {
         use pyo3::prelude::*;
-        let convert = pyo3::Python::with_gil(|py| -> PyResult<()> {
+        pyo3::Python::with_gil(|py| -> PyResult<()> {
             let transformers = py.import_bound("transformers")?;
             let auto = transformers.getattr("AutoTokenizer")?;
             let from_pretrained = auto.getattr("from_pretrained")?;
             let args = (tokenizer_name.to_string(),);
-            let kwargs = [
-                (
-                    "revision",
-                    (revision.clone().unwrap_or_else(|| "main".to_string())).into_py(py),
-                ),
-                ("trust_remote_code", trust_remote_code.into_py(py)),
-            ]
-            .into_py_dict_bound(py);
+            let kwargs = if let Some(rev) = &revision {
+                [
+                    ("revision", rev.to_string().into_py(py)),
+                    ("trust_remote_code", trust_remote_code.into_py(py)),
+                ]
+                .into_py_dict_bound(py)
+            } else {
+                [("trust_remote_code", trust_remote_code.into_py(py))].into_py_dict_bound(py)
+            };
             let tokenizer = from_pretrained.call(args, Some(&kwargs))?;
             let save = tokenizer.getattr("save_pretrained")?;
             let args = ("out".to_string(),);
@@ -1785,16 +1758,18 @@ pub async fn run(
         })
         .inspect_err(|err| {
             tracing::error!("Failed to import python tokenizer {err}");
-        });
-        let filename = if convert.is_ok() {
-            // If we have correctly loaded and resaved with transformers
-            // We might have modified the tokenizer.json according to transformers
-            "out/tokenizer.json".into()
+        })
+        .expect("We cannot load a tokenizer");
+        let filename = "out/tokenizer.json";
+        if let Ok(tok) = tokenizers::Tokenizer::from_file(filename) {
+            Tokenizer::Rust(tok)
         } else {
-            filename
-        };
-        Tokenizer::from_file(filename).ok()
-    });
+            Tokenizer::Python {
+                tokenizer_name: tokenizer_name.clone(),
+                revision: revision.clone(),
+            }
+        }
+    };
 
     let config: Option<Config> = config_filename.and_then(|filename| {
         std::fs::read_to_string(filename)
@@ -1822,10 +1797,6 @@ pub async fn run(
         preprocessor_config_filename.and_then(HubPreprocessorConfig::from_file);
 
     tracing::info!("Using config {config:?}");
-    if tokenizer.is_none() {
-        tracing::warn!("Could not find a fast tokenizer implementation for {tokenizer_name}");
-        tracing::warn!("Rust input length validation and truncation is disabled");
-    }
 
     // Only send usage stats when TGI is run in container and the function returns Some
     let is_container = matches!(usage_stats::is_container(), Ok(true));
@@ -1940,7 +1911,7 @@ async fn start(
     validation_workers: usize,
     api_key: Option<String>,
     config: Option<Config>,
-    (tokenizer, tokenizer_config): (Option<Tokenizer>, HubTokenizerConfig),
+    (tokenizer, tokenizer_config): (Tokenizer, HubTokenizerConfig),
     (preprocessor_config, processor_config): (Option<HubPreprocessorConfig>, HubProcessorConfig),
     hostname: String,
     port: u16,
@@ -2395,30 +2366,6 @@ pub async fn get_hub_model_info(api: &ApiRepo) -> Option<HubModelInfo> {
             );
         }
         Some(hub_model_info)
-    } else {
-        None
-    }
-}
-
-/// get base tokenizer
-pub async fn get_base_tokenizer(api: &Api, api_repo: &ApiRepo) -> Option<PathBuf> {
-    let config_filename = api_repo.get("config.json").await.ok()?;
-
-    // Open the file in read-only mode with buffer.
-    let file = File::open(config_filename).ok()?;
-    let reader = BufReader::new(file);
-
-    // Read the JSON contents of the file as an instance of `User`.
-    let config: serde_json::Value = serde_json::from_reader(reader).ok()?;
-
-    if let Some(serde_json::Value::String(base_model_id)) = config.get("base_model_name_or_path") {
-        let api_base_repo = api.repo(Repo::with_revision(
-            base_model_id.to_string(),
-            RepoType::Model,
-            "main".to_string(),
-        ));
-
-        api_base_repo.get("tokenizer.json").await.ok()
     } else {
         None
     }
