@@ -16,17 +16,17 @@
       },
       {
         "id": 28804,
-        "logprob": -7.4335938,
+        "logprob": -7.4375,
         "text": "?"
       },
       {
         "id": 13,
-        "logprob": -0.8017578,
+        "logprob": -0.8046875,
         "text": "\n"
       },
       {
         "id": 13,
-        "logprob": -0.32958984,
+        "logprob": -0.33032227,
         "text": "\n"
       }
     ],
@@ -64,7 +64,7 @@
       },
       {
         "id": 369,
-        "logprob": -0.06585693,
+        "logprob": 0.0,
         "special": false,
         "text": " that"
       },

@@ -1243,6 +1243,82 @@ files = [
 ]
 
 [[package]]
+name = "moe-kernels"
+version = "0.2.2"
+description = "MoE kernels"
+optional = true
+python-versions = ">=3.7"
+files = [
+    {file = "moe_kernels-0.2.2+cu123torch2.4-cp310-cp310-linux_x86_64.whl", hash = "sha256:d268d818932ddcbca9bc71021dc63b008aae832827a7c0484cf206bd59cfc9ab"},
+]
+
+[package.dependencies]
+nvidia-ml-py = "*"
+torch = "*"
+triton = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.2.2/moe_kernels-0.2.2+cu123torch2.4-cp310-cp310-linux_x86_64.whl"
+
+[[package]]
+name = "moe-kernels"
+version = "0.2.2"
+description = "MoE kernels"
+optional = true
+python-versions = ">=3.7"
+files = [
+    {file = "moe_kernels-0.2.2+cu123torch2.4-cp311-cp311-linux_x86_64.whl", hash = "sha256:614bbc3f41b707b0c40372f0bb00e218ad0842d306f90bef28ce8e98e7fcb7cb"},
+]
+
+[package.dependencies]
+nvidia-ml-py = "*"
+torch = "*"
+triton = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.2.2/moe_kernels-0.2.2+cu123torch2.4-cp311-cp311-linux_x86_64.whl"
+
+[[package]]
+name = "moe-kernels"
+version = "0.2.2"
+description = "MoE kernels"
+optional = true
+python-versions = ">=3.7"
+files = [
+    {file = "moe_kernels-0.2.2+cu123torch2.4-cp312-cp312-linux_x86_64.whl", hash = "sha256:c2f48ed541353be03157d4015270dff797f7b7b8a664babdcbdf7414867d5abd"},
+]
+
+[package.dependencies]
+nvidia-ml-py = "*"
+torch = "*"
+triton = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.2.2/moe_kernels-0.2.2+cu123torch2.4-cp312-cp312-linux_x86_64.whl"
+
+[[package]]
+name = "moe-kernels"
+version = "0.2.2"
+description = "MoE kernels"
+optional = true
+python-versions = ">=3.7"
+files = [
+    {file = "moe_kernels-0.2.2+cu123torch2.4-cp39-cp39-linux_x86_64.whl", hash = "sha256:d5f0339b73426c422872f7ff060433df6cd8e881451baf85ee7454e0e905f9d8"},
+]
+
+[package.dependencies]
+nvidia-ml-py = "*"
+torch = "*"
+triton = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.2.2/moe_kernels-0.2.2+cu123torch2.4-cp39-cp39-linux_x86_64.whl"
+
+[[package]]
 name = "mpmath"
 version = "1.3.0"
 description = "Python library for arbitrary-precision floating-point arithmetic"
@@ -1599,6 +1675,17 @@ files = [
 
 [package.dependencies]
 nvidia-nvjitlink-cu12 = "*"
+
+[[package]]
+name = "nvidia-ml-py"
+version = "12.560.30"
+description = "Python Bindings for the NVIDIA Management Library"
+optional = true
+python-versions = "*"
+files = [
+    {file = "nvidia-ml-py-12.560.30.tar.gz", hash = "sha256:f0254dc7400647680a072ee02509bfd46102b60bdfeca321576d4d4817e7fe97"},
+    {file = "nvidia_ml_py-12.560.30-py3-none-any.whl", hash = "sha256:fea371c94d63e38a611c17bbb85fe400e9c8ddb9e8684a9cd0e47786a4bc3c73"},
+]
 
 [[package]]
 name = "nvidia-nccl-cu12"
@@ -3638,6 +3725,7 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 accelerate = ["accelerate"]
 bnb = ["bitsandbytes"]
 marlin = ["marlin-kernels", "marlin-kernels", "marlin-kernels", "marlin-kernels"]
+moe = ["moe-kernels", "moe-kernels", "moe-kernels", "moe-kernels"]
 outlines = ["outlines"]
 peft = ["peft"]
 quantize = ["accelerate", "datasets", "texttable"]

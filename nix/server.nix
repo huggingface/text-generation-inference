@@ -21,6 +21,7 @@
   loguru,
   mamba-ssm,
   marlin-kernels,
+  moe-kernels,
   opentelemetry-api,
   opentelemetry-exporter-otlp,
   opentelemetry-instrumentation-grpc,
@@ -88,6 +89,7 @@ buildPythonPackage {
     loguru
     mamba-ssm
     marlin-kernels
+    moe-kernels
     opentelemetry-api
     opentelemetry-exporter-otlp
     opentelemetry-instrumentation-grpc
