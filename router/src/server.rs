@@ -2136,9 +2136,12 @@ async fn start(
         .unwrap();
     // .set_buckets_for_metric(skipped_matcher, &skipped_buckets)
     // .unwrap();
-    let prom_handle = builder
-        .install_recorder()
-        .expect("failed to install metrics recorder");
+    // See: https://github.com/metrics-rs/metrics/issues/467#issuecomment-2022755151
+    let (recorder, _) = builder
+        .build()
+        .expect("failed to build prometheus recorder");
+    let prom_handle = recorder.handle();
+    metrics::set_global_recorder(recorder).expect("Failed to set global recorder");
 
     // Metrics descriptions
     metrics::describe_counter!("tgi_request_success", "Number of successful requests");
