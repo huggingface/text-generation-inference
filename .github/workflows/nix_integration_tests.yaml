@@ -20,11 +20,6 @@ jobs:
       group: aws-g6-12xl-plus-priv-cache
     steps:
     - uses: actions/checkout@v4
-    - name: Setup nix to mounted disk
-      run: |
-        sudo mkdir -p /mnt/hf_cache/nix/
-        sudo ln -s /mnt/hf_cache/nix /nix
-        sudo chown -R runner /mnt/hf_cache/nix
     - uses: cachix/install-nix-action@v27
     - uses: cachix/cachix-action@v14
       with:
