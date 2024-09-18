@@ -4,13 +4,12 @@ import torch.distributed
 from typing import Optional
 
 
-from text_generation_server.models.custom_modeling.idefics_config import IdeficsConfig
-from text_generation_server.models.custom_modeling.idefics_processing import (
-    IdeficsProcessor,
-)
-from transformers import LlamaTokenizerFast
+from transformers import AutoConfig, AutoProcessor, AutoTokenizer
 from text_generation_server.models.custom_modeling.idefics_modeling import (
     IdeficsForVisionText2Text,
+)
+from text_generation_server.models.custom_modeling.mllama import (
+    MllamaForConditionalGeneration,
 )
 from text_generation_server.models.idefics_causal_lm import IdeficsCausalLM
 from text_generation_server.utils import (
@@ -53,7 +52,7 @@ class IDEFICSSharded(IdeficsCausalLM):
             dtype = torch.float32 if dtype is None else dtype
         self.device, self.dtype = device, dtype
 
-        config = IdeficsConfig.from_pretrained(
+        config = AutoConfig.from_pretrained(
             model_id,
             revision=revision,
             trust_remote_code=trust_remote_code,
@@ -62,14 +61,14 @@ class IDEFICSSharded(IdeficsCausalLM):
         config.speculator = speculator
         config.vision_config.quantize = quantize
 
-        tokenizer = LlamaTokenizerFast.from_pretrained(
+        tokenizer = AutoTokenizer.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
-        self.processor = IdeficsProcessor.from_pretrained(
+        self.processor = AutoProcessor.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
@@ -90,7 +89,14 @@ class IDEFICSSharded(IdeficsCausalLM):
             weights_loader=weights_loader,
         )
 
-        model = IdeficsForVisionText2Text(config, weights)
+        if config.model_type == "idefics":
+            model = IdeficsForVisionText2Text(config, weights)
+        elif config.model_type == "mllama":
+            model = MllamaForConditionalGeneration(
+                prefix="", config=config, weights=weights
+            )
+        else:
+            raise RuntimeError(f"Unsupported model type {config.model_type}")
 
         torch.distributed.barrier(group=self.process_group)
         super(IdeficsCausalLM, self).__init__(
