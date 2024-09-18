@@ -1175,6 +1175,7 @@ async fn chat_completions(
         seed,
         stop,
         stream,
+        stream_options,
         tools,
         tool_choice,
         tool_prompt,
@@ -1267,17 +1268,23 @@ async fn chat_completions(
 
             let (usage, finish_reason) = match stream_token.details {
                 Some(details) => {
-                    let completion_tokens = details.generated_tokens;
-                    let prompt_tokens = details.input_length;
-                    let total_tokens = prompt_tokens + completion_tokens;
-                    (
+                    let usage = if stream_options
+                        .as_ref()
+                        .map(|s| s.include_usage)
+                        .unwrap_or(false)
+                    {
+                        let completion_tokens = details.generated_tokens;
+                        let prompt_tokens = details.input_length;
+                        let total_tokens = prompt_tokens + completion_tokens;
                         Some(Usage {
                             completion_tokens,
                             prompt_tokens,
                             total_tokens,
-                        }),
-                        Some(details.finish_reason.format(true)),
-                    )
+                        })
+                    } else {
+                        None
+                    };
+                    (usage, Some(details.finish_reason.format(true)))
                 }
                 None => (None, None),
             };

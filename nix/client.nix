@@ -6,7 +6,7 @@
 }:
 
 buildPythonPackage {
-  name = "text-generation-x";
+  name = "text-generation";
 
   src = ../clients/python;
 
