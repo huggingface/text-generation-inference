@@ -22,9 +22,9 @@ def attention(
 
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
     ipex.llm.functional.varlen_attention(
-        q,
-        key_cache,
-        value_cache,
+        q.contiguous() if q.device.type == "xpu" else q,
+        key_cache.contiguous() if key_cache.device.type == "xpu" else key_cache,
+        value_cache.contiguous() if value_cache.device.type == "xpu" else value_cache,
         out,
         seqlen.cu_seqlen_q,
         seqlen.cu_seqlen_q,

@@ -82,7 +82,7 @@ def init_cpu_threads_env(rank_id: int, world_size: int):
         import numa
         import psutil
 
-        nodes = numa.get_max_node() + 1
+        nodes = numa.info.get_max_node() + 1
         rank_per_node = math.ceil(world_size / nodes)
         num_cpus_per_nodes = int(psutil.cpu_count(logical=False) / nodes)
         node_id = int(rank_id / rank_per_node)
@@ -91,18 +91,22 @@ def init_cpu_threads_env(rank_id: int, world_size: int):
             num_cpus_per_rank = max(int(num_cpus_per_nodes / rank_per_node), 1)
         else:
             num_cpus_per_rank = int(os.getenv("OMP_NUM_THREADS"))
-        if len(numa.get_membind()) == nodes:
-            numa.set_membind([node_id])
+        if len(numa.memory.get_membind_nodes()) == nodes:
+            numa.memory.set_membind_nodes((node_id))
         torch.set_num_threads(num_cpus_per_rank)
-        if len(numa.get_affinity(0)) == psutil.cpu_count(logical=True):
+        if len(numa.schedule.get_affinitive_cpus(0)) == psutil.cpu_count(logical=True):
             cpu_start = num_cpus_per_rank * rank_offset_per_node
-            numa.set_affinity(
+            numa.schedule.run_on_cpus(
                 0,
-                list(numa.node_to_cpus(node_id))[
-                    cpu_start : cpu_start + num_cpus_per_rank
-                ],
+                *(
+                    numa.info.node_to_cpus(node_id)[
+                        cpu_start : cpu_start + num_cpus_per_rank
+                    ]
+                ),
             )
-        logger.info(f"affinity={numa.get_affinity(0)}, membind = {numa.get_membind()}")
+        logger.info(
+            f"affinity={numa.schedule.get_affinitive_cpus(0)}, membind = {numa.memory.get_membind_nodes()}"
+        )
 
 
 @dataclass

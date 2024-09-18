@@ -120,7 +120,6 @@ class DefaultWeightsLoader(WeightsLoader):
         prefix: str,
         block_sizes: Union[int, List[int]],
     ):
-
         return self.weight_class(
             weights.get_packed_sharded(
                 f"{prefix}.weight", dim=0, block_sizes=block_sizes
@@ -404,6 +403,10 @@ class Weights:
             yield
         finally:
             self.weights_loader = old_loader
+
+    @property
+    def loader(self):
+        return self.weights_loader
 
 
 def _blocks_to_block_sizes(total_size: int, blocks: Union[int, List[int]]) -> List[int]:
