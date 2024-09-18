@@ -13,8 +13,8 @@ use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
     HubProcessorConfig, HubTokenizerConfig, Info, Message, MessageChunk, MessageContent,
-    OutputMessage, PrefillToken, SimpleToken, StreamDetails, StreamResponse, TextMessage, Token,
-    TokenizeResponse, ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
+    OutputMessage, PrefillToken, SimpleToken, StreamDetails, StreamOptions, StreamResponse,
+    TextMessage, Token, TokenizeResponse, ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -1688,6 +1688,7 @@ StreamDetails,
 ErrorResponse,
 GrammarType,
 Usage,
+StreamOptions,
 DeltaToolCall,
 ToolType,
 Tool,

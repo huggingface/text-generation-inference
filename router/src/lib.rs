@@ -886,7 +886,7 @@ pub(crate) struct ChatRequest {
 
     /// Options for streaming response. Only set this when you set stream: true.
     #[serde(default)]
-    #[schema(nullable = true, default = "null", example = "null")]
+    #[schema(nullable = true, example = "null")]
     pub stream_options: Option<StreamOptions>,
 }
 
