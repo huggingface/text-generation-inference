@@ -120,33 +120,67 @@ class IdeficsCausalLMBatch(Batch):
             )
 
         # TODO Check impact on idefics
-        prompts = []
-        for inp in inputs:
-            # Each input is encoded into a list, where each element of this input list is either a string or a URL
-            prompt = []
-            for chunk in inp:
-                chunk_type = chunk.WhichOneof("chunk")
-                if chunk_type == "text":
-                    prompt.append(chunk.text)
-                elif chunk_type == "image":
-                    image = Image.open(BytesIO(chunk.image.data))
-                    prompt.append(image)
-                else:
-                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
-            prompts.append(prompt)
 
-        # The processor replaces the call to tokenizer, and
-        # a/ takes care of fetching images from the URL
-        # b/ generate the correct input_ids, attention_mask, pixel_values, image_attention_mask to feed to the model
-        tokenized_inputs = processor(
-            prompts,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=max_truncation,
-            # TODO Check impact on idefics
-            # add_end_of_utterance_token=False,  # Already taken care of inside the prompts, so bypassing the processor's handling of this token
-        ).to(device)
+        if config.model_type == "idefics":
+            prompts = []
+            for inp in inputs:
+                # Each input is encoded into a list, where each element of this input list is either a string or a URL
+                prompt = []
+                for chunk in inp:
+                    chunk_type = chunk.WhichOneof("chunk")
+                    if chunk_type == "text":
+                        prompt.append(chunk.text)
+                    elif chunk_type == "image":
+                        image = Image.open(BytesIO(chunk.image.data))
+                        prompt.append(image)
+                    else:
+                        raise RuntimeError(f"Invalid chunk type {chunk_type}")
+                prompts.append(prompt)
+
+            # The processor replaces the call to tokenizer, and
+            # a/ takes care of fetching images from the URL
+            # b/ generate the correct input_ids, attention_mask, pixel_values, image_attention_mask to feed to the model
+            tokenized_inputs = processor(
+                prompts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=max_truncation,
+                # TODO Check impact on idefics
+                # add_end_of_utterance_token=False,  # Already taken care of inside the prompts, so bypassing the processor's handling of this token
+            ).to(device)
+        else:
+            images = []
+            texts = []
+            for inp in inputs:
+                # Each input is encoded into a list, where each element of this input list is either a string or a URL
+                curr_images = []
+                curr_text = ""
+                for chunk in inp:
+                    chunk_type = chunk.WhichOneof("chunk")
+                    if chunk_type == "text":
+                        curr_text += chunk.text
+                    elif chunk_type == "image":
+                        image = Image.open(BytesIO(chunk.image.data))
+                        curr_images.append(image)
+                        # TODO unsure about BOS
+                        curr_text += "<|image|><|begin_of_text|>"
+                    else:
+                        raise RuntimeError(f"Invalid chunk type {chunk_type}")
+                images.append(curr_images)
+                texts.append(curr_text)
+
+            # The processor replaces the call to tokenizer, and
+            # a/ takes care of fetching images from the URL
+            # b/ generate the correct input_ids, attention_mask, pixel_values, image_attention_mask to feed to the model
+            tokenized_inputs = processor(
+                images=images,
+                text=texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=max_truncation,
+            ).to(device)
         for _ in pb.requests:
             input_len = tokenized_inputs["input_ids"].shape[1]
             prefix_offsets.append(
