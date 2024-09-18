@@ -590,7 +590,7 @@ async fn generate_stream_internal(
                                         let event = on_message_callback(stream_token);
                                         yield Ok(event);
                                     }
-                                    // Yield event for last token and compute timings
+                                    // Yield event for lat token and compute timings
                                     InferStreamResponse::End {
                                         token,
                                         generated_text,
@@ -1265,6 +1265,22 @@ async fn chat_completions(
                 (content, None)
             };
 
+            let (usage, finish_reason) = match stream_token.details {
+                Some(details) => {
+                    let completion_tokens = details.generated_tokens;
+                    let prompt_tokens = details.input_length;
+                    let total_tokens = prompt_tokens + completion_tokens;
+                    (
+                        Some(Usage {
+                            completion_tokens,
+                            prompt_tokens,
+                            total_tokens,
+                        }),
+                        Some(details.finish_reason.format(true)),
+                    )
+                }
+                None => (None, None),
+            };
             event
                 .json_data(CompletionType::ChatCompletionChunk(
                     ChatCompletionChunk::new(
@@ -1274,7 +1290,8 @@ async fn chat_completions(
                         tool_calls,
                         current_time,
                         logprobs,
-                        stream_token.details.map(|d| d.finish_reason.format(true)),
+                        finish_reason,
+                        usage,
                     ),
                 ))
                 .unwrap_or_else(|e| {
