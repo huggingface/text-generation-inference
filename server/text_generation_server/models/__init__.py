@@ -316,6 +316,12 @@ class ModelType(enum.Enum):
         "url": "https://huggingface.co/HuggingFaceM4/idefics-9b",
         "multimodal": True,
     }
+    MLLAMA = {
+        "type": "mllama",
+        "name": "Mllama",
+        "url": "https://huggingface.co/xxx/xx",
+        "multimodal": True,
+    }
 
 
 __GLOBALS = locals()
@@ -1126,6 +1132,18 @@ def get_model(
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+    if model_type == MLLAMA:
+        if FLASH_ATTENTION:
+            return IDEFICSSharded(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Mllama"))
     if model_type == IDEFICS2:
         if FLASH_ATTENTION:
             return VlmCausalLM(
