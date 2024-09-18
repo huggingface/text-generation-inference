@@ -14,7 +14,7 @@
 # limitations under the License.
 """PyTorch Mllama model."""
 
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import torch
 import torch.utils.checkpoint
@@ -23,11 +23,6 @@ import math
 
 from transformers.activations import ACT2FN
 import torch.nn.functional as F
-from text_generation_server.models.custom_modeling.vlm import (
-    load_text_model,
-)
-from text_generation_server.layers.attention import Seqlen
-from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -40,7 +35,6 @@ from text_generation_server.layers import (
     SpeculativeHead,
     FastLinear,
 )
-from text_generation_server.utils.weights import DefaultWeightsLoader, UnquantizedWeight
 
 
 # Copied from transformers.models.clip.modeling_clip.CLIPMLP with CLIP->MllamaVision
