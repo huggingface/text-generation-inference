@@ -67,31 +67,10 @@
             '';
           };
         server = pkgs.python3.pkgs.callPackage ./nix/server.nix { inherit nix-filter; };
+        client = pkgs.python3.pkgs.callPackage ./nix/client.nix { };
       in
       {
-        checks = {
-          rust = with pkgs; rustPlatform.buildRustPackage {
-            name = "rust-checks";
-            src = ./.;
-            cargoLock = {
-              lockFile = ./Cargo.lock;
-            };
-            buildInputs = [ openssl.dev ];
-            nativeBuildInputs = [ clippy pkg-config protobuf python3 rustfmt ];
-            buildPhase = ''
-              cargo check
-            '';
-            checkPhase = ''
-              cargo fmt -- --check
-              cargo test -j $NIX_BUILD_CORES
-              cargo clippy
-            '';
-            installPhase = "touch $out";
-          } ;
-        };
-
         formatter = pkgs.nixfmt-rfc-style;
-
         devShells = with pkgs; rec {
           default = pure;
 
@@ -106,10 +85,11 @@
           test = mkShell {
             buildInputs =
               [
-                # benchmark
-                # launcher
-                # router
+                benchmark
+                launcher
+                router
                 server
+                client
                 openssl.dev
                 pkg-config
                 cargo
