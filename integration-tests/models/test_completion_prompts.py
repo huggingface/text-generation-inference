@@ -3,7 +3,7 @@ import requests
 import json
 from aiohttp import ClientSession
 
-from text_generation.types import Completion, ChatComplete
+from text_generation.types import Completion, ChatCompletionChunk
 
 
 @pytest.fixture(scope="module")
@@ -68,6 +68,7 @@ async def test_flash_llama_completion_stream_usage(
     }
     string = ""
     chunks = []
+    is_final = False
     async with ClientSession(headers=flash_llama_completion.headers) as session:
         async with session.post(url, json=request) as response:
             # iterate over the stream
@@ -84,17 +85,24 @@ async def test_flash_llama_completion_stream_usage(
                 chunk = [json.loads(c) for c in chunk]
 
                 for c in chunk:
-                    chunks.append(ChatComplete(**c))
+                    chunks.append(ChatCompletionChunk(**c))
                     assert "choices" in c
                     if len(c["choices"]) == 1:
                         index = c["choices"][0]["index"]
                         assert index == 0
-                        string += c["choices"][0]["text"]
-                    elif len(c["choices"]) == 0:
-                        assert c["usage"] is not None
+                        string += c["choices"][0]["delta"]["content"]
+
+                        has_usage = c["usage"] is not None
+                        assert not is_final
+                        if has_usage:
+                            is_final = True
                     else:
                         raise RuntimeError("Expected different payload")
-    assert string == ""
+    assert is_final
+    assert (
+        string
+        == "**Deep Learning: An Overview**\n=====================================\n\n"
+    )
     assert chunks == response_snapshot
 
 
