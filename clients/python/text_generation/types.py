@@ -191,7 +191,7 @@ class ChatCompletionChunk(BaseModel):
     model: str
     system_fingerprint: str
     choices: List[Choice]
-    usage: Optional[Any]
+    usage: Optional[Any] = None
 
 
 class Parameters(BaseModel):
