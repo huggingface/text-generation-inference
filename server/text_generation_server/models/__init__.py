@@ -32,6 +32,9 @@ from text_generation_server.models.custom_modeling.phi_modeling import (
     PhiConfig,
     PhiForCausalLM,
 )
+from text_generation_server.models.custom_modeling.flash_phi_moe_modeling import (
+    PhiMoEConfig,
+)
 from text_generation_server.models.custom_modeling.t5_modeling import (
     T5ForConditionalGeneration,
 )
@@ -778,6 +781,7 @@ def get_model(
             return FlashCausalLM(
                 model_id=model_id,
                 model_class=FlashLlamaForCausalLM,
+                config_class=PhiMoEConfig,
                 revision=revision,
                 quantize=quantize,
                 speculator=speculator,

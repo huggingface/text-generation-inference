@@ -457,7 +457,7 @@ class FlashLlamaLayer(nn.Module):
                 weights=weights,
             )
 
-        if config._name_or_path == "microsoft/Phi-3.5-MoE-instruct":
+        if config.model_type == "phimoe":
             self.dense = BlockSparseMoE(f"{prefix}.block_sparse_moe", config, weights)
             # with moe the layernorms are are not rmsnorms and they have bias
             self.input_layernorm = FastLayerNorm.load(
