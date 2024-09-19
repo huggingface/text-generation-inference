@@ -16,7 +16,13 @@
 from typing import List, Optional, Tuple
 
 from text_generation_server.models.globals import PAGED_KV
-from moe_kernels.fused_moe import grouped_topk
+from text_generation_server.utils.import_utils import SYSTEM
+
+if SYSTEM == "rocm":
+    from text_generation_server.layers import grouped_topk
+else:
+    from vllm.model_executor.layers.fused_moe import grouped_topk
+
 import torch
 import torch.distributed
 from text_generation_server.layers import (
@@ -36,7 +42,6 @@ from text_generation_server.layers.attention import (
 from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.moe import SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_mscale
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import Weights
 from torch import nn
 from transformers.activations import ACT2FN
