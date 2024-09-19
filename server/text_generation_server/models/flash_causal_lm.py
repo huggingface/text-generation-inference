@@ -1125,12 +1125,12 @@ class FlashCausalLM(Model):
         else:
             self.kv_cache = [
                 (
-                    torch.empty(
+                    torch.zeros(
                         (num_blocks, num_heads, head_size // x, BLOCK_SIZE, x),
                         dtype=dtype,
                         device=device,
                     ),
-                    torch.empty(
+                    torch.zeros(
                         (num_blocks, num_heads, head_size, BLOCK_SIZE),
                         dtype=dtype,
                         device=device,
@@ -1320,8 +1320,7 @@ class FlashCausalLM(Model):
                 elif CUDA_GRAPHS is not None:
                     tuning_sequences = CUDA_GRAPHS
                 else:
-                    # For seqlen = 1, we dispatch to LLMM1 kernel.
-                    tuning_sequences = [2, 3, 4, 5, 6, 7]
+                    tuning_sequences = [1, 2, 3, 4, 5, 6, 7]
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
@@ -1330,7 +1329,11 @@ class FlashCausalLM(Model):
 
                 log_master(
                     logger.info,
-                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
+                    f"PyTorch TunableOp is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
+                )
+
+                torch.cuda.tunable.set_filename(
+                    tunableop_filepath, insert_device_ordinal=False
                 )
 
                 if os.path.isfile(tunableop_filepath):
@@ -1346,7 +1349,8 @@ class FlashCausalLM(Model):
                     log_master(logger.info, f"Warming up TunableOp for seqlen={seqlen}")
                     self.tunableop_warmup(seqlen)
                     torch.cuda.tunable.write_file(tunableop_filepath)
-                torch.cuda.tunable.tuning_enable(False)
+                if os.environ.get("PYTORCH_TUNABLEOP_TUNING_AFTER_WARMUP") != "1":
+                    torch.cuda.tunable.tuning_enable(False)
             else:
                 log_master(
                     logger.info,
@@ -1382,6 +1386,7 @@ class FlashCausalLM(Model):
         cu_seqlen_prefill = torch.tensor(
             [0, seqlen], device=self.device, dtype=torch.int32
         )
+        max_s = seqlen
         seqlen = Seqlen(
             input_lengths=input_lengths,
             prefix_lengths=prefix_lens_tensor,
@@ -1399,7 +1404,7 @@ class FlashCausalLM(Model):
             block_tables=None,
             seqlen=seqlen,
             slots=slots,
-            max_s=seqlen,
+            max_s=max_s,
             lm_head_indices=None,
             prefill_cache_indices=None,
         )

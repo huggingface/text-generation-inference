@@ -4,6 +4,7 @@ from loguru import logger
 from typing import Dict, Optional
 
 from text_generation_server.utils.log import log_master
+from text_generation_server.utils.import_utils import SYSTEM
 
 PREFIX_CACHING = os.getenv("USE_PREFIX_CACHING").lower() in {"1", "true"}
 log_master(logger.info, f"Using prefix caching = {PREFIX_CACHING}")
@@ -51,6 +52,12 @@ CUDA_GRAPHS = cuda_graphs
 # NOTE: eventually we should move this into the router and pass back the
 # index in all cases.
 ADAPTER_TO_INDEX: Optional[Dict[str, int]] = None
+
+PAGED_KV: bool
+if SYSTEM in {"rocm", "ipex"}:
+    PAGED_KV = False
+else:
+    PAGED_KV = True
 
 
 def set_adapter_to_index(adapter_to_index: Dict[str, int]):
