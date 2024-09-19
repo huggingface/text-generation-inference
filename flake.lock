@@ -978,11 +978,11 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1726229792,
-        "narHash": "sha256-9xsLmjc9nr7a4PTddKv2DOi82ompTtJNyjO6R67y5tE=",
+        "lastModified": 1726743157,
+        "narHash": "sha256-7OczwJsA47o+aUftMwkoh8R31DlNSl2FgRjqE8zAggk=",
         "owner": "danieldk",
         "repo": "tgi-nix",
-        "rev": "1a902f4818e94c3f8d95f6000db17bc3fadd0ce7",
+        "rev": "bcc9fd01cf81bc42cebb999a736a377adfa8942f",
         "type": "github"
       },
       "original": {
