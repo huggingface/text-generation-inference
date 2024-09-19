@@ -168,7 +168,7 @@ class ChatCompletionComplete(BaseModel):
     # Log probabilities for the chat completion
     logprobs: Optional[Any]
     # Reason for completion
-    finish_reason: str
+    finish_reason: Optional[str]
     # Usage details of the chat completion
     usage: Optional[Any] = None
 
@@ -191,6 +191,7 @@ class ChatCompletionChunk(BaseModel):
     model: str
     system_fingerprint: str
     choices: List[Choice]
+    usage: Optional[Any] = None
 
 
 class Parameters(BaseModel):

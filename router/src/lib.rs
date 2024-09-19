@@ -684,6 +684,7 @@ pub(crate) struct ChatCompletionChunk {
     pub model: String,
     pub system_fingerprint: String,
     pub choices: Vec<ChatCompletionChoice>,
+    pub usage: Option<Usage>,
 }
 
 #[derive(Clone, Serialize, ToSchema)]
@@ -732,6 +733,7 @@ impl ChatCompletionChunk {
         created: u64,
         logprobs: Option<ChatCompletionLogprobs>,
         finish_reason: Option<String>,
+        usage: Option<Usage>,
     ) -> Self {
         let delta = match (delta, tool_calls) {
             (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
@@ -766,6 +768,7 @@ impl ChatCompletionChunk {
                 logprobs,
                 finish_reason,
             }],
+            usage,
         }
     }
 }
@@ -880,6 +883,18 @@ pub(crate) struct ChatRequest {
     #[serde(default)]
     #[schema(nullable = true, default = "null", example = "null")]
     pub guideline: Option<String>,
+
+    /// Options for streaming response. Only set this when you set stream: true.
+    #[serde(default)]
+    #[schema(nullable = true, example = "null")]
+    pub stream_options: Option<StreamOptions>,
+}
+
+#[derive(Clone, Deserialize, ToSchema, Serialize)]
+struct StreamOptions {
+    /// If set, an additional chunk will be streamed before the data: [DONE] message. The usage field on this chunk shows the token usage statistics for the entire request, and the choices field will always be an empty array. All other chunks will also include a usage field, but with a null value.
+    #[schema(example = "true")]
+    include_usage: bool,
 }
 
 pub fn default_tool_prompt() -> String {
@@ -1472,6 +1487,27 @@ mod tests {
         let textmsg: TextMessage = message.into();
         assert_eq!(textmsg.content, "Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)");
     }
+
+    #[test]
+    fn test_chat_stream_options() {
+        let json = json!({
+            "model": "",
+            "stream_options": {"include_usage": true},
+            "messages": [{
+                "role": "user",
+                "content": "Hello"
+            }]
+        });
+        let request: ChatRequest = serde_json::from_str(json.to_string().as_str()).unwrap();
+
+        assert!(matches!(
+            request.stream_options,
+            Some(StreamOptions {
+                include_usage: true
+            })
+        ));
+    }
+
     #[test]
     fn openai_output() {
         let message = OutputMessage::ChatMessage(TextMessage {

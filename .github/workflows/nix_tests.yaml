@@ -38,4 +38,4 @@ jobs:
       env:
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
     - name: Rust tests.
-      run: nix build .#checks.$(nix eval --impure --raw --expr 'builtins.currentSystem').rust -L
+      run: nix develop .#test --command cargo test

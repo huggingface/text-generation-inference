@@ -742,6 +742,14 @@
           },
           "system_fingerprint": {
             "type": "string"
+          },
+          "usage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Usage"
+              }
+            ],
+            "nullable": true
           }
         }
       },
@@ -936,6 +944,14 @@
           },
           "stream": {
             "type": "boolean"
+          },
+          "stream_options": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StreamOptions"
+              }
+            ],
+            "nullable": true
           },
           "temperature": {
             "type": "number",
@@ -1909,6 +1925,19 @@
             "example": 42,
             "nullable": true,
             "minimum": 0
+          }
+        }
+      },
+      "StreamOptions": {
+        "type": "object",
+        "required": [
+          "include_usage"
+        ],
+        "properties": {
+          "include_usage": {
+            "type": "boolean",
+            "description": "If set, an additional chunk will be streamed before the data: [DONE] message. The usage field on this chunk shows the token usage statistics for the entire request, and the choices field will always be an empty array. All other chunks will also include a usage field, but with a null value.",
+            "example": "true"
           }
         }
       },
