@@ -42,6 +42,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
       - name: Install
         run: |
+          sudo apt update
           sudo apt install python3.11-dev -y
           make install-cpu
       - name: Run server tests

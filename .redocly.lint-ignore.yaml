@@ -23,9 +23,11 @@ docs/openapi.json:
     - '#/components/schemas/GenerateResponse/properties/details/nullable'
     - '#/components/schemas/StreamResponse/properties/details/nullable'
     - '#/components/schemas/ChatRequest/properties/response_format/nullable'
+    - '#/components/schemas/ChatRequest/properties/stream_options/nullable'
     - '#/components/schemas/ChatRequest/properties/tool_choice/nullable'
     - '#/components/schemas/ToolChoice/nullable'
     - '#/components/schemas/ChatCompletionComplete/properties/logprobs/nullable'
+    - '#/components/schemas/ChatCompletionChunk/properties/usage/nullable'
     - '#/components/schemas/ChatCompletionChoice/properties/logprobs/nullable'
   no-invalid-media-type-examples:
     - '#/paths/~1/post/responses/422/content/application~1json/example'
