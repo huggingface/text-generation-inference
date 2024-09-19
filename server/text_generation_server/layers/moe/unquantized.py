@@ -6,7 +6,9 @@ import torch.nn as nn
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import UnquantizedWeight, Weights
 
-if SYSTEM != "ipex":
+if SYSTEM == "rocm":
+    from vllm.model_executor.layers.fused_moe import fused_moe
+elif SYSTEM != "ipex":
     from moe_kernels.fused_moe import fused_moe
 
 
@@ -52,6 +54,17 @@ class UnquantizedSparseMoELayer(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
+        if SYSTEM == "rocm":
+            return fused_moe(
+                x,
+                self.gate_up_proj,
+                self.down_proj,
+                gating_output,
+                self.topk,
+                renormalize=self.renormalize,
+                inplace=True,
+            )
+
         return fused_moe(
             x,
             w1=self.gate_up_proj,
