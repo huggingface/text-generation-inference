@@ -14,10 +14,6 @@ buildPythonPackage {
 
   build-system = [ poetry-core ];
 
-  nativeBuildInputs = [ ];
-
-  pythonRemoveDeps = [ ];
-
   dependencies = [
     huggingface-hub
     pydantic

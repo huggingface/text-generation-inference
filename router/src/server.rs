@@ -590,7 +590,7 @@ async fn generate_stream_internal(
                                         let event = on_message_callback(stream_token);
                                         yield Ok(event);
                                     }
-                                    // Yield event for lat token and compute timings
+                                    // Yield event for last token and compute timings
                                     InferStreamResponse::End {
                                         token,
                                         generated_text,
