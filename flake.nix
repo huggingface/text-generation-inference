@@ -157,6 +157,7 @@
                 pyright
                 pytest
                 pytest-asyncio
+                redocly
                 ruff
                 syrupy
               ]);
