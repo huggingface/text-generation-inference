@@ -20,8 +20,8 @@ from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "rocm":
     from text_generation_server.layers import grouped_topk
-else:
-    from vllm.model_executor.layers.fused_moe import grouped_topk
+elif SYSTEM != "ipex":
+    from moe_kernels.fused_moe import grouped_topk
 
 import torch
 import torch.distributed
