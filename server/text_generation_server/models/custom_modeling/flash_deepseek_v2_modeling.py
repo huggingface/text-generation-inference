@@ -15,7 +15,6 @@
 
 from typing import List, Optional, Tuple
 
-from moe_kernels.fused_moe import grouped_topk
 import torch
 import torch.distributed
 from text_generation_server.layers import (
@@ -40,6 +39,9 @@ from text_generation_server.utils.weights import Weights
 from torch import nn
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
+
+if SYSTEM != "ipex":
+    from moe_kernels.fused_moe import grouped_topk
 
 if SYSTEM == "rocm":
     try:
