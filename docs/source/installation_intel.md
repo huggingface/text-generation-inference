@@ -12,7 +12,7 @@ volume=$PWD/data # share a volume with the Docker container to avoid downloading
 docker run --rm --privileged --cap-add=sys_nice \
     --device=/dev/dri \
     --ipc=host --shm-size 1g --net host -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:2.2.0-intel-xpu \
+    ghcr.io/huggingface/text-generation-inference:2.3.0-intel-xpu \
     --model-id $model --cuda-graphs 0
 ```
 
@@ -29,7 +29,7 @@ volume=$PWD/data # share a volume with the Docker container to avoid downloading
 docker run --rm --privileged --cap-add=sys_nice \
     --device=/dev/dri \
     --ipc=host --shm-size 1g --net host -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:2.2.0-intel-cpu \
+    ghcr.io/huggingface/text-generation-inference:2.3.0-intel-cpu \
     --model-id $model --cuda-graphs 0
 ```
 
