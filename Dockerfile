@@ -40,7 +40,6 @@ COPY router router
 COPY backends backends
 COPY launcher launcher
 RUN cargo build --profile release-opt
-RUN cargo build --profile release-opt
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
