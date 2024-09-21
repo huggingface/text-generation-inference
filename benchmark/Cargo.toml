@@ -16,7 +16,6 @@ path = "src/main.rs"
 [dependencies]
 average = "0.14"
 clap = { version = "4.4.5", features = ["derive", "env"] }
-crossterm = "0.28.1"
 float-ord = "0.3.2"
 serde = {version = "1.0.188", features = ["derive"]}
 serde_json = "1.0"
@@ -25,7 +24,7 @@ text-generation-client = { path = "../backends/client" }
 thiserror = "1.0.48"
 tokenizers = { workspace = true }
 tokio = { version = "1.32.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync", "macros"] }
-ratatui = { version = "0.28.1", default-features = false, features = ["crossterm"] }
+ratatui = "0.28.1"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 hf-hub = { workspace = true }
