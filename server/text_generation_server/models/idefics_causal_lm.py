@@ -225,7 +225,7 @@ class IdeficsCausalLMBatch(Batch):
             aspect_ratio_ids = None
             aspect_ratio_mask = None
             cross_attention_mask = None
-        else:
+        elif "cross_attention_mask" in tokenized_inputs:
             image_attention_mask = None
             aspect_ratio_ids = tokenized_inputs["aspect_ratio_ids"]
             aspect_ratio_mask = tokenized_inputs["aspect_ratio_mask"]
@@ -235,6 +235,8 @@ class IdeficsCausalLMBatch(Batch):
             tokenized_inputs["input_ids"] = tokenized_inputs["input_ids"].clamp(
                 max=processor.tokenizer.vocab_size - 1
             )
+        else:
+            raise RuntimeError("Unhandled state for idefics/mllama")
 
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
