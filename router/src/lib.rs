@@ -62,7 +62,7 @@ pub(crate) struct GenerateVertexInstance {
     pub parameters: Option<GenerateParameters>,
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
+#[derive(Clone, Deserialize, ToSchema, Serialize, Default)]
 pub(crate) struct ChatRequestParameters {
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     /// [UNUSED] ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
