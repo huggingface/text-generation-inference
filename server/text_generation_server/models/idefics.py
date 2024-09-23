@@ -98,6 +98,8 @@ class IDEFICSSharded(IdeficsCausalLM):
         else:
             raise RuntimeError(f"Unsupported model type {config.model_type}")
 
+        self.config = config
+
         torch.distributed.barrier(group=self.process_group)
         super(IdeficsCausalLM, self).__init__(
             model_id=model_id,
