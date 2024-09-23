@@ -904,7 +904,7 @@ class IdeficsCausalLM(Model):
         batch.input_ids = batch.input_ids[:, :1]
 
         # Update attention_mask as we added a new token to input_ids
-        # batch.attention_mask[:, -batch.padding_right_offset] = 1
+        batch.attention_mask[:, -batch.padding_right_offset] = 1
         if batch.image_attention_mask is not None:
             batch.image_attention_mask[:, -batch.padding_right_offset, :] = (
                 batch.image_attention_mask[:, -(batch.padding_right_offset + 1), :]
