@@ -1,11 +1,9 @@
 mod backend;
-pub mod block_allocator;
 mod client;
 mod queue;
-pub mod radix;
 
 use crate::client::{ClientError, ShardedClient};
-pub(crate) use backend::BackendV3;
+pub(crate) use backend::BackendV2;
 use serde::Serialize;
 use thiserror::Error;
 use utoipa::ToSchema;
@@ -41,7 +39,7 @@ pub async fn connect_backend(
     max_batch_total_tokens: Option<u32>,
     max_waiting_tokens: usize,
     max_batch_size: Option<usize>,
-) -> Result<(BackendV3, BackendInfo), V3Error> {
+) -> Result<(BackendV2, BackendInfo), V2Error> {
     // Helper function
     let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
         match max_supported_batch_total_tokens {
@@ -65,7 +63,7 @@ pub async fn connect_backend(
                     );
                 }
                 if max_total_tokens as u32 > max_supported_batch_total_tokens {
-                    return Err(V3Error::NotEnoughMemory(max_total_tokens));
+                    return Err(V2Error::NotEnoughMemory(max_total_tokens));
                 }
 
                 Ok(max_supported_batch_total_tokens)
@@ -75,16 +73,16 @@ pub async fn connect_backend(
 
     let mut sharded_client = ShardedClient::connect_uds(master_shard_uds_path)
         .await
-        .map_err(V3Error::Connection)?;
+        .map_err(V2Error::Connection)?;
 
-    // server is running on v3
+    // server is running on v2
     // Clear the cache; useful if the webserver rebooted
     sharded_client
         .clear_cache(None)
         .await
-        .map_err(V3Error::Cache)?;
+        .map_err(V2Error::Cache)?;
     // Get info from the shard
-    let shard_info = sharded_client.info().await.map_err(V3Error::Info)?;
+    let shard_info = sharded_client.info().await.map_err(V2Error::Info)?;
 
     // Warmup model
     tracing::info!("Warming up model");
@@ -97,7 +95,7 @@ pub async fn connect_backend(
                 max_batch_size,
             )
             .await
-            .map_err(V3Error::Warmup)?,
+            .map_err(V2Error::Warmup)?,
     )?;
     tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
 
@@ -111,7 +109,7 @@ pub async fn connect_backend(
         speculate: shard_info.speculate as usize,
     };
 
-    let backend = BackendV3::new(
+    let backend = BackendV2::new(
         sharded_client,
         waiting_served_ratio,
         max_batch_prefill_tokens,
@@ -129,7 +127,7 @@ pub async fn connect_backend(
 }
 
 #[derive(Debug, Error)]
-pub enum V3Error {
+pub enum V2Error {
     #[error("Unable to clear the Python model shards cache: {0}")]
     Cache(ClientError),
     #[error("Unable to connect to the Python model shards: {0}")]

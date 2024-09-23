@@ -12,10 +12,9 @@ mod grpc_client;
 mod sharded_client;
 
 pub use grpc_client::Client;
-pub use pb::generate::v3::{
-    input_chunk::Chunk, Batch, CachedBatch, FinishReason, GeneratedText, Generation, GrammarType,
-    HealthResponse, Image, InfoResponse, Input, InputChunk, NextTokenChooserParameters, Request,
-    StoppingCriteriaParameters,
+pub use pb::generate::v2::{
+    Batch, CachedBatch, FinishReason, GeneratedText, Generation, GrammarType, HealthResponse,
+    InfoResponse, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
 pub use sharded_client::ShardedClient;
 
@@ -61,13 +60,6 @@ impl From<transport::Error> for ClientError {
         let err = Self::Connection(err.to_string());
         tracing::error!("{err}");
         err
-    }
-}
-
-// Small convenience re-wrapping of `Chunk`.
-impl From<Chunk> for InputChunk {
-    fn from(chunk: Chunk) -> Self {
-        InputChunk { chunk: Some(chunk) }
     }
 }
 

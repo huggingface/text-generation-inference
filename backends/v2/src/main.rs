@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use text_generation_router::{server, usage_stats};
-use text_generation_router_v3::{connect_backend, V3Error};
+use text_generation_router_v2::{connect_backend, V2Error};
 use thiserror::Error;
 
 /// App Configuration
@@ -204,7 +204,7 @@ enum RouterError {
     #[error("Argument validation error: {0}")]
     ArgumentValidation(String),
     #[error("Backend failed: {0}")]
-    Backend(#[from] V3Error),
+    Backend(#[from] V2Error),
     #[error("WebServer error: {0}")]
     WebServer(#[from] server::WebServerError),
     #[error("Tokio runtime failed to start: {0}")]

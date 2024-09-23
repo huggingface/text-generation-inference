@@ -13,7 +13,7 @@ use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info_span, instrument, Instrument, Span};
 
-pub struct BackendV3 {
+pub struct BackendV2 {
     /// Request queue
     queue: Queue,
     /// Notify batcher on queue appends
@@ -22,7 +22,7 @@ pub struct BackendV3 {
     client: ShardedClient,
 }
 
-impl BackendV3 {
+impl BackendV2 {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         client: ShardedClient,
@@ -35,24 +35,20 @@ impl BackendV3 {
         window_size: Option<u32>,
         speculate: u32,
     ) -> Self {
-        let prefix_caching =
-            std::env::var("USE_PREFIX_CACHING").expect("Expect prefix caching env var");
-        let prefix_caching = matches!(prefix_caching.as_str(), "true" | "1");
-        let attention: String = std::env::var("ATTENTION").expect("attention env var");
-
-        let attention: Attention = attention
-            .parse()
-            .unwrap_or_else(|_| panic!("Invalid attention was specified :`{attention}`"));
-        let block_size = attention.block_size();
-
-        let queue = Queue::new(
-            requires_padding,
-            block_size,
-            prefix_caching,
-            window_size,
-            speculate,
-            max_batch_total_tokens,
-        );
+        // Infer shared state
+        let attention = if let Ok(attention) = std::env::var("ATTENTION") {
+            attention
+                .parse()
+                .unwrap_or_else(|_| panic!("Invalid attention was specified :`{attention}`"))
+        } else {
+            Attention::Paged
+        };
+        let block_size = if attention == Attention::FlashDecoding {
+            256
+        } else {
+            16
+        };
+        let queue = Queue::new(requires_padding, block_size, window_size, speculate);
         let batching_task_notifier = Arc::new(Notify::new());
 
         // Spawn batching background task that contains all the inference logic
@@ -76,7 +72,7 @@ impl BackendV3 {
 }
 
 #[async_trait]
-impl Backend for BackendV3 {
+impl Backend for BackendV2 {
     #[instrument(skip_all)]
     fn schedule(
         &self,
@@ -93,7 +89,6 @@ impl Backend for BackendV3 {
             temp_span: None,
             queue_time: Instant::now(),
             batch_time: None,
-            block_allocation: None,
         });
 
         // Notify the background task that we have a new entry in the queue that needs
@@ -168,15 +163,12 @@ pub(crate) async fn batching_task(
                     None
                 } else {
                     // Minimum batch size
-                    // TODO: temporarily disable to avoid incorrect deallocation +
-                    //       reallocation when using prefix caching.
                     Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
                 };
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
                 let max_size =
                     max_batch_size.map(|max_size| max_size.saturating_sub(batch_size as usize));
-
                 // Try to get a new batch
                 if let Some((mut new_entries, new_batch, span)) = queue
                     .next_batch(min_size, max_size, max_batch_prefill_tokens, token_budget)
@@ -259,13 +251,13 @@ async fn prefill(
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
 
-            metrics::histogram!("tgi_batch_forward_duration", "method" => "prefill")
+            metrics::histogram!("tgi_batch_forward_duration","method" => "prefill")
                 .record(timings.forward.as_secs_f64());
             metrics::histogram!("tgi_batch_decode_duration", "method" => "prefill")
                 .record(timings.decode.as_secs_f64());
             metrics::histogram!("tgi_batch_filter_duration", "method" => "prefill")
                 .record(start_filtering_time.elapsed().as_secs_f64());
-            metrics::histogram!("tgi_batch_inference_duration", "method" => "prefill")
+            metrics::histogram!("tgi_batch_inference_duration","method" => "prefill")
                 .record(start_time.elapsed().as_secs_f64());
             metrics::counter!("tgi_batch_inference_success", "method" => "prefill").increment(1);
             next_batch
@@ -497,8 +489,8 @@ fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
 
 impl From<crate::client::GeneratedText> for GeneratedText {
     fn from(value: crate::client::GeneratedText) -> Self {
-        let v3_finish_reason = crate::client::FinishReason::try_from(value.finish_reason).unwrap();
-        let finish_reason = match v3_finish_reason {
+        let v2_finish_reason = crate::client::FinishReason::try_from(value.finish_reason).unwrap();
+        let finish_reason = match v2_finish_reason {
             crate::client::FinishReason::Length => FinishReason::Length,
             crate::client::FinishReason::EosToken => FinishReason::EndOfSequenceToken,
             crate::client::FinishReason::StopSequence => FinishReason::StopSequence,

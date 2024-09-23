@@ -1,13 +1,13 @@
-use crate::client::{ClientError, Result};
 /// Multi shard Client
+use crate::client::{ClientError, Result};
 use crate::client::{Health, ShardInfo};
 
 use crate::client::grpc_client::{DecodeTimings, PrefillTimings};
+use crate::client::InfoResponse;
 use crate::client::{
     Batch, CachedBatch, Client, Generation, GrammarType, HealthResponse,
     NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
-use crate::client::{Chunk, InfoResponse, Input};
 use async_trait::async_trait;
 use futures::future::join_all;
 use tonic::transport::Uri;
@@ -218,11 +218,7 @@ impl Health for ShardedClient {
         let liveness_request = Request {
             id: u64::MAX,
             inputs: "liveness".to_string(),
-            input_chunks: Some(Input {
-                chunks: vec![Chunk::Text("liveness".into()).into()],
-            }),
             truncate: 10,
-            add_special_tokens: true,
             prefill_logprobs: false,
             parameters: Some(NextTokenChooserParameters {
                 temperature: 1.0,
@@ -243,18 +239,12 @@ impl Health for ShardedClient {
                 ignore_eos_token: false,
             }),
             top_n_tokens: 0,
-            // Block 0 is reserved for health checks
-            blocks: vec![0],
-            slots: (0..16).collect(),
-            prefix_len: 0,
-            adapter_id: None,
         };
         let batch = Batch {
             id: u64::MAX,
             requests: vec![liveness_request],
             size: 1,
             max_tokens: 2,
-            max_blocks: 1,
         };
         self.clone().prefill(batch).await?;
         Ok(())
