@@ -8,7 +8,7 @@ use crate::kserve::{
     kserve_model_metadata, kserve_model_metadata_ready,
 };
 use crate::validation::ValidationError;
-use crate::{default_tool_prompt, ChatTokenizeResponse, VertexInstance};
+use crate::{default_tool_prompt, ChatRequestParameters, ChatTokenizeResponse, VertexInstance};
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -1436,10 +1436,10 @@ async fn vertex_compatibility(
     // Prepare futures for all instances
     let mut futures = Vec::with_capacity(req.instances.len());
 
-    for instance in req.instances.iter() {
+    for instance in req.instances.into_iter() {
         let generate_request = match instance {
             VertexInstance::Generate(instance) => GenerateRequest {
-                inputs: instance.inputs.clone(),
+                inputs: instance.inputs,
                 add_special_tokens: true,
                 parameters: GenerateParameters {
                     do_sample: true,
@@ -1451,10 +1451,10 @@ async fn vertex_compatibility(
                 },
             },
             VertexInstance::Chat(instance) => {
-                let ChatRequest {
+                let messages = instance.messages;
+                let ChatRequestParameters {
                     model,
                     max_tokens,
-                    messages,
                     seed,
                     stop,
                     stream,
@@ -1469,7 +1469,7 @@ async fn vertex_compatibility(
                     top_p,
                     top_logprobs,
                     ..
-                } = instance.clone();
+                } = instance.parameters.unwrap();
 
                 let repetition_penalty = presence_penalty.map(|x| x + 2.0);
                 let max_new_tokens = max_tokens.or(Some(100));
