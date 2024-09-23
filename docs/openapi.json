@@ -878,7 +878,6 @@
             "type": "boolean",
             "description": "Whether to return log probabilities of the output tokens or not. If true, returns the log probabilities of each\noutput token returned in the content of message.",
             "example": "false",
-            "nullable": true
           },
           "max_tokens": {
             "type": "integer",
