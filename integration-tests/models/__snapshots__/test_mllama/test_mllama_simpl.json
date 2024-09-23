@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "In a small village, a rooster named Cluck Norris ruled the coop with an iron beak",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1727090615,
+  "id": "",
+  "model": "s0409/model-3",
+  "object": "chat.completion",
+  "system_fingerprint": "2.2.1-dev0-native",
+  "usage": {
+    "completion_tokens": 20,
+    "prompt_tokens": 24,
+    "total_tokens": 44
+  }
+}
