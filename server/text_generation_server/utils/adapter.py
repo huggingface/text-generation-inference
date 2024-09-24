@@ -75,7 +75,6 @@ def load_and_merge_adapters(
     weight_names: Tuple[str],
     trust_remote_code: bool = False,
 ) -> Tuple["ModuleMap", "AdapterConfig", Set[str], PreTrainedTokenizer]:
-
     if len(adapter_parameters.adapter_info) == 1:
         adapter = next(iter(adapter_parameters.adapter_info))
         return load_module_map(
@@ -191,16 +190,15 @@ def load_module_map(
     weight_names: Tuple[str],
     trust_remote_code: bool = False,
 ) -> Tuple["ModuleMap", "AdapterConfig", Set[str], PreTrainedTokenizer]:
-
     adapter_config = LoraConfig.load(adapter_path or adapter_id, None)
 
     if not adapter_path and adapter_config.base_model_name_or_path != model_id:
         check_architectures(model_id, adapter_id, adapter_config, trust_remote_code)
 
     adapter_filenames = (
-        hub._adapter_weight_files_from_dir(adapter_path, extension=".safetensors")
+        hub._weight_files_from_dir(adapter_path, extension=".safetensors")
         if adapter_path
-        else hub._cached_adapter_weight_files(
+        else hub._cached_weight_files(
             adapter_id, revision=revision, extension=".safetensors"
         )
     )
