@@ -1421,13 +1421,12 @@ impl Default for ModelsInfo {
 mod tests {
     use super::*;
     use serde_json::json;
-    use tokenizers::Tokenizer;
 
-    pub(crate) async fn get_tokenizer() -> Tokenizer {
+    pub(crate) fn get_tokenizer() -> Tokenizer {
         let api = hf_hub::api::sync::Api::new().unwrap();
         let repo = api.model("gpt2".to_string());
         let filename = repo.get("tokenizer.json").unwrap();
-        Tokenizer::from_file(filename).unwrap()
+        Tokenizer::Rust(tokenizers::Tokenizer::from_file(filename).unwrap())
     }
 
     #[test]
