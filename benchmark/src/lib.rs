@@ -6,8 +6,8 @@ mod utils;
 
 use crate::app::App;
 use crate::event::Event;
-use ratatui::crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
+use ratatui::crossterm::ExecutableCommand;
 use ratatui::Terminal;
 use std::io;
 use text_generation_client::v3::{GrammarType, NextTokenChooserParameters, ShardedClient};
