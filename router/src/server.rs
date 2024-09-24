@@ -13,8 +13,8 @@ use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
     HubProcessorConfig, HubTokenizerConfig, Info, Message, MessageChunk, MessageContent,
-    OutputMessage, PrefillToken, SimpleToken, StreamDetails, StreamResponse, TextMessage, Token,
-    TokenizeResponse, ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
+    OutputMessage, PrefillToken, SimpleToken, StreamDetails, StreamOptions, StreamResponse,
+    TextMessage, Token, TokenizeResponse, ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -1175,6 +1175,7 @@ async fn chat_completions(
         seed,
         stop,
         stream,
+        stream_options,
         tools,
         tool_choice,
         tool_prompt,
@@ -1265,6 +1266,28 @@ async fn chat_completions(
                 (content, None)
             };
 
+            let (usage, finish_reason) = match stream_token.details {
+                Some(details) => {
+                    let usage = if stream_options
+                        .as_ref()
+                        .map(|s| s.include_usage)
+                        .unwrap_or(false)
+                    {
+                        let completion_tokens = details.generated_tokens;
+                        let prompt_tokens = details.input_length;
+                        let total_tokens = prompt_tokens + completion_tokens;
+                        Some(Usage {
+                            completion_tokens,
+                            prompt_tokens,
+                            total_tokens,
+                        })
+                    } else {
+                        None
+                    };
+                    (usage, Some(details.finish_reason.format(true)))
+                }
+                None => (None, None),
+            };
             event
                 .json_data(CompletionType::ChatCompletionChunk(
                     ChatCompletionChunk::new(
@@ -1274,7 +1297,8 @@ async fn chat_completions(
                         tool_calls,
                         current_time,
                         logprobs,
-                        stream_token.details.map(|d| d.finish_reason.format(true)),
+                        finish_reason,
+                        usage,
                     ),
                 ))
                 .unwrap_or_else(|e| {
@@ -1664,6 +1688,7 @@ StreamDetails,
 ErrorResponse,
 GrammarType,
 Usage,
+StreamOptions,
 DeltaToolCall,
 ToolType,
 Tool,

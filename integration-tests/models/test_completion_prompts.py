@@ -3,9 +3,7 @@ import requests
 import json
 from aiohttp import ClientSession
 
-from text_generation.types import (
-    Completion,
-)
+from text_generation.types import Completion, ChatCompletionChunk
 
 
 @pytest.fixture(scope="module")
@@ -48,6 +46,114 @@ def test_flash_llama_completion_single_prompt(
         == " A Beginner’s Guide\nDeep learning is a subset"
     )
     assert response == response_snapshot
+
+
+@pytest.mark.release
+async def test_flash_llama_completion_stream_usage(
+    flash_llama_completion, response_snapshot
+):
+    url = f"{flash_llama_completion.base_url}/v1/chat/completions"
+    request = {
+        "model": "tgi",
+        "messages": [
+            {
+                "role": "user",
+                "content": "What is Deep Learning?",
+            }
+        ],
+        "max_tokens": 10,
+        "temperature": 0.0,
+        "stream_options": {"include_usage": True},
+        "stream": True,
+    }
+    string = ""
+    chunks = []
+    had_usage = False
+    async with ClientSession(headers=flash_llama_completion.headers) as session:
+        async with session.post(url, json=request) as response:
+            # iterate over the stream
+            async for chunk in response.content.iter_any():
+                # remove "data:"
+                chunk = chunk.decode().split("\n\n")
+                # remove "data:" if present
+                chunk = [c.replace("data:", "") for c in chunk]
+                # remove empty strings
+                chunk = [c for c in chunk if c]
+                # remove completion marking chunk
+                chunk = [c for c in chunk if c != " [DONE]"]
+                # parse json
+                chunk = [json.loads(c) for c in chunk]
+
+                for c in chunk:
+                    chunks.append(ChatCompletionChunk(**c))
+                    assert "choices" in c
+                    if len(c["choices"]) == 1:
+                        index = c["choices"][0]["index"]
+                        assert index == 0
+                        string += c["choices"][0]["delta"]["content"]
+
+                        has_usage = c["usage"] is not None
+                        assert not had_usage
+                        if has_usage:
+                            had_usage = True
+                    else:
+                        raise RuntimeError("Expected different payload")
+    assert had_usage
+    assert (
+        string
+        == "**Deep Learning: An Overview**\n=====================================\n\n"
+    )
+    assert chunks == response_snapshot
+
+    request = {
+        "model": "tgi",
+        "messages": [
+            {
+                "role": "user",
+                "content": "What is Deep Learning?",
+            }
+        ],
+        "max_tokens": 10,
+        "temperature": 0.0,
+        "stream": True,
+    }
+    string = ""
+    chunks = []
+    had_usage = False
+    async with ClientSession(headers=flash_llama_completion.headers) as session:
+        async with session.post(url, json=request) as response:
+            # iterate over the stream
+            async for chunk in response.content.iter_any():
+                # remove "data:"
+                chunk = chunk.decode().split("\n\n")
+                # remove "data:" if present
+                chunk = [c.replace("data:", "") for c in chunk]
+                # remove empty strings
+                chunk = [c for c in chunk if c]
+                # remove completion marking chunk
+                chunk = [c for c in chunk if c != " [DONE]"]
+                # parse json
+                chunk = [json.loads(c) for c in chunk]
+
+                for c in chunk:
+                    chunks.append(ChatCompletionChunk(**c))
+                    assert "choices" in c
+                    if len(c["choices"]) == 1:
+                        index = c["choices"][0]["index"]
+                        assert index == 0
+                        string += c["choices"][0]["delta"]["content"]
+
+                        has_usage = c["usage"] is not None
+                        assert not had_usage
+                        if has_usage:
+                            had_usage = True
+                    else:
+                        raise RuntimeError("Expected different payload")
+    assert not had_usage
+    assert (
+        string
+        == "**Deep Learning: An Overview**\n=====================================\n\n"
+    )
 
 
 @pytest.mark.release
