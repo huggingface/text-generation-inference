@@ -13,10 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Type
 
 import torch
 import torch.distributed
+from torch import nn
+from transformers.activations import ACT2FN
+from transformers.configuration_utils import PretrainedConfig
+
 from text_generation_server.layers import (
     FastLinear,
     SpeculativeHead,
@@ -26,22 +30,16 @@ from text_generation_server.layers import (
     get_linear,
 )
 from text_generation_server.layers.attention import (
+    Seqlen,
     attention,
     paged_attention,
     reshape_and_cache,
-    Seqlen,
 )
 from text_generation_server.layers.layernorm import FastRMSNorm
-from text_generation_server.layers.moe import SparseMoELayer
+from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_mscale
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import Weights
-from torch import nn
-from transformers.activations import ACT2FN
-from transformers.configuration_utils import PretrainedConfig
-
-if SYSTEM != "ipex":
-    from moe_kernels.fused_moe import grouped_topk
 
 if SYSTEM == "rocm":
     try:
@@ -410,8 +408,14 @@ class DeepseekV2MLP(nn.Module):
             )
 
 
-class BlockSparseMoE(nn.Module):
-    def __init__(self, prefix, config: DeepseekV2Config, weights):
+class DeepseekV2MoE(nn.Module):
+    def __init__(
+        self,
+        prefix,
+        config: DeepseekV2Config,
+        moe_layer_cls: Type[MoELayer],
+        weights,
+    ):
         super().__init__()
 
         self.hidden_dim = config.hidden_size
@@ -423,7 +427,7 @@ class BlockSparseMoE(nn.Module):
         # Gating
         self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
 
-        self.moe_layer = SparseMoELayer(
+        self.moe_layer = moe_layer_cls(
             prefix=f"{prefix}.experts",
             n_experts=config.n_routed_experts,
             n_expert_group=config.n_group,
@@ -432,6 +436,7 @@ class BlockSparseMoE(nn.Module):
             topk_group=config.topk_group,
             weights=weights,
         )
+        assert isinstance(self.moe_layer, MoELayer)
 
         if config.n_shared_experts is not None:
             self.shared_experts = DeepseekV2MLP(
@@ -466,96 +471,6 @@ class BlockSparseMoE(nn.Module):
         return out.view(*x.shape)
 
 
-class DenseMoE(nn.Module):
-    def __init__(self, prefix: str, config: DeepseekV2Config, weights: Weights):
-        super().__init__()
-
-        self.hidden_dim = config.hidden_size
-        self.moe_intermediate_size = config.moe_intermediate_size
-        self.n_routed_experts = config.n_routed_experts
-        self.n_expert_group = config.n_group
-        self.topk_group = config.topk_group
-        self.top_k = config.num_experts_per_tok
-        self.norm_topk_prob = config.norm_topk_prob
-        self.routed_scaling_factor = config.routed_scaling_factor
-
-        # Gating
-        #
-        # Seems like no one quantizes the gate.
-        self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
-
-        self.experts = [
-            DeepseekV2MLP(
-                f"{prefix}.experts.{i}", config, weights, self.moe_intermediate_size
-            )
-            for i in range(self.n_routed_experts)
-        ]
-
-        if config.n_shared_experts is not None:
-            self.shared_experts = DeepseekV2MLP(
-                prefix=f"{prefix}.shared_experts",
-                config=config,
-                weights=weights,
-                intermediate_size=config.moe_intermediate_size
-                * config.n_shared_experts,
-            )
-        else:
-            self.shared_experts = None
-
-        self.process_group = weights.process_group
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        x: (sequence_length, model_dim)
-        gate_logits: (sequence_length, n_experts)
-        """
-        # optional reshape
-        input_shape = x.shape
-        x = x.view(-1, input_shape[-1])
-
-        if self.shared_experts is not None:
-            shared_output = self.shared_experts(x, reduce=False)
-        else:
-            shared_output = None
-
-        # gate_logits: (sequence_length, n_experts)
-        router_logits = self.gate(x)
-
-        topk_weights, topk_ids = grouped_topk(
-            x,
-            router_logits,
-            self.top_k,
-            renormalize=self.norm_topk_prob,
-            num_expert_group=self.n_expert_group,
-            topk_group=self.topk_group,
-        )
-
-        out = self.moe_infer_gpu(x, topk_ids, topk_weights) * self.routed_scaling_factor
-
-        if shared_output is not None:
-            out = out + shared_output
-
-        # Reduce sum
-        if self.process_group.size() > 1:
-            torch.distributed.all_reduce(out, group=self.process_group)
-
-        return out
-
-    def moe_infer_gpu(
-        self, x: torch.Tensor, topk_ids: torch.Tensor, topk_weight: torch.Tensor
-    ):
-        weights = torch.zeros(
-            topk_ids.shape[0], len(self.experts), dtype=x.dtype, device=x.device
-        )
-        weights.scatter_(1, topk_ids, topk_weight)
-
-        out = x.new_zeros(x.shape[0], self.hidden_dim)
-        for i, expert in enumerate(self.experts):
-            # Add expert output to out with masking
-            out += expert(x, reduce=False) * weights[:, i].view(-1, 1)
-        return out
-
-
 class DeepseekV2Layer(nn.Module):
     def __init__(self, prefix, layer_id, config, weights):
         super().__init__()
@@ -572,10 +487,12 @@ class DeepseekV2Layer(nn.Module):
             and layer_id >= config.first_k_dense_replace
             and layer_id % config.moe_layer_freq == 0
         ):
-            moe_cls = (
-                BlockSparseMoE if SparseMoELayer.is_supported(weights) else DenseMoE
+            moe_layer_cls = (
+                SparseMoELayer
+                if SparseMoELayer.is_supported(weights)
+                else DenseMoELayer
             )
-            self.mlp = moe_cls(f"{prefix}.mlp", config, weights)
+            self.mlp = DeepseekV2MoE(f"{prefix}.mlp", config, moe_layer_cls, weights)
         else:
             self.mlp = DeepseekV2MLP(
                 prefix=f"{prefix}.mlp",
