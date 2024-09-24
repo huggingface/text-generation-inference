@@ -1123,6 +1123,8 @@ async fn chat_completions(
     let (generate_request, using_tools): (GenerateRequest, bool) =
         chat.try_into_generate(&infer)?;
 
+    let logprobs = logprobs.unwrap_or_default();
+
     // static values that will be returned in all cases
     let model_id = info.model_id.clone();
     let system_fingerprint = format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
