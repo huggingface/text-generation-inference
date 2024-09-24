@@ -3,8 +3,9 @@ use crate::config::Config;
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{
     GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor,
+    TokenizerTrait,
 };
-use crate::{OwnedTokenizer, Tokenizer};
+use crate::{PyTokenizer, Tokenizer};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{ImageFormat, ImageReader};
 use jsonschema::{Draft, JSONSchema};
@@ -434,26 +435,53 @@ fn tokenizer_worker(
     preprocessor_config: Option<HubPreprocessorConfig>,
     mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>,
 ) {
-    pyo3::Python::with_gil(|py| {
-        let tokenizer = tokenizer.into_owned(py);
-        // Loop over requests
-        while let Some(((inputs, add_special_tokens, truncate), response_tx, parent_span)) =
-            receiver.blocking_recv()
-        {
-            parent_span.in_scope(|| {
-                response_tx
-                    .send(prepare_input(
-                        inputs,
-                        truncate,
-                        add_special_tokens,
-                        &tokenizer,
-                        config.as_ref(),
-                        preprocessor_config.as_ref(),
-                    ))
-                    .unwrap_or(())
+    match tokenizer {
+        Tokenizer::Python {
+            tokenizer_name,
+            revision,
+        } => {
+            pyo3::Python::with_gil(|py| -> pyo3::PyResult<()> {
+                let tokenizer = PyTokenizer::from_py(py, tokenizer_name, revision)?;
+                // Loop over requests
+                while let Some(((inputs, add_special_tokens, truncate), response_tx, parent_span)) =
+                    receiver.blocking_recv()
+                {
+                    parent_span.in_scope(|| {
+                        response_tx
+                            .send(prepare_input(
+                                inputs,
+                                truncate,
+                                add_special_tokens,
+                                &tokenizer,
+                                config.as_ref(),
+                                preprocessor_config.as_ref(),
+                            ))
+                            .unwrap_or(())
+                    })
+                }
+                Ok(())
             })
+            .expect("Failure in python tokenizer worker");
         }
-    });
+        Tokenizer::Rust(tokenizer) => {
+            while let Some(((inputs, add_special_tokens, truncate), response_tx, parent_span)) =
+                receiver.blocking_recv()
+            {
+                parent_span.in_scope(|| {
+                    response_tx
+                        .send(prepare_input(
+                            inputs,
+                            truncate,
+                            add_special_tokens,
+                            &tokenizer,
+                            config.as_ref(),
+                            preprocessor_config.as_ref(),
+                        ))
+                        .unwrap_or(())
+                })
+            }
+        }
+    }
 }
 
 fn format_from_mimetype(mimetype: &str) -> Option<ImageFormat> {
@@ -581,11 +609,11 @@ fn image_tokens_fixup(config: &Config, text: String) -> String {
 }
 
 /// Get input length and optionally truncate it
-fn prepare_input(
+fn prepare_input<T: TokenizerTrait>(
     inputs: String,
     _truncate: Option<usize>,
     add_special_tokens: bool,
-    tokenizer: &OwnedTokenizer,
+    tokenizer: &T,
     config: Option<&Config>,
     preprocessor_config: Option<&HubPreprocessorConfig>,
 ) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {
@@ -622,7 +650,7 @@ fn prepare_input(
 
     // Get the number of tokens in the input
     let encoding = tokenizer
-        .encode(tokenizer_query, add_special_tokens)
+        .encode_trait(tokenizer_query, add_special_tokens)
         .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
 
     Ok((encoding, input_chunks))
