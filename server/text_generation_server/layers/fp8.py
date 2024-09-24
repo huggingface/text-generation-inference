@@ -239,6 +239,9 @@ class Fp8Linear(torch.nn.Module):
 
     @classmethod
     def from_fp8(cls, weight, scale, input_scale, bias, dtype):
+        if FBGEMM_DYN_AVAILABLE:
+            # fbgemm needs float32 scales.
+            scale = scale.float()
         return cls(
             qweight=weight,
             scale=scale,
