@@ -4175,7 +4175,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-backends-trtllm"
-version = "2.2.1-dev0"
+version = "2.3.1-dev0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -4198,7 +4198,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "2.2.1-dev0"
+version = "2.3.1-dev0"
 dependencies = [
  "average",
  "clap 4.5.17",
@@ -4219,7 +4219,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "2.2.1-dev0"
+version = "2.3.1-dev0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4237,7 +4237,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "2.2.1-dev0"
+version = "2.3.1-dev0"
 dependencies = [
  "clap 4.5.17",
  "ctrlc",
@@ -4256,7 +4256,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "2.2.1-dev0"
+version = "2.3.1-dev0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -4304,8 +4304,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "text-generation-router-v2"
+version = "2.3.1-dev0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "axum 0.7.5",
+ "axum-tracing-opentelemetry",
+ "base64 0.22.1",
+ "clap 4.5.17",
+ "futures",
+ "futures-util",
+ "grpc-metadata",
+ "hf-hub",
+ "image",
+ "init-tracing-opentelemetry",
+ "jsonschema",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "minijinja",
+ "minijinja-contrib",
+ "nohash-hasher",
+ "once_cell",
+ "opentelemetry 0.20.0",
+ "opentelemetry-otlp",
+ "prost 0.12.6",
+ "prost-build",
+ "rand",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "slotmap",
+ "text-generation-router",
+ "thiserror",
+ "tokenizers 0.20.0",
+ "tokio",
+ "tokio-stream",
+ "tonic 0.10.2",
+ "tonic-build",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-opentelemetry 0.21.0",
+ "tracing-subscriber",
+ "utoipa",
+ "utoipa-swagger-ui",
+]
+
+[[package]]
 name = "text-generation-router-v3"
-version = "2.2.1-dev0"
+version = "2.3.1-dev0"
 dependencies = [
  "async-stream",
  "async-trait",
