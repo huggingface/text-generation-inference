@@ -796,7 +796,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validation_max_new_tokens() {
-        let tokenizer = None;
+        let tokenizer = get_tokenizer();
         let max_best_of = 2;
         let max_stop_sequence = 3;
         let max_top_n_tokens = 4;
@@ -823,15 +823,15 @@ mod tests {
             .validate_input("Hello".to_string(), true, None, Some(max_new_tokens))
             .await
         {
-            // Err(ValidationError::MaxNewTokens(1, 10)) => (),
-            Ok((_s, _, 0, 10)) => (),
+            Err(ValidationError::MaxTotalTokens(6, 1, 10)) => (),
+            // Ok((_s, _, 0, 10)) => (),
             r => panic!("Unexpected not max new tokens: {r:?}"),
         }
     }
 
     #[tokio::test]
     async fn test_validation_input_length() {
-        let tokenizer = Some(get_tokenizer().await);
+        let tokenizer = get_tokenizer();
         let max_best_of = 2;
         let max_stop_sequence = 3;
         let max_top_n_tokens = 4;
@@ -865,7 +865,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validation_best_of_sampling() {
-        let tokenizer = Some(get_tokenizer().await);
+        let tokenizer = get_tokenizer();
         let max_best_of = 2;
         let max_stop_sequence = 3;
         let max_top_n_tokens = 4;
@@ -905,7 +905,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validation_top_p() {
-        let tokenizer = Some(get_tokenizer().await);
+        let tokenizer = get_tokenizer();
         let max_best_of = 2;
         let max_stop_sequence = 3;
         let max_top_n_tokens = 4;
@@ -976,7 +976,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validation_top_n_tokens() {
-        let tokenizer = Some(get_tokenizer().await);
+        let tokenizer = get_tokenizer();
         let max_best_of = 2;
         let max_stop_sequences = 3;
         let max_top_n_tokens = 4;
@@ -1061,7 +1061,7 @@ mod tests {
     async fn test_prepare_input_chunks() {
         let pixel_data = STANDARD.decode(PIXEL_GIF).unwrap();
 
-        let tokenizer = Some(get_tokenizer().await);
+        let tokenizer = get_tokenizer();
 
         let max_best_of = 2;
         let max_stop_sequence = 3;
@@ -1096,7 +1096,7 @@ mod tests {
             )
             .await
         {
-            Ok(Some((_encoding, chunks))) => chunks,
+            Ok((_encoding, chunks)) => chunks,
             _ => panic!("Unexpected tokenization failure"),
         };
 
@@ -1118,7 +1118,7 @@ mod tests {
     async fn test_idefics2_correct_n_fake_tokens() {
         let pixel_data = STANDARD.decode(PIXEL_GIF).unwrap();
 
-        let tokenizer = Some(get_tokenizer().await);
+        let tokenizer = get_tokenizer();
 
         let max_best_of = 2;
         let max_stop_sequence = 3;
@@ -1156,7 +1156,7 @@ mod tests {
             )
             .await
         {
-            Ok(Some((encoding, chunks))) => (encoding, chunks),
+            Ok((encoding, chunks)) => (encoding, chunks),
             _ => panic!("Unexpected tokenization failure"),
         };
 
