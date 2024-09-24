@@ -10,13 +10,18 @@ from text_generation_server.layers import (
     TensorParallelRowLinear,
 )
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
+from text_generation_server.layers.marlin import GPTQMarlinWeightsLoader
+from text_generation_server.layers.moe.gptq_marlin import (
+    GPTQMarlinSparseMoELayer,
+    can_use_marlin_moe_gemm,
+)
 from text_generation_server.layers.moe.unquantized import UnquantizedSparseMoELayer
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import (
     DefaultWeightsLoader,
-    UnquantizedWeight,
     Weights,
+    UnquantizedWeight,
 )
 
 if SYSTEM != "ipex":
@@ -202,13 +207,17 @@ class SparseMoELayer(nn.Module):
             and isinstance(weights.loader.weight_class, UnquantizedWeight)
         ) or isinstance(weights.loader, HybridFP8UnquantLoader):
             cls = UnquantizedSparseMoELayer
-            # Once we wire up GPTQ-Marlin MoE:
-            # elif isinstance(weights.loader, GPTQMarlinWeightsLoader) and weights.loader.sym:
-            # cls = GPTQMarlinSparseMoELayer
+        elif isinstance(weights.loader, GPTQMarlinWeightsLoader) and weights.loader.sym:
+            cls = GPTQMarlinSparseMoELayer
         else:
             raise ValueError(
                 f"Unsupported weights loader: {weights.loader}, sparse MoE is only supported for unquantized and GPTQ weights"
             )
+
+        log_once(
+            logger.info,
+            "Using MoE layer wih fused gemm",
+        )
 
         self.moe = cls(
             n_expert_group=n_expert_group,
@@ -234,6 +243,15 @@ class SparseMoELayer(nn.Module):
                 and isinstance(weights.loader.weight_class, UnquantizedWeight)
             )
             or isinstance(weights.loader, HybridFP8UnquantLoader)
-            # Once we wire up GPTQ-Marlin MoE:
-            # or isinstance(weights.loader, GPTQMarlinWeightsLoader)
+            or (
+                isinstance(weights.loader, GPTQMarlinWeightsLoader)
+                and can_use_marlin_moe_gemm(
+                    desc_act=weights.loader.desc_act,
+                    groupsize=weights.loader.groupsize,
+                    quant_method=weights.loader.quant_method,
+                    quantize=weights.loader.quantize,
+                    sym=weights.loader.sym,
+                    use_tp=weights.process_group.size() > 1,
+                )
+            )
         )
