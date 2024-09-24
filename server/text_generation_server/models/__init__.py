@@ -334,6 +334,7 @@ def get_model(
     model_type = config_dict.get("model_type", None)
 
     quantization_config = config_dict.get("quantization_config", None)
+    compression_config = config_dict.get("compression_config", None)
     if quantization_config is not None and quantize is None:
         method = quantization_config.get("quant_method", None)
         if method in {"gptq", "awq", "exl2"}:
@@ -344,6 +345,23 @@ def get_model(
             quantize = "fp8"
         else:
             log_master(logger.warning, f"Unknown quantization method {method}")
+    elif compression_config is not None:
+        # TODO: at some point we should probably fully parse the compression
+        # configuration to know which parameters are compressed.
+        config_groups = compression_config.get("config_groups")
+        if config_groups is not None:
+            for _, group in config_groups.items():
+                weights_config = group.get("weights")
+                if weights_config is not None:
+                    if (
+                        weights_config["type"] == "float"
+                        and weights_config["num_bits"] == 8
+                    ):
+                        log_master(
+                            logger.info, "Auto selecting quantization method fp8"
+                        )
+                        quantize = "fp8"
+                        break
 
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
@@ -768,7 +786,6 @@ def get_model(
             )
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
-        print(f">>> model_type: {model_type}")
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
