@@ -21,7 +21,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: cachix/install-nix-action@v27
       with:
-        github_access_token: ${{ secrets.GITHUB_TOKEN }}
+        nix_path: nixpkgs=channel:nixos-unstable
     - uses: cachix/cachix-action@v14
       with:
         name: text-generation-inference
