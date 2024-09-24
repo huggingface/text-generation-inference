@@ -786,7 +786,6 @@ def get_model(
             )
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
-        print(f">>> model_type: {model_type}")
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
