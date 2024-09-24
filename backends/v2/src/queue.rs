@@ -1,14 +1,14 @@
-use crate::infer::{InferError, InferStreamResponse};
-use crate::validation::{
-    ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters,
+use crate::client::{
+    Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
 use std::collections::VecDeque;
-use text_generation_client::v2::{
-    Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+use text_generation_router::infer::InferError;
+use text_generation_router::infer::InferStreamResponse;
+use text_generation_router::validation::{
+    ChunksToString, ValidGenerateRequest, ValidGrammar, ValidParameters, ValidStoppingParameters,
 };
-use text_generation_client::ChunksToString;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
@@ -218,7 +218,7 @@ impl State {
 
         // Create span for this batch to add context to inference calls
         let next_batch_span = info_span!(parent: None, "batch", batch_size = tracing::field::Empty);
-        next_batch_span.follows_from(&Span::current());
+        next_batch_span.follows_from(Span::current());
 
         let mut batch_requests = Vec::with_capacity(self.entries.len());
         let mut batch_entries =
@@ -404,6 +404,7 @@ impl From<ValidStoppingParameters> for StoppingCriteriaParameters {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
     use tracing::info_span;
 
     fn default_entry() -> (
@@ -415,7 +416,9 @@ mod tests {
         let entry = Entry {
             request: ValidGenerateRequest {
                 inputs: vec![],
+                input_ids: Some(Arc::new(vec![])),
                 input_length: 0,
+                add_special_tokens: true,
                 truncate: 0,
                 decoder_input_details: false,
                 parameters: ValidParameters {

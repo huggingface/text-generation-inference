@@ -1,19 +1,19 @@
 [workspace]
 members = [
   "benchmark",
+  "backends/v2",
   "backends/v3",
   "backends/grpc-metadata",
   "backends/trtllm",
-  "backends/client",
   "launcher",
   "router"
 ]
 default-members = [
   "benchmark",
+  "backends/v2",
   "backends/v3",
   "backends/grpc-metadata",
   # "backends/trtllm",
-  "backends/client",
   "launcher",
   "router"
 ]
