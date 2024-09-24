@@ -3,9 +3,8 @@ target
 router/tokenizer.json
 *__pycache__*
 
+backends/v2/src/client/pb
 backends/v3/src/client/pb
-backends/client/src/v2/pb
-backends/client/src/v3/pb
 
 # ROCm auto-generated files
 *.hip
