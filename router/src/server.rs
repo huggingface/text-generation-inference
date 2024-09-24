@@ -8,7 +8,8 @@ use crate::kserve::{
     kserve_model_metadata, kserve_model_metadata_ready,
 };
 use crate::validation::ValidationError;
-use crate::{default_tool_prompt, ChatTokenizeResponse, VertexInstance};
+use crate::vertex::vertex_compatibility;
+use crate::ChatTokenizeResponse;
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -20,8 +21,7 @@ use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
     ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs, ChatCompletionTopLogprob,
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
-    CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, VertexRequest,
-    VertexResponse,
+    CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
 use crate::{ModelInfo, ModelsInfo};
@@ -149,63 +149,11 @@ async fn openai_get_model_info(info: Extension<Info>) -> Json<ModelsInfo> {
 )]
 async fn get_chat_tokenize(
     Extension(infer): Extension<Infer>,
-    Json(req): Json<ChatRequest>,
+    Json(chat): Json<ChatRequest>,
 ) -> Result<(HeaderMap, Json<ChatTokenizeResponse>), (StatusCode, Json<ErrorResponse>)> {
     metrics::counter!("tgi_request_count").increment(1);
 
-    let ChatRequest {
-        model,
-        max_tokens,
-        messages,
-        seed,
-        stop,
-        stream,
-        tools,
-        tool_choice,
-        tool_prompt,
-        temperature,
-        response_format,
-        guideline,
-        ..
-    } = req;
-
-    let tool_prompt = tool_prompt.unwrap_or_default();
-    let (inputs, _grammar, _using_tools) = prepare_chat_input(
-        &infer,
-        response_format,
-        tools,
-        tool_choice,
-        &tool_prompt,
-        guideline,
-        messages,
-    )?;
-
-    let generate_request = GenerateRequest {
-        inputs,
-        add_special_tokens: false,
-        parameters: GenerateParameters {
-            best_of: None,
-            temperature,
-            repetition_penalty: None,
-            frequency_penalty: None,
-            top_k: None,
-            top_p: None,
-            typical_p: None,
-            do_sample: true,
-            max_new_tokens: max_tokens,
-            return_full_text: None,
-            stop: stop.unwrap_or_default(),
-            truncate: None,
-            watermark: false,
-            details: false,
-            decoder_input_details: !stream,
-            seed,
-            top_n_tokens: None,
-            grammar: _grammar,
-            adapter_id: model.as_ref().filter(|m| *m != "tgi").map(String::from),
-        },
-    };
-
+    let generate_request: GenerateRequest = chat.try_into_generate(&infer)?.0;
     let input = generate_request.inputs.clone();
     let encoding = infer.tokenize(generate_request).await?;
     if let Some(encoding) = encoding {
@@ -1162,77 +1110,20 @@ async fn chat_completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
-    Json(req): Json<ChatRequest>,
+    Json(chat): Json<ChatRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
     metrics::counter!("tgi_request_count").increment(1);
     let ChatRequest {
-        model,
-        logprobs,
-        max_tokens,
-        messages,
-        presence_penalty,
-        seed,
-        stop,
         stream,
         stream_options,
-        tools,
-        tool_choice,
-        tool_prompt,
-        temperature,
-        response_format,
-        guideline,
+        logprobs,
         ..
-    } = req;
+    } = chat.clone();
+    let (generate_request, using_tools): (GenerateRequest, bool) =
+        chat.try_into_generate(&infer)?;
 
-    let repetition_penalty = presence_penalty.map(|x| x + 2.0);
-    let max_new_tokens = max_tokens.or(Some(100));
-    let logprobs = logprobs.unwrap_or(false);
-    let tool_prompt = tool_prompt
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(default_tool_prompt);
-    let stop = stop.unwrap_or_default();
-    // enable greedy only when temperature is 0
-    let (do_sample, temperature) = match temperature {
-        Some(temperature) if temperature == 0.0 => (false, None),
-        other => (true, other),
-    };
-    let (inputs, grammar, using_tools) = prepare_chat_input(
-        &infer,
-        response_format,
-        tools,
-        tool_choice,
-        &tool_prompt,
-        guideline,
-        messages,
-    )?;
-
-    // build the request passing some parameters
-    let generate_request = GenerateRequest {
-        inputs: inputs.to_string(),
-        add_special_tokens: false,
-        parameters: GenerateParameters {
-            best_of: None,
-            temperature,
-            repetition_penalty,
-            frequency_penalty: req.frequency_penalty,
-            top_k: None,
-            top_p: req.top_p,
-            typical_p: None,
-            do_sample,
-            max_new_tokens,
-            return_full_text: None,
-            stop,
-            truncate: None,
-            watermark: false,
-            details: true,
-            decoder_input_details: !stream,
-            seed,
-            top_n_tokens: req.top_logprobs,
-            grammar,
-            adapter_id: model.filter(|m| *m != "tgi").map(String::from),
-        },
-    };
+    let logprobs = logprobs.unwrap_or_default();
 
     // static values that will be returned in all cases
     let model_id = info.model_id.clone();
@@ -1383,186 +1274,6 @@ async fn chat_completions(
         // wrap generation inside a Vec to match api-inference
         Ok((headers, Json(response)).into_response())
     }
-}
-
-/// Generate tokens from Vertex request
-#[utoipa::path(
-post,
-tag = "Text Generation Inference",
-path = "/vertex",
-request_body = VertexRequest,
-responses(
-(status = 200, description = "Generated Text", body = VertexResponse),
-(status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
-(status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
-(status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
-(status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
-)
-)]
-#[instrument(
-    skip_all,
-    fields(
-        total_time,
-        validation_time,
-        queue_time,
-        inference_time,
-        time_per_token,
-        seed,
-    )
-)]
-async fn vertex_compatibility(
-    Extension(infer): Extension<Infer>,
-    Extension(compute_type): Extension<ComputeType>,
-    Json(req): Json<VertexRequest>,
-) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
-    let span = tracing::Span::current();
-    metrics::counter!("tgi_request_count").increment(1);
-
-    // check that theres at least one instance
-    if req.instances.is_empty() {
-        return Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorResponse {
-                error: "Input validation error".to_string(),
-                error_type: "Input validation error".to_string(),
-            }),
-        ));
-    }
-
-    // Prepare futures for all instances
-    let mut futures = Vec::with_capacity(req.instances.len());
-
-    for instance in req.instances.iter() {
-        let generate_request = match instance {
-            VertexInstance::Generate(instance) => GenerateRequest {
-                inputs: instance.inputs.clone(),
-                add_special_tokens: true,
-                parameters: GenerateParameters {
-                    do_sample: true,
-                    max_new_tokens: instance.parameters.as_ref().and_then(|p| p.max_new_tokens),
-                    seed: instance.parameters.as_ref().and_then(|p| p.seed),
-                    details: true,
-                    decoder_input_details: true,
-                    ..Default::default()
-                },
-            },
-            VertexInstance::Chat(instance) => {
-                let ChatRequest {
-                    model,
-                    max_tokens,
-                    messages,
-                    seed,
-                    stop,
-                    stream,
-                    tools,
-                    tool_choice,
-                    tool_prompt,
-                    temperature,
-                    response_format,
-                    guideline,
-                    presence_penalty,
-                    frequency_penalty,
-                    top_p,
-                    top_logprobs,
-                    ..
-                } = instance.clone();
-
-                let repetition_penalty = presence_penalty.map(|x| x + 2.0);
-                let max_new_tokens = max_tokens.or(Some(100));
-                let tool_prompt = tool_prompt
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or_else(default_tool_prompt);
-                let stop = stop.unwrap_or_default();
-                // enable greedy only when temperature is 0
-                let (do_sample, temperature) = match temperature {
-                    Some(temperature) if temperature == 0.0 => (false, None),
-                    other => (true, other),
-                };
-                let (inputs, grammar, _using_tools) = match prepare_chat_input(
-                    &infer,
-                    response_format,
-                    tools,
-                    tool_choice,
-                    &tool_prompt,
-                    guideline,
-                    messages,
-                ) {
-                    Ok(result) => result,
-                    Err(e) => {
-                        return Err((
-                            StatusCode::BAD_REQUEST,
-                            Json(ErrorResponse {
-                                error: format!("Failed to prepare chat input: {}", e),
-                                error_type: "Input preparation error".to_string(),
-                            }),
-                        ));
-                    }
-                };
-
-                GenerateRequest {
-                    inputs: inputs.to_string(),
-                    add_special_tokens: false,
-                    parameters: GenerateParameters {
-                        best_of: None,
-                        temperature,
-                        repetition_penalty,
-                        frequency_penalty,
-                        top_k: None,
-                        top_p,
-                        typical_p: None,
-                        do_sample,
-                        max_new_tokens,
-                        return_full_text: None,
-                        stop,
-                        truncate: None,
-                        watermark: false,
-                        details: true,
-                        decoder_input_details: !stream,
-                        seed,
-                        top_n_tokens: top_logprobs,
-                        grammar,
-                        adapter_id: model.filter(|m| *m != "tgi").map(String::from),
-                    },
-                }
-            }
-        };
-
-        let infer_clone = infer.clone();
-        let compute_type_clone = compute_type.clone();
-        let span_clone = span.clone();
-
-        futures.push(async move {
-            generate_internal(
-                Extension(infer_clone),
-                compute_type_clone,
-                Json(generate_request),
-                span_clone,
-            )
-            .await
-            .map(|(_, Json(generation))| generation.generated_text)
-            .map_err(|_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: "Incomplete generation".into(),
-                        error_type: "Incomplete generation".into(),
-                    }),
-                )
-            })
-        });
-    }
-
-    // execute all futures in parallel, collect results, returning early if any error occurs
-    let results = futures::future::join_all(futures).await;
-    let predictions: Result<Vec<_>, _> = results.into_iter().collect();
-    let predictions = predictions?;
-
-    let response = VertexResponse { predictions };
-    Ok((HeaderMap::new(), Json(response)).into_response())
 }
 
 /// Tokenize inputs
@@ -2637,7 +2348,7 @@ pub enum WebServerError {
 
 type PreparedInput = (String, Option<GrammarType>, bool);
 
-fn prepare_chat_input(
+pub(crate) fn prepare_chat_input(
     infer: &Infer,
     response_format: Option<GrammarType>,
     tools: Option<Vec<Tool>>,
