@@ -26,11 +26,12 @@ pub(crate) struct GenerateVertexInstance {
 pub(crate) struct VertexChat {
     messages: Vec<Message>,
     // Messages is ignored there.
+    #[serde(default)]
     parameters: VertexParameters,
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
-#[cfg_attr(test, derive(Debug, PartialEq, Default))]
+#[derive(Clone, Deserialize, ToSchema, Serialize, Default)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct VertexParameters {
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     /// [UNUSED] ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
@@ -312,6 +313,12 @@ mod tests {
                 "top_p": 0.95,
                 "temperature": 0.7
             }
+        });
+
+        let _request: VertexChat = serde_json::from_value(string).expect("Can deserialize");
+
+        let string = serde_json::json!({
+            "messages": [{"role": "user", "content": "What's Deep Learning?"}],
         });
 
         let _request: VertexChat = serde_json::from_value(string).expect("Can deserialize");
