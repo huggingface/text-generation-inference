@@ -7,7 +7,7 @@
 </div>
 
 A lightweight benchmarking tool based inspired by [oha](https://github.com/hatoo/oha)
-and powered by [tui](https://github.com/tui-rs-revival/ratatui).
+and powered by [Ratatui](https://github.com/ratatui/ratatui).
 
 ## Install
 
