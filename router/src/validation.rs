@@ -1,12 +1,9 @@
-/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 use crate::config::Config;
 /// Payload validation logic
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{GenerateParameters, GenerateRequest, GrammarType};
 use jsonschema::{Draft, JSONSchema};
 use rand::{thread_rng, Rng};
-use std::{cmp, env};
 use serde_json::Value;
 use std::io::Cursor;
 use text_generation_client::{
@@ -34,7 +31,6 @@ pub struct Validation {
     disable_grammar_support: bool,
     /// Channel to communicate with the background tokenization task
     sender: Option<mpsc::UnboundedSender<TokenizerRequest>>,
-    skip_tokenizer_in_tgi: bool,
 }
 
 impl Validation {
@@ -77,10 +73,6 @@ impl Validation {
             None
         };
 
-        let skip_tokenizer_in_tgi = env::var("SKIP_TOKENIZER_IN_TGI")
-            .ok()
-            .map_or(false, |value| value.to_lowercase() == "true");
-
         Self {
             max_best_of,
             sender,
@@ -89,7 +81,6 @@ impl Validation {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
-            skip_tokenizer_in_tgi,
         }
     }
 
@@ -128,13 +119,10 @@ impl Validation {
         // If we have a fast tokenizer
         if let Some((encoding, inputs)) = self.tokenize(inputs.clone(), truncate).await? {
             // Create response channel
-            let input_length = if self.skip_tokenizer_in_tgi {
-                inputs.chars().filter(|&c| c == ',').count() + 1
+            let input_length = if let Some(truncate) = truncate {
+                std::cmp::min(encoding.len(), truncate)
             } else {
-                cmp::max(
-                    encoding.len(),
-                    truncate.unwrap_or(self.max_input_length)
-                )
+                encoding.len()
             };
 
             // Get total tokens
@@ -177,18 +165,17 @@ impl Validation {
             } else {
                 return Err(ValidationError::UnsetMaxNewTokens);
             };
-            let input_length = if self.skip_tokenizer_in_tgi {
-                inputs.chars().filter(|&c| c == ',').count() + 1
-            } else {
-                truncate.unwrap_or(self.max_input_length)
-            };
+            let mut input_length = truncate.unwrap_or(self.max_input_length);
 
+            // We don't have a tokenizer, therefore we have no idea how long is the query, let
+            // them through and hope for the best.
             // Validate MaxNewTokens
             if (input_length as u32 + max_new_tokens) > self.max_total_tokens as u32 {
-                return Err(ValidationError::MaxNewTokens(
-                    self.max_total_tokens - self.max_input_length,
-                    max_new_tokens,
-                ));
+                input_length = input_length.saturating_sub(max_new_tokens as usize);
+                // return Err(ValidationError::MaxNewTokens(
+                //     self.max_total_tokens - self.max_input_length,
+                //     max_new_tokens,
+                // ));
             }
 
             Ok((inputs, input_length, max_new_tokens))
@@ -246,14 +233,6 @@ impl Validation {
         let frequency_penalty = frequency_penalty.unwrap_or(0.0);
         if !(-2.0..=2.0).contains(&frequency_penalty) {
             return Err(ValidationError::FrequencyPenalty);
-        }
-
-        // TODO: enable watermark with fp8 quantization
-        let quantization_enabled = env::var("QUANT_CONFIG")
-            .ok()
-            .map_or(false, |value| !value.is_empty());
-        if watermark && quantization_enabled {
-            return Err(ValidationError::WatermarkWithQuantization);
         }
 
         // Different because the proto default value is not a valid value
@@ -730,8 +709,6 @@ pub enum ValidationError {
     InvalidImageContent(String),
     #[error("Could not fetch image: {0}")]
     FailedFetchImage(#[from] reqwest::Error),
-    #[error("`watermark` = true is not allowed with FP8 quantization.")]
-    WatermarkWithQuantization,
 }
 
 #[cfg(test)]
@@ -768,7 +745,8 @@ mod tests {
             .validate_input("Hello".to_string(), None, Some(max_new_tokens))
             .await
         {
-            Err(ValidationError::MaxNewTokens(1, 10)) => (),
+            // Err(ValidationError::MaxNewTokens(1, 10)) => (),
+            Ok((_s, 0, 10)) => (),
             r => panic!("Unexpected not max new tokens: {r:?}"),
         }
     }
@@ -801,7 +779,7 @@ mod tests {
             .validate_input("Hello".to_string(), None, Some(max_new_tokens))
             .await
         {
-            Err(ValidationError::MaxTotalTokens(6, 5, 10)) => (),
+            Err(ValidationError::MaxTotalTokens(6, 1, 10)) => (),
             _ => panic!("Unexpected not max new tokens"),
         }
     }

@@ -1,14 +1,9 @@
-/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 use crate::infer::InferError;
 use crate::infer::InferStreamResponse;
 use crate::validation::ValidGenerateRequest;
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::min;
-use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
-use std::collections::BinaryHeap;
-use std::env;
-use std::time::Duration;
+use std::collections::VecDeque;
 use text_generation_client::{Batch, Request};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
@@ -41,8 +36,6 @@ pub(crate) struct Queue {
 impl Queue {
     pub(crate) fn new(
         requires_padding: bool,
-        max_input_length: u32,
-        max_total_tokens: u32,
         block_size: u32,
         window_size: Option<u32>,
         speculate: u32,
@@ -53,8 +46,6 @@ impl Queue {
         // Launch background queue task
         tokio::spawn(queue_task(
             requires_padding,
-            max_input_length,
-            max_total_tokens,
             block_size,
             window_size,
             speculate,
@@ -106,21 +97,12 @@ impl Queue {
 // Background task responsible of the queue state
 async fn queue_task(
     requires_padding: bool,
-    max_input_length: u32,
-    max_total_tokens: u32,
     block_size: u32,
     window_size: Option<u32>,
     speculate: u32,
     mut receiver: mpsc::UnboundedReceiver<QueueCommand>,
 ) {
-    let mut state = State::new(
-        requires_padding,
-        max_input_length,
-        max_total_tokens,
-        block_size,
-        window_size,
-        speculate
-    );
+    let mut state = State::new(requires_padding, block_size, window_size, speculate);
 
     while let Some(cmd) = receiver.recv().await {
         match cmd {
@@ -145,104 +127,11 @@ async fn queue_task(
     }
 }
 
-#[derive(Debug)]
-struct IdentifiableEntry(u64, Entry);
-
-impl Eq for IdentifiableEntry {}
-
-impl PartialEq for IdentifiableEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Ord for IdentifiableEntry {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let ordering = match self
-            .1
-            .request
-            .input_length
-            .cmp(&other.1.request.input_length)
-        {
-            std::cmp::Ordering::Equal => self.0.cmp(&other.0),
-            any => any,
-        };
-
-        // inverse to get min heap
-        return ordering.reverse();
-    }
-}
-
-impl PartialOrd for IdentifiableEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-#[derive(Debug)]
-struct QueueImpl {
-    regular_entries: BinaryHeap<IdentifiableEntry>,
-    overdue_entries: BinaryHeap<IdentifiableEntry>,
-    overdue_threshold: Duration,
-}
-
-impl QueueImpl {
-    fn new(capacity: usize, overdue_threshold: Duration) -> Self {
-        Self {
-            regular_entries: BinaryHeap::with_capacity(capacity),
-            overdue_entries: BinaryHeap::with_capacity(capacity),
-            overdue_threshold,
-        }
-    }
-
-    fn update(&mut self) {
-        if self.regular_entries.is_empty() {
-            return;
-        }
-
-        let mut left = BinaryHeap::with_capacity(self.regular_entries.capacity());
-
-        for entry in self.regular_entries.drain() {
-            if entry.1.queue_time.elapsed() > self.overdue_threshold {
-                self.overdue_entries.push(entry);
-            } else {
-                left.push(entry);
-            }
-        }
-
-        self.regular_entries = left;
-    }
-
-    fn push(&mut self, entry: IdentifiableEntry) {
-        if entry.1.queue_time.elapsed() > self.overdue_threshold {
-            self.overdue_entries.push(entry);
-        } else {
-            self.regular_entries.push(entry);
-        }
-    }
-
-    fn pop(&mut self) -> Option<IdentifiableEntry> {
-        if !self.overdue_entries.is_empty() {
-            self.overdue_entries.pop()
-        } else {
-            self.regular_entries.pop()
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.regular_entries.is_empty() && self.overdue_entries.is_empty()
-    }
-
-    fn len(&self) -> usize {
-        self.regular_entries.len() + self.overdue_entries.len()
-    }
-}
-
 /// Queue State
 #[derive(Debug)]
 struct State {
-    /// Queue entries
-    entries: QueueImpl,
+    /// Queue entries organized in a Vec
+    entries: VecDeque<(u64, Entry)>,
 
     /// Id of the next entry
     next_id: u64,
@@ -252,12 +141,6 @@ struct State {
 
     /// Whether the model is using padding
     requires_padding: bool,
-
-    /// Maximum input length, required for padding scenario
-    max_input_length: u32,
-
-    /// Maximum input and output length, required for padding scenario
-    max_total_tokens: u32,
 
     /// Paged Attention block size
     block_size: u32,
@@ -272,25 +155,15 @@ struct State {
 impl State {
     fn new(
         requires_padding: bool,
-        max_input_length: u32,
-        max_total_tokens: u32,
         block_size: u32,
         window_size: Option<u32>,
         speculate: u32,
     ) -> Self {
-        let default_threshold: u64 = 120;
-        let threshold: u64 = match env::var("QUEUE_THRESHOLD_MS") {
-            Ok(val) => val.parse().unwrap_or(default_threshold),
-            Err(_) => default_threshold,
-        };
-
         Self {
-            entries: QueueImpl::new(128, Duration::from_millis(threshold)),
+            entries: VecDeque::with_capacity(128),
             next_id: 0,
             next_batch_id: 0,
             requires_padding,
-            max_input_length,
-            max_total_tokens,
             block_size,
             window_size,
             speculate,
@@ -304,7 +177,7 @@ impl State {
         entry.temp_span = Some(queue_span);
 
         // Push entry in the queue
-        self.entries.push(IdentifiableEntry(self.next_id, entry));
+        self.entries.push_back((self.next_id, entry));
         self.next_id += 1;
     }
 
@@ -329,7 +202,9 @@ impl State {
             }
         }
 
-        self.entries.update();
+        // Pad prefill_token_budget to be a multiple of block size
+        let prefill_token_budget =
+            ((prefill_token_budget + self.block_size - 1) / self.block_size) * self.block_size;
 
         // Create span for this batch to add context to inference calls
         let next_batch_span = info_span!(parent: None, "batch", batch_size = tracing::field::Empty);
@@ -339,11 +214,12 @@ impl State {
         let mut batch_entries =
             IntMap::with_capacity_and_hasher(self.entries.len(), BuildNoHashHasher::default());
 
+        let mut max_input_length = 0;
         let mut prefill_tokens: u32 = 0;
         let mut decode_tokens: u32 = 0;
 
         // Pop entries starting from the front of the queue
-        while let Some(IdentifiableEntry(id, mut entry)) = self.entries.pop() {
+        while let Some((id, mut entry)) = self.entries.pop_front() {
             // Filter entries where the response receiver was dropped (== entries where the request
             // was dropped by the client)
             if entry.response_tx.is_closed() {
@@ -355,7 +231,8 @@ impl State {
             if self.requires_padding {
                 // We pad to max input length in the Python shards
                 // We need to take these padding tokens into the equation
-                prefill_tokens = (batch_requests.len() + 1) as u32 * self.max_input_length;
+                max_input_length = max_input_length.max(entry.request.input_length);
+                prefill_tokens = (batch_requests.len() + 1) as u32 * max_input_length
             } else {
                 // pad to block size
                 prefill_tokens += ((entry.request.input_length + self.block_size - 1)
@@ -364,9 +241,7 @@ impl State {
             }
 
             if self.requires_padding {
-                // We pad to max total tokens in the Python shards
-                // We need to take these padding tokens into the equation
-                decode_tokens = (batch_requests.len() + 1) as u32 * (self.max_total_tokens - self.max_input_length);
+                decode_tokens += entry.request.stopping_parameters.max_new_tokens;
             } else {
                 let max_new_tokens = match self.window_size {
                     None => entry.request.stopping_parameters.max_new_tokens,
@@ -387,7 +262,7 @@ impl State {
                 // Entry is over budget
                 // Add it back to the front
                 tracing::debug!("Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget} || {prefill_tokens} + {decode_tokens} + {} > {token_budget}", self.speculate);
-                self.entries.push(IdentifiableEntry(id, entry));
+                self.entries.push_front((id, entry));
                 break;
             }
 
@@ -434,7 +309,7 @@ impl State {
                 for r in batch_requests.into_iter().rev() {
                     let id = r.id;
                     let entry = batch_entries.remove(&id).unwrap();
-                    self.entries.push(IdentifiableEntry(id, entry));
+                    self.entries.push_front((id, entry));
                 }
 
                 return None;
@@ -483,18 +358,6 @@ mod tests {
     };
     use tracing::info_span;
 
-    fn default_queue() -> Queue {
-        Queue::new(
-            true, 1, 2, 1, None, 0
-        )
-    }
-
-    fn default_state() -> State {
-        State::new(
-            true, 1, 2, 1, None, 0
-        )
-    }
-
     fn default_entry() -> (
         Entry,
         mpsc::UnboundedReceiver<Result<InferStreamResponse, InferError>>,
@@ -538,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_append() {
-        let mut state = default_state();
+        let mut state = State::new(false, 1, None, 0);
         let (entry, _guard) = default_entry();
 
         assert_eq!(state.next_id, 0);
@@ -548,13 +411,13 @@ mod tests {
 
         assert_eq!(state.next_id, 1);
         assert_eq!(state.entries.len(), 1);
-        let id = state.entries.pop().unwrap().0;
+        let (id, _) = state.entries.remove(0).unwrap();
         assert_eq!(id, 0);
     }
 
     #[test]
     fn test_next_batch_empty() {
-        let mut state = default_state();
+        let mut state = State::new(false, 1, None, 0);
 
         assert!(state.next_batch(None, None, 1, 1).is_none());
         assert!(state.next_batch(Some(1), None, 1, 1).is_none());
@@ -562,13 +425,13 @@ mod tests {
 
     #[test]
     fn test_next_batch_min_size() {
-        let mut state = default_state();
+        let mut state = State::new(false, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, None, 2, 4).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 2, 2).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -588,13 +451,13 @@ mod tests {
 
         assert_eq!(state.next_id, 3);
         assert_eq!(state.entries.len(), 1);
-        let IdentifiableEntry(id, _) = state.entries.pop().unwrap();
+        let (id, _) = state.entries.remove(0).unwrap();
         assert_eq!(id, 2);
     }
 
     #[test]
     fn test_next_batch_max_size() {
-        let mut state = default_state();
+        let mut state = State::new(false, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
@@ -614,13 +477,13 @@ mod tests {
 
     #[test]
     fn test_next_batch_token_budget() {
-        let mut state = default_state();
+        let mut state = State::new(false, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, None, 1, 2).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 1, 1).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -633,7 +496,7 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         state.append(entry3);
 
-        let (entries, batch, _) = state.next_batch(None, None, 3, 6).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 3, 3).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
@@ -647,14 +510,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_append() {
-        let queue = default_queue();
+        let queue = Queue::new(false, 1, None, 0);
         let (entry, _guard) = default_entry();
         queue.append(entry);
     }
 
     #[tokio::test]
     async fn test_queue_next_batch_empty() {
-        let queue = default_queue();
+        let queue = Queue::new(false, 1, None, 0);
 
         assert!(queue.next_batch(None, None, 1, 1).await.is_none());
         assert!(queue.next_batch(Some(1), None, 1, 1).await.is_none());
@@ -662,13 +525,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_min_size() {
-        let queue = default_queue();
+        let queue = Queue::new(false, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
         queue.append(entry2);
 
-        let (entries, batch, _) = queue.next_batch(None, None, 2, 4).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, None, 2, 2).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -685,7 +548,7 @@ mod tests {
         // Not enough token budget
         assert!(queue.next_batch(Some(1), None, 0, 0).await.is_none());
         // Ok
-        let (entries2, batch2, _) = queue.next_batch(Some(1), None, 2, 4).await.unwrap();
+        let (entries2, batch2, _) = queue.next_batch(Some(1), None, 2, 2).await.unwrap();
         assert_eq!(entries2.len(), 1);
         assert!(entries2.contains_key(&2));
         assert!(entries2.get(&2).unwrap().batch_time.is_some());
@@ -695,7 +558,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_max_size() {
-        let queue = default_queue();
+        let queue = Queue::new(false, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -711,13 +574,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_token_budget() {
-        let queue = default_queue();
+        let queue = Queue::new(false, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
         queue.append(entry2);
 
-        let (entries, batch, _) = queue.next_batch(None, None, 1, 2).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, None, 1, 1).await.unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -726,7 +589,7 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         queue.append(entry3);
 
-        let (entries, batch, _) = queue.next_batch(None, None, 3, 6).await.unwrap();
+        let (entries, batch, _) = queue.next_batch(None, None, 3, 3).await.unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
@@ -736,7 +599,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_token_speculate() {
-        let queue = Queue::new(true, 1, 2, 1, None, 2);
+        let queue = Queue::new(false, 1, None, 2);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -755,7 +618,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_dropped_receiver() {
-        let queue = default_queue();
+        let queue = Queue::new(false, 1, None, 0);
         let (entry, _) = default_entry();
         queue.append(entry);
 

@@ -1,8 +1,4 @@
-# Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 import os
-import psutil
-import signal
 import sys
 import typer
 
@@ -18,6 +14,8 @@ app = typer.Typer()
 
 class Quantization(str, Enum):
     bitsandbytes = "bitsandbytes"
+    bitsandbytes_nf4 = "bitsandbytes-nf4"
+    bitsandbytes_fp4 = "bitsandbytes-fp4"
     gptq = "gptq"
     awq = "awq"
     eetq = "eetq"
@@ -44,6 +42,9 @@ def serve(
     otlp_endpoint: Optional[str] = None,
 ):
     if sharded:
+        assert (
+            os.getenv("RANK", None) is not None
+        ), "RANK must be set when sharded is True"
         assert (
             os.getenv("WORLD_SIZE", None) is not None
         ), "WORLD_SIZE must be set when sharded is True"
@@ -76,73 +77,26 @@ def serve(
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
-    dtype = "bfloat16" if dtype is None else dtype.value
-
-    logger.info("CLI SHARDED = {} DTYPE = {}".format(sharded, dtype))
-
-    if sharded:
-        tgi_file =  Path(__file__).resolve().parent / "tgi_service.py"
-        num_shard = int(os.getenv("WORLD_SIZE", "1"))
-        logger.info("CLI SHARDED = {}".format(num_shard))
-        import subprocess
-
-        cmd = f"deepspeed --num_nodes 1 --num_gpus {num_shard} --no_local_rank {tgi_file}"
-        cmd += f" --model_id {model_id} --revision {revision} --sharded {sharded}"
-        cmd += f" --dtype {dtype} --trust_remote_code {trust_remote_code} --uds_path {uds_path}"
-        if speculate is not None:
-            cmd += f"--speculate {speculate}"
-        logger.info("CLI server start deepspeed ={} ".format(cmd))
-        sys.stdout.flush()
-        sys.stderr.flush()
-        with subprocess.Popen(cmd, shell=True, executable="/bin/bash") as proc:
-            do_terminate = False
-            current_handler = signal.getsignal(signal.SIGTERM)
-            def terminate_handler(sig, frame):
-                nonlocal do_terminate
-                do_terminate = True
-                if callable(current_handler):
-                    current_handler(sig, frame)
-
-            signal.signal(signal.SIGTERM, terminate_handler)
-
-            finished = False
-            while not finished:
-                try:
-                    if do_terminate:
-                        parent = psutil.Process(proc.pid)
-                        all_procs = parent.children(recursive=True) + [parent]
-                        for p in all_procs:
-                            try:
-                                p.terminate()
-                            except psutil.NoSuchProcess:
-                                pass
-                        _, alive = psutil.wait_procs(all_procs, timeout=30)
-                        for p in alive:
-                            p.kill()
-
-                        do_terminate = False
-
-                    proc.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    pass
-                else:
-                    finished = True
-
-            sys.stdout.flush()
-            sys.stderr.flush()
-            if proc.returncode != 0:
-                logger.error(f"{cmd}  exited with status = {proc.returncode}")
-                return proc.returncode
-    else:
-        server.serve(
-            model_id,
-            revision,
-            sharded,
-            speculate,
-            dtype,
-            trust_remote_code,
-            uds_path
+    dtype = None if dtype is None else dtype.value
+    if dtype is not None and quantize not in {
+        None,
+        "bitsandbytes",
+        "bitsandbytes-nf4",
+        "bitsandbytes-fp4",
+    }:
+        raise RuntimeError(
+            "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
+    server.serve(
+        model_id,
+        revision,
+        sharded,
+        quantize,
+        speculate,
+        dtype,
+        trust_remote_code,
+        uds_path,
+    )
 
 
 @app.command()
@@ -309,24 +263,30 @@ def download_weights(
         )
 
         # Safetensors final filenames
-        local_st_files = [p.parent / f"{p.stem.lstrip('pytorch_')}.safetensors" for p in local_pt_files]
+        local_st_files = [
+            p.parent / f"{p.stem.lstrip('pytorch_')}.safetensors"
+            for p in local_pt_files
+        ]
         try:
             import transformers
-            from transformers import AutoConfig
+            import json
 
-            config = AutoConfig.from_pretrained(
-                model_id,
-                revision=revision,
-            )
-            architecture = config.architectures[0]
+            if is_local_model:
+                config_filename = os.path.join(model_id, "config.json")
+            else:
+                config_filename = hf_hub_download(
+                    model_id, revision=revision, filename="config.json"
+                )
+            with open(config_filename, "r") as f:
+                config = json.load(f)
+            architecture = config["architectures"][0]
 
             class_ = getattr(transformers, architecture)
 
             # Name for this varible depends on transformers version.
             discard_names = getattr(class_, "_tied_weights_keys", [])
-            discard_names.extend(getattr(class_, "_keys_to_ignore_on_load_missing", []))
 
-        except Exception:
+        except Exception as e:
             discard_names = []
         # Convert pytorch weights to safetensors
         utils.convert_files(local_pt_files, local_st_files, discard_names)
@@ -344,6 +304,8 @@ def quantize(
     percdamp: float = 0.01,
     act_order: bool = False,
 ):
+    if revision is None:
+        revision = "main"
     download_weights(
         model_id=model_id,
         revision=revision,
@@ -357,6 +319,7 @@ def quantize(
         bits=4,
         groupsize=128,
         output_dir=output_dir,
+        revision=revision,
         trust_remote_code=trust_remote_code,
         upload_to_model_id=upload_to_model_id,
         percdamp=percdamp,

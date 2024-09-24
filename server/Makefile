@@ -19,18 +19,12 @@ gen-server:
 
 install: gen-server
 	pip install pip --upgrade
-	pip install -r requirements.txt
-	pip install -e "."
+	pip install -r requirements_cuda.txt
+	pip install -e ".[bnb, accelerate, quantize, peft, outlines]"
 
 run-dev:
 	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded
 
-install-poetry:
-	curl -sSL https://install.python-poetry.org | python3 -
-
-update-lock:
-	rm poetry.lock
-	poetry lock --no-update
-
 export-requirements:
-	poetry export -o requirements.txt --without-hashes
+	poetry export -o requirements_cuda.txt --without-hashes
+	poetry export -o requirements_rocm.txt --without-hashes

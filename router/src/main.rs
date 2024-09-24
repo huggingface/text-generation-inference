@@ -1,5 +1,3 @@
-/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 use axum::http::HeaderValue;
 use clap::Parser;
 use hf_hub::api::tokio::{Api, ApiBuilder, ApiRepo};
@@ -10,7 +8,6 @@ use opentelemetry::sdk::trace::Sampler;
 use opentelemetry::sdk::Resource;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
-use std::env;
 use std::fs::File;
 use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -148,25 +145,6 @@ async fn main() -> Result<(), RouterError> {
         }
     }
 
-    let (max_batch_size, max_batch_total_tokens) = match (max_batch_size, max_batch_total_tokens) {
-        (Some(_max_batch_size), Some(_max_batch_total_tokens)) => {
-            if (_max_batch_total_tokens as usize / max_total_tokens) != _max_batch_size {
-                tracing::warn!("max_batch_size was set to {_max_batch_size} while max_batch_total_tokens to {_max_batch_total_tokens}");
-                tracing::warn!("These values are not match, so max_batch_size will be preferred");
-                (Some(_max_batch_size), Some((_max_batch_size * max_total_tokens) as u32))
-            } else {
-                (Some(_max_batch_size), Some(_max_batch_total_tokens))
-            }
-        },
-        (Some(_max_batch_size), None) => (
-            Some(_max_batch_size), Some((_max_batch_size * max_total_tokens) as u32)
-        ),
-        (None, Some(_max_batch_total_tokens)) => (
-            Some(_max_batch_total_tokens as usize / max_total_tokens), Some(_max_batch_total_tokens)
-        ),
-        (None, None) => (None, None),
-    };
-
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
     // Finally, convert to AllowOrigin
@@ -228,9 +206,6 @@ async fn main() -> Result<(), RouterError> {
     };
 
     // Load tokenizer and model info
-    let skip_tokenizer_in_tgi = env::var("SKIP_TOKENIZER_IN_TGI")
-        .ok()
-        .map_or(false, |value| value.to_lowercase() == "true");
     let (tokenizer_filename, config_filename, tokenizer_config_filename, model_info) = match api {
         Type::None => (
             Some(local_path.join("tokenizer.json")),
@@ -279,11 +254,8 @@ async fn main() -> Result<(), RouterError> {
             )
         }
     };
-    let tokenizer: Option<Tokenizer> = if skip_tokenizer_in_tgi {
-        None
-    } else {
-        tokenizer_filename.and_then(|filename| Tokenizer::from_file(filename).ok())
-    };
+    let tokenizer: Option<Tokenizer> =
+        tokenizer_filename.and_then(|filename| Tokenizer::from_file(filename).ok());
     let config: Option<Config> = config_filename.and_then(|filename| {
         std::fs::read_to_string(filename)
             .ok()
@@ -349,7 +321,6 @@ async fn main() -> Result<(), RouterError> {
             max_batch_prefill_tokens,
             max_total_tokens as u32,
             max_batch_size,
-            &model_info.model_id
         )
         .await
         .map_err(RouterError::Warmup)?

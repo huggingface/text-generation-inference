@@ -1,13 +1,9 @@
-/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 /// Single shard Client
 use crate::pb::generate::v2::text_generation_service_client::TextGenerationServiceClient;
 use crate::pb::generate::v2::*;
 use crate::Result;
-use std::env;
-use rand::{distributions::Uniform, Rng};
 use grpc_metadata::InjectTelemetryContext;
-use std::cmp;
+use std::cmp::min;
 use std::time::Duration;
 use tonic::transport::{Channel, Uri};
 use tracing::instrument;
@@ -110,344 +106,72 @@ impl Client {
         max_prefill_tokens: u32,
         max_total_tokens: u32,
         max_batch_size: Option<usize>,
-        model_id: &str
     ) -> Result<Option<u32>> {
-        let warmup_enabled: bool = env::var("WARMUP_ENABLED").ok().map_or(true, |value| value.to_lowercase() == "true");
-        if !warmup_enabled {
-            return Ok(None);
-        }
-
-        let read_env_var = |key: &str, default: u32| -> u32 {
-            env::var(key).ok().map_or(default, |value| value.parse::<u32>().unwrap())
-        };
-
-        // get all possible batch sizes
-        let decode_bucket_size: u32 = read_env_var("BATCH_BUCKET_SIZE", 8);
-        let max_decode_batch_size: u32 = match max_batch_size {
-            Some(max_batch_size) => max_batch_size as u32,
-            None => decode_bucket_size
-        };
-        let decode_batch_sizes: Vec<u32> = (decode_bucket_size..max_decode_batch_size+1).step_by(decode_bucket_size as usize).collect();
-
-        let prefill_bucket_size: u32 = read_env_var("PREFILL_BATCH_BUCKET_SIZE", 4);
-        let mut max_prefill_batch_size: u32 = max_prefill_tokens / max_input_length;
-        max_prefill_batch_size = cmp::min(max_prefill_batch_size, max_decode_batch_size);
-        let prefill_batch_sizes: Vec<u32> = (prefill_bucket_size..max_prefill_batch_size+1).step_by(prefill_bucket_size as usize).collect();
-
-        // get all possible sequence lengths for prefill
-        let seq_bucket_size: u32 = read_env_var("PAD_SEQUENCE_TO_MULTIPLE_OF", 128);
-        let mut seq_lengths: Vec<u32> = (seq_bucket_size..max_input_length+1).step_by(seq_bucket_size as usize).collect();
-        if let Some(&last) = seq_lengths.last() {
-            if last < max_input_length {
-                seq_lengths.push(max_input_length);
-            }
-        }
-
-        // execute batch for each combination of batch size and sequence length
-        let mut shapes: Vec<(u32, u32)> = Vec::with_capacity(prefill_batch_sizes.len() * seq_lengths.len());
-        for batch_size in &prefill_batch_sizes {
-            for seq_length in &seq_lengths {
-                shapes.push((*batch_size, *seq_length));
-            }
-        }
-
-        let mut batch_counter: u64 = 0;
-        let mut request_counter: u64 = 0;
-        if model_id.contains("llava") {
-            let mut n_tokens = 0;
-            let mut requests = Vec::new();
-            // Create requests
-            while n_tokens < max_prefill_tokens {
-                let truncate = cmp::min(max_input_length, max_prefill_tokens - n_tokens);
-
-                let mut inputs = String::new();
-                inputs.push_str("![](data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAABg2lDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV/TSotUROxQxCFDdbKLijjWKhShQqgVWnUwufQLmrQkKS6OgmvBwY/FqoOLs64OroIg+AHi7OCk6CIl/i8ptIjx4Lgf7+497t4BQqvKNDOQADTdMjKppJjLr4rBVwQQwhAERGVm1uckKQ3P8XUPH1/v4jzL+9yfY0AtmAzwicQJVjcs4g3imU2rznmfOMLKskp8Tjxh0AWJH7muuPzGueSwwDMjRjYzTxwhFks9rPQwKxsa8TRxTNV0yhdyLquctzhr1Qbr3JO/MFzQV5a5TnMUKSxiCRJEKGiggiosxGnVSTGRof2kh3/E8UvkUshVASPHAmrQIDt+8D/43a1ZnJp0k8JJoO/Ftj/GgOAu0G7a9vexbbdPAP8zcKV3/bUWMPtJerOrxY6AwW3g4rqrKXvA5Q4QfarLhuxIfppCsQi8n9E35YHhW6B/ze2ts4/TByBLXaVvgINDYLxE2ese7w719vbvmU5/PycecohsjayNAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH6AQIEQMnlTSSjwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAASSURBVDjLY2AYBaNgFIyCoQsABMQAAeRw1DoAAAAASUVORK5CYII=)");
-                inputs.push_str(&"_test ".to_string().repeat(max_input_length as usize));
-
-                requests.push(Request {
-                    id: 0,
-                    // We truncate the input on the server side to be sure that it has the correct size
-                    inputs,
-                    truncate,
-                    // Set sampling parameters to also take these ops into account in the max memory
-                    parameters: Some(NextTokenChooserParameters {
-                        temperature: 0.9,
-                        top_k: 10,
-                        top_p: 0.9,
-                        typical_p: 0.9,
-                        do_sample: false,
-                        seed: 0,
-                        repetition_penalty: 1.2,
-                        frequency_penalty: 0.1,
-                        watermark: true,
-                        grammar: String::new(),
-                        grammar_type: GrammarType::None as i32,
-                    }),
-                    stopping_parameters: Some(StoppingCriteriaParameters {
-                        max_new_tokens: max_total_tokens - truncate,
-                        stop_sequences: vec![],
-                        ignore_eos_token: true,
-                    }),
-                    prefill_logprobs: true,
-                    top_n_tokens: 20,
-                });
-                n_tokens += max_input_length;
-
-                // Check max_batch_size
-                if Some(requests.len()) == max_batch_size {
-                    break;
-                }
-            }
-
-            let mut batches = Vec::new();
-            batches.push(Batch {
-                id: 0,
-                size: requests.len() as u32,
-                requests,
-                max_tokens: 0,
-            });
-
-            let request = tonic::Request::new(WarmupRequest {
-                batches,
-                max_input_length,
-                max_prefill_tokens,
-                max_total_tokens,
-            })
-            .inject_context();
-            let response = self.stub.warmup(request).await?.into_inner();
-            Ok(response.max_supported_total_tokens)
-        } 
-        else {
-            for shape in shapes.iter() {
-                let (batch_size, seq_length) = shape;
-                let mut batches: Vec<Batch> = vec![
-                    self.create_warmup_batch(
-                        *shape,
-                        &mut batch_counter,
-                        &mut request_counter,
-                        max_input_length,
-                        max_total_tokens,
-                        seq_bucket_size,
-                        false,
-                        None,
-                    )
-                ];
-                // if possible, create second batch in order to trigger concatenate operation
-                if *batch_size < max_decode_batch_size {
-                    batches.push(
-                        self.create_warmup_batch(
-                            (1, *seq_length),
-                            &mut batch_counter,
-                            &mut request_counter,
-                            max_input_length,
-                            max_total_tokens,
-                            seq_bucket_size,
-                            false,
-                            None,
-                        )
-                    );
-                }
-
-                let request = tonic::Request::new(WarmupRequest {
-                    batches,
-                    max_input_length,
-                    max_prefill_tokens,
-                    max_total_tokens,
-                }).inject_context();
-                let _response = self.stub.warmup(request).await?.into_inner();
-            }
-
-            // send batches to warmup all possible decode shapes
-            if decode_batch_sizes.len() > 1 {
-                let steps_per_bucket: u32 = if decode_bucket_size <= max_prefill_batch_size {
-                    decode_bucket_size
-                } else {
-                    decode_bucket_size.div_ceil(max_prefill_batch_size)
-                };
-                let max_new_tokens: u32 = 2 * decode_batch_sizes.len() as u32 * steps_per_bucket;
-
-                let mut requests_send: u32 = cmp::min(max_prefill_batch_size, decode_bucket_size);
-                let mut batches: Vec<Batch> = vec![
-                    self.create_warmup_batch(
-                        (requests_send, seq_bucket_size),
-                        &mut batch_counter,
-                        &mut request_counter,
-                        max_input_length,
-                        max_total_tokens,
-                        seq_bucket_size,
-                        false,
-                        Some(max_new_tokens),
-                    )
-                ];
-
-                let get_current_decode_batch_size = |num: u32| -> u32 {
-                    decode_batch_sizes.iter()
-                        .filter(|&&x| x >= num)
-                        .min()
-                        .copied()
-                        .unwrap()
-                };
-
-                let mut current_decode_batch_size: u32 = get_current_decode_batch_size(requests_send);
-                while current_decode_batch_size < max_decode_batch_size {
-                    let distance_to_next_bucket = current_decode_batch_size + decode_bucket_size - requests_send;
-                    let num_requests: u32 = cmp::min(distance_to_next_bucket, max_prefill_batch_size);
-                    batches.push(
-                        self.create_warmup_batch(
-                            (num_requests, seq_bucket_size),
-                            &mut batch_counter,
-                            &mut request_counter,
-                            max_input_length,
-                            max_total_tokens,
-                            seq_bucket_size,
-                            false,
-                            Some(max_new_tokens),
-                        )
-                    );
-
-                    requests_send += num_requests;
-                    current_decode_batch_size = get_current_decode_batch_size(requests_send);
-                }
-
-                let request = tonic::Request::new(WarmupRequest {
-                    batches,
-                    max_input_length,
-                    max_prefill_tokens,
-                    max_total_tokens,
-                }).inject_context();
-                let _response = self.stub.warmup(request).await?.into_inner();
-            }
-
-            // send batches with default params to warm up Greedy search
-            let mut greedy_shapes: Vec<(u32, u32)> = Vec::with_capacity(prefill_batch_sizes.len());
-            for batch_size in &prefill_batch_sizes {
-                greedy_shapes.push((*batch_size, seq_bucket_size.clone()));
-            }
-            for greedy_shape in greedy_shapes.iter() {
-                let batches: Vec<Batch> = vec![
-                    self.create_warmup_batch(
-                        *greedy_shape,
-                        &mut batch_counter,
-                        &mut request_counter,
-                        max_input_length,
-                        max_total_tokens,
-                        seq_bucket_size,
-                        true,
-                        None,
-                    )
-                ];
-                let request = tonic::Request::new(WarmupRequest {
-                    batches,
-                    max_input_length,
-                    max_prefill_tokens,
-                    max_total_tokens,
-                }).inject_context();
-                let _response = self.stub.warmup(request).await?.into_inner();
-            }
-            Ok(None) // No support for maximum total tokens
-        }
-    }
-
-    #[instrument(skip_all)]
-    fn create_warmup_batch(
-        &mut self,
-        shape: (u32, u32),
-        batch_counter: &mut u64,
-        request_counter: &mut u64,
-        max_input_length: u32,
-        max_total_tokens: u32,
-        seq_bucket_size: u32,
-        default_params: bool,
-        max_new_tokens: Option<u32>,
-    ) -> Batch {
-        *batch_counter += 1;
-        let (batch_size, input_length) = shape;
+        let mut n_tokens = 0;
         let mut requests = Vec::new();
-        for _ in 0..batch_size {
-            *request_counter += 1;
-            let req_params = if default_params {
-                Some(NextTokenChooserParameters {
-                    temperature: 1.0,
-                    top_k: 0,
-                    top_p: 1.0,
-                    typical_p: 1.0,
-                    do_sample: false,
-                    seed: 0,
-                    repetition_penalty: 1.0,
-                    frequency_penalty: 0.0,
-                    watermark: false,
-                    grammar: String::new(),
-                    grammar_type: GrammarType::None as i32,
-                })
-            } else {
-                Some(NextTokenChooserParameters {
+        // Create requests
+        while n_tokens < max_prefill_tokens {
+            let truncate = min(max_input_length, max_prefill_tokens - n_tokens);
+
+            let mut inputs = String::new();
+            inputs.push_str(&"_test ".to_string().repeat(max_input_length as usize));
+            if n_tokens == 0 {
+                // 1 request is enough to test vision heads.
+                // Sending images on other queries messes up easily with truncation.
+                inputs.push_str("![](data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAIAAAAC64paAAABg2lDQ1BJQ0MgcHJvZmlsZQAAKJF9kT1Iw0AcxV/TSotUROxQxCFDdbKLijjWKhShQqgVWnUwufQLmrQkKS6OgmvBwY/FqoOLs64OroIg+AHi7OCk6CIl/i8ptIjx4Lgf7+497t4BQqvKNDOQADTdMjKppJjLr4rBVwQQwhAERGVm1uckKQ3P8XUPH1/v4jzL+9yfY0AtmAzwicQJVjcs4g3imU2rznmfOMLKskp8Tjxh0AWJH7muuPzGueSwwDMjRjYzTxwhFks9rPQwKxsa8TRxTNV0yhdyLquctzhr1Qbr3JO/MFzQV5a5TnMUKSxiCRJEKGiggiosxGnVSTGRof2kh3/E8UvkUshVASPHAmrQIDt+8D/43a1ZnJp0k8JJoO/Ftj/GgOAu0G7a9vexbbdPAP8zcKV3/bUWMPtJerOrxY6AwW3g4rqrKXvA5Q4QfarLhuxIfppCsQi8n9E35YHhW6B/ze2ts4/TByBLXaVvgINDYLxE2ese7w719vbvmU5/PycecohsjayNAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH6AQIEQMnlTSSjwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAASSURBVDjLY2AYBaNgFIyCoQsABMQAAeRw1DoAAAAASUVORK5CYII=)");
+            }
+
+            requests.push(Request {
+                id: 0,
+                // We truncate the input on the server side to be sure that it has the correct size
+                inputs,
+                truncate,
+                // Set sampling parameters to also take these ops into account in the max memory
+                parameters: Some(NextTokenChooserParameters {
                     temperature: 0.9,
                     top_k: 10,
                     top_p: 0.9,
                     typical_p: 0.9,
-                    do_sample: true,
+                    do_sample: false,
                     seed: 0,
                     repetition_penalty: 1.2,
                     frequency_penalty: 0.1,
-                    watermark: false,
+                    watermark: true,
                     grammar: String::new(),
                     grammar_type: GrammarType::None as i32,
-                })
-            };
-            requests.push(Request {
-                id: *request_counter,
-                inputs: self.get_random_input(input_length, seq_bucket_size),
-                truncate: max_input_length,
-                parameters: req_params,
+                }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
-                    max_new_tokens: cmp::min(max_new_tokens.unwrap_or(10), max_total_tokens - max_input_length),
+                    max_new_tokens: max_total_tokens - truncate,
                     stop_sequences: vec![],
                     ignore_eos_token: true,
                 }),
-                prefill_logprobs: false,
-                top_n_tokens: 0,
+                prefill_logprobs: true,
+                top_n_tokens: 20,
             });
+            n_tokens += max_input_length;
+
+            // Check max_batch_size
+            if Some(requests.len()) == max_batch_size {
+                break;
+            }
         }
 
-        Batch {
-            id: *batch_counter,
+        let batch = Batch {
+            id: 0,
             size: requests.len() as u32,
             requests,
-            max_tokens: max_total_tokens,
-        }
-    }
+            max_tokens: 0,
+        };
 
-    #[instrument(skip_all)]
-    fn get_random_input(
-        &mut self,
-        input_length: u32,
-        seq_bucket_size: u32,
-    ) -> String {
-        let skip_tokenizer_in_tgi: bool = env::var("SKIP_TOKENIZER_IN_TGI")
-            .ok()
-            .map_or(false, |value| value.to_lowercase() == "true");
-        if skip_tokenizer_in_tgi {
-            // generate random tokens
-            let mut rng = rand::thread_rng();
-            let range = Uniform::new(2, 8192);
-            let tokens = if input_length % seq_bucket_size == 0 {
-                input_length - seq_bucket_size / 2
-            } else {
-                input_length - (input_length % seq_bucket_size) / 2
-            };
-            (0..tokens)
-                .map(|_| rng.sample(&range).to_string())
-                .collect::<Vec<String>>()
-                .join(", ")
-        } else {
-            // repeat test string to get expected input shape
-            let mut bucket_id = input_length / seq_bucket_size;
-            if input_length % seq_bucket_size != 0 {
-                bucket_id += 1
-            }
-            let repeats = cmp::max(1, (bucket_id - 1) * seq_bucket_size / 2);
-            "_test ".to_string().repeat(repeats as usize)
-        }
+        let request = tonic::Request::new(WarmupRequest {
+            batch: Some(batch),
+            max_input_length,
+            max_prefill_tokens,
+            max_total_tokens,
+        })
+        .inject_context();
+        let response = self.stub.warmup(request).await?.into_inner();
+        Ok(response.max_supported_total_tokens)
     }
 
     /// Generate one token for each request in the given batch

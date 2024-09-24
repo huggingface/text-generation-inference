@@ -119,6 +119,8 @@ def ext_make_q_matrix(w: dict, temp_dq, key: str = None):
                 none_tensor,
                 temp_dq,
             )
+    else:
+        RuntimeError("Cannot create handle")
 
 
 DEVICE = None

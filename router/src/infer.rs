@@ -1,5 +1,3 @@
-/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 /// Batching and inference logic
 use crate::validation::{Validation, ValidationError};
 use crate::{
@@ -65,22 +63,13 @@ impl Infer {
         max_batch_size: Option<usize>,
         max_concurrent_requests: usize,
         requires_padding: bool,
-        max_input_length: u32,
-        max_total_tokens: u32,
         window_size: Option<u32>,
         speculate: u32,
         generation_health: Arc<AtomicBool>,
         tokenizer_config: HubTokenizerConfig,
     ) -> Self {
         // Infer shared state
-        let queue = Queue::new(
-            requires_padding,
-            max_input_length,
-            max_total_tokens,
-            16,
-            window_size,
-            speculate
-        );
+        let queue = Queue::new(requires_padding, 16, window_size, speculate);
         let shared = Arc::new(Shared {
             batching_task: Notify::new(),
         });

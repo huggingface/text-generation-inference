@@ -44,12 +44,6 @@ class FakeGroup:
 
 
 def initialize_torch_distributed():
-    import habana_frameworks.torch.core as htcore
-
-    rank = int(os.getenv("RANK", "0"))
-    world_size = int(os.getenv("WORLD_SIZE", "1"))
-
-    options = None
     if torch.cuda.is_available():
         from torch.distributed import ProcessGroupNCCL
 
@@ -62,11 +56,6 @@ def initialize_torch_distributed():
         options = ProcessGroupNCCL.Options()
         options.is_high_priority_stream = True
         options._timeout = timedelta(seconds=60)
-    elif torch.hpu.is_available():
-        backend = "hccl"
-        n_hpus = torch.hpu.device_count()
-        if world_size > n_hpus:
-            raise ValueError(f"WORLD_SIZE ({world_size}) is higher than the number of available HPUs ({n_hpus}).")
     else:
         try:
             import oneccl_bindings_for_pytorch

@@ -1,5 +1,3 @@
-/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 use crate::config::Config;
 /// HTTP Server logic
 use crate::health::Health;
@@ -1493,8 +1491,6 @@ pub async fn run(
         max_batch_size,
         max_concurrent_requests,
         shard_info.requires_padding,
-        max_input_length as u32,
-        max_total_tokens as u32,
         shard_info.window_size,
         shard_info.speculate,
         generation_health,

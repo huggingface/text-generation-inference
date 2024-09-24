@@ -61,7 +61,6 @@ def default_multi_requests_seq2seq_lm_batch(default_pb_request, mt0_small_tokeni
     )
 
 
-@pytest.mark.skip("seq2seq model not enabled on HPU yet")
 def test_batch_from_pb(default_pb_batch, default_seq2seq_lm_batch):
     batch = default_seq2seq_lm_batch
     sequence_length = len(default_seq2seq_lm_batch.input_ids[0])
@@ -93,18 +92,15 @@ def test_batch_from_pb(default_pb_batch, default_seq2seq_lm_batch):
     assert batch.max_decoder_input_length == batch.decoder_input_lengths[0]
 
 
-@pytest.mark.skip("seq2seq model not enabled on HPU yet")
 def test_batch_concatenate_no_prefill(default_seq2seq_lm_batch):
     with pytest.raises(ValueError):
         Seq2SeqLMBatch.concatenate([default_seq2seq_lm_batch, default_seq2seq_lm_batch])
 
 
-@pytest.mark.skip("seq2seq model not enabled on HPU yet")
 def test_seq2seq_lm_batch_type(default_seq2seq_lm):
     assert default_seq2seq_lm.batch_type == Seq2SeqLMBatch
 
 
-@pytest.mark.skip("seq2seq model not enabled on HPU yet")
 def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch):
     sequence_length = len(default_seq2seq_lm_batch.input_ids[0])
     generations, next_batch, _ = default_seq2seq_lm.generate_token(
@@ -172,7 +168,6 @@ def test_seq2seq_lm_generate_token(default_seq2seq_lm, default_seq2seq_lm_batch)
     assert generations[0].request_id == 0
 
 
-@pytest.mark.skip("seq2seq model not enabled on HPU yet")
 def test_seq2seq_lm_generate_token_completion(
     default_seq2seq_lm, default_seq2seq_lm_batch
 ):
@@ -190,7 +185,6 @@ def test_seq2seq_lm_generate_token_completion(
     assert generations[0].generated_text.generated_tokens == 7
 
 
-@pytest.mark.skip("seq2seq model not enabled on HPU yet")
 def test_seq2seq_lm_generate_token_completion_multi(
     default_seq2seq_lm, default_multi_requests_seq2seq_lm_batch
 ):
@@ -228,7 +222,6 @@ def test_seq2seq_lm_generate_token_completion_multi(
     assert generations[0].generated_text.generated_tokens == 7
 
 
-@pytest.mark.skip("seq2seq model not enabled on HPU yet")
 def test_batch_concatenate(
     default_seq2seq_lm,
     default_seq2seq_lm_batch,
