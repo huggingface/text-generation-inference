@@ -10,7 +10,7 @@ homepage.workspace = true
 path = "src/lib.rs"
 
 [[bin]]
-name = "text-generation-router"
+name = "text-generation-router-v2"
 path = "src/main.rs"
 
 [dependencies]
