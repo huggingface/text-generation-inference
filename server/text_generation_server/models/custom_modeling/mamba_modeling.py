@@ -196,7 +196,10 @@ class MambaModel(nn.Module):
     def __init__(self, config, weights):
         super().__init__()
         prefix = "backbone"
-        self.embed_tokens = TensorParallelEmbedding(f"{prefix}.embedding", weights)
+        try:
+            self.embed_tokens = TensorParallelEmbedding(f"{prefix}.embeddings", weights)
+        except RuntimeError:
+            self.embed_tokens = TensorParallelEmbedding(f"{prefix}.embedding", weights)
         self.blocks = nn.ModuleList(
             [
                 ResidualBlock(f"{prefix}.layers.{i}", config, weights, layer_id=i)
@@ -206,7 +209,10 @@ class MambaModel(nn.Module):
         self.norm_f = FastRMSNorm.load(
             f"{prefix}.norm_f", weights, eps=config.layer_norm_epsilon
         )
-        self.lm_head = SpeculativeHead.load(config, f"{prefix}.embedding", weights)
+        try:
+            self.lm_head = SpeculativeHead.load(config, f"{prefix}.embeddings", weights)
+        except RuntimeError:
+            self.lm_head = SpeculativeHead.load(config, f"{prefix}.embeddings", weights)
         self.config = config
 
     def forward(
