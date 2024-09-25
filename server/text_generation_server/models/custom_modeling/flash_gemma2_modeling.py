@@ -163,7 +163,9 @@ def _load_gqa(config, prefix: str, weights):
 
 
 class FlashGemma2Attention(torch.nn.Module):
-    def __init__(self, prefix: str, config, weights, layer_id, causal: bool, is_sliding: bool):
+    def __init__(
+        self, prefix: str, config, weights, layer_id, causal: bool, is_sliding: bool
+    ):
         super().__init__()
         self.num_heads = config.num_attention_heads
         self.head_size = config.head_dim
@@ -345,7 +347,9 @@ class Gemma2MLP(nn.Module):
 
 
 class FlashGemma2Layer(nn.Module):
-    def __init__(self, prefix: str, config, weights, layer_id, causal: bool, is_sliding: bool):
+    def __init__(
+        self, prefix: str, config, weights, layer_id, causal: bool, is_sliding: bool
+    ):
         super().__init__()
         self.self_attn = FlashGemma2Attention(
             prefix=f"{prefix}.self_attn",
