@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def fused_kernel_mamba_handle(launcher):
-    with launcher("state-spaces/mamba-130m", num_shard=1) as handle:
+    with launcher("state-spaces/mamba-130m-hf", num_shard=1) as handle:
         yield handle
 
 
