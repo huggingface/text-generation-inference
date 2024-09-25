@@ -2,10 +2,6 @@ import pytest
 import os
 from text_generation_server.pb import generate_pb2
 
-os.environ["USE_PREFIX_CACHING"] = "1"
-os.environ["ATTENTION"] = "flashinfer"
-
-
 @pytest.fixture
 def default_pb_parameters():
     return generate_pb2.NextTokenChooserParameters(

@@ -36,9 +36,9 @@ impl BackendV3 {
         speculate: u32,
     ) -> Self {
         let prefix_caching =
-            std::env::var("USE_PREFIX_CACHING").expect("Expect prefix caching env var");
+            std::env::var("USE_PREFIX_CACHING").unwrap_or("1".to_string());
         let prefix_caching = matches!(prefix_caching.as_str(), "true" | "1");
-        let attention: String = std::env::var("ATTENTION").expect("attention env var");
+        let attention: String = std::env::var("ATTENTION").unwrap_or("flashinfer".to_string());
 
         let attention: Attention = attention
             .parse()
