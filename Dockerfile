@@ -62,6 +62,7 @@ RUN cd server && \
     pip install -r requirements.txt && \
     bash ./dill-0.3.8-patch.sh && \
     pip install git+https://github.com/HabanaAI/DeepSpeed.git@1.17.0 && \
+    BUILD_CUDA_EXT=0 pip install git+https://github.com/AutoGPTQ/AutoGPTQ.git@097dd04e --no-build-isolation && \
     pip install . --no-cache-dir
 
 # Install benchmarker
