@@ -758,8 +758,8 @@ class MllamaTextCrossAttention(nn.Module):
 
         elif cache_position[0] != 0:
             key_states, value_states = (
-                past_key_value.key_cache[self.layer_idx],
-                past_key_value.value_cache[self.layer_idx],
+                past_key_value[self.layer_idx][0],
+                past_key_value[self.layer_idx][1],
             )
         else:
             raise ValueError(
@@ -850,6 +850,7 @@ class MllamaCrossAttentionDecoderLayer(torch.nn.Module):
         self.cross_attn_mlp_gate = torch.nn.Parameter(
             weights.get_tensor(f"{prefix}.cross_attn_mlp_gate"), requires_grad=False
         )
+        self.layer_idx = layer_idx
 
     def forward(
         self,
@@ -862,24 +863,75 @@ class MllamaCrossAttentionDecoderLayer(torch.nn.Module):
         cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> torch.Tensor:
-        residual = hidden_states
-        hidden_states = self.input_layernorm(hidden_states)
+        if past_key_value is not None:
+            is_mixed = False
+            if cross_attention_states is None:
+                out_hidden_states = hidden_states[:]
+                indices = []
+                for i, k in enumerate(past_key_value[self.layer_idx][0]):
+                    if isinstance(k, torch.Tensor):
+                        indices.append(i)
+                from loguru import logger
 
-        hidden_states, attn_weights, past_key_value = self.cross_attn(
-            hidden_states=hidden_states,
-            attention_mask=cross_attention_mask,
-            cross_attention_states=cross_attention_states,
-            past_key_value=past_key_value,
-            cache_position=cache_position,
-        )
-        hidden_states = residual + self.cross_attn_attn_gate.tanh() * hidden_states
+                logger.info(f"Indices {indices}")
+                if len(indices) == 0:
+                    return hidden_states
+                is_mixed = True
+                if len(indices) == hidden_states.shape[0]:
+                    is_mixed = False
 
-        residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        if full_text_row_masked_out_mask is not None:
-            hidden_states = full_text_row_masked_out_mask[:, 0] * hidden_states  # type: ignore
-        hidden_states = residual + self.cross_attn_mlp_gate.tanh() * hidden_states
+                if is_mixed:
+                    hidden_states = hidden_states[indices]
+                    # Dirty hack
+                    _past_key_value = [None] * len(past_key_value)
+                    _past_key_value[self.layer_idx] = (
+                        torch.stack(
+                            [
+                                k
+                                for i, k in enumerate(past_key_value[self.layer_idx][0])
+                                if i in indices
+                            ],
+                            dim=0,
+                        ),
+                        torch.stack(
+                            [
+                                k
+                                for i, k in enumerate(past_key_value[self.layer_idx][1])
+                                if i in indices
+                            ],
+                            dim=0,
+                        ),
+                    )
+                    logger.info(f"Hidden states {hidden_states.shape}")
+                    logger.info(f"k {_past_key_value[self.layer_idx][0].shape}")
+                    logger.info(f"v {_past_key_value[self.layer_idx][1].shape}")
+                    past_key_value = _past_key_value
+
+            residual = hidden_states
+            hidden_states = self.input_layernorm(hidden_states)
+
+            hidden_states, attn_weights, past_key_value = self.cross_attn(
+                hidden_states=hidden_states,
+                attention_mask=cross_attention_mask,
+                cross_attention_states=cross_attention_states,
+                past_key_value=past_key_value,
+                cache_position=cache_position,
+            )
+            hidden_states = residual + self.cross_attn_attn_gate.tanh() * hidden_states
+
+            residual = hidden_states
+            hidden_states = self.post_attention_layernorm(hidden_states)
+            hidden_states = self.mlp(hidden_states)
+            if full_text_row_masked_out_mask is not None:
+                hidden_states = full_text_row_masked_out_mask[:, 0] * hidden_states  # type: ignore
+            hidden_states = residual + self.cross_attn_mlp_gate.tanh() * hidden_states
+
+            if is_mixed:
+                out_hidden_states[indices] = hidden_states
+                hidden_states = out_hidden_states
+                from loguru import logger
+
+                logger.info(f"After Hidden states {hidden_states.shape}")
 
         return hidden_states
 
@@ -1243,18 +1295,18 @@ class MllamaTextModel(nn.Module):
         # decoder layers
 
         for idx, decoder_layer in enumerate(self.layers):
-            if (
-                idx in self.cross_attention_layers
-                and cross_attention_states is None
-                and (
-                    past_key_values is None
-                    or (
-                        past_key_values is not None
-                        and past_key_values.get_seq_length(idx) == 0
-                    )
-                )
-            ):
-                continue
+            # if (
+            #     idx in self.cross_attention_layers
+            #     and cross_attention_states is None
+            #     and (
+            #         past_key_values is None
+            #         or (
+            #             past_key_values is not None
+            #             and any(past_key_values.get_seq_length(idx) == 0
+            #         )
+            #     )
+            # ):
+            #     continue
 
             layer_outputs = decoder_layer(
                 hidden_states,
