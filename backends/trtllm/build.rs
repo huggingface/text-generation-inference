@@ -96,6 +96,10 @@ fn build_ffi_layer(deps_folder: &PathBuf) {
         .compile("tgi_trtllm_backend");
 
     println!("cargo:rerun-if-changed=CMakeLists.txt");
+    println!("cargo:rerun-if-changed=cmake/trtllm.cmake");
+    println!("cargo:rerun-if-changed=cmake/json.cmake");
+    println!("cargo:rerun-if-changed=cmake/fmt.cmake");
+    println!("cargo:rerun-if-changed=cmake/spdlog.cmake");
     println!("cargo:rerun-if-changed=include/backend.h");
     println!("cargo:rerun-if-changed=lib/backend.cpp");
     println!("cargo:rerun-if-changed=include/ffi.h");
