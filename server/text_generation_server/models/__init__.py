@@ -226,7 +226,7 @@ class ModelType(enum.Enum):
         "url": "https://huggingface.co/databricks/dbrx-instruct",
     }
     MAMBA = {
-        "type": "ssm",
+        "type": "mamba",
         "name": "Mamba",
         "url": "https://huggingface.co/state-spaces/mamba-2.8b-slimpj",
     }
@@ -555,7 +555,7 @@ def get_model(
         # TODO: fix how we determine model type for Mamba
         if "ssm_cfg" in config_dict:
             # *only happens in Mamba case
-            model_type = "ssm"
+            model_type = "mamba"
         else:
             raise RuntimeError(
                 f"Could not determine model type for {model_id} revision {revision}"
