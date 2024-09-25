@@ -1569,8 +1569,8 @@ pub fn schema() -> ApiDoc {
     ApiDoc
 }
 
-fn py_resolve_tokenizer<'a>(
-    py: pyo3::Python<'a>,
+fn py_resolve_tokenizer(
+    py: pyo3::Python,
     tokenizer_name: &str,
     revision: Option<&str>,
 ) -> pyo3::PyResult<()> {
