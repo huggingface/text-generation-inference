@@ -58,7 +58,7 @@ from text_generation_server.utils.weights import (
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
 
 if SYSTEM != "ipex":
-    from vllm.model_executor.layers.fused_moe import fused_moe
+    pass
 
 if SYSTEM == "rocm":
     try:
