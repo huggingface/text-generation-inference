@@ -8,18 +8,18 @@ use hashbrown::HashMap;
 use log::warn;
 use tokenizers::{Encoding, Tokenizer};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-use tokio::task::{JoinHandle, spawn_blocking};
+use tokio::task::{spawn_blocking, JoinHandle};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
-use text_generation_router::{FinishReason, Token};
-use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::infer::InferError::{GenerationError, ValidationError};
-use text_generation_router::validation::{Chunk, ValidGenerateRequest};
+use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::ValidationError::{
     EmptyInput, Grammar, TopNTokensDisabled, UnsupportedModality,
 };
+use text_generation_router::validation::{Chunk, ValidGenerateRequest};
+use text_generation_router::{FinishReason, Token};
 
 use crate::errors::TensorRtLlmBackendError;
 use crate::ffi::{create_tensorrt_llm_backend, GenerationStep, TensorRtLlmBackendImpl};
@@ -128,6 +128,7 @@ fn executor_status_looper(
             }
         }
 
+        // info!("Num response ready: {}", backend.num_responses_ready());
         if backend.num_responses_ready() > 0 {
             match backend.pin_mut().pull_tokens() {
                 Ok(responses) => {
