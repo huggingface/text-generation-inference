@@ -1,0 +1,43 @@
+name: Nightly load test
+
+on:
+  schedule:
+    - cron: '0 0 * * 1-5'
+
+  pull_request:
+    paths:
+      - ".github/workflows/load_test.yaml"
+    branches:
+      - 'main'
+
+jobs:
+  load-tests:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    runs-on:
+      group: aws-g5-12xlarge
+    env:
+      DOCKER_VOLUME: /cache
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.44.0/k6-v0.44.0-linux-amd64.tar.gz -L | tar xvz --strip-components 1
+
+      - name: Start starcoder
+        run: |
+          docker run --name tgi-starcoder --rm --gpus all -p 3000:80 -v /mnt/cache:/data -e HF_TOKEN=${{ secrets.HF_TOKEN }} --pull always -d ghcr.io/huggingface/text-generation-inference:latest --model-id bigcode/starcoder --num-shard 2 --max-batch-total-tokens 32768
+          sleep 10
+          wget --timeout 10 --retry-on-http-error --waitretry=1 --tries=240 http://localhost:3000/health
+
+      - name: Run k6
+        run: |
+          ./k6 run load_tests/starcoder_load.js
+
+      - name: Stop starcoder
+        if: ${{ always() }}
+        run: |
+          docker stop tgi-starcoder || true

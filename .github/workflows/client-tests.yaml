@@ -1,0 +1,26 @@
+name: Python Client Tests
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/client-tests.yaml"
+      - "clients/python/**"
+
+jobs:
+  run_tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.9
+      - name: Install
+        run: |
+          cd clients/python && pip install .
+      - name: Run tests
+        run: |
+          pip install pytest pytest-asyncio
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
+          make python-client-tests

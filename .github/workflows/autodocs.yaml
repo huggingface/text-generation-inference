@@ -1,0 +1,45 @@
+name: Automatic Documentation for Launcher
+
+on:
+  pull_request:
+
+jobs:
+  update_docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+
+    - name: Install Protocol Buffers compiler
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y protobuf-compiler libprotobuf-dev
+
+    - name: Install Launcher
+      id: install-launcher
+      run: cargo install --path launcher/
+
+    - name: Install router
+      id: install-router
+      run: cargo install --path backends/v3/
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Check that documentation is up-to-date
+      run: |
+        npm install -g @redocly/cli
+        python update_doc.py --check

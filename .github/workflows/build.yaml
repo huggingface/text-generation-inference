@@ -1,0 +1,191 @@
+name: Build and push docker image to internal registry
+
+on:
+  workflow_call:
+    inputs:
+      hardware:
+        type: string
+        description: Hardware
+          # options:
+          # - cuda
+          # - rocm
+          # - intel
+        required: true
+      release-tests:
+        description: "Run release integration tests"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  build-and-push:
+    outputs:
+      docker_image: ${{ steps.final.outputs.docker_image }}
+      docker_devices: ${{ steps.final.outputs.docker_devices }}
+      runs_on: ${{ steps.final.outputs.runs_on }}
+      label: ${{ steps.final.outputs.label }}
+    concurrency:
+      group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    runs-on:
+      group: aws-highmemory-32-plus-priv
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
+      - name: Construct harware variables
+        shell: bash
+        run: |
+          case ${{ inputs.hardware }} in
+            cuda)
+                export dockerfile="Dockerfile"
+                export label_extension=""
+                export docker_devices=""
+                export runs_on="aws-g6-12xl-plus-priv-cache"
+                export platform=""
+                ;;
+            rocm)
+                export dockerfile="Dockerfile_amd"
+                export label_extension="-rocm"
+                export docker_devices="/dev/kfd,/dev/dri"
+                # TODO Re-enable when they pass.
+                # export runs_on="amd-gpu-tgi"
+                export runs_on="ubuntu-latest"
+                export platform=""
+                ;;
+            intel-xpu)
+                export dockerfile="Dockerfile_intel"
+                export label_extension="-intel-xpu"
+                export docker_devices=""
+                export runs_on="ubuntu-latest"
+                export platform="xpu"
+                ;;
+            intel-cpu)
+                export dockerfile="Dockerfile_intel"
+                export label_extension="-intel-cpu"
+                export docker_devices=""
+                export runs_on="ubuntu-latest"
+                export platform="cpu"
+                ;;
+          esac
+          echo $dockerfile
+          echo "Dockerfile=${dockerfile}"
+          echo $label_extension
+          echo $docker_devices
+          echo $runs_on
+          echo $platform
+          echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
+          echo "LABEL=${label_extension}" >> $GITHUB_ENV
+          echo "PLATFORM=${platform}" >> $GITHUB_ENV
+          echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
+          echo "RUNS_ON=${runs_on}" >> $GITHUB_ENV
+          echo REGISTRY_MIRROR=$REGISTRY_MIRROR >> $GITHUB_ENV
+      - name: Initialize Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+          buildkitd-config: /tmp/buildkitd.toml
+      - name: Login to internal Container Registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry: registry.internal.huggingface.tech
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to Azure Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.AZURE_DOCKER_USERNAME }}
+          password: ${{ secrets.AZURE_DOCKER_PASSWORD }}
+          registry: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io
+      # If pull request
+      - name: Extract metadata (tags, labels) for Docker
+        if: ${{ github.event_name == 'pull_request' }}
+        id: meta-pr
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+          tags: |
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+      # If main, release or tag
+      - name: Extract metadata (tags, labels) for Docker
+        if: ${{ github.event_name != 'pull_request' }}
+        id: meta
+        uses: docker/metadata-action@v4.3.0
+        with:
+          flavor: |
+            latest=auto
+          images: |
+            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+            ghcr.io/huggingface/text-generation-inference
+            db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
+          tags: |
+            type=semver,pattern={{version}}${{ env.LABEL }}
+            type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
+            type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          platforms: 'linux/amd64'
+          build-args: |
+            GIT_SHA=${{ env.GITHUB_SHA }}
+            DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            PLATFORM=${{ env.PLATFORM }}
+          tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
+          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+      - name: Final
+        id: final
+        run: |
+          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
+          echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
+          echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+  integration_tests:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    needs: build-and-push
+    runs-on:
+      group: ${{ needs.build-and-push.outputs.runs_on }}
+    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
+    env:
+      PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || inputs.release-tests == true) && '--release' || '--release' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install
+        run: |
+          make install-integration-tests
+      - name: Run tests
+        run: |
+          export DOCKER_VOLUME=/mnt/cache
+          export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
+          export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
+          echo $DOCKER_IMAGE
+          pytest -s -vv integration-tests ${PYTEST_FLAGS}

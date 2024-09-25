@@ -1,9 +1,8 @@
 install-server:
 	cd server && make install
 
-install-integration-tests:
-	cd integration-tests && pip install -r requirements.txt
-	cd clients/python && pip install .
+install-server-cpu:
+	cd server && make install-server
 
 install-router:
 	cargo install --path backends/v3/
@@ -14,7 +13,10 @@ install-launcher:
 install-benchmark:
 	cargo install --path benchmark/
 
-install: install-server install-router install-launcher install-custom-kernels
+install: install-server install-router install-launcher
+
+
+install-cpu: install-server-cpu install-router install-launcher
 
 server-dev:
 	cd server && make run-dev
@@ -46,8 +48,8 @@ python-tests: python-server-tests python-client-tests
 run-falcon-7b-instruct:
 	text-generation-launcher --model-id tiiuae/falcon-7b-instruct --port 8080
 
+run-falcon-7b-instruct-quantize:
+	text-generation-launcher --model-id tiiuae/falcon-7b-instruct --quantize bitsandbytes --port 8080
+
 clean:
 	rm -rf target aml
-
-debug_image_build:
-	docker build --no-cache --progress=plain -t debug_tgi .

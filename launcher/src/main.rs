@@ -1,5 +1,3 @@
-/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 use clap::{Parser, ValueEnum};
 use hf_hub::{
     api::sync::{Api, ApiBuilder},
@@ -726,12 +724,13 @@ fn shard_manager(
 
     if let Some(dtype) = dtype {
         shard_args.push("--dtype".to_string());
-        shard_args.push(dtype.to_string());
+        shard_args.push(dtype.to_string())
     }
+
     // Model optional revision
     if let Some(revision) = revision {
         shard_args.push("--revision".to_string());
-        shard_args.push(revision);
+        shard_args.push(revision)
     }
 
     let rope = match (rope_scaling, rope_factor) {
@@ -1567,16 +1566,6 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
 }
 
 fn main() -> Result<(), LauncherError> {
-    match Command::new("ldconfig").spawn() {
-        Ok(_) => {}
-        Err(err) => {
-            tracing::warn!(
-                "Unable to refresh ldconfig cache. Skipping (useless in most cases). Details {:?}",
-                err
-            )
-        }
-    }
-
     // Pattern match configuration
     let args: Args = Args::parse();
 

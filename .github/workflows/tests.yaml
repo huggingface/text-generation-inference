@@ -1,0 +1,60 @@
+name: Server Tests
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/tests.yaml"
+      - "server/**"
+      - "proto/**"
+      - "router/**"
+      - "launcher/**"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  run_tests:
+    runs-on:
+      group: aws-highmemory-32-plus-priv
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        id: python
+        with:
+          python-version: 3.11
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          # Released on: 02 May, 2024
+          # https://releases.rs/docs/1.78.0/
+          toolchain: 1.80.0
+          override: true
+          components: rustfmt, clippy
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+      - name: Clean unused files
+        run: |
+          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
+          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
+      - name: Install
+        run: |
+          sudo apt update
+          sudo apt install python3.11-dev -y
+          make install-cpu
+      - name: Run server tests
+        run: |
+          pip install pytest
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
+          pytest -s -vv server/tests
+      - name: Pre-commit checks
+        run: |
+          pip install pre-commit
+          pre-commit install
+          pre-commit run --all-files
+      - name: Run Rust tests
+        run: |
+          cargo test
