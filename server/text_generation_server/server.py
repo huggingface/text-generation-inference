@@ -1,5 +1,8 @@
+# Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
+
 import asyncio
 import os
+import sys
 import torch
 import time
 import signal
@@ -14,23 +17,24 @@ from typing import List, Optional
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model_with_lora_adapters
+from text_generation_server.pb import generate_pb2_grpc, generate_pb2
+from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
+from text_generation_server.models.globals import set_model_id
+from text_generation_server.models.globals import set_adapter_to_index
 from text_generation_server.utils.adapter import AdapterInfo
 
 try:
-    from text_generation_server.models.pali_gemma import PaliGemmaBatch
+    #from text_generation_server.models.pali_gemma import PaliGemmaBatch
     from text_generation_server.models.vlm_causal_lm import (
         VlmCausalLMBatch,
     )
-    from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
+    #from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
 
-    VLM_BATCH_TYPES = {PaliGemmaBatch, VlmCausalLMBatch, IdeficsCausalLMBatch}
+    VLM_BATCH_TYPES = {VlmCausalLMBatch}
 except (ImportError, NotImplementedError):
     # These imports can fail on CPU/Non flash.
     VLM_BATCH_TYPES = set()
-
-from text_generation_server.pb import generate_pb2_grpc, generate_pb2
-from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
-from text_generation_server.models.globals import set_adapter_to_index
+from text_generation_server.utils.version import is_driver_compatible, MIN_TGI_GAUDI_SYNAPSE_VERSION
 
 
 class SignalHandler:
@@ -58,16 +62,19 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         self.quantize = model.quantize
         self.server_urls = server_urls
         # For some reason, inference_mode does not work well with GLOO which we use on CPU
-        if model.device.type == "cuda":
-            # Force inference mode for the lifetime of TextGenerationService
-            self._inference_mode_raii_guard = torch._C._InferenceMode(True)
+        # TODO: The inferecemode set messes up the autograd op dispatch. And results in aten::matmul
+        # op not optimized issue. Will investigate further.
+        # if model.device.type == "hpu":
+        # Force inference mode for the lifetime of TextGenerationService
+        # self._inference_mode_raii_guard = torch._C._InferenceMode(True)
+
 
     async def Info(self, request, context):
         return self.model.info
 
     async def Health(self, request, context):
-        if self.model.device.type == "cuda":
-            torch.zeros((2, 2)).cuda()
+        if self.model.device.type == "hpu":
+            torch.zeros((2, 2)).to("hpu")
         return generate_pb2.HealthResponse()
 
     async def ServiceDiscovery(self, request, context):
@@ -90,41 +97,17 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
-        if self.quantize in {"exl2", "gptq"}:
-            try:
-                # When using GPTQ, Exllama kernels need some global kernels
-                # For which we have the finale shapes only after the model has loaded
-                # This will allocate those buffers.
-                from text_generation_server.layers.gptq import (
-                    create_exllama_buffers,
-                    set_device,
-                )
 
-                set_device(self.model.device)
-                create_exllama_buffers(request.max_prefill_tokens)
-            except ImportError:
-                pass
+        max_supported_total_tokens = self.model.warmup(request)
+        return generate_pb2.WarmupResponse(max_supported_total_tokens=max_supported_total_tokens)
+        # else:
+        #     batch = self.model.batch_type.from_pb(
+        #         request.batch, self.model.tokenizer, self.model.dtype, self.model.device
+        #     )
 
-        if (
-            self.model.batch_type in VLM_BATCH_TYPES
-        ):  # Hack, i would rather use kwargs in the `from_pb` call
-            batch = self.model.batch_type.from_pb_processor(
-                request.batch,
-                self.model.tokenizer,
-                self.model.processor,
-                self.model.model.config,
-                self.model.dtype,
-                self.model.device,
-            )
-        else:
-            batch = self.model.batch_type.from_pb(
-                request.batch, self.model.tokenizer, self.model.dtype, self.model.device
-            )
-        max_supported_total_tokens = self.model.warmup(batch)
+        #     max_supported_total_tokens = self.model.warmup(batch)
+        #     return generate_pb2.WarmupResponse(max_supported_total_tokens=max_supported_total_tokens)
 
-        return generate_pb2.WarmupResponse(
-            max_supported_total_tokens=max_supported_total_tokens
-        )
 
     async def Prefill(self, request, context):
         start = time.time_ns()
@@ -144,7 +127,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 request.batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
 
-        generations, next_batch, timings = self.model.generate_token(batch)
+        generations, next_batch, timings = self.model.generate_token([batch])
         self.cache.set(next_batch)
 
         return generate_pb2.PrefillResponse(
@@ -170,21 +153,13 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         if len(batches) == 0:
             raise ValueError("All batches are empty")
 
-        if len(batches) > 1:
-            start_concat = time.time_ns()
-            batch = self.model.batch_type.concatenate(batches)
-            concat_ns = time.time_ns() - start_concat
-        else:
-            batch = batches[0]
-            concat_ns = None
-
-        generations, next_batch, timings = self.model.generate_token(batch)
+        generations, next_batch, timings = self.model.generate_token(batches)
         self.cache.set(next_batch)
 
         return generate_pb2.DecodeResponse(
             generations=[generation.to_pb() for generation in generations],
             batch=next_batch.to_pb() if next_batch else None,
-            concat_ns=concat_ns,
+            concat_ns=None,
             forward_ns=timings[0],
             decode_ns=timings[1],
             total_ns=time.time_ns() - start,
@@ -213,18 +188,31 @@ def serve(
         dtype: Optional[str] = None,
         trust_remote_code: bool = False,
     ):
+        if not is_driver_compatible():
+            logger.warning(f"Current Synapse version is lower than the minimum version supported: {MIN_TGI_GAUDI_SYNAPSE_VERSION}, this could result in failures")
+
         unix_socket_template = "unix://{}-{}"
         adapter_to_index = {}
+        logger.info("Server:server_inner: sharded ={}".format(sharded))
+
         if sharded:
+            rank = int(os.environ["RANK"])
+            logger.info("Server:server_inner: rank ={}".format(rank))
             server_urls = [
-                unix_socket_template.format(uds_path, rank)
-                for rank in range(int(os.environ["WORLD_SIZE"]))
+                unix_socket_template.format(uds_path, rank) for rank in range(int(os.environ["WORLD_SIZE"]))
             ]
             local_url = server_urls[int(os.environ["RANK"])]
         else:
             local_url = unix_socket_template.format(uds_path, 0)
             server_urls = [local_url]
 
+        logger.info("Server:server_inner: data type = {}, local_url = {}".format(dtype, local_url))
+        if dtype == "bfloat16" or None:
+            data_type = torch.bfloat16
+        else:
+            data_type = torch.float
+        if revision == "None":
+            revision = None
         try:
             model = get_model_with_lora_adapters(
                 model_id,
@@ -233,7 +221,7 @@ def serve(
                 sharded,
                 quantize,
                 speculate,
-                dtype,
+                data_type,
                 trust_remote_code,
                 max_input_tokens,
                 adapter_to_index,
@@ -271,6 +259,7 @@ def serve(
         while signal_handler.KEEP_PROCESSING:
             await asyncio.sleep(0.5)
 
+    set_model_id(model_id)
     asyncio.run(
         serve_inner(
             model_id,

@@ -3,7 +3,6 @@ import torch
 
 from datetime import timedelta
 from loguru import logger
-from text_generation_server.utils.import_utils import SYSTEM
 
 # Tensor Parallelism settings
 RANK = int(os.getenv("RANK", "0"))
@@ -45,6 +44,12 @@ class FakeGroup:
 
 
 def initialize_torch_distributed():
+    import habana_frameworks.torch.core as htcore
+
+    rank = int(os.getenv("RANK", "0"))
+    world_size = int(os.getenv("WORLD_SIZE", "1"))
+
+    options = None
     if torch.cuda.is_available():
         from torch.distributed import ProcessGroupNCCL
 
@@ -56,9 +61,21 @@ def initialize_torch_distributed():
         backend = "nccl"
         options = ProcessGroupNCCL.Options()
         options.is_high_priority_stream = True
-        options._timeout = timedelta(seconds=120)
+        options._timeout = timedelta(seconds=60)
+    elif torch.hpu.is_available():
+        backend = "hccl"
+        n_hpus = torch.hpu.device_count()
+        if world_size > n_hpus:
+            raise ValueError(f"WORLD_SIZE ({world_size}) is higher than the number of available HPUs ({n_hpus}).")
     else:
-        backend = "gloo"
+        try:
+            import oneccl_bindings_for_pytorch
+
+            backend = "ccl"
+            if os.getenv("CCL_WORKER_COUNT", None) is None:
+                os.environ["CCL_WORKER_COUNT"] = str(1)
+        except ImportError:
+            backend = "gloo"
         options = None
 
     if WORLD_SIZE == 1:
@@ -69,24 +86,13 @@ def initialize_torch_distributed():
 
         if not torch.distributed.is_initialized():
             # Call the init process.
-            if SYSTEM == "ipex":
-                import intel_extension_for_pytorch as ipex
-
-                ipex.distributed.init_process_group(
-                    backend="ccl",
-                    world_size=WORLD_SIZE,
-                    rank=RANK,
-                    timeout=timedelta(seconds=120),
-                    pg_options=options,
-                )
-            else:
-                torch.distributed.init_process_group(
-                    backend=backend,
-                    world_size=WORLD_SIZE,
-                    rank=RANK,
-                    timeout=timedelta(seconds=120),
-                    pg_options=options,
-                )
+            torch.distributed.init_process_group(
+                backend=backend,
+                world_size=WORLD_SIZE,
+                rank=RANK,
+                timeout=timedelta(seconds=60),
+                pg_options=options,
+            )
         else:
             logger.warning("torch.distributed is already initialized.")
 

@@ -247,10 +247,12 @@ class HeterogeneousNextTokenChooser:
         tokenizer: PreTrainedTokenizerBase,
         grammars: List[str],
         grammar_types: List[int],
-        fsm_grammar_states=List[int],
+        fsm_grammar_states:List[int],
+        quantization_enabled: bool,
     ):
         warpers = []
 
+        # TODO: enable watermark with FP8 quantization
         self.watermark_processor = (
             HeterogeneousProcessorWrapper(
                 {
@@ -259,7 +261,7 @@ class HeterogeneousNextTokenChooser:
                     if do_watermark
                 }
             )
-            if any(watermark)
+            if any(watermark) and not quantization_enabled
             else None
         )
 
@@ -431,6 +433,18 @@ class HeterogeneousNextTokenChooser:
             )
         return self
 
+    def advance_grammar_single_with_past_state(
+        self, grammar_state_index: int, next_id: torch.Tensor, past_state: int
+    ):
+        if self.grammar_processor is not None:
+            next_id = next_id.item()
+            self.fsm_grammar_states[grammar_state_index] = (
+                self.grammar_processor.advance_at_index(
+                    next_id, past_state, grammar_state_index,
+                )
+            )
+        return self
+
     def filter(self, indices):
         if self.watermark_processor is not None:
             self.watermark_processor = self.watermark_processor.filter(indices)
@@ -481,6 +495,7 @@ class HeterogeneousNextTokenChooser:
         device: torch.device,
         tokenizer: PreTrainedTokenizerBase,
         fsm_grammar_states: Optional[List[int]] = None,
+        quantization_enabled: bool = False,
     ) -> "HeterogeneousNextTokenChooser":
         return HeterogeneousNextTokenChooser(
             watermark=[pb_.watermark for pb_ in pb],
@@ -500,12 +515,37 @@ class HeterogeneousNextTokenChooser:
             fsm_grammar_states=(
                 fsm_grammar_states if fsm_grammar_states else [0] * len(pb)
             ),
+            quantization_enabled=quantization_enabled,
         )
+
+
+def pad_next_token_chooser_parameters(
+    parameters: List[generate_pb2.NextTokenChooserParameters],
+    expected_size: int,
+) -> List[generate_pb2.NextTokenChooserParameters]:
+    # disable all logits processors to minimize padding overhead
+    empty_parameters = generate_pb2.NextTokenChooserParameters(
+        temperature=1.0,
+        top_k=0,
+        top_p=1.0,
+        typical_p=1.0,
+        do_sample=False,
+        seed=0,
+        repetition_penalty=1.0,
+        frequency_penalty=0.0,
+        watermark=False,
+        grammar="",
+        grammar_type=0,
+    )
+    parameters.extend(
+        [empty_parameters] * (expected_size - len(parameters))
+    )
+    return parameters
 
 
 class Sampling:
     def __init__(self, seed: int, device: str = "cpu"):
-        self.generator = torch.Generator(device)
+        self.generator = torch.Generator("cpu")
         self.generator.manual_seed(seed)
         self.seed = seed
 
@@ -541,7 +581,7 @@ class HeterogeneousSampling:
         self.greedy = Greedy()
 
     def __call__(self, logits):
-        out = torch.empty(logits.shape[0], dtype=torch.int64, device=logits.device)
+        out = torch.zeros(logits.shape[0], dtype=torch.int64, device=logits.device)
         if self.greedy_indices:
             # Computing for all indices is faster than slicing
             torch.argmax(logits, -1, out=out)
@@ -643,3 +683,50 @@ def batch_top_tokens(
         batch_top_token_logprobs.append(row_top_token_logprobs)
 
     return batch_top_token_ids, batch_top_token_logprobs
+
+
+def make_tokenizer_optional(tokenizer):
+    class _(type(tokenizer)):
+        def __call__(
+            self,
+            text,
+            return_tensors,
+            padding,
+            return_token_type_ids,
+            truncation,
+            max_length
+        ):
+            assert return_tensors == "pt", "inccorrect input arguments when calling TransparentTokenizer"
+            assert padding == "max_length" or padding == "longest", "inccorrect input arguments when calling TransparentTokenizer"
+            assert return_token_type_ids == False, "inccorrect input arguments when calling TransparentTokenizer"
+            assert truncation == True, "inccorrect input arguments when calling TransparentTokenizer"
+
+            def str_token_to_int(i):
+                if i == '?':
+                    return tokenizer.pad_token_id
+                else:
+                    return int(i)
+            all_tokens = [[str_token_to_int(i.strip()) for i in inner_text.split(',')]
+                          for inner_text in text]
+            if padding == "longest":
+                max_length = max(len(tokens) for tokens in all_tokens)
+            return {"input_ids": torch.tensor([[tokenizer.pad_token_id] * (max_length - len(tokens)) + tokens for tokens in all_tokens]),
+                    "attention_mask": torch.tensor([[0] * (max_length - len(tokens)) + [1] * len(tokens) for tokens in all_tokens])}
+
+        def decode(
+            self,
+            token_ids,
+            skip_special_tokens: bool = False,
+            clean_up_tokenization_spaces: bool = None,
+            **kwargs,
+        ) -> str:
+            return ','.join(str(i) for i in to_py_obj(token_ids))
+
+    import os
+    if os.getenv("SKIP_TOKENIZER_IN_TGI", "false").lower() == "true":
+        tokenizer.__class__ = _
+        tokenizer.is_transparent = True
+
+
+def is_tokenizer_transparent(tokenizer):
+    return hasattr(tokenizer, "is_transparent") and tokenizer.is_transparent is True

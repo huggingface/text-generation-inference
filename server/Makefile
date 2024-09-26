@@ -4,10 +4,6 @@ include Makefile-vllm
 include Makefile-awq
 include Makefile-eetq
 include Makefile-selective-scan
-include Makefile-lorax-punica
-include Makefile-fbgemm
-include Makefile-exllamav2
-include Makefile-flashinfer
 
 unit-tests:
 	pytest -s -vv -m "not private" tests
@@ -21,25 +17,20 @@ gen-server:
 	find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
 	touch text_generation_server/pb/__init__.py
 
-install-server: gen-server
+install: gen-server
 	pip install pip --upgrade
-	pip install -r requirements_cuda.txt
-	pip install -e ".[accelerate, quantize, peft, outlines]"
-
-
-install: install-cuda
-	echo "Installed server"
-
-install-cuda: install-server install-flash-attention-v2-cuda install-vllm-cuda install-flash-attention install-fbgemm
-	pip install -e ".[bnb]"
-	pip install nvidia-nccl-cu12==2.22.3
-
-install-rocm: install-server install-flash-attention-v2-rocm  install-vllm-rocm
+	pip install -r requirements.txt
+	pip install -e "."
 
 run-dev:
 	SAFETENSORS_FAST_GPU=1 python -m torch.distributed.run --nproc_per_node=2 text_generation_server/cli.py serve bigscience/bloom-560m --sharded
 
+install-poetry:
+	curl -sSL https://install.python-poetry.org | python3 -
+
+update-lock:
+	rm poetry.lock
+	poetry lock --no-update
+
 export-requirements:
-	poetry export -o requirements_cuda.txt --without-hashes
-	poetry export -o requirements_rocm.txt --without-hashes
-	poetry export -o requirements_intel.txt --without-hashes
+	poetry export -o requirements.txt --without-hashes

@@ -1,36 +1,9 @@
 import torch
 import os
-from loguru import logger
 from typing import Dict, Optional
 
-from text_generation_server.utils.log import log_master
-
-PREFIX_CACHING = os.getenv("USE_PREFIX_CACHING").lower() in {"1", "true"}
-log_master(logger.info, f"Using prefix caching = {PREFIX_CACHING}")
-ATTENTION = os.getenv("ATTENTION")
-_expected = {"paged", "flashdecoding", "flashinfer"}
-assert (
-    ATTENTION in _expected
-), f"Attention is not valid {ATTENTION}, expected {_expected}"
-log_master(logger.info, f"Using Attention = {ATTENTION}")
-
-if PREFIX_CACHING and ATTENTION not in {"flashinfer", "flashdecoding"}:
-    raise RuntimeError("Prefix caching is only supported with flashinfer")
-
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
-TGI_WIGGLE_ROOM = float(os.getenv("TGI_WIGGLE_ROOM", "0.95"))
-assert TGI_WIGGLE_ROOM > 0
-assert TGI_WIGGLE_ROOM < 1
-
 # This is overridden by the cli
-BLOCK_SIZE: int
-if ATTENTION == "flashdecoding":
-    BLOCK_SIZE = 256
-elif ATTENTION == "flashinfer":
-    BLOCK_SIZE = 1
-else:
-    BLOCK_SIZE = 16
-
 cuda_graphs = os.getenv("CUDA_GRAPHS")
 if cuda_graphs is not None:
     try:
@@ -41,12 +14,17 @@ if cuda_graphs is not None:
         )
 else:
     cuda_graphs = None
-# sorting the cuda graphs in descending order helps reduce the
-# memory impact and results in less memory usage
-if cuda_graphs is not None:
-    cuda_graphs.sort(reverse=True)
 
 CUDA_GRAPHS = cuda_graphs
+
+# This is overridden at model loading.
+global MODEL_ID
+MODEL_ID = None
+
+
+def set_model_id(model_id: str):
+    global MODEL_ID
+    MODEL_ID = model_id
 
 # NOTE: eventually we should move this into the router and pass back the
 # index in all cases.
