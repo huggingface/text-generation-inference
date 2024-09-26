@@ -16,6 +16,7 @@ option(TGI_BUILD_CCL "Flag to enable/disable build of tgiccl collective library"
 
 # Add some modules
 include(FetchContent)
+include(cmake/spdlog.cmake)
 
 # Let's find LibTorch
 include(cmake/torch.cmake)
@@ -28,6 +29,5 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 # Include submodules
 if (${TGI_BUILD_CCL})
-    include(cmake/nvshmem.cmake)
     add_subdirectory(tgiccl)
 endif ()
