@@ -50,7 +50,8 @@ def use_prefill_with_paged_kv_state(
     num_kv_heads: int,
     head_size: int,
     page_size: int,
-    query_dtype: str = "float16",
+    dtype: torch.dtype,
+    window_left: int,
 ):
     """
     Context manager to set the active flashinfer prefill state to the given
@@ -90,8 +91,9 @@ def use_prefill_with_paged_kv_state(
             num_qo_heads=num_heads,
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
-            q_data_type=query_dtype,
+            q_data_type=dtype,
             page_size=page_size,
+            window_left=window_left,
         )
         yield
     finally:
@@ -119,7 +121,8 @@ def use_prefill_state(
     num_heads: int,
     num_kv_heads: int,
     head_size: int,
-    query_dtype: str = "float16",
+    dtype: torch.dtype,
+    window_left: int,
 ):
     """
     Context manager to set the active flashinfer prefill state to the given
@@ -135,7 +138,8 @@ def use_prefill_state(
             num_qo_heads=num_heads,
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
-            q_data_type=query_dtype,
+            q_data_type=dtype,
+            window_left=window_left,
         )
         yield
     finally:
@@ -200,7 +204,8 @@ def use_decode_state(
     num_kv_heads: int,
     head_size: int,
     page_size: int,
-    query_dtype: str = "float16",
+    dtype: torch.dtype,
+    window_left: int,
 ):
     """
     Context manager to set the active flashinfer decoding state to the given
@@ -235,7 +240,9 @@ def use_decode_state(
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
             page_size=page_size,
-            q_data_type=query_dtype,
+            data_type=dtype,
+            q_data_type=dtype,
+            window_left=window_left,
         )
         yield
     finally:
