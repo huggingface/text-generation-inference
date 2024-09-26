@@ -74,6 +74,14 @@ class Tokens:
     def __len__(self):
         return len(self.token_ids)
 
+    def __add__(self, other: "Tokens") -> "Tokens":
+        return Tokens(
+            self.token_ids + other.token_ids,
+            self.logprobs + other.logprobs,
+            self.texts + other.texts,
+            self.is_special + other.is_special,
+        )
+
 
 @dataclass
 class Generation:
