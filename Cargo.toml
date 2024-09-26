@@ -33,6 +33,7 @@ metrics = { version = "0.23.0" }
 metrics-exporter-prometheus = { version = "0.15.1", features = [] }
 minijinja = { version = "2.2.0", features = ["json"] }
 minijinja-contrib = { version = "2.0.2", features = ["pycompat"] }
+pyo3 = { version = "0.22.2", features = ["auto-initialize"] }
 
 [profile.release]
 incremental = true
