@@ -58,3 +58,6 @@ jobs:
       - name: Run Rust tests
         run: |
           cargo test
+      - name: Run Rust tests with google feature
+        run: |
+          cargo test --features google
