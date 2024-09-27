@@ -13,7 +13,9 @@ if SYSTEM == "rocm":
         try:
             from vllm import _custom_C
         except Exception as e:
-            raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
+            raise ImportError(
+                f"Could not load `vllm._custom_C` for ROCm skinny gemm. Full error: {e}"
+            )
 
 
 class FastLinear(torch.nn.Module):
