@@ -1,9 +1,9 @@
 use std::sync::LazyLock;
 
-pub static COMPUTE_CAPABILITY: LazyLock<Option<(isize, isize)>> =
+pub static COMPUTE_CAPABILITY: LazyLock<Option<(usize, usize)>> =
     LazyLock::new(get_cuda_capability);
 
-fn get_cuda_capability() -> Option<(isize, isize)> {
+fn get_cuda_capability() -> Option<(usize, usize)> {
     use pyo3::prelude::*;
 
     let py_get_capability = |py: Python| -> PyResult<(isize, isize)> {
@@ -13,7 +13,11 @@ fn get_cuda_capability() -> Option<(isize, isize)> {
     };
 
     match pyo3::Python::with_gil(py_get_capability) {
-        Ok(capability) => Some(capability),
+        Ok((major, minor)) if major < 0 || minor < 0 => {
+            tracing::warn!("Ignoring negative GPU compute capabilities: {major}.{minor}");
+            None
+        }
+        Ok((major, minor)) => Some((major as usize, minor as usize)),
         Err(err) => {
             tracing::warn!("Cannot determine GPU compute capability: {}", err);
             None
