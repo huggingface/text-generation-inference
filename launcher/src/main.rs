@@ -26,6 +26,7 @@ use thiserror::Error;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod env_runtime;
+mod gpu;
 
 fn get_config(
     model_id: &str,
@@ -65,6 +66,7 @@ fn get_config(
 }
 
 fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
+    let compute_capability = *gpu::COMPUTE_CAPABILITY;
     let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
     let mut attention: Option<String> = std::env::var("ATTENTION").ok();
     if let Some(config) = config {
@@ -77,6 +79,13 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                 prefix_caching = Some("0".to_string());
             }
         }
+
+        let fallback_attention = if matches!(compute_capability, Some((major, _)) if major < 8) {
+            "paged"
+        } else {
+            "flashdecoding"
+        };
+
         match config.head_dim {
             Some(h) if h == 64 || h == 128 || h == 256 => {
                 if lora_adapters.is_some() && prefix_caching.is_none() {
@@ -89,10 +98,14 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                         // flashinfer ?
                         if attention.is_none() {
                             tracing::info!(
-                                "Forcing flash decoding because model {} requires it",
+                                "Forcing attention to '{fallback_attention}' because model {} requires it",
                                 config.model_type.as_ref().unwrap()
                             );
-                            attention = Some("flashdecoding".to_string());
+                            attention = Some(fallback_attention.to_string());
+                        }
+                        if fallback_attention == "paged" && prefix_caching.is_none() {
+                            tracing::info!("Disabling prefix caching because it is not supported with 'paged' attention");
+                            prefix_caching = Some("0".to_string());
                         }
                     }
                     Some("t5") => {}
@@ -101,8 +114,8 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             }
             _ => {
                 if attention.is_none() {
-                    tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
-                    attention = Some("flashdecoding".to_string());
+                    tracing::info!("Forcing attention to '{fallback_attention}' because head dim is not supported by flashinfer, also disabling prefix caching");
+                    attention = Some(fallback_attention.to_string());
                 }
                 if prefix_caching.is_none() {
                     prefix_caching = Some("0".to_string());
@@ -110,8 +123,10 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             }
         }
     }
-    let prefix_caching = prefix_caching.unwrap_or("true".to_string());
+
     let attention = attention.unwrap_or("flashinfer".to_string());
+    let prefix_caching = prefix_caching.unwrap_or("true".to_string());
+
     (prefix_caching, attention)
 }
 

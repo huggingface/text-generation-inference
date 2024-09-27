@@ -39,6 +39,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -297,8 +298,8 @@ class FlashCohereAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else key,
-                kv_cache[1] if SYSTEM != "ipex" else value,
+                kv_cache[0] if PREFILL_IN_KV_CACHE else key,
+                kv_cache[1] if PREFILL_IN_KV_CACHE else value,
                 seqlen,
                 block_tables,
                 self.softmax_scale,

@@ -41,6 +41,7 @@ from text_generation_server.layers import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -218,8 +219,8 @@ class MistralAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else kv_to_cache[:, 0],
-                kv_cache[1] if SYSTEM != "ipex" else kv_to_cache[:, 1],
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,

@@ -4243,6 +4243,7 @@ dependencies = [
  "hf-hub",
  "nix 0.28.0",
  "once_cell",
+ "pyo3",
  "reqwest",
  "serde",
  "serde_json",

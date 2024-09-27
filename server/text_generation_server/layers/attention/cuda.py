@@ -287,16 +287,14 @@ elif V2:
 else:
 
     def attention(
-        q,
-        k,
-        v,
-        key_cache: torch.Tensor,
-        value_cache: torch.Tensor,
-        cu_seqlens,
-        max_s,
-        softmax_scale,
-        window_size_left=-1,
-        causal=None,
+        q: torch.Tensor,
+        k: torch.Tensor,
+        v: torch.Tensor,
+        seqlen: Seqlen,
+        block_tables: torch.Tensor,
+        softmax_scale: float,
+        window_size_left: int = -1,
+        causal: bool = True,
         softcap=None,
     ):
         if window_size_left != -1:
@@ -338,16 +336,22 @@ else:
             k,
             v,
             out,
-            cu_seqlens,
-            cu_seqlens,
-            max_s,
-            max_s,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_q,
+            seqlen.max_q,
+            seqlen.max_k,
             0.0,
             softmax_scale,
             False,
-            True,
+            causal,
             False,
             0,
             None,
         )
         return out
+
+
+# Prefill in the cache with every kind of attention, unless we
+# have a configuration that requires flash-attention v1, which
+# does not support block tables.
+PREFILL_IN_KV_CACHE = ATTENTION != "paged" or V2
