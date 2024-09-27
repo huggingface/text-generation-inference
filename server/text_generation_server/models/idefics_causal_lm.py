@@ -6,6 +6,9 @@ import time
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import (
+    AutoConfig,
+    AutoProcessor,
+    AutoTokenizer,
     PreTrainedTokenizerBase,
     ProcessorMixin,
 )
@@ -20,6 +23,18 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+import torch.distributed
+from text_generation_server.models.custom_modeling.idefics_modeling import (
+    IdeficsForVisionText2Text,
+)
+from text_generation_server.utils import (
+    initialize_torch_distributed,
+    weight_files,
+    Weights,
+)
+from text_generation_server.utils.quantization import get_loader
+
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 tracer = trace.get_tracer(__name__)
@@ -36,9 +51,6 @@ class IdeficsCausalLMBatch(Batch):
     attention_mask: torch.Tensor
     position_ids: torch.Tensor
     pixel_values: Optional[torch.Tensor]
-    aspect_ratio_ids: Optional[torch.Tensor]
-    aspect_ratio_mask: Optional[torch.Tensor]
-    cross_attention_mask: Optional[torch.Tensor]
     image_hidden_states: Optional[torch.Tensor]
     image_attention_mask: Optional[torch.Tensor]
     past_key_values: Optional[List[Tuple]]
@@ -121,69 +133,33 @@ class IdeficsCausalLMBatch(Batch):
             )
 
         # TODO Check impact on idefics
+        prompts = []
+        for inp in inputs:
+            # Each input is encoded into a list, where each element of this input list is either a string or a URL
+            prompt = []
+            for chunk in inp:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    prompt.append(chunk.text)
+                elif chunk_type == "image":
+                    image = Image.open(BytesIO(chunk.image.data))
+                    prompt.append(image)
+                else:
+                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
+            prompts.append(prompt)
 
-        if config.model_type == "idefics":
-            prompts = []
-            for inp in inputs:
-                # Each input is encoded into a list, where each element of this input list is either a string or a URL
-                prompt = []
-                for chunk in inp:
-                    chunk_type = chunk.WhichOneof("chunk")
-                    if chunk_type == "text":
-                        prompt.append(chunk.text)
-                    elif chunk_type == "image":
-                        image = Image.open(BytesIO(chunk.image.data))
-                        prompt.append(image)
-                    else:
-                        raise RuntimeError(f"Invalid chunk type {chunk_type}")
-                prompts.append(prompt)
-
-            # The processor replaces the call to tokenizer, and
-            # a/ takes care of fetching images from the URL
-            # b/ generate the correct input_ids, attention_mask, pixel_values, image_attention_mask to feed to the model
-            tokenized_inputs = processor(
-                prompts,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=max_truncation,
-                # TODO Check impact on idefics
-                # add_end_of_utterance_token=False,  # Already taken care of inside the prompts, so bypassing the processor's handling of this token
-            ).to(device)
-        else:
-            images = []
-            texts = []
-            for inp in inputs:
-                # Each input is encoded into a list, where each element of this input list is either a string or a URL
-                curr_images = []
-                curr_text = ""
-                for chunk in inp:
-                    chunk_type = chunk.WhichOneof("chunk")
-                    if chunk_type == "text":
-                        curr_text += chunk.text
-                    elif chunk_type == "image":
-                        image = Image.open(BytesIO(chunk.image.data))
-                        curr_images.append(image)
-                        # TODO unsure about BOS
-                        curr_text += "<|image|>"
-                    else:
-                        raise RuntimeError(f"Invalid chunk type {chunk_type}")
-                images.append(curr_images)
-                texts.append(curr_text)
-
-            # The processor replaces the call to tokenizer, and
-            # a/ takes care of fetching images from the URL
-            # b/ generate the correct input_ids, attention_mask, pixel_values, image_attention_mask to feed to the model
-            if all(len(im) == 0 for im in images):
-                images = None
-            tokenized_inputs = processor(
-                images=images,
-                text=texts,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=max_truncation,
-            ).to(device)
+        # The processor replaces the call to tokenizer, and
+        # a/ takes care of fetching images from the URL
+        # b/ generate the correct input_ids, attention_mask, pixel_values, image_attention_mask to feed to the model
+        tokenized_inputs = processor(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_truncation,
+            # TODO Check impact on idefics
+            # add_end_of_utterance_token=False,  # Already taken care of inside the prompts, so bypassing the processor's handling of this token
+        ).to(device)
         for _ in pb.requests:
             input_len = tokenized_inputs["input_ids"].shape[1]
             prefix_offsets.append(
@@ -208,10 +184,7 @@ class IdeficsCausalLMBatch(Batch):
         # Do the same for image_attention_mask
         if pixel_values is None:
             image_attention_mask = None
-            aspect_ratio_ids = None
-            aspect_ratio_mask = None
-            cross_attention_mask = None
-        elif "image_attention_mask" in tokenized_inputs:
+        else:
             image_attention_mask = input_ids.new_zeros(
                 (
                     pb.size,
@@ -222,21 +195,6 @@ class IdeficsCausalLMBatch(Batch):
             image_attention_mask[:, :max_input_length, :] = tokenized_inputs[
                 "image_attention_mask"
             ]
-            aspect_ratio_ids = None
-            aspect_ratio_mask = None
-            cross_attention_mask = None
-        elif "cross_attention_mask" in tokenized_inputs:
-            image_attention_mask = None
-            aspect_ratio_ids = tokenized_inputs["aspect_ratio_ids"]
-            aspect_ratio_mask = tokenized_inputs["aspect_ratio_mask"]
-            cross_attention_mask = tokenized_inputs["cross_attention_mask"]
-            pixel_values = pixel_values.to(dtype=dtype)
-            # XXX: <|image|> token is actually out of bounds and bugs out the logit processors.
-            tokenized_inputs["input_ids"] = tokenized_inputs["input_ids"].clamp(
-                max=processor.tokenizer.vocab_size - 1
-            )
-        else:
-            raise RuntimeError("Unhandled state for idefics/mllama")
 
         position_ids = tokenized_inputs["attention_mask"].long().cumsum(-1) - 1
         position_ids.masked_fill_(tokenized_inputs["attention_mask"] == 0, 1)
@@ -266,9 +224,6 @@ class IdeficsCausalLMBatch(Batch):
             max_input_length=max_input_length.item(),
             padding_right_offset=padding_right_offset,
             max_tokens=max_tokens,
-            aspect_ratio_ids=aspect_ratio_ids,
-            aspect_ratio_mask=aspect_ratio_mask,
-            cross_attention_mask=cross_attention_mask,
         )
 
     @tracer.start_as_current_span("filter")
@@ -332,21 +287,15 @@ class IdeficsCausalLMBatch(Batch):
             + new_padding_right_offset,
         ]
         # Do the same for pixel_values and image_attention_mask
-        if self.pixel_values is not None:
-            pixel_values = self.pixel_values[keep_indices]
-        else:
-            pixel_values = None
-
-        if self.image_attention_mask is not None:
-            self.image_attention_mask = self.image_attention_mask[
-                keep_indices,
-                -(self.padding_right_offset + max_input_length) : (
-                    self.image_attention_mask.shape[1] - self.padding_right_offset
-                )
-                + new_padding_right_offset,
-                :,
-            ]
-
+        pixel_values = self.pixel_values[keep_indices]
+        self.image_attention_mask = self.image_attention_mask[
+            keep_indices,
+            -(self.padding_right_offset + max_input_length) : (
+                self.image_attention_mask.shape[1] - self.padding_right_offset
+            )
+            + new_padding_right_offset,
+            :,
+        ]
         if self.image_hidden_states is None:
             image_hidden_states = None
         else:
@@ -360,15 +309,7 @@ class IdeficsCausalLMBatch(Batch):
         past_kv_length = max_input_length - 1
         for layer in self.past_key_values:
             past_keys, past_values = layer
-            if not isinstance(past_keys, torch.Tensor):
-                past_keys = [k for i, k in enumerate(past_keys) if i in keep_indices]
-                past_values = [
-                    k for i, k in enumerate(past_values) if i in keep_indices
-                ]
-                layer[0] = past_keys
-                layer[1] = past_values
-                continue
-            elif len(past_keys.shape) == 3:
+            if len(past_keys.shape) == 3:
                 # Force past to be of dim [self_size, num_heads, ...] for easy indexing
                 past_keys = past_keys.view(len(self), -1, *past_keys.shape[-2:])
                 past_values = past_values.view(len(self), -1, *past_values.shape[-2:])
@@ -397,9 +338,6 @@ class IdeficsCausalLMBatch(Batch):
         self.max_input_length = max_input_length
         self.padding_right_offset = new_padding_right_offset
         self.max_tokens = max_tokens
-        self.aspect_ratio_ids = None
-        self.aspect_ratio_mask = None
-        self.cross_attention_mask = None
 
         return self
 
@@ -417,8 +355,7 @@ class IdeficsCausalLMBatch(Batch):
         for batch in batches:
             total_batch_size += len(batch)
             max_input_length = max(max_input_length, batch.max_input_length)
-            if batch.pixel_values is not None:
-                max_num_images = max(max_num_images, batch.pixel_values.size(1))
+            max_num_images = max(max_num_images, batch.pixel_values.size(1))
             padding_right_offset = max(padding_right_offset, batch.padding_right_offset)
 
         # Batch attributes
@@ -481,19 +418,16 @@ class IdeficsCausalLMBatch(Batch):
                     (total_batch_size, max_input_length + padding_right_offset),
                 )
 
-            if batch.pixel_values is not None:
-                curr_batch_max_num_images = batch.pixel_values.size(1)
-                if pixel_values is None:
-                    pixel_values = batch.pixel_values.new_zeros(
-                        (total_batch_size, max_num_images, 3, 224, 224)
-                    )
-                pixel_values[start_index:end_index, :curr_batch_max_num_images] = (
-                    batch.pixel_values
+            curr_batch_max_num_images = batch.pixel_values.size(1)
+            if pixel_values is None:
+                pixel_values = batch.pixel_values.new_zeros(
+                    (total_batch_size, max_num_images, 3, 224, 224)
                 )
-            else:
-                pixel_values = None
+            pixel_values[start_index:end_index, :curr_batch_max_num_images] = (
+                batch.pixel_values
+            )
 
-            if image_attention_mask is None and batch.image_attention_mask is not None:
+            if image_attention_mask is None:
                 image_attention_mask = batch.image_attention_mask.new_zeros(
                     (
                         total_batch_size,
@@ -517,14 +451,13 @@ class IdeficsCausalLMBatch(Batch):
                 :,
                 batch_left_offset : -batch.padding_right_offset,
             ]
-            if batch.image_attention_mask is not None:
-                image_attention_mask[
-                    start_index:end_index,
-                    left_offset:-padding_right_offset,
-                    :curr_batch_max_num_images,
-                ] = batch.image_attention_mask[
-                    :, batch_left_offset : -batch.padding_right_offset, :
-                ]
+            image_attention_mask[
+                start_index:end_index,
+                left_offset:-padding_right_offset,
+                :curr_batch_max_num_images,
+            ] = batch.image_attention_mask[
+                :, batch_left_offset : -batch.padding_right_offset, :
+            ]
 
             # Create empty tensor
             # position_ids is always of shape [batch_size, 1]
@@ -538,14 +471,7 @@ class IdeficsCausalLMBatch(Batch):
             # And ensure that we can update tensors in-place
             if isinstance(batch.past_key_values[0], tuple):
                 batch.past_key_values = [
-                    [
-                        (
-                            t.view(len(batch), -1, *t.shape[-2:])
-                            if isinstance(t, torch.Tensor)
-                            else t
-                        )
-                        for t in layer
-                    ]
+                    [t.view(len(batch), -1, *t.shape[-2:]) for t in layer]
                     for layer in batch.past_key_values
                 ]
             elif len(batch.past_key_values[0][0].shape) == 3:
@@ -584,98 +510,52 @@ class IdeficsCausalLMBatch(Batch):
         # Iterate over attention layers
         # Concatenate past key values layer by layer to allow incremental garbage collection
         for j in range(len(first_past_kvs)):
-            if any(
-                not isinstance(batch.past_key_values[j][0], torch.Tensor)
-                for batch in batches
-            ):
-                # XXX: Special handling for cross attention for mllama
-                padded_past_keys = [
-                    k for batch in batches for k in batch.past_key_values[j][0]
-                ]
-                padded_past_values = [
-                    k for batch in batches for k in batch.past_key_values[j][1]
-                ]
-                past_key_values.append([padded_past_keys, padded_past_values])
-            else:
-                _, _num_heads, seqlen, _head_dim = first_past_kvs[j][0].shape
-                if seqlen > max_input_length:
-                    # XXX: This is probably a cross attention key value
-                    # If not this is ok
-                    _padded_past_keys_shape = (
-                        total_batch_size,
-                        _num_heads,
-                        seqlen,
-                        _head_dim,
+            padded_past_keys = first_past_kvs[j][0].new_zeros(padded_past_keys_shape)
+            start_index = 0
+            for batch in batches:
+                past_keys = batch.past_key_values[j][0]
+                # Clear reference to the original tensor
+                batch.past_key_values[j][0] = None
+
+                # Slicing end index for this batch
+                end_index = start_index + len(batch)
+                # We slice the keys to remove the padding from previous batches
+                past_seq_len = batch.max_input_length - 1
+                if batch.keys_head_dim_last:
+                    padded_past_keys[start_index:end_index, :, -past_seq_len:, :] = (
+                        past_keys[:, :, -past_seq_len:, :]
                     )
                 else:
-                    _padded_past_keys_shape = padded_past_keys_shape
-
-                padded_past_keys = first_past_kvs[j][0].new_zeros(
-                    _padded_past_keys_shape
-                )
-                start_index = 0
-                for batch in batches:
-                    past_keys = batch.past_key_values[j][0]
-                    # Clear reference to the original tensor
-                    batch.past_key_values[j][0] = None
-
-                    # Slicing end index for this batch
-                    end_index = start_index + len(batch)
-                    # We slice the keys to remove the padding from previous batches
-                    past_seq_len = batch.max_input_length - 1
-                    if past_keys.shape[2] > past_seq_len:
-                        # XXX: This is a cross attention kv in mllama
-                        past_seq_len = past_keys.shape[2]
-                    if batch.keys_head_dim_last:
-                        padded_past_keys[
-                            start_index:end_index, :, -past_seq_len:, :
-                        ] = past_keys[:, :, -past_seq_len:, :]
-                    else:
-                        # BLOOM case
-                        padded_past_keys[
-                            start_index:end_index, :, :, -past_seq_len:
-                        ] = past_keys[:, :, :, -past_seq_len:]
-                    del past_keys
-
-                    start_index = end_index
-
-                _, _num_heads, seqlen, _head_dim = first_past_kvs[j][1].shape
-                if seqlen > max_input_length:
-                    # XXX: This is probably a cross attention key value
-                    # If not this is ok
-                    _padded_past_values_shape = (
-                        total_batch_size,
-                        _num_heads,
-                        seqlen,
-                        _head_dim,
+                    # BLOOM case
+                    padded_past_keys[start_index:end_index, :, :, -past_seq_len:] = (
+                        past_keys[:, :, :, -past_seq_len:]
                     )
-                else:
-                    _padded_past_values_shape = padded_past_values_shape
-                padded_past_values = first_past_kvs[j][1].new_zeros(
-                    _padded_past_values_shape
+                del past_keys
+
+                start_index = end_index
+
+            padded_past_values = first_past_kvs[j][1].new_zeros(
+                padded_past_values_shape
+            )
+            start_index = 0
+            for batch in batches:
+                past_values = batch.past_key_values[j][1]
+                # Clear reference to the original tensor
+                batch.past_key_values[j][1] = None
+
+                # Slicing end index for this batch
+                end_index = start_index + len(batch)
+                # We slice the past values to remove the padding from previous batches
+                past_seq_len = batch.max_input_length - 1
+                padded_past_values[start_index:end_index, :, -past_seq_len:, :] = (
+                    past_values[:, :, -past_seq_len:, :]
                 )
-                start_index = 0
-                for batch in batches:
-                    past_values = batch.past_key_values[j][1]
-                    # Clear reference to the original tensor
-                    batch.past_key_values[j][1] = None
+                del past_values
 
-                    # Slicing end index for this batch
-                    end_index = start_index + len(batch)
-                    # We slice the past values to remove the padding from previous batches
-                    past_seq_len = batch.max_input_length - 1
-                    if past_values.shape[2] > past_seq_len:
-                        # XXX: This is a cross attention kv in mllama
-                        past_seq_len = past_values.shape[2]
-                    padded_past_values[start_index:end_index, :, -past_seq_len:, :] = (
-                        past_values[:, :, -past_seq_len:, :]
-                    )
-                    del past_values
+                # Update values
+                start_index = end_index
 
-                    # Update values
-                    start_index = end_index
-
-                past_key_values.append([padded_past_keys, padded_past_values])
+            past_key_values.append([padded_past_keys, padded_past_values])
 
         return cls(
             batch_id=batches[0].batch_id,
@@ -698,10 +578,6 @@ class IdeficsCausalLMBatch(Batch):
             padding_right_offset=padding_right_offset,
             keys_head_dim_last=batches[0].keys_head_dim_last,
             max_tokens=max_tokens,
-            # No need to keep this around. for Mllamma
-            aspect_ratio_ids=None,
-            aspect_ratio_mask=None,
-            cross_attention_mask=None,
         )
 
     def __len__(self):
@@ -709,6 +585,88 @@ class IdeficsCausalLMBatch(Batch):
 
 
 class IdeficsCausalLM(Model):
+    def __init__(
+        self,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
+    ):
+        self.quantize = quantize
+        self.process_group, rank, world_size = initialize_torch_distributed()
+        if torch.cuda.is_available():
+            device = torch.device(f"cuda:{rank}")
+            # 9b seems to work correctly enough in float16, but 80b seems
+            # to be really saturating for f16.
+            dtype = torch.float16 if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = torch.float16 if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                # Float16 doesn't exist on target.
+                dtype = torch.bfloat16 if dtype is None else dtype
+        else:
+            device = torch.device("cpu")
+            dtype = torch.float32 if dtype is None else dtype
+        self.device, self.dtype = device, dtype
+
+        config = AutoConfig.from_pretrained(
+            model_id,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+        )
+        config.quantize = quantize
+        config.speculator = speculator
+        config.vision_config.quantize = quantize
+
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
+        self.processor = AutoProcessor.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
+
+        weights_loader = get_loader(
+            quantize=quantize, model_id=model_id, revision=revision
+        )
+        torch.distributed.barrier(group=self.process_group)
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
+        weights = Weights(
+            filenames,
+            device=device,
+            dtype=dtype,
+            process_group=self.process_group,
+            weights_loader=weights_loader,
+        )
+
+        model = IdeficsForVisionText2Text(config, weights)
+
+        self.config = config
+
+        torch.distributed.barrier(group=self.process_group)
+        super().__init__(
+            model_id=model_id,
+            model=model,
+            tokenizer=tokenizer,
+            requires_padding=True,
+            dtype=dtype,
+            device=device,
+            rank=rank,
+            world_size=world_size,
+        )
+
     @property
     def batch_type(self) -> Type[IdeficsCausalLMBatch]:
         return IdeficsCausalLMBatch
@@ -722,9 +680,6 @@ class IdeficsCausalLM(Model):
         image_hidden_states,
         image_attention_mask,
         past_key_values: Optional = None,
-        aspect_ratio_ids=None,
-        aspect_ratio_mask=None,
-        cross_attention_mask=None,
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
         # Model Forward
         kwargs = {
@@ -734,23 +689,18 @@ class IdeficsCausalLM(Model):
             "image_hidden_states": image_hidden_states,
             "image_attention_mask": image_attention_mask,
             "past_key_values": past_key_values,
+            "use_cache": True,
+            "return_dict": True,
         }
         if self.has_position_ids:
             kwargs["position_ids"] = position_ids
-        if aspect_ratio_ids is not None:
-            kwargs["aspect_ratio_ids"] = aspect_ratio_ids
-        if aspect_ratio_mask is not None:
-            kwargs["aspect_ratio_mask"] = aspect_ratio_mask
-        if cross_attention_mask is not None:
-            kwargs["cross_attention_mask"] = cross_attention_mask
 
         outputs, speculative_logits = self.model.forward(**kwargs)
-        assert outputs.past_key_values is not None
         return (
             outputs.logits,
             speculative_logits,
             outputs.past_key_values,
-            getattr(outputs, "image_hidden_states", None),
+            outputs.image_hidden_states,
         )
 
     @tracer.start_as_current_span("generate_token")
@@ -785,13 +735,9 @@ class IdeficsCausalLM(Model):
             image_hidden_states=batch.image_hidden_states,
             image_attention_mask=image_attention_mask,
             past_key_values=batch.past_key_values,
-            aspect_ratio_ids=batch.aspect_ratio_ids,
-            aspect_ratio_mask=batch.aspect_ratio_mask,
-            cross_attention_mask=batch.cross_attention_mask,
         )
         # Hardcoded remove image tokens
-        if self.config.model_type == "idefics":
-            logits[:, 32000:32001] = torch.finfo(logits.dtype).min
+        logits[:, 32000:32001] = torch.finfo(logits.dtype).min
 
         start_decode = time.time_ns()
 
@@ -935,12 +881,9 @@ class IdeficsCausalLM(Model):
 
         # Update attention_mask as we added a new token to input_ids
         batch.attention_mask[:, -batch.padding_right_offset] = 1
-        if batch.image_attention_mask is not None:
-            batch.image_attention_mask[:, -batch.padding_right_offset, :] = (
-                batch.image_attention_mask[:, -(batch.padding_right_offset + 1), :]
-            )
-        if batch.cross_attention_mask is not None:
-            batch.cross_attention_mask = batch.cross_attention_mask[:, -1:]
+        batch.image_attention_mask[:, -batch.padding_right_offset, :] = (
+            batch.image_attention_mask[:, -(batch.padding_right_offset + 1), :]
+        )
         # Decrease right offset
         batch.padding_right_offset -= 1
 
@@ -950,8 +893,7 @@ class IdeficsCausalLM(Model):
         # Update past key values
         batch.past_key_values = past
         batch.image_hidden_states = image_hidden_states
-        if self.model.config.model_type == "mllama":
-            batch.pixel_values = None
+
         forward_ns = start_decode - start
         decode_ns = time.time_ns() - start_decode
         return generations, batch, (forward_ns, decode_ns)

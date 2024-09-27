@@ -29,7 +29,7 @@ impl ChatTemplate {
         env.set_unknown_method_callback(pycompat::unknown_method_callback);
         let template_str = template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
-        tracing::debug!("Loading template: {:#?}", template_str);
+        tracing::debug!("Loading template: {}", template_str);
 
         // leaking env and template_str as read-only, static resources for performance.
         let template = Box::leak(env)

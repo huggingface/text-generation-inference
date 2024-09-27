@@ -22,8 +22,14 @@ try:
         VlmCausalLMBatch,
     )
     from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
+    from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
 
-    VLM_BATCH_TYPES = {PaliGemmaBatch, VlmCausalLMBatch, IdeficsCausalLMBatch}
+    VLM_BATCH_TYPES = {
+        PaliGemmaBatch,
+        VlmCausalLMBatch,
+        IdeficsCausalLMBatch,
+        MllamaCausalLMBatch,
+    }
 except (ImportError, NotImplementedError):
     # These imports can fail on CPU/Non flash.
     VLM_BATCH_TYPES = set()

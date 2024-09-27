@@ -112,7 +112,11 @@ try:
     from text_generation_server.models.custom_modeling.flash_phi_modeling import (
         FlashPhiForCausalLM,
     )
-    from text_generation_server.models.idefics import IDEFICSSharded
+    from text_generation_server.models.idefics_causal_lm import IdeficsCausalLM
+    from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
+    from text_generation_server.models.custom_modeling.mllama import (
+        MllamaForConditionalGeneration,
+    )
     from text_generation_server.models.custom_modeling.llava_next import (
         LlavaNextForConditionalGeneration,
     )
@@ -149,7 +153,7 @@ except ImportError as e:
 
 if FLASH_ATTENTION:
     __all__.append(FlashCausalLM)
-    __all__.append(IDEFICSSharded)
+    __all__.append(IdeficsCausalLM)
 
 MAMBA_AVAILABLE = True
 try:
@@ -1122,7 +1126,7 @@ def get_model(
         )
     if model_type == IDEFICS:
         if FLASH_ATTENTION:
-            return IDEFICSSharded(
+            return IdeficsCausalLM(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -1134,13 +1138,16 @@ def get_model(
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == MLLAMA:
         if FLASH_ATTENTION:
-            return IDEFICSSharded(
-                model_id,
-                revision,
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=MllamaForConditionalGeneration,
+                batch_class=MllamaCausalLMBatch,
+                revision=revision,
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Mllama"))
