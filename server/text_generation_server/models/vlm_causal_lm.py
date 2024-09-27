@@ -141,7 +141,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches):
-        batch = super(VlmCausalLMBatch, cls).concatenate(batches)
+        batch = super().concatenate(batches)
         batch.pixel_values = None
         batch.pixel_attention_mask = None
         batch.image_sizes = None
@@ -402,7 +402,7 @@ class VlmCausalLM(FlashCausalLM):
                     lm_head_indices=lm_head_indices,
                     cross_attention_states=cross_attention_states,
                     adapter_data=adapter_data,
-                    image_indices=batch.image_indices,
+                    image_indices=batch.image_indices[:],
                 )
                 if batch.prefill_cache_indices is not None:
                     batch.prefill_cache_indices = None

@@ -1,7 +1,7 @@
 from io import BytesIO
 from PIL import Image
 import torch
-from typing import Iterable
+from typing import Iterable, List
 from text_generation_server.pb.generate_pb2 import Request
 
 from dataclasses import dataclass
@@ -20,9 +20,53 @@ tracer = trace.get_tracer(__name__)
 
 @dataclass
 class MllamaCausalLMBatch(VlmCausalLMBatch):
+    image_indices: List[int] = 42
     aspect_ratio_ids: Optional[torch.Tensor] = None
     aspect_ratio_mask: Optional[torch.Tensor] = None
     cross_attention_states: Optional[torch.Tensor] = None
+
+    @classmethod
+    @tracer.start_as_current_span("concatenate")
+    def concatenate(cls, batches):
+        batch = super().concatenate(batches)
+        batch.pixel_values = None
+        batch.pixel_attention_mask = None
+
+        offset = 0
+        image_indices = []
+        attention_states = []
+        for b in batches:
+            attention_states.append(b.cross_attention_states)
+            image_indices.extend([i + offset for i in b.image_indices])
+            offset += len(b.image_indices)
+        batch.cross_attention_states = torch.cat(attention_states, dim=0)
+        batch.image_indices = image_indices
+        return batch
+
+    @tracer.start_as_current_span("filter")
+    def filter(self, request_ids: List[int]):
+        assert self.image_indices is not None
+        batch = super().filter(request_ids)
+        assert self.image_indices is not None
+        indices = []
+        for i, request_id in enumerate(request_ids):
+            idx = self.requests_idx_mapping[request_id]
+            indices.append(idx)
+
+        offset = 0
+        new_image_indices = []
+        prev_i = None
+        for i in self.image_indices:
+            if i in indices:
+                new_image_indices.append(offset)
+                if i != prev_i:
+                    offset += 1
+                prev_i = i
+
+        batch.image_indices = new_image_indices
+        batch.cross_attention_states = self.cross_attention_states[indices]
+        assert offset <= batch.cross_attention_states.shape[0]
+        return batch
 
     @classmethod
     def batch_tokenized_inputs(
@@ -115,5 +159,6 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
             batch.pixel_values = None
             batch.aspect_ratio_ids = None
             batch.aspect_ratio_mask = None
-            batch.image_indices = None
+            batch.image_indices = []
+        assert batch.image_indices is not None
         return batch
