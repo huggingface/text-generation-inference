@@ -19,8 +19,6 @@ from text_generation_server.layers.lora import (
     TensorParallelAdapterRowLinear,
 )
 
-from text_generation_server.layers.moe.fused_moe_rocm import grouped_topk
-
 __all__ = [
     "get_linear",
     "FastLinear",
@@ -33,5 +31,4 @@ __all__ = [
     "TensorParallelAdapterRowLinear",
     "load_layer_norm",
     "load_conv2d",
-    "grouped_topk",
 ]
