@@ -16,16 +16,16 @@ option(TGI_BUILD_CCL "Flag to enable/disable build of tgiccl collective library"
 
 # Add some modules
 include(FetchContent)
+include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 
 # Let's find LibTorch
 include(cmake/torch.cmake)
-find_package(Python3 COMPONENTS Interpreter)
-ProbeForPyTorchInstall()
-ConfigurePyTorch()
-
 find_package(Torch REQUIRED)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+find_package(Python3 COMPONENTS Interpreter)
+
+# TGI common
+add_subdirectory(common)
 
 # Include submodules
 if (${TGI_BUILD_CCL})

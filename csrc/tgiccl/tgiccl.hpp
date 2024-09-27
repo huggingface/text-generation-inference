@@ -13,8 +13,8 @@
 
 constexpr auto CLL_BACKEND_NAME = "tgiccl";
 
-namespace huggingface::tgi::tgiccl {
-
+namespace huggingface::tgi::tgiccl
+{
     static std::once_flag NVML_INIT_FLAG;
 #define  ENSURE_NVML_INIT() std::call_once(NVML_INIT_FLAG, nvmlInit_v2);
 
@@ -46,7 +46,10 @@ namespace huggingface::tgi::tgiccl {
         // Query link between both
         nvmlGpuP2PStatus_t status;
         if(nvmlDeviceGetP2PStatus(devFrom.value(), devTo.value(), NVML_P2P_CAPS_INDEX_NVLINK, &status) != NVML_SUCCESS)
+        {
             SPDLOG_ERROR(FMT_STRING("Failed to retrieve the p2p status for device {:d} <-> {:d}"), from, to);
+            return false;
+        }
 
         return status == NVML_P2P_STATUS_OK;
     }

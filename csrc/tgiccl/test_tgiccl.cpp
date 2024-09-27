@@ -7,5 +7,5 @@
 int main() {
     auto a = huggingface::tgi::tgiccl::IsNvLinkAvailable(0, 1);
     auto b = huggingface::tgi::tgiccl::IsNvLinkAvailable(0, 2);
-    auto c = huggingface::tgi::tgiccl::IsNvLinkAvailable(0, 3);
+    auto d = huggingface::tgi::tgiccl::IsNvLinkAvailable(0, 3);
 }
