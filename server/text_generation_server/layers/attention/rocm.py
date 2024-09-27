@@ -283,7 +283,7 @@ elif ENGINE == "triton":
         softmax_scale: float,
         window_size_left: int = -1,
         causal: bool = True,
-        softcap: float = 0.0,
+        softcap: Optional[float] = None,
     ):
         if softcap is not None:
             raise NotImplementedError("softcap is only available with CK flash attn")
