@@ -18,7 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from text_generation_server.models.globals import PAGED_KV
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 import torch
 import torch.distributed
 
@@ -172,8 +172,8 @@ class FlashNeoxAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 qkv[:, 0],
-                kv_cache[0] if PAGED_KV else qkv[:, 1],
-                kv_cache[1] if PAGED_KV else qkv[:, 2],
+                kv_cache[0] if PREFILL_IN_KV_CACHE else qkv[:, 1],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else qkv[:, 2],
                 seqlen,
                 block_tables,
                 self.softmax_scale,

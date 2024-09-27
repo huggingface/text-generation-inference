@@ -351,3 +351,9 @@ else:
             None,
         )
         return out
+
+
+# Prefill in the cache with every kind of attention, unless we
+# have a configuration that requires flash-attention v1, which
+# does not support block tables.
+PREFILL_IN_KV_CACHE = ATTENTION != "paged" or V2

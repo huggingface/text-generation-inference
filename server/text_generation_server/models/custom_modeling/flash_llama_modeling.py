@@ -28,7 +28,7 @@ from torch import nn
 from transformers.activations import ACT2FN
 
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.models.globals import PAGED_KV
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
@@ -221,8 +221,8 @@ class FlashLlamaAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if PAGED_KV else kv[:, 0],
-                kv_cache[1] if PAGED_KV else kv[:, 1],
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,

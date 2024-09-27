@@ -67,25 +67,17 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     hipsolver-dev \
     rccl-dev \
     cmake \
-    python3.11-dev \
     python3.11-venv && \
     rm -rf /var/lib/apt/lists/*
 
 # Keep in sync with `server/pyproject.toml
 ARG MAMBA_VERSION=23.1.0-1
-ARG PYTORCH_VERSION='2.3.0'
-ARG ROCM_VERSION='6.0.2'
 ARG PYTHON_VERSION='3.11.10'
 # Automatically set by buildx
 ARG TARGETPLATFORM
 ENV PATH=/opt/conda/bin:$PATH
 
 ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
-
-RUN curl -fsSL -v -o cmake-3.30.2-linux-x86_64.sh https://github.com/Kitware/CMake/releases/download/v3.30.2/cmake-3.30.2-linux-x86_64.sh \
-    && chmod +x cmake-3.30.2-linux-x86_64.sh \
-    && ./cmake-3.30.2-linux-x86_64.sh --skip-license --prefix=/usr/local \
-    && rm cmake-3.30.2-linux-x86_64.sh
 
 # TGI seem to require libssl.so.1.1 instead of libssl.so.3 so we can't use ubuntu 22.04. Ubuntu 20.04 has python==3.8, and TGI requires python>=3.9, hence the need for miniconda.
 # Install mamba
@@ -111,7 +103,7 @@ RUN case ${TARGETPLATFORM} in \
     /opt/conda/bin/conda clean -ya
 
 # Install flash-attention, torch dependencies
-RUN pip install numpy einops ninja joblib msgpack --no-cache-dir
+RUN pip install numpy einops ninja joblib msgpack cmake --no-cache-dir
 
 # Install HIPBLASLt
 ARG HIPBLASLT_BRANCH="6f65c6e"
@@ -129,7 +121,8 @@ RUN dpkg -i hipBLASLt/build/release/*.deb \
 RUN pip uninstall -y triton && \
     git clone --depth 1 --single-branch https://github.com/ROCm/triton.git && \
     cd triton/python && \
-    pip install .
+    pip install . && \
+    rm -r triton
 
 ARG PYTORCH_COMMIT="da320214e66b5af0f7db8fd18a64dbb519d17b27"
 RUN git clone --depth 1 --recursive --single-branch --branch main https://github.com/pytorch/pytorch.git pytorch && \
@@ -153,6 +146,7 @@ ARG BUILD_CAFFE2="0" \
     USE_MEM_EFF_ATTENTION="0"
 
 RUN cd pytorch && python tools/amd_build/build_amd.py && python setup.py install
+RUN rm -rf pytorch
 
 # Set AS recommended: https://github.com/ROCm/triton/wiki/A-script-to-set-program-execution-environment-in-ROCm
 ENV HIP_FORCE_DEV_KERNARG=1

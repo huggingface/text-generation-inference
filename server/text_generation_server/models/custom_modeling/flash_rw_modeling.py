@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple
 
-from text_generation_server.models.globals import PAGED_KV
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 import torch
 import torch.distributed
 from torch import nn
@@ -207,8 +207,8 @@ class FlashRWAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if PAGED_KV else kv[:, 0],
-                kv_cache[1] if PAGED_KV else kv[:, 1],
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -325,8 +325,8 @@ class FlashRWLargeAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if PAGED_KV else kv[:, :, 0].contiguous(),
-                kv_cache[1] if PAGED_KV else kv[:, :, 1].contiguous(),
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, :, 0].contiguous(),
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, :, 1].contiguous(),
                 seqlen,
                 block_tables,
                 self.softmax_scale,

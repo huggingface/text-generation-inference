@@ -16,9 +16,18 @@ _PARTITION_SIZE_CUSTOM = 256
 use_triton = os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() in {"true", "1"}
 ENGINE = "triton" if use_triton else "ck"
 
-custom_attn_available = os.getenv("ROCM_USE_CUSTOM_PAGED_ATTN", "1") != "0"
-if custom_attn_available:
-    from vllm._custom_C import paged_attention_custom
+PREFILL_IN_KV_CACHE = False
+
+use_rocm_custom_paged_attn = os.getenv("ROCM_USE_CUSTOM_PAGED_ATTN", "1") != "0"
+try:
+    if use_rocm_custom_paged_attn:
+        from vllm._custom_C import paged_attention_custom
+except ImportError as e:
+    log_master(
+        logger.info,
+        f"Custom Paged Attention not available. Complete error: {e}",
+    )
+    use_rocm_custom_paged_attn = False
 
 try:
     import vllm._custom_ops as ops
@@ -71,6 +80,9 @@ def paged_attention(
     # limitations under the License.
     #
 
+    if softcap is not None:
+        raise RuntimeError("Paged attention doesn't support softcapping")
+
     # value_cache => [num_blocks, num_heads, head_size, block_size]
     block_size = value_cache.shape[3]
     num_seqs, num_heads, head_size = query.shape
@@ -78,7 +90,7 @@ def paged_attention(
     num_kv_heads = key_cache.shape[1]
     gqa_ratio = num_heads // num_kv_heads
     use_custom = (
-        custom_attn_available
+        use_rocm_custom_paged_attn
         and (query.dtype == torch.half or query.dtype == torch.bfloat16)
         and (head_size == 128 or head_size == 64)
         and (block_size == 16 or block_size == 32)
@@ -224,10 +236,10 @@ if ENGINE == "ck":
         value_cache: torch.Tensor,
         seqlen: Seqlen,
         block_tables: torch.Tensor,
-        softmax_scale,
-        window_size_left=-1,
-        causal=True,
-        softcap=0.0,
+        softmax_scale: float,
+        window_size_left: int = -1,
+        causal: bool = True,
+        softcap: float = 0.0,
     ):
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
@@ -268,11 +280,14 @@ elif ENGINE == "triton":
         value_cache: torch.Tensor,
         seqlen: Seqlen,
         block_tables: torch.Tensor,
-        softmax_scale,
-        window_size_left=-1,
-        causal=True,
-        softcap=0.0,
+        softmax_scale: float,
+        window_size_left: int = -1,
+        causal: bool = True,
+        softcap: float = 0.0,
     ):
+        if softcap is not None:
+            raise NotImplementedError("softcap is only available with CK flash attn")
+
         out = torch.empty_like(q)
 
         # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.

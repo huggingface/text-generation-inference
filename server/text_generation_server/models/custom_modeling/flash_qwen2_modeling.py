@@ -1,4 +1,4 @@
-from text_generation_server.models.globals import PAGED_KV
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 import torch
 import torch.distributed
 
@@ -137,8 +137,8 @@ class Qwen2Attention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if PAGED_KV else kv_to_cache[:, 0],
-                kv_cache[1] if PAGED_KV else kv_to_cache[:, 1],
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
