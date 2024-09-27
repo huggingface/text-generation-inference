@@ -1,26 +1,26 @@
 [workspace]
 members = [
   "benchmark",
+  "backends/v2",
   "backends/v3",
   "backends/grpc-metadata",
   "backends/trtllm",
-  "backends/client",
   "launcher",
   "router"
 ]
 default-members = [
   "benchmark",
+  "backends/v2",
   "backends/v3",
   "backends/grpc-metadata",
   # "backends/trtllm",
-  "backends/client",
   "launcher",
   "router"
 ]
 resolver = "2"
 
 [workspace.package]
-version = "2.2.1-dev0"
+version = "2.3.1-dev0"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 homepage = "https://github.com/huggingface/text-generation-inference"

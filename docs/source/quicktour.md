@@ -11,9 +11,18 @@ model=teknium/OpenHermes-2.5-Mistral-7B
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:2.2.0 \
+    ghcr.io/huggingface/text-generation-inference:2.3.0 \
     --model-id $model
 ```
+
+<Tip>
+
+If you want to serve gated or private models, which provide
+controlled access to sensitive or proprietary content, refer to
+[this guide](https://huggingface.co/docs/text-generation-inference/en/basic_tutorials/gated_model_access)
+for detailed instructions.
+
+</Tip>
 
 ### Supported hardware
 

@@ -36,7 +36,7 @@ To use LoRA in TGI, when starting the server, you can specify the list of LoRA m
 LORA_ADAPTERS=predibase/customer_support,predibase/dbpedia
 ```
 
-additionally, you can specify the path to the LoRA models using the `LORA_ADAPTERS_PATH` environment variable. For example:
+To use a locally stored lora adapter, use `adapter-name=/path/to/adapter`, as seen below. When you want to use this adapter, set `"parameters": {"adapter_id": "adapter-name"}"`
 
 ```bash
 LORA_ADAPTERS=myadapter=/some/path/to/adapter,myadapter2=/another/path/to/adapter
@@ -71,6 +71,22 @@ curl 127.0.0.1:3000/generate \
   }
 }'
 ```
+
+If you are using a lora adapter stored locally that was set in the following manner: `LORA_ADAPTERS=myadapter=/some/path/to/adapter`, here is an example payload:
+
+```json
+curl 127.0.0.1:3000/generate \
+    -X POST \
+    -H 'Content-Type: application/json' \
+    -d '{
+  "inputs": "Hello who are you?",
+  "parameters": {
+    "max_new_tokens": 40,
+    "adapter_id": "myadapter"
+  }
+}'
+```
+
 
 > **Note:** The Lora feature is new and still being improved. If you encounter any issues or have any feedback, please let us know by opening an issue on the [GitHub repository](https://github.com/huggingface/text-generation-inference/issues/new/choose). Additionally documentation and an improved client library will be published soon.
 

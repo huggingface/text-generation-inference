@@ -1038,11 +1038,13 @@ fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
                         Ok(log) => log.trace(),
                         // For interactive debugging ?
                         Err(_) => {
-                            stdout.write_all(line).unwrap();
-                            if lines.peek().is_some() {
-                                stdout.write_all(b"\n").unwrap();
+                            if LevelFilter::current() >= tracing::Level::DEBUG {
+                                stdout.write_all(line).unwrap();
+                                if lines.peek().is_some() {
+                                    stdout.write_all(b"\n").unwrap();
+                                }
+                                stdout.flush().unwrap();
                             }
-                            stdout.flush().unwrap();
                         }
                     }
                 }
