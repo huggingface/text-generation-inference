@@ -15,9 +15,6 @@
 
 from typing import List, Optional, Tuple, Type
 
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
-from text_generation_server.utils.import_utils import SYSTEM
-
 import torch
 import torch.distributed
 from torch import nn
@@ -38,9 +35,11 @@ from text_generation_server.layers.attention import (
     paged_attention,
     reshape_and_cache,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_mscale
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import Weights
 
 if SYSTEM == "rocm":
@@ -390,8 +389,8 @@ class DeepseekV2MLP(nn.Module):
     def forward(self, hidden_states: torch.Tensor, reduce: bool = True):
         if (
             SYSTEM == "rocm"
-            and hidden_states.dtype == torch.float16
             and self.hidden_act == "silu"
+            and hidden_states.dtype == torch.float16
             and hidden_states.shape[0] == 1
             and not self.quantize
         ):

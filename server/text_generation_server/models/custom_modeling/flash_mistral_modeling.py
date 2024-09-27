@@ -18,7 +18,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 import torch
 import torch.distributed
 
@@ -42,6 +41,7 @@ from text_generation_server.layers import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -302,7 +302,6 @@ class MistralMLP(nn.Module):
     def forward(self, hidden_states, adapter_data):
         if (
             SYSTEM == "rocm"
-            and hidden_states.dtype == torch.float16
             and self.hidden_act == "silu"
             and hidden_states.shape[0] == 1
             and not self.quantize

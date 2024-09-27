@@ -1,6 +1,5 @@
 from typing import List, Optional, Tuple
 
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 import torch
 import torch.distributed
 from torch import nn
@@ -13,6 +12,7 @@ from text_generation_server.layers import (
     TensorParallelRowLinear,
     get_linear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import FastLayerNorm
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.attention import (

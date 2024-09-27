@@ -321,12 +321,12 @@ class LlamaMLP(nn.Module):
     def forward(self, hidden_states, adapter_data):
         if (
             SYSTEM == "rocm"
-            and hidden_states.dtype == torch.float16
             and self.hidden_act == "silu"
+            and hidden_states.dtype == torch.float16
             and hidden_states.shape[0] == 1
+            and not self.quantize
             and self.hidden_size
             != 16384  # TODO: Temporary workaround for `LLMM_Silu` kernel not working with LLama3.1 405B; needs refactoring once fixed.
-            and not self.quantize
         ):
             out = torch.empty(
                 hidden_states.shape[0],
@@ -561,7 +561,6 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.embed_tokens(input_ids)
-
         hidden_states = self.model(
             inputs_embeds,
             position_ids,

@@ -18,7 +18,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from typing import List, Optional, Tuple, Type
 
 import torch
@@ -40,6 +39,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     reshape_and_cache,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
