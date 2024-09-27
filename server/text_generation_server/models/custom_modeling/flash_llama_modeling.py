@@ -27,8 +27,8 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,

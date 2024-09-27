@@ -215,7 +215,6 @@ if ENGINE != "triton":
                 "or install flash attention with `cd server && make install install-flash-attention`"
             ) from e
         else:
-
             for idx in range(torch.cuda.device_count()):
                 name = torch.cuda.get_device_name(idx)
                 if "MI210" not in name and "MI250" not in name:
