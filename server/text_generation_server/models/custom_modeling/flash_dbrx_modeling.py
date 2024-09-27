@@ -30,6 +30,7 @@ from text_generation_server.layers.attention import (
     attention,
     reshape_and_cache,
     Seqlen,
+    PREFILL_IN_KV_CACHE,
 )
 from text_generation_server.layers import (
     FastLinear,
@@ -336,8 +337,8 @@ class DbrxAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else kv[:, 0],
-                kv_cache[1] if SYSTEM != "ipex" else kv[:, 1],
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,

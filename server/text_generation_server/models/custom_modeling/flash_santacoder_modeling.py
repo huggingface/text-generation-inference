@@ -18,11 +18,11 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     get_linear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.gptq import GPTQWeightsLoader
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
-from text_generation_server.utils.import_utils import SYSTEM
 
 
 def load_multi_mqa(
@@ -293,8 +293,8 @@ class FlashMQAttention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else key_value[:, 0],
-                kv_cache[1] if SYSTEM != "ipex" else key_value[:, 1],
+                kv_cache[0] if PREFILL_IN_KV_CACHE else key_value[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else key_value[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,

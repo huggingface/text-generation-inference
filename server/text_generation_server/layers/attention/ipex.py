@@ -5,6 +5,7 @@ from text_generation_server.layers.attention import Seqlen
 from typing import Optional
 
 SUPPORTS_WINDOWING = False
+PREFILL_IN_KV_CACHE = False
 
 
 def attention(

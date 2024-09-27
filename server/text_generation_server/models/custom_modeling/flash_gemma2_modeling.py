@@ -25,7 +25,6 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
@@ -41,6 +40,7 @@ from text_generation_server.layers import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -260,8 +260,8 @@ class FlashGemma2Attention(torch.nn.Module):
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else kv[:, 0],
-                kv_cache[1] if SYSTEM != "ipex" else kv[:, 1],
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,

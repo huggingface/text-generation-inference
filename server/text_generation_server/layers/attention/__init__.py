@@ -11,11 +11,24 @@ if SYSTEM == "cuda":
         paged_attention,
         reshape_and_cache,
         SUPPORTS_WINDOWING,
+        PREFILL_IN_KV_CACHE,
     )
 elif SYSTEM == "rocm":
-    from .rocm import attention, paged_attention, reshape_and_cache, SUPPORTS_WINDOWING
+    from .rocm import (
+        attention,
+        paged_attention,
+        reshape_and_cache,
+        PREFILL_IN_KV_CACHE,
+        SUPPORTS_WINDOWING,
+    )
 elif SYSTEM == "ipex":
-    from .ipex import attention, paged_attention, reshape_and_cache, SUPPORTS_WINDOWING
+    from .ipex import (
+        attention,
+        paged_attention,
+        reshape_and_cache,
+        PREFILL_IN_KV_CACHE,
+        SUPPORTS_WINDOWING,
+    )
 else:
     raise ImportError(f"System {SYSTEM} doesn't support flash/paged attention")
 
@@ -24,6 +37,7 @@ __all__ = [
     "attention",
     "paged_attention",
     "reshape_and_cache",
+    "PREFILL_IN_KV_CACHE",
     "SUPPORTS_WINDOWING",
     "Seqlen",
 ]
