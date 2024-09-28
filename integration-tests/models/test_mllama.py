@@ -5,7 +5,7 @@ import asyncio
 
 @pytest.fixture(scope="module")
 def mllama_handle(launcher):
-    with launcher("s0409/model-3", num_shard=2) as handle:
+    with launcher("meta-llama/Llama-3.2-11B-Vision-Instruct", num_shard=2) as handle:
         yield handle
 
 
@@ -32,7 +32,7 @@ def get_cow_beach():
 async def test_mllama_simpl(mllama, response_snapshot):
     # chicken = get_chicken()
     response = await mllama.chat(
-        max_tokens=20,
+        max_tokens=10,
         temperature=0.0,
         messages=[
             {
@@ -54,13 +54,13 @@ async def test_mllama_simpl(mllama, response_snapshot):
     )
 
     assert response.usage == {
-        "completion_tokens": 20,
-        "prompt_tokens": 24,
-        "total_tokens": 44,
+        "completion_tokens": 10,
+        "prompt_tokens": 50,
+        "total_tokens": 60,
     }
     assert (
         response.choices[0].message.content
-        == "In a small village, a rooster named Cluck Norris ruled the coop with an iron beak"
+        == "In a bustling city, a chicken named Cluck"
     )
     assert response == response_snapshot
 
@@ -70,7 +70,7 @@ async def test_mllama_simpl(mllama, response_snapshot):
 async def test_mllama_load(mllama, generate_load, response_snapshot):
     futures = [
         mllama.chat(
-            max_tokens=20,
+            max_tokens=10,
             temperature=0.0,
             messages=[
                 {
@@ -96,10 +96,7 @@ async def test_mllama_load(mllama, generate_load, response_snapshot):
 
     generated_texts = [response.choices[0].message.content for response in responses]
 
-    assert (
-        generated_texts[0]
-        == "In a small village, a rooster named Cluck Norris ruled the coop with an iron beak"
-    )
+    assert generated_texts[0] == "In a bustling city, a chicken named Cluck"
     assert len(generated_texts) == 4
     assert generated_texts, all(
         [text == generated_texts[0] for text in generated_texts]
