@@ -76,6 +76,7 @@ FLASH_ATTENTION = True
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
     from text_generation_server.models.vlm_causal_lm import VlmCausalLM
+    from text_generation_server.models.mllama_causal_lm import MllamaCausalLM
     from text_generation_server.models.custom_modeling.flash_deepseek_v2_modeling import (
         FlashDeepseekV2ForCausalLM,
         DeepseekV2Config,
@@ -1138,7 +1139,7 @@ def get_model(
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == MLLAMA:
         if FLASH_ATTENTION:
-            return VlmCausalLM(
+            return MllamaCausalLM(
                 model_id=model_id,
                 model_class=MllamaForConditionalGeneration,
                 batch_class=MllamaCausalLMBatch,

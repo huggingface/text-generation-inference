@@ -856,20 +856,17 @@ class FlashLlamaCrossLayer(torch.nn.Module):
         max_s,
         adapter_data,
         cross_attention_states,  # [ IB, ...]
-        image_indices,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if cross_attention_states is None:
             return hidden_states, residual
         if residual is not None:
             hidden_states += residual
 
-        # indices = cross_attention_states[-1]
-        if cu_seqlen_prefill is not None:
-            out_hidden_states = hidden_states[:]
-            hidden_states = hidden_states[:]
-        else:
-            out_hidden_states = hidden_states[:]
-            hidden_states = hidden_states[image_indices]
+        indices = cross_attention_states[-1]
+        out_hidden_states = hidden_states[:]
+        if len(indices) > 0:
+            assert max(indices) < hidden_states.shape[0]
+        hidden_states = hidden_states[indices]
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
 
@@ -885,10 +882,7 @@ class FlashLlamaCrossLayer(torch.nn.Module):
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + self.cross_attn_mlp_gate.tanh() * hidden_states
 
-        if cu_seqlen_prefill is not None:
-            out_hidden_states[:] = hidden_states
-        else:
-            out_hidden_states[image_indices] = hidden_states
+        out_hidden_states[indices] = hidden_states
         hidden_states = out_hidden_states
 
         return hidden_states, None
@@ -971,40 +965,24 @@ class MllamaForConditionalGeneration(nn.Module):
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor],
-        adapter_data: Optional[torch.Tensor],
-        cross_attention_states: Optional[torch.Tensor],
-        image_indices,
+        adapter_data: Optional[torch.Tensor] = None,
+        # XXX: Putting these as optional so that the cuda warmup calls can go through.
+        cross_attention_states: Optional[torch.Tensor] = None,
+        image_indices=None,
     ):
-        # if cross_att_sention_mask is not None:
-        #     cross_attention_mask, full_text_row_masked_out_mask = (
-        #         _prepare_cross_attention_mask(
-        #             cross_attention_mask,
-        #             num_vision_tokens=self.vision_model.num_patches,
-        #             dtype=self.dtype,
-        #         )
-        #     )
-        # else:
-        #     full_text_row_masked_out_mask = None
-
-        # if cross_attention_mask is not None and cache_position is not None:
-        #     cross_attention_mask = cross_attention_mask[:, :, cache_position]
-        #     full_text_row_masked_out_mask = full_text_row_masked_out_mask[
-        #         :, :, cache_position
-        #     ]
-
         if cross_attention_states is not None:
             seqlen_q = len(image_indices)
             n_images = cross_attention_states.shape[0]
             seqlen_k = cross_attention_states.shape[1]
             device = cross_attention_states.device
             if cu_seqlen_prefill is not None:
-                # raise RuntimeError("TODO")
                 offset = 0
                 cu_q = []
                 indices = []
                 for index in image_indices:
                     cu_q.append(offset)
-                    length = seqlen.input_lengths[index]
+                    length = seqlen.input_lengths[index].item()
+                    assert index < seqlen.cu_seqlen_q.shape[0]
                     input_ids_offset = seqlen.cu_seqlen_q[index]
                     indices.extend(range(input_ids_offset, input_ids_offset + length))
                     offset += length
@@ -1061,8 +1039,6 @@ class MllamaForConditionalGeneration(nn.Module):
             lm_head_indices=lm_head_indices,
             adapter_data=adapter_data,
             cross_attention_states=cross_attention_states,
-            # cross_attention_mask=cross_attention_mask,
-            image_indices=image_indices,
         )
 
         return outputs

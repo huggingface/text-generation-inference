@@ -451,7 +451,6 @@ class FlashLlamaLayer(nn.Module):
         max_s,
         adapter_data,
         cross_attention_states,
-        image_indices,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -576,7 +575,6 @@ class FlashLlamaModel(torch.nn.Module):
         prefill_cache_indices: Optional[torch.Tensor],
         adapter_data,
         cross_attention_states=None,
-        image_indices=None,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
@@ -601,7 +599,6 @@ class FlashLlamaModel(torch.nn.Module):
                 max_s,
                 adapter_data,
                 cross_attention_states,
-                image_indices,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -649,7 +646,6 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         cross_attention_states=None,
-        image_indices=None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
@@ -665,7 +661,6 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             prefill_cache_indices=prefill_cache_indices,
             adapter_data=adapter_data,
             cross_attention_states=cross_attention_states,
-            image_indices=image_indices,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
