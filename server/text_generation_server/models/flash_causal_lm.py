@@ -1960,6 +1960,8 @@ class FlashCausalLM(Model):
                 num_kv_heads=self.num_kv_heads,
                 head_size=self.head_size,
                 page_size=BLOCK_SIZE,
+                dtype=self.dtype,
+                window_left=self.sliding_window,
             )
         else:
             assert input_lengths_tensor is not None
@@ -1971,6 +1973,8 @@ class FlashCausalLM(Model):
                 num_kv_heads=self.num_kv_heads,
                 head_size=self.head_size,
                 page_size=BLOCK_SIZE,
+                dtype=self.dtype,
+                window_left=self.sliding_window,
             )
 
 
