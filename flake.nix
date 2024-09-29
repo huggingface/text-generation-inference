@@ -153,18 +153,13 @@
             '';
           };
 
-          dockerImage = pkgs.dockerTools.buildLayeredImage {
-            name = "tgi-docker";
-            tag = "latest";
-            config = {
-              EntryPoint = [ "${default}/bin/text-generation-inference" ];
-              Env = [
-                "HF_HOME=/data"
-                "PORT=80"
-              ];
+          dockerImage = pkgs.callPackage nix/docker.nix {
+            text-generation-inference = default;
+          };
 
-            };
-            contents = [ pkgs.cacert ];
+          dockerImageStreamed = pkgs.callPackage nix/docker.nix {
+            text-generation-inference = default;
+            stream = true;
           };
         };
       }
