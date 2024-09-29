@@ -7,8 +7,12 @@
 #include <cstdint>
 #include <nvml.h>
 #include <optional>
+#include <mutex>
 
 namespace huggingface::tgi {
+    static std::once_flag NVML_INIT_FLAG;
+#define  ENSURE_NVML_INIT() std::call_once(NVML_INIT_FLAG, nvmlInit_v2);
+
     using device_index_t = uint8_t;
 
     /**

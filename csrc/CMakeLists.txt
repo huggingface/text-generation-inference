@@ -22,6 +22,7 @@ include(cmake/spdlog.cmake)
 # Let's find LibTorch
 include(cmake/torch.cmake)
 find_package(Torch REQUIRED)
+find_package(CUDAToolkit REQUIRED)
 find_package(Python3 COMPONENTS Interpreter)
 
 # TGI common
