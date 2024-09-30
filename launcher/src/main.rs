@@ -66,7 +66,7 @@ fn get_config(
 }
 
 fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
-    let compute_capability = *gpu::COMPUTE_CAPABILITY;
+    let compute_capability = gpu::get_cuda_capability();
     let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
     let mut attention: Option<String> = std::env::var("ATTENTION").ok();
     if let Some(config) = config {
