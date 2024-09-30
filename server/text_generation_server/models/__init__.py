@@ -340,7 +340,7 @@ def get_model(
         if method in {"gptq", "awq", "exl2"}:
             log_master(logger.info, f"Auto selecting quantization method {method}")
             quantize = method
-        elif method == "fbgemm_fp8":
+        elif method == "fbgemm_fp8" or method == "fp8":
             log_master(logger.info, "Auto selecting quantization method fp8")
             quantize = "fp8"
         else:
