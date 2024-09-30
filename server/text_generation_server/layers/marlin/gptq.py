@@ -109,7 +109,6 @@ class GPTQMarlinWeightsLoader(WeightsLoader):
         prefix: str,
         block_sizes: Union[int, List[int]],
     ):
-
         try:
             qweight = weights.get_packed_sharded(
                 f"{prefix}.qweight", dim=1, block_sizes=block_sizes
@@ -352,7 +351,7 @@ def repack_gptq_for_marlin(
 
     scales = permute_scales(scales)
 
-    is_full_k = not (desc_act and sharded_infeatures)
+    is_full_k = not (desc_act and groupsize != -1 and sharded_infeatures)
 
     return GPTQMarlinWeight(
         qweight=repacked,
