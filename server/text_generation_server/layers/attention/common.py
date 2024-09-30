@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import ATTENTION
 import torch
 from typing import Optional
@@ -65,5 +66,7 @@ else:
         max_k: int
 
         def clamp(self, max):
+            if SYSTEM == "rocm":
+                return self
             raise NotImplementedError("Not implemented seqlen for paged")
             return Seqlen(torch.clamp(self.input_lengths, max=max))

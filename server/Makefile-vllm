@@ -1,5 +1,5 @@
 commit_cuda := d243e9dc7e2c9c2e36a4150ec8e64809cb55c01b
-commit_rocm := c6ee53b1be97e3bbc791b95f22827501297f8921
+commit_rocm := 4e0929e6e4fa0a3d09d358715c288020ea9dc247
 build-vllm-cuda:
 	if [ ! -d 'vllm' ]; then \
 		pip install -U ninja packaging --no-cache-dir && \
@@ -13,7 +13,7 @@ install-vllm-cuda: build-vllm-cuda
 build-vllm-rocm:
 	if [ ! -d 'vllm' ]; then \
 		pip install -U ninja packaging --no-cache-dir && \
-		git clone https://github.com/fxmarty/rocm-vllm.git vllm; \
+		git clone https://github.com/mht-sharma/vllm.git vllm; \
 	fi
 	cd vllm && git fetch && git checkout $(commit_rocm) &&  \
 	PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build

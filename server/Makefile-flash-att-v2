@@ -1,5 +1,5 @@
 flash_att_v2_commit_cuda := v2.6.1
-flash_att_v2_commit_rocm := 2554f490101742ccdc56620a938f847f61754be6
+flash_att_v2_commit_rocm := 2092111b9f975b3347c652ff7fabd431130256c4
 
 build-flash-attention-v2-cuda:
 	pip install -U packaging wheel
@@ -11,7 +11,7 @@ install-flash-attention-v2-cuda: build-flash-attention-v2-cuda
 build-flash-attention-v2-rocm:
 	if [ ! -d 'flash-attention-v2' ]; then \
 		pip install -U packaging ninja  --no-cache-dir && \
-		git clone https://github.com/ROCm/flash-attention.git flash-attention-v2 && \
+		git clone https://github.com/mht-sharma/flash-attention.git flash-attention-v2 && \
 		cd flash-attention-v2 && git fetch && git checkout $(flash_att_v2_commit_rocm) && \
 		git submodule update --init --recursive && GPU_ARCHS="gfx90a;gfx942" PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build; \
 	fi
