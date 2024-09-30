@@ -316,12 +316,17 @@ class LlamaMLP(nn.Module):
         # TODO: This is a hotfix to be removed & properly refactored.
         self.quantize = config.quantize
 
+        self.hidden_size = config.hidden_size
+
     def forward(self, hidden_states, adapter_data):
         if (
             SYSTEM == "rocm"
             and self.hidden_act == "silu"
+            and hidden_states.dtype == torch.float16
             and hidden_states.shape[0] == 1
             and not self.quantize
+            and self.hidden_size
+            != 16384  # TODO: Temporary workaround for `LLMM_Silu` kernel not working with LLama3.1 405B; needs refactoring once fixed.
         ):
             out = torch.empty(
                 hidden_states.shape[0],

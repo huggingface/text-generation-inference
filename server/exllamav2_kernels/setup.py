@@ -3,11 +3,13 @@ from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import torch
 
 extra_cuda_cflags = ["-lineinfo", "-O3"]
-
+extra_cflags = []
 if torch.version.hip:
-    extra_cuda_cflags += ["-DHIPBLAS_USE_HIP_HALF"]
+    extra_cflags = ["-DLEGACY_HIPBLAS_DIRECT=ON"]
+    extra_cuda_cflags += ["-DHIPBLAS_USE_HIP_HALF", "-DLEGACY_HIPBLAS_DIRECT=ON"]
 
 extra_compile_args = {
+    "cxx": extra_cflags,
     "nvcc": extra_cuda_cflags,
 }
 

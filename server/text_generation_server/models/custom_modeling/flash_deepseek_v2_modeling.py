@@ -390,6 +390,7 @@ class DeepseekV2MLP(nn.Module):
         if (
             SYSTEM == "rocm"
             and self.hidden_act == "silu"
+            and hidden_states.dtype == torch.float16
             and hidden_states.shape[0] == 1
             and not self.quantize
         ):
