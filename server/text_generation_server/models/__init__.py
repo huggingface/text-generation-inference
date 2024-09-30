@@ -32,6 +32,9 @@ from text_generation_server.models.custom_modeling.phi_modeling import (
     PhiConfig,
     PhiForCausalLM,
 )
+from text_generation_server.models.custom_modeling.flash_phi_moe_modeling import (
+    PhiMoEConfig,
+)
 from text_generation_server.models.custom_modeling.t5_modeling import (
     T5ForConditionalGeneration,
 )
@@ -236,6 +239,11 @@ class ModelType(enum.Enum):
         "type": "phi",
         "name": "Phi",
         "url": "https://huggingface.co/microsoft/phi-1_5",
+    }
+    PHI_MOE = {
+        "type": "phimoe",
+        "name": "PhiMoe",
+        "url": "https://huggingface.co/microsoft/Phi-3.5-MoE-instruct",
     }
     BAICHUAN = {
         "type": "baichuan",
@@ -751,6 +759,29 @@ def get_model(
             return FlashCausalLM(
                 model_id=model_id,
                 model_class=FlashPhiForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+
+    elif model_type == PHI_MOE:
+        if FLASH_ATTENTION:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashLlamaForCausalLM,
+                config_class=PhiMoEConfig,
                 revision=revision,
                 quantize=quantize,
                 speculator=speculator,

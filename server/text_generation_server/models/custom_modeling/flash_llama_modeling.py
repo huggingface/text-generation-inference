@@ -19,7 +19,7 @@
 # limitations under the License.
 
 from contextlib import contextmanager
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Type
 
 import torch
 import torch.distributed
@@ -28,6 +28,7 @@ from torch import nn
 from transformers.activations import ACT2FN
 
 from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -46,11 +47,18 @@ from text_generation_server.layers import (
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
+    FastLayerNorm,
+)
+from text_generation_server.layers import (
+    FastLinear,
 )
 from text_generation_server.utils.weights import (
     Weights,
 )
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
+
+if SYSTEM != "ipex":
+    pass
 
 if SYSTEM == "rocm":
     try:
@@ -245,6 +253,42 @@ class FlashLlamaAttention(torch.nn.Module):
         )
 
 
+class Phi3MoE(nn.Module):
+    def __init__(
+        self, prefix: str, config, moe_layer_cls: Type[MoELayer], weights: Weights
+    ):
+        super().__init__()
+
+        # gating
+        self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
+
+        self.moe = moe_layer_cls(
+            prefix=f"{prefix}.experts",
+            n_experts=config.num_local_experts,
+            n_expert_group=None,
+            renormalize=True,
+            topk=config.num_experts_per_tok,
+            topk_group=None,
+            weights=weights,
+            gate_proj_name="w1",
+            up_proj_name="w3",
+            down_proj_name="w2",
+        )
+
+        self.process_group = weights.process_group
+
+    def forward(self, x, adapter_data) -> torch.Tensor:
+        # router_logits: (num_tokens, n_experts)
+        router_logits = self.gate(x)
+        out = self.moe(x, gating_output=router_logits)
+
+        # Reduce sum
+        if self.process_group.size() > 1:
+            torch.distributed.all_reduce(out, group=self.process_group)
+
+        return out.view(*x.shape)
+
+
 class LlamaMLP(nn.Module):
     def __init__(self, prefix, config, weights, index):
         super().__init__()
@@ -358,18 +402,40 @@ class FlashLlamaLayer(nn.Module):
                 weights=weights,
             )
 
-        self.mlp = LlamaMLP(
-            prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
-        )
-
-        self.input_layernorm = FastRMSNorm.load(
-            prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
-        )
-        self.post_attention_layernorm = FastRMSNorm.load(
-            prefix=f"{prefix}.post_attention_layernorm",
-            weights=weights,
-            eps=config.rms_norm_eps,
-        )
+        if config.model_type == "phimoe":
+            moe_layer_cls = (
+                SparseMoELayer
+                if SparseMoELayer.is_supported(weights)
+                else DenseMoELayer
+            )
+            self.dense = Phi3MoE(
+                f"{prefix}.block_sparse_moe", config, moe_layer_cls, weights
+            )
+            # with moe the layernorms are are not rmsnorms and they have bias
+            self.input_layernorm = FastLayerNorm.load(
+                prefix=f"{prefix}.input_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
+            self.post_attention_layernorm = FastLayerNorm.load(
+                prefix=f"{prefix}.post_attention_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
+        else:
+            self.dense = LlamaMLP(
+                prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
+            )
+            self.input_layernorm = FastRMSNorm.load(
+                prefix=f"{prefix}.input_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
+            self.post_attention_layernorm = FastRMSNorm.load(
+                prefix=f"{prefix}.post_attention_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
 
     def forward(
         self,
@@ -406,7 +472,7 @@ class FlashLlamaLayer(nn.Module):
             attn_output, res
         )
 
-        mlp_output = self.mlp(normed_attn_res_output, adapter_data)
+        mlp_output = self.dense(normed_attn_res_output, adapter_data)
 
         return mlp_output, attn_res
 
