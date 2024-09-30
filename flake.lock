@@ -978,15 +978,16 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1727687740,
-        "narHash": "sha256-ssoGLmRoyQ+8d5utr5fwLox+/eQ789iVtUj1xrukIC0=",
+        "lastModified": 1727710820,
+        "narHash": "sha256-BuSafCxoFQhkp7lnvNtpquxSK43rIbnouL2HypIUC+o=",
         "owner": "danieldk",
         "repo": "tgi-nix",
-        "rev": "5e884ba50c26a7c93337bc0876f69da961c10374",
+        "rev": "4f4dc4b85dd856fd7904e8e3e486a2ff153584a2",
         "type": "github"
       },
       "original": {
         "owner": "danieldk",
+        "ref": "moe-kernels-0.5.0",
         "repo": "tgi-nix",
         "type": "github"
       }
