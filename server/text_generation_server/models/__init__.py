@@ -324,7 +324,7 @@ class ModelType(enum.Enum):
     MLLAMA = {
         "type": "mllama",
         "name": "Mllama",
-        "url": "https://huggingface.co/xxx/xx",
+        "url": "https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct",
         "multimodal": True,
     }
 
