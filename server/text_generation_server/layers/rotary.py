@@ -166,6 +166,20 @@ class PositionRotaryEmbedding(nn.Module):
                         1 + math.log(scale) / math.log(original_max_position_embeddings)
                     )
 
+                # if short_mscale and long_mscale are provided we need to scale the freqs
+                # using the Phi3LongRoPEScaledRotaryEmbedding
+                if ("short_mscale" in rope_scaling) and ("long_mscale" in rope_scaling):
+                    short_mscale = rope_scaling["short_mscale"]
+                    long_mscale = rope_scaling["long_mscale"]
+                    return Phi3LongRoPEScaledRotaryEmbedding(
+                        short_inv_freq=short_inv_freq,
+                        long_inv_freq=long_inv_freq,
+                        max_position_embeddings=config.max_position_embeddings,
+                        short_mscale=short_mscale,
+                        long_mscale=long_mscale,
+                        original_max_position_embeddings=original_max_position_embeddings,
+                    )
+
                 return SuRotaryEmbedding(
                     short_inv_freq=short_inv_freq,
                     long_inv_freq=long_inv_freq,
@@ -287,6 +301,7 @@ class SuRotaryEmbedding(PositionRotaryEmbedding):
         # or if we're on a new device (possibly due to tracing for instance)
         if (
             seqlen > self._seq_len_cached
+            or self._cos_cached is None
             or self._cos_cached.device != device
             or self._cos_cached.dtype != dtype
         ):
@@ -306,6 +321,63 @@ class SuRotaryEmbedding(PositionRotaryEmbedding):
 
             self._cos_cached = (torch.cos(freqs) * self.scaling_factor).to(dtype)
             self._sin_cached = (torch.sin(freqs) * self.scaling_factor).to(dtype)
+
+
+class Phi3LongRoPEScaledRotaryEmbedding(PositionRotaryEmbedding):
+    def __init__(
+        self,
+        short_inv_freq: torch.Tensor,
+        long_inv_freq: torch.Tensor,
+        max_position_embeddings: int,
+        short_mscale: float,
+        long_mscale: float,
+        original_max_position_embeddings: int,
+    ):
+        super(PositionRotaryEmbedding, self).__init__()
+        self.short_inv_freq = short_inv_freq
+        self.long_inv_freq = long_inv_freq
+        self.max_position_embeddings = max_position_embeddings
+        self.short_mscale = short_mscale
+        self.long_mscale = long_mscale
+        self.original_max_position_embeddings = original_max_position_embeddings
+
+        # cache
+        self._seq_len_cached = 0
+        self._cos_cached = None
+        self._sin_cached = None
+        self._cos_k_cached = None
+        self._sin_k_cached = None
+        self.dynamic_args = None
+
+    def _update_cos_sin_cache(self, dtype, device, seqlen):
+        if (
+            seqlen > self._seq_len_cached
+            or self._cos_cached is None
+            or self._cos_cached.device != device
+            or self._cos_cached.dtype != dtype
+        ):
+            self._seq_len_cached = seqlen
+            t = torch.arange(seqlen, device=device, dtype=self.short_inv_freq.dtype)
+
+            short_freqs = torch.outer(
+                t[: self.original_max_position_embeddings],
+                self.short_inv_freq.to(device=t.device),
+            )
+
+            long_freqs = torch.outer(
+                t[self.original_max_position_embeddings :],
+                self.long_inv_freq.to(device=t.device),
+            )
+
+            short_freqs = short_freqs * self.short_mscale
+            long_freqs = long_freqs * self.long_mscale
+
+            freqs = torch.empty((seqlen, short_freqs.shape[1]), device=device)
+            freqs[: self.original_max_position_embeddings] = short_freqs
+            freqs[self.original_max_position_embeddings :] = long_freqs
+
+            self._cos_cached = torch.cos(freqs).to(dtype)
+            self._sin_cached = torch.sin(freqs).to(dtype)
 
 
 class DynamicPositionRotaryEmbedding(PositionRotaryEmbedding):
@@ -467,7 +539,6 @@ def apply_llama3_scaling(
         elif wavelen > low_freq_wavelen:
             new_freqs.append(freq / scaling_factor)
         else:
-
             assert low_freq_wavelen != high_freq_wavelen
             smooth = (original_max_position_embeddings / wavelen - low_freq_factor) / (
                 high_freq_factor - low_freq_factor
