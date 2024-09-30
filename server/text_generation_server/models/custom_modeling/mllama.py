@@ -989,6 +989,8 @@ class MllamaForConditionalGeneration(nn.Module):
                 cu_q.append(offset)
                 cu_seqlen_q = torch.Tensor(cu_q).to(device=device, dtype=torch.int32)
 
+                assert max(indices) < input_ids.shape[0]
+
                 cu_seqlen_k = (
                     torch.arange(
                         n_images + 1,
