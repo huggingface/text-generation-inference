@@ -26,12 +26,9 @@ except Exception:
 
 def can_use_marlin_moe_gemm(
     *,
-    desc_act: bool,
-    groupsize: int,
     quant_method: str,
     quantize: str,
     sym: bool,
-    use_tp: bool,
 ):
     return (
         SYSTEM == "cuda"
@@ -40,14 +37,7 @@ def can_use_marlin_moe_gemm(
         and quantize == "gptq"
         and quant_method == "gptq"
         and sym
-        and is_full_k(desc_act, groupsize, use_tp)
     )
-
-
-def is_full_k(desc_act: bool, groupsize: int, use_tp: bool):
-    if groupsize == -1:
-        return True
-    return not (desc_act and use_tp)
 
 
 @dataclass
