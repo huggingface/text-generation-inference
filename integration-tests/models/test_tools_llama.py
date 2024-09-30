@@ -237,8 +237,8 @@ async def test_flash_llama_grammar_tools_insufficient_information(
         stream=False,
     )
 
-    assert responses.choices[0].message.content is None
     assert (
-        responses.choices[0].message.tool_calls[0]["function"]["name"] == "notify_error"
+        responses.choices[0].message.content
+        == "Cannot get current weather forecast from specified location and temperature unit. Please try again with different options."
     )
     assert responses == response_snapshot
