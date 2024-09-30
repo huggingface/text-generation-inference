@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "text-generation-inference-benchmarks"
+version = "0.1.0"
+description = ""
+authors = ["Hugo Larcher <hugo.larcher@huggingface.co>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+docker = "^7.1.0"
+loguru = "^0.7.2"
+psutil = "^6.0.0"
+gputil = "^1.4.0"
+pandas = "^2.2.3"
+pyarrow = "^17.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
