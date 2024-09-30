@@ -88,8 +88,7 @@ RUN case ${TARGETPLATFORM} in \
     esac && \
     curl -fsSL -v -o ~/mambaforge.sh -O  "https://github.com/conda-forge/miniforge/releases/download/${MAMBA_VERSION}/Mambaforge-${MAMBA_VERSION}-Linux-${MAMBA_ARCH}.sh"
 RUN chmod +x ~/mambaforge.sh && \
-    rm -rf /opt/conda && \
-    bash ~/mambaforge.sh -u -b -p /opt/conda && \
+    bash ~/mambaforge.sh -b -p /opt/conda && \
     mamba init && \
     rm ~/mambaforge.sh
 
@@ -123,15 +122,10 @@ RUN git clone https://github.com/ROCm/hipBLASLt.git \
     && SCCACHE_IDLE_TIMEOUT=1800 ./install.sh --architecture ${PYTORCH_ROCM_ARCH} --legacy_hipblas_direct \
     && cd build/release \
     && make package
-# RUN dpkg -i hipBLASLt/build/release/*.deb \
-#     && sed -i 's/, hipblaslt-dev \(.*\), hipcub-dev/, hipcub-dev/g' /var/lib/dpkg/status \
-#     && sed -i 's/, hipblaslt \(.*\), hipfft/, hipfft/g' /var/lib/dpkg/status \
-#     && rm -rf hipBLASLt
 
-FROM scratch AS export_hipblaslt_1
+FROM scratch AS export_hipblaslt
 ARG COMMON_WORKDIR
 COPY --from=build_hipblaslt ${COMMON_WORKDIR}/hipBLASLt/build/release/*.deb /
-FROM export_hipblaslt_1 AS export_hipblaslt
 
 # RCCL build stages
 FROM base AS build_rccl
@@ -140,11 +134,9 @@ RUN git clone https://github.com/ROCm/rccl \
     && cd rccl \
     && git checkout ${RCCL_BRANCH} \
     && ./install.sh -p --amdgpu_targets ${PYTORCH_ROCM_ARCH}
-FROM scratch AS export_rccl_1
+FROM scratch AS export_rccl
 ARG COMMON_WORKDIR
 COPY --from=build_rccl ${COMMON_WORKDIR}/rccl/build/release/*.deb /
-FROM scratch AS export_rccl_0
-FROM export_rccl_1 AS export_rccl
 
 # Triton build stages
 FROM base AS build_triton
@@ -155,10 +147,9 @@ RUN python3 -m pip install ninja cmake wheel pybind11 && git clone ${TRITON_REPO
     && git checkout ${TRITON_BRANCH} \
     && cd python \
     && python3 setup.py bdist_wheel --dist-dir=dist
-FROM scratch AS export_triton_1
+FROM scratch AS export_triton
 ARG COMMON_WORKDIR
 COPY --from=build_triton ${COMMON_WORKDIR}/triton/python/dist/*.whl /
-FROM export_triton_1 AS export_triton
 
 # # AMD-SMI build stages
 FROM base AS build_amdsmi
@@ -191,10 +182,9 @@ RUN git clone ${PYTORCH_REPO} pytorch \
     && pip install -r requirements.txt --no-cache-dir  \
     && python tools/amd_build/build_amd.py \
     && CMAKE_PREFIX_PATH=$(python3 -c 'import sys; print(sys.prefix)') python3 setup.py bdist_wheel --dist-dir=dist
-FROM scratch as export_pytorch_1
+FROM scratch as export_pytorch
 ARG COMMON_WORKDIR
 COPY --from=build_pytorch ${COMMON_WORKDIR}/pytorch/dist/*.whl /
-FROM export_pytorch_1 as export_pytorch
 
 FROM base AS install_deps
 
