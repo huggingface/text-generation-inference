@@ -1244,12 +1244,12 @@ files = [
 
 [[package]]
 name = "moe-kernels"
-version = "0.3.1"
+version = "0.4.0"
 description = "MoE kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "moe_kernels-0.3.1+cu123torch2.4-cp310-cp310-linux_x86_64.whl", hash = "sha256:b679984a53807127f25af053ec0a2c07dec97ec196f76363a8bfdc3fbb3d1a9a"},
+    {file = "moe_kernels-0.4.0+cu123torch2.4-cp310-cp310-linux_x86_64.whl", hash = "sha256:3fc0475bb3b9c09bbf08f6f6e9767d10eaba55b558f67a605fe70ae0cbb5e6a4"},
 ]
 
 [package.dependencies]
@@ -1259,16 +1259,16 @@ triton = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/moe-kernels/releases/download/v0.3.1/moe_kernels-0.3.1+cu123torch2.4-cp310-cp310-linux_x86_64.whl"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.4.0/moe_kernels-0.4.0+cu123torch2.4-cp310-cp310-linux_x86_64.whl"
 
 [[package]]
 name = "moe-kernels"
-version = "0.3.1"
+version = "0.4.0"
 description = "MoE kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "moe_kernels-0.3.1+cu123torch2.4-cp311-cp311-linux_x86_64.whl", hash = "sha256:29684f81495f6e032085295c86d160022f03d5d9a9981446f311ca94fbbbc2cd"},
+    {file = "moe_kernels-0.4.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl", hash = "sha256:8ca72a064ceb84a23a3437cc6e6363907ad41588877f6acb1febc010fc7beb22"},
 ]
 
 [package.dependencies]
@@ -1278,16 +1278,16 @@ triton = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/moe-kernels/releases/download/v0.3.1/moe_kernels-0.3.1+cu123torch2.4-cp311-cp311-linux_x86_64.whl"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.4.0/moe_kernels-0.4.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl"
 
 [[package]]
 name = "moe-kernels"
-version = "0.3.1"
+version = "0.4.0"
 description = "MoE kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "moe_kernels-0.3.1+cu123torch2.4-cp312-cp312-linux_x86_64.whl", hash = "sha256:9dfdbef48b5b7e97912aaa7420b1b694876a3281f5edfe7d4ca9a69e1f48bff2"},
+    {file = "moe_kernels-0.4.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl", hash = "sha256:d302d6b16bb4905b2312dc68da6a6f51e87d0cd3c4bf1f23d995501162399a8e"},
 ]
 
 [package.dependencies]
@@ -1297,16 +1297,16 @@ triton = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/moe-kernels/releases/download/v0.3.1/moe_kernels-0.3.1+cu123torch2.4-cp312-cp312-linux_x86_64.whl"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.4.0/moe_kernels-0.4.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl"
 
 [[package]]
 name = "moe-kernels"
-version = "0.3.1"
+version = "0.4.0"
 description = "MoE kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "moe_kernels-0.3.1+cu123torch2.4-cp39-cp39-linux_x86_64.whl", hash = "sha256:f7d0fc8f191c905a668f3d2eb889999ee988048d08bfd7062d64bca3876588ae"},
+    {file = "moe_kernels-0.4.0+cu123torch2.4-cp39-cp39-linux_x86_64.whl", hash = "sha256:6aee3e723efa5113c338b40e6cb20fa62da6c442c65c1a6cc97751d34158a93a"},
 ]
 
 [package.dependencies]
@@ -1316,7 +1316,7 @@ triton = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/moe-kernels/releases/download/v0.3.1/moe_kernels-0.3.1+cu123torch2.4-cp39-cp39-linux_x86_64.whl"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.4.0/moe_kernels-0.4.0+cu123torch2.4-cp39-cp39-linux_x86_64.whl"
 
 [[package]]
 name = "mpmath"

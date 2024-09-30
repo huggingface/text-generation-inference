@@ -978,16 +978,17 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1727353315,
-        "narHash": "sha256-yZovq/6P8Z199r7e+NbTXyCqRgK6grRkLxYHWHnHckI=",
-        "owner": "huggingface",
-        "repo": "text-generation-inference-nix",
-        "rev": "1d42c4125ebafb87707118168995675cc5050b9d",
+        "lastModified": 1727681169,
+        "narHash": "sha256-ssoGLmRoyQ+8d5utr5fwLox+/eQ789iVtUj1xrukIC0=",
+        "owner": "danieldk",
+        "repo": "tgi-nix",
+        "rev": "88ba4cfe378d8fb08222f640ff2b62ac0ee6569d",
         "type": "github"
       },
       "original": {
-        "owner": "huggingface",
-        "repo": "text-generation-inference-nix",
+        "owner": "danieldk",
+        "ref": "moe-kernels-0.4.0",
+        "repo": "tgi-nix",
         "type": "github"
       }
     }
