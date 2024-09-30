@@ -652,8 +652,6 @@ fn prepare_input(
         .encode(tokenizer_query, add_special_tokens)
         .map_err(|err| ValidationError::Tokenizer(err.to_string()))?;
 
-    tracing::info!("Validation said the input is {}", encoding.len());
-
     Ok((encoding, input_chunks))
 }
 
