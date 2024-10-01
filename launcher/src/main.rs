@@ -915,19 +915,19 @@ fn shard_manager(
         }
     });
     // We read stdin in another thread as it seems that lines() can block in some cases
-    thread::spawn(move || {
-        let mut stdin = io::stdin(); // We get `Stdin` here.
-        loop {
-            let mut buffer = vec![0; 4096];
-            if let Ok(n) = stdin.read(&mut buffer) {
-                if n > 0 {
-                    let _ = pstdin.write_all(&buffer[..n]);
-                } else {
-                    break;
+    if LevelFilter::current() >= tracing::Level::DEBUG {
+        thread::spawn(move || {
+            let mut stdin = io::stdin(); // We get `Stdin` here.
+            loop {
+                let mut buffer = vec![0; 4096];
+                if let Ok(n) = stdin.read(&mut buffer) {
+                    if n > 0 {
+                        let _ = pstdin.write_all(&buffer[..n]);
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 
     let mut ready = false;
     let start_time = Instant::now();
@@ -1065,8 +1065,6 @@ fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
                         }
                     }
                 }
-            } else {
-                break;
             }
         }
     }
