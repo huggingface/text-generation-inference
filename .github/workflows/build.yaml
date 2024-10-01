@@ -41,7 +41,6 @@ jobs:
       - name: Construct harware variables
         shell: bash
         run: |
-          export extra_pytest = ""
           case ${{ inputs.hardware }} in
             cuda)
                 export dockerfile="Dockerfile"
@@ -49,6 +48,7 @@ jobs:
                 export docker_devices=""
                 export runs_on="aws-g6-12xl-plus-priv-cache"
                 export platform=""
+                export extra_pytest = " "
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
@@ -64,6 +64,7 @@ jobs:
                 export docker_devices=""
                 export runs_on="ubuntu-latest"
                 export platform="xpu"
+                export extra_pytest = " "
                 ;;
             intel-cpu)
                 export dockerfile="Dockerfile_intel"
@@ -71,6 +72,7 @@ jobs:
                 export docker_devices=""
                 export runs_on="ubuntu-latest"
                 export platform="cpu"
+                export extra_pytest = " "
                 ;;
           esac
           echo $dockerfile
