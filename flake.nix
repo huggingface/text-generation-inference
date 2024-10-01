@@ -141,15 +141,26 @@
           };
         };
 
-        packages.default = pkgs.writeShellApplication {
-          name = "text-generation-inference";
-          runtimeInputs = [
-            server
-            router
-          ];
-          text = ''
-            ${launcher}/bin/text-generation-launcher "$@"
-          '';
+        packages = rec {
+          default = pkgs.writeShellApplication {
+            name = "text-generation-inference";
+            runtimeInputs = [
+              server
+              router
+            ];
+            text = ''
+              ${launcher}/bin/text-generation-launcher "$@"
+            '';
+          };
+
+          dockerImage = pkgs.callPackage nix/docker.nix {
+            text-generation-inference = default;
+          };
+
+          dockerImageStreamed = pkgs.callPackage nix/docker.nix {
+            text-generation-inference = default;
+            stream = true;
+          };
         };
       }
     );
