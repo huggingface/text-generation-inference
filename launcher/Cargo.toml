@@ -18,6 +18,7 @@ serde_json = "1.0.107"
 thiserror = "1.0.59"
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
+regex = "1.11.0"
 
 [dev-dependencies]
 float_eq = "1.0.1"
