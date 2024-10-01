@@ -226,10 +226,6 @@ async def test_flash_llama_grammar_tools_insufficient_information(
         tool_choice="auto",
         messages=[
             {
-                "role": "system",
-                "content": "STRICTLY ONLY RESPOND IF THE USER ASKS A WEATHER RELATED QUESTION",
-            },
-            {
                 "role": "user",
                 "content": "Tell me a story about 3 sea creatures",
             },
@@ -239,6 +235,6 @@ async def test_flash_llama_grammar_tools_insufficient_information(
 
     assert (
         responses.choices[0].message.content
-        == "Cannot get current weather forecast from specified location and temperature unit. Please try again with different options."
+        == "There is a huge storm in the ocean"
     )
     assert responses == response_snapshot
