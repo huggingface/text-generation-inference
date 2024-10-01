@@ -249,12 +249,9 @@ class SparseMoELayer(nn.Module):
             or (
                 isinstance(weights.loader, GPTQMarlinWeightsLoader)
                 and can_use_marlin_moe_gemm(
-                    desc_act=weights.loader.desc_act,
-                    groupsize=weights.loader.groupsize,
                     quant_method=weights.loader.quant_method,
                     quantize=weights.loader.quantize,
                     sym=weights.loader.sym,
-                    use_tp=weights.process_group.size() > 1,
                 )
             )
         )
