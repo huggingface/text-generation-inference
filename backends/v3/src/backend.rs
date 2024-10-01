@@ -31,6 +31,7 @@ impl BackendV3 {
         max_batch_total_tokens: u32,
         max_waiting_tokens: usize,
         max_batch_size: Option<usize>,
+        max_concurrent_requests: usize,
         requires_padding: bool,
         window_size: Option<u32>,
         speculate: u32,
@@ -46,6 +47,7 @@ impl BackendV3 {
         let block_size = attention.block_size();
 
         let queue = Queue::new(
+            max_concurrent_requests,
             requires_padding,
             block_size,
             prefix_caching,

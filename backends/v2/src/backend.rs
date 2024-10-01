@@ -31,6 +31,7 @@ impl BackendV2 {
         max_batch_total_tokens: u32,
         max_waiting_tokens: usize,
         max_batch_size: Option<usize>,
+        max_concurrent_requests: usize,
         requires_padding: bool,
         window_size: Option<u32>,
         speculate: u32,
@@ -48,7 +49,7 @@ impl BackendV2 {
         } else {
             16
         };
-        let queue = Queue::new(requires_padding, block_size, window_size, speculate);
+        let queue = Queue::new(max_concurrent_requests, requires_padding, block_size, window_size, speculate);
         let batching_task_notifier = Arc::new(Notify::new());
 
         // Spawn batching background task that contains all the inference logic

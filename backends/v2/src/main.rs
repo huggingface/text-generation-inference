@@ -167,6 +167,7 @@ async fn main() -> Result<(), RouterError> {
         max_batch_total_tokens,
         max_waiting_tokens,
         max_batch_size,
+        max_concurrent_requests,
     )
     .await?;
 

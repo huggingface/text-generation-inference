@@ -39,6 +39,7 @@ pub async fn connect_backend(
     max_batch_total_tokens: Option<u32>,
     max_waiting_tokens: usize,
     max_batch_size: Option<usize>,
+    max_concurrent_requests: usize,
 ) -> Result<(BackendV2, BackendInfo), V2Error> {
     // Helper function
     let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
@@ -116,12 +117,13 @@ pub async fn connect_backend(
         max_batch_total_tokens,
         max_waiting_tokens,
         max_batch_size,
+        max_concurrent_requests,
         shard_info.requires_padding,
         shard_info.window_size,
         shard_info.speculate,
     );
 
-    tracing::info!("Using backend V3");
+    tracing::info!("Using backend V2");
 
     Ok((backend, backend_info))
 }
