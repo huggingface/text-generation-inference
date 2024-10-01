@@ -19,6 +19,7 @@ jobs:
       docker_devices: ${{ steps.final.outputs.docker_devices }}
       runs_on: ${{ steps.final.outputs.runs_on }}
       label: ${{ steps.final.outputs.label }}
+      extra_pytest: ${{ steps.final.outputs.extra_pytest }}
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
@@ -39,6 +40,7 @@ jobs:
       - name: Construct harware variables
         shell: bash
         run: |
+          export extra_pytest=""
           case ${{ inputs.hardware }} in
             cuda)
                 export dockerfile="Dockerfile"
@@ -50,9 +52,8 @@ jobs:
                 export dockerfile="Dockerfile_amd"
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
-                # TODO Re-enable when they pass.
-                # export runs_on="amd-gpu-tgi"
-                export runs_on="ubuntu-latest"
+                export runs_on="amd-gpu-tgi"
+                export extra_pytest="-k flash_llama_grammar_tools"
                 ;;
             intel)
                 export dockerfile="Dockerfile_intel"
@@ -148,6 +149,7 @@ jobs:
           echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
+          echo "extra_pytest=${{ env.EXTRA_PYTEST }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
   integration_tests:
     concurrency:
@@ -178,6 +180,7 @@ jobs:
           export DOCKER_VOLUME=/mnt/cache
           export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
+          export EXTRA_PYTEST=${{ needs.build-and-push.outputs.extra_pytest }}
           export HUGGING_FACE_HUB_TOKEN=${{ secrets.HUGGING_FACE_HUB_TOKEN }}
           echo $DOCKER_IMAGE
-          pytest -s -vv integration-tests
+          pytest -s -vv integration-tests ${EXTRA_PYTEST}
