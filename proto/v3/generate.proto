@@ -243,6 +243,8 @@ message PrefillResponse {
 message DecodeRequest {
   /// Cached batches
   repeated CachedBatch batches = 1;
+  /// Optional Batch
+  optional Batch batch = 2;
 }
 
 message DecodeResponse {

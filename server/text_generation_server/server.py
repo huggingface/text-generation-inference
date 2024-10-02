@@ -179,6 +179,16 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         if len(batches) == 0:
             raise ValueError("All batches are empty")
 
+        if self.model.support_chunking:
+            if request.HasField("batch"):
+                batch = self.model.batch_type.from_pb(
+                    request.batch,
+                    self.model.tokenizer,
+                    self.model.dtype,
+                    self.model.device,
+                )
+                batches.append(batch)
+
         if len(batches) > 1:
             start_concat = time.time_ns()
             batch = self.model.batch_type.concatenate(batches)

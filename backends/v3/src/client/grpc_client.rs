@@ -235,9 +235,10 @@ impl Client {
     #[instrument(skip_all, fields(size = batches.iter().map(|batch|{batch.size}).sum::<u32>()))]
     pub async fn decode(
         &mut self,
+        batch: Option<Batch>,
         batches: Vec<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, DecodeTimings)> {
-        let request = tonic::Request::new(DecodeRequest { batches }).inject_context();
+        let request = tonic::Request::new(DecodeRequest { batches, batch }).inject_context();
         let response = self.stub.decode(request).await?.into_inner();
         Ok((
             response.generations,

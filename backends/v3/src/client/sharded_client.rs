@@ -167,12 +167,13 @@ impl ShardedClient {
     #[instrument(skip_all, fields(size = batches.iter().map(| batch | {batch.size}).sum::< u32 > ()))]
     pub async fn decode(
         &mut self,
+        batch: Option<Batch>,
         batches: Vec<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, DecodeTimings)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.decode(batches.clone())))
+            .map(|client| Box::pin(client.decode(batch.clone(), batches.clone())))
             .collect();
         #[allow(clippy::type_complexity)]
         let results: Result<Vec<(Vec<Generation>, Option<CachedBatch>, DecodeTimings)>> =

@@ -237,7 +237,11 @@ impl Client {
         &mut self,
         batches: Vec<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, DecodeTimings)> {
-        let request = tonic::Request::new(DecodeRequest { batches }).inject_context();
+        let request = tonic::Request::new(DecodeRequest {
+            batch: None,
+            batches,
+        })
+        .inject_context();
         let response = self.stub.decode(request).await?.into_inner();
         Ok((
             response.generations,
