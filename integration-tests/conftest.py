@@ -537,7 +537,7 @@ def launcher(event_loop):
             # auto_remove=False,
             # detach=True,
             # device_requests=device_requests,
-            # devices=devices,
+            devices=devices,
             # volumes=volumes,
             # ports={"80/tcp": port},
             # healthcheck={"timeout": int(10 * 1e9)},
