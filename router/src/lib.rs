@@ -993,9 +993,7 @@ impl From<ToolTypeDeserializer> for ToolChoice {
             ToolTypeDeserializer::String(s) => match s.as_str() {
                 "none" => ToolChoice(Some(ToolType::NoTool)),
                 "auto" => ToolChoice(Some(ToolType::OneOf)),
-                _ => ToolChoice(Some(ToolType::Function(FunctionName {
-                        name: s
-                } ))),
+                _ => ToolChoice(Some(ToolType::Function(FunctionName{name: s}))),
             },
             ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
         }
