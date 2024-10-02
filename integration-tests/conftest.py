@@ -532,7 +532,7 @@ def launcher(event_loop):
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
-            name=container_name,
+            # name=container_name,
             environment=env,
             auto_remove=False,
             detach=True,
