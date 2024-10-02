@@ -531,7 +531,7 @@ def launcher(event_loop):
         # env.pop("ROCR_VISIBLE_DEVICES")
         container = client.containers.run(
             DOCKER_IMAGE,
-            # command=args,
+            command=args,
             # name=container_name,
             # environment=env,
             # auto_remove=False,
