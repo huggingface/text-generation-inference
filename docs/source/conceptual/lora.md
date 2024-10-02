@@ -36,6 +36,12 @@ To use LoRA in TGI, when starting the server, you can specify the list of LoRA m
 LORA_ADAPTERS=predibase/customer_support,predibase/dbpedia
 ```
 
+To specify model revision, use `adapter_id@revision`, as follows:
+
+```bash
+LORA_ADAPTERS=predibase/customer_support@main,predibase/dbpedia@rev2
+```
+
 To use a locally stored lora adapter, use `adapter-name=/path/to/adapter`, as seen below. When you want to use this adapter, set `"parameters": {"adapter_id": "adapter-name"}"`
 
 ```bash
