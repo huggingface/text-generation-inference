@@ -534,10 +534,6 @@ def launcher(event_loop):
 
         yield ContainerLauncherHandle(client, container.name, port)
 
-        import time
-
-        time.sleep(600)
-
         if not use_flash_attention:
             del env["USE_FLASH_ATTENTION"]
 
