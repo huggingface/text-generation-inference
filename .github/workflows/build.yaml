@@ -193,9 +193,9 @@ jobs:
           # export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
           export DOCKER_IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-318bbc7-rocm
           # export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
-          export DOCKER_DEVICES=/dev/kfd,/dev/cri
+          export DOCKER_DEVICES=/dev/kfd,/dev/dri
           # export EXTRA_PYTEST="${{ needs.build-and-push.outputs.extra_pytest }}"
           # export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
-          python -c 'import docker; client = docker.from_env(); client.containers.run("registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-318bbc7-rocm")'
+          python -c 'import docker; client = docker.from_env(); client.containers.run("registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-318bbc7-rocm", devices=["/dev/kfd", "/dev/dri"])'
           # pytest -s -vv integration-tests ${PYTEST_FLAGS} ${EXTRA_PYTEST}
