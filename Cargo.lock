@@ -4247,6 +4247,7 @@ dependencies = [
  "nix 0.28.0",
  "once_cell",
  "pyo3",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",
