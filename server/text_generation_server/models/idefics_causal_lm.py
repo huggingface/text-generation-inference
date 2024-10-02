@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import (
+    AutoConfig,
     AutoProcessor,
     AutoTokenizer,
     PreTrainedTokenizerBase,
@@ -22,6 +23,18 @@ from text_generation_server.models.types import (
 )
 from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+import torch.distributed
+from text_generation_server.models.custom_modeling.idefics_modeling import (
+    IdeficsForVisionText2Text,
+)
+from text_generation_server.utils import (
+    initialize_torch_distributed,
+    weight_files,
+    Weights,
+)
+from text_generation_server.utils.quantization import get_loader
+
+from text_generation_server.utils.import_utils import SYSTEM
 
 
 tracer = trace.get_tracer(__name__)
@@ -577,23 +590,38 @@ class IdeficsCausalLM(Model):
         model_id: str,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
         self.quantize = quantize
-        from text_generation_server.models.custom_modeling.idefics_modeling import (
-            IdeficsForVisionText2Text,
-        )
-
+        self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
-            device = torch.device("cuda")
-            dtype = torch.bfloat16 if dtype is None else dtype
+            device = torch.device(f"cuda:{rank}")
+            # 9b seems to work correctly enough in float16, but 80b seems
+            # to be really saturating for f16.
+            dtype = torch.float16 if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = torch.float16 if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                # Float16 doesn't exist on target.
+                dtype = torch.bfloat16 if dtype is None else dtype
         else:
-            if quantize:
-                raise ValueError("quantization is not available on CPU")
-
             device = torch.device("cpu")
             dtype = torch.float32 if dtype is None else dtype
+        self.device, self.dtype = device, dtype
+
+        config = AutoConfig.from_pretrained(
+            model_id,
+            revision=revision,
+            trust_remote_code=trust_remote_code,
+        )
+        config.quantize = quantize
+        config.speculator = speculator
+        config.vision_config.quantize = quantize
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
@@ -609,38 +637,34 @@ class IdeficsCausalLM(Model):
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
-        model = IdeficsForVisionText2Text.from_pretrained(
-            model_id,
-            revision=revision,
-            torch_dtype=dtype,
-            device_map=(
-                "auto"
-                if torch.cuda.is_available() and torch.cuda.device_count() > 1
-                else None
-            ),
-            load_in_8bit=quantize == "bitsandbytes",
-            trust_remote_code=trust_remote_code,
+
+        weights_loader = get_loader(
+            quantize=quantize, model_id=model_id, revision=revision
         )
-        if torch.cuda.is_available() and torch.cuda.device_count() == 1:
-            model = model.cuda()
+        torch.distributed.barrier(group=self.process_group)
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
+        weights = Weights(
+            filenames,
+            device=device,
+            dtype=dtype,
+            process_group=self.process_group,
+            weights_loader=weights_loader,
+        )
 
-        if tokenizer.pad_token_id is None:
-            if model.config.pad_token_id is not None:
-                tokenizer.pad_token_id = model.config.pad_token_id
-            elif model.config.eos_token_id is not None:
-                tokenizer.pad_token_id = model.config.eos_token_id
-            elif tokenizer.eos_token_id is not None:
-                tokenizer.pad_token_id = tokenizer.eos_token_id
-            else:
-                tokenizer.add_special_tokens({"pad_token": "<unk>"})
+        model = IdeficsForVisionText2Text(config, weights)
 
-        super(IdeficsCausalLM, self).__init__(
+        self.config = config
+
+        torch.distributed.barrier(group=self.process_group)
+        super().__init__(
             model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
+            rank=rank,
+            world_size=world_size,
         )
 
     @property

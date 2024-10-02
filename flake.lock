@@ -497,11 +497,11 @@
         "systems": "systems_7"
       },
       "locked": {
-        "lastModified": 1710146030,
-        "narHash": "sha256-SZ5L6eA7HJ/nmkzGG7/ISclqe6oZdOZTNoesiInkXPQ=",
+        "lastModified": 1726560853,
+        "narHash": "sha256-X6rJYSESBVr3hBoH0WbKE5KvhPU5bloyZ2L4K60/fPQ=",
         "owner": "numtide",
         "repo": "flake-utils",
-        "rev": "b1d9ab70662946ef0850d488da1c9019f3a9752a",
+        "rev": "c1dfcf08411b08f6b8615f7d8971a2bfa81d5e8a",
         "type": "github"
       },
       "original": {
@@ -718,11 +718,11 @@
     },
     "nixpkgs_6": {
       "locked": {
-        "lastModified": 1724915739,
-        "narHash": "sha256-7PgRge4mn5akFvhPwefuaLQGbF5BnmxlwZJEf7CgbrE=",
+        "lastModified": 1727675176,
+        "narHash": "sha256-xIjBFMYldWvj+g8ahxMPofsj+OqxvKJN6YylNHQ7gn4=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "85be051bb60943d3328d91aaf2598798f87e19af",
+        "rev": "a6d0207fea9212d28cd3d487efe6bc699663b93a",
         "type": "github"
       },
       "original": {
@@ -853,11 +853,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1726626348,
-        "narHash": "sha256-sYV7e1B1yLcxo8/h+/hTwzZYmaju2oObNiy5iRI0C30=",
+        "lastModified": 1727836133,
+        "narHash": "sha256-JE0zciM5IGWvK8J/pE2VldNBf7oyMH5WrU8tZArefbg=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "6fd52ad8bd88f39efb2c999cc971921c2fb9f3a2",
+        "rev": "02321540b0c8000b36889b1b974d1fec585b25a4",
         "type": "github"
       },
       "original": {
@@ -978,17 +978,16 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1727710820,
-        "narHash": "sha256-BuSafCxoFQhkp7lnvNtpquxSK43rIbnouL2HypIUC+o=",
-        "owner": "danieldk",
-        "repo": "tgi-nix",
-        "rev": "4f4dc4b85dd856fd7904e8e3e486a2ff153584a2",
+        "lastModified": 1727859277,
+        "narHash": "sha256-AsrPuQqhg8x5RRR3aX0vvDDRQb+HREq2wGxXOpZnWus=",
+        "owner": "huggingface",
+        "repo": "text-generation-inference-nix",
+        "rev": "14196ab62f31d005f46207f7a251f82a81d0a09f",
         "type": "github"
       },
       "original": {
-        "owner": "danieldk",
-        "ref": "moe-kernels-0.5.0",
-        "repo": "tgi-nix",
+        "owner": "huggingface",
+        "repo": "text-generation-inference-nix",
         "type": "github"
       }
     }

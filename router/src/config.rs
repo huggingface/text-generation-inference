@@ -146,6 +146,7 @@ pub enum Config {
     ClipVisionModel(ClipVisionModel),
     Mistral,
     Idefics,
+    Mllama,
     Idefics2(Idefics2),
     Ssm,
     GptBigcode,
