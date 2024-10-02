@@ -34,6 +34,7 @@ message InfoResponse {
   string device_type = 3;
   optional uint32 window_size = 4;
   uint32 speculate = 5;
+  bool support_chunking = 6;
 }
 
 /// Empty request
@@ -139,6 +140,8 @@ message Request {
   uint32 prefix_len = 12;
   /// Context truncation
   bool add_special_tokens = 13;
+  /// Postfix length for prefill chunking
+  uint32 postfix_len = 14;
 }
 
 message Batch {
@@ -163,6 +166,8 @@ message CachedBatch {
   uint32 size = 3;
   /// Maximum number of tokens this batch will grow to
   uint32 max_tokens = 4;
+  /// Number of tokens in the next forward
+  uint32 current_tokens = 5;
 }
 
 enum FinishReason {

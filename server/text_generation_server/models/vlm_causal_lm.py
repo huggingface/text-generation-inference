@@ -357,7 +357,6 @@ class VlmCausalLM(FlashCausalLM):
         else:
             cuda_graph = None
         if cu_seqlen_prefill is not None or cuda_graph is None:
-            input_lengths = postfix_lengths + prefix_lengths_tensor
             if PREFIX_CACHING:
                 block_tables = block_tables_to_ragged(
                     block_tables=block_tables,
@@ -424,7 +423,7 @@ class VlmCausalLM(FlashCausalLM):
         cuda_graph["postfix_lengths"][: postfix_lengths.shape[0]] = postfix_lengths
         cuda_graph["prefix_lengths"].zero_()
         cuda_graph["prefix_lengths"][
-        : prefix_lengths_tensor.shape[0]
+            : prefix_lengths_tensor.shape[0]
         ] = prefix_lengths_tensor
 
         with self._forward_context(

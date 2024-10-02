@@ -29,6 +29,8 @@ pub struct BackendInfo {
     pub max_waiting_tokens: usize,
     #[schema(nullable = true, example = "null")]
     pub max_batch_size: Option<usize>,
+    #[schema(example = "false")]
+    pub support_chunking: bool,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -110,6 +112,7 @@ pub async fn connect_backend(
         model_device_type: shard_info.device_type.clone(),
         model_dtype: shard_info.dtype.clone(),
         speculate: shard_info.speculate as usize,
+        support_chunking: shard_info.support_chunking,
     };
 
     let backend = BackendV3::new(
@@ -122,6 +125,7 @@ pub async fn connect_backend(
         shard_info.requires_padding,
         shard_info.window_size,
         shard_info.speculate,
+        shard_info.support_chunking,
     );
 
     tracing::info!("Using backend V3");

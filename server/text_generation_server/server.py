@@ -15,6 +15,7 @@ from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model_with_lora_adapters
 from text_generation_server.utils.adapter import AdapterInfo
+from text_generation_server.utils.prefill_chunking import set_max_prefill_tokens
 
 try:
     from text_generation_server.models.pali_gemma import PaliGemmaBatch
@@ -96,6 +97,8 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
+        set_max_prefill_tokens(request.max_prefill_tokens)
+
         if self.quantize in {"exl2", "gptq"}:
             try:
                 # When using GPTQ, Exllama kernels need some global kernels

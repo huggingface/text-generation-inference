@@ -4,7 +4,7 @@ use crate::client::{
     Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
 };
 use nohash_hasher::{BuildNoHashHasher, IntMap};
-use std::cmp::{max, min};
+use std::cmp::max;
 use std::collections::VecDeque;
 use text_generation_router::infer::InferError;
 use text_generation_router::infer::InferStreamResponse;
@@ -50,6 +50,7 @@ impl Queue {
         window_size: Option<u32>,
         speculate: u32,
         max_batch_total_tokens: u32,
+        support_chunking: bool,
     ) -> Self {
         // Create channel
         let (queue_sender, queue_receiver) = mpsc::unbounded_channel();
@@ -62,6 +63,7 @@ impl Queue {
             window_size,
             speculate,
             max_batch_total_tokens,
+            support_chunking,
             queue_receiver,
         ));
 
@@ -108,6 +110,7 @@ impl Queue {
 }
 
 // Background task responsible of the queue state
+#[allow(clippy::too_many_arguments)]
 async fn queue_task(
     requires_padding: bool,
     block_size: u32,
@@ -115,6 +118,7 @@ async fn queue_task(
     window_size: Option<u32>,
     speculate: u32,
     max_batch_total_tokens: u32,
+    support_chunking: bool,
     mut receiver: mpsc::UnboundedReceiver<QueueCommand>,
 ) {
     let mut state = State::new(
@@ -124,6 +128,7 @@ async fn queue_task(
         window_size,
         speculate,
         max_batch_total_tokens,
+        support_chunking,
     );
 
     while let Some(cmd) = receiver.recv().await {
@@ -166,11 +171,13 @@ struct State {
     /// Paged Attention block size
     block_size: u32,
 
-    /// Sliding window
-    window_size: Option<u32>,
-
     /// Speculation amount
     speculate: u32,
+
+    /// Whether the model allow the prefill chunking
+    /// If it does, the last request in the batch will be split to exactly match the prefill
+    /// token budget
+    support_chunking: bool,
 
     /// Paged Attention Block Allocation
     block_allocator: Option<BlockAllocator>,
@@ -184,6 +191,7 @@ impl State {
         window_size: Option<u32>,
         speculate: u32,
         max_batch_total_tokens: u32,
+        support_chunking: bool,
     ) -> Self {
         let block_allocator = (!requires_padding).then(|| {
             BlockAllocator::new(
@@ -199,8 +207,8 @@ impl State {
             next_id: 0,
             next_batch_id: 0,
             block_size,
-            window_size,
             speculate,
+            support_chunking,
             block_allocator,
         }
     }
@@ -268,7 +276,7 @@ impl State {
                 continue;
             }
 
-            let block_allocation = match &self.block_allocator {
+            let (block_allocation, postfix_len) = match &self.block_allocator {
                 None => {
                     // We pad to max input length in the Python shards
                     // We need to take these padding tokens into the equation
@@ -285,34 +293,9 @@ impl State {
                         self.entries.push_front((id, entry));
                         break 'entry_loop;
                     }
-                    None
+                    (None, entry.request.input_length)
                 }
-                Some(_block_allocator) => {
-                    prefill_tokens += entry.request.input_length;
-                    let max_new_tokens = match self.window_size {
-                        None => entry.request.stopping_parameters.max_new_tokens,
-                        Some(window_size) => min(
-                            window_size.saturating_sub(entry.request.input_length),
-                            entry.request.stopping_parameters.max_new_tokens,
-                        ),
-                    };
-                    decode_tokens += max_new_tokens;
-
-                    if prefill_tokens > prefill_token_budget
-                        || (prefill_tokens + decode_tokens + self.speculate) > token_budget
-                    {
-                        // Entry is over budget
-                        // Add it back to the front
-                        tracing::debug!("Over budget: prefill_tokens={prefill_tokens} > {prefill_token_budget} || {prefill_tokens} + {decode_tokens} + {} > {token_budget}", self.speculate);
-                        self.entries.push_front((id, entry));
-                        break;
-                    }
-
-                    let tokens = entry.request.input_length
-                        + entry.request.stopping_parameters.max_new_tokens
-                        + self.speculate
-                        - 1;
-
+                Some(block_allocator) => {
                     // If users wants the prefill logprobs, we cannot reuse the cache.
                     // So no input_ids for the radix tree.
                     let input_ids = if entry.request.decoder_input_details {
@@ -321,10 +304,65 @@ impl State {
                         entry.request.input_ids.clone()
                     };
 
-                    Some((tokens, input_ids))
+                    let tokens = entry.request.input_length
+                        + entry.request.stopping_parameters.max_new_tokens
+                        + self.speculate
+                        - 1;
+                    tracing::debug!("Allocating {tokens} with {input_ids:?}");
+
+                    let block_allocation = match block_allocator.allocate(tokens, input_ids).await {
+                        None => {
+                            // Entry is over budget
+                            // Add it back to the front
+                            tracing::debug!("Over budget: not enough free blocks");
+                            self.entries.push_front((id, entry));
+                            break 'entry_loop;
+                        }
+                        Some(mut block_allocation) => {
+                            tracing::debug!("Allocation: {block_allocation:?}");
+                            max_blocks = max(max_blocks, block_allocation.blocks.len() as u32);
+
+                            if block_allocation.prefix_len == entry.request.input_length {
+                                // The whole request was found in the radix trie
+                                // However, for the transformer forward to work, we need to
+                                // have at least one token of postfix.
+                                block_allocation.prefix_len -= 1;
+                            }
+
+                            block_allocation
+                        }
+                    };
+
+                    let mut postfix_len = entry.request.input_length - block_allocation.prefix_len;
+
+                    // Check equality too as if we don't we might end up with a postfix_len = 0
+                    // in the next iteration of the loop
+                    if prefill_tokens + postfix_len >= prefill_token_budget {
+                        // Entry is over budget
+                        if self.support_chunking {
+                            // We support chunking, just set postfix_len to exactly match prefill_token_budget
+                            postfix_len = prefill_token_budget - prefill_tokens;
+                            // Push this entry inside the batch
+                            batch.push((id, entry, Some(block_allocation), postfix_len));
+                            break 'entry_loop;
+                        } else {
+                            // We don't support chunking, this entry needs to go back to the buffer
+                            // Add it back to the front
+                            tracing::debug!(
+                                "Over budget: prefill_tokens={} > {prefill_token_budget}",
+                                prefill_tokens + postfix_len
+                            );
+                            self.entries.push_front((id, entry));
+                            break 'entry_loop;
+                        }
+                    }
+
+                    prefill_tokens += postfix_len;
+
+                    (Some(block_allocation), postfix_len)
                 }
             };
-            batch.push((id, entry, block_allocation));
+            batch.push((id, entry, block_allocation, postfix_len));
             if Some(batch.len()) == max_size {
                 break;
             }
@@ -342,7 +380,7 @@ impl State {
             // Batch is too small
             if batch.len() < min_size {
                 // Add back entries to the queue in the correct order
-                for (id, entry, _) in batch.into_iter().rev() {
+                for (id, entry, _, _) in batch.into_iter().rev() {
                     self.entries.push_front((id, entry));
                 }
                 return None;
@@ -353,29 +391,7 @@ impl State {
         let mut batch_entries =
             IntMap::with_capacity_and_hasher(self.entries.len(), BuildNoHashHasher::default());
 
-        for (id, mut entry, block_allocation) in batch {
-            let block_allocation = if let (Some((tokens, input_ids)), Some(block_allocator)) =
-                (block_allocation, &self.block_allocator)
-            {
-                tracing::debug!("Allocating {tokens} with {input_ids:?}");
-                match block_allocator.allocate(tokens, input_ids).await {
-                    None => {
-                        // Entry is over budget
-                        // Add it back to the front
-                        tracing::debug!("Over budget: not enough free blocks");
-                        self.entries.push_front((id, entry));
-                        continue;
-                    }
-                    Some(block_allocation) => {
-                        tracing::debug!("Allocation: {block_allocation:?}");
-                        max_blocks = max(max_blocks, block_allocation.blocks.len() as u32);
-                        Some(block_allocation)
-                    }
-                }
-            } else {
-                None
-            };
-            tracing::debug!("Accepting entry");
+        for (id, mut entry, block_allocation, postfix_len) in batch {
             // Create a new span to link the batch back to this entry
             let entry_batch_span = info_span!(parent: &entry.span, "infer");
             // Add relationships
@@ -429,17 +445,12 @@ impl State {
                 slots,
                 prefix_len,
                 adapter_id: entry.request.adapter_id.clone(),
+                postfix_len,
             });
             // Set batch_time
             entry.batch_time = Some(Instant::now());
             // Insert in batch_entries IntMap
             batch_entries.insert(id, entry);
-        }
-
-        // Empty batch
-        if batch_requests.is_empty() {
-            tracing::debug!("Filterered out all entries");
-            return None;
         }
 
         // Final batch size

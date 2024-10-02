@@ -16,7 +16,17 @@ from transformers import (
     AutoTokenizer,
     GenerationConfig,
 )
-from typing import Any, ContextManager, Iterable, Optional, Tuple, List, Type, Dict, Union
+from typing import (
+    Any,
+    ContextManager,
+    Iterable,
+    Optional,
+    Tuple,
+    List,
+    Type,
+    Dict,
+    Union,
+)
 
 from text_generation_server.adapters import AdapterBatchData, AdapterBatchMetadata
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
@@ -24,6 +34,10 @@ from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
 from text_generation_server.utils.log import log_master
+from text_generation_server.utils.prefill_chunking import (
+    get_support_chunking,
+    get_max_prefill_tokens,
+)
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.utils import (
@@ -60,11 +74,8 @@ from text_generation_server.utils.import_utils import (
 
 tracer = trace.get_tracer(__name__)
 
-
 # Will be set in init
 SLIDING_WINDOW: Optional[int] = None
-
-TOKEN_BUDGET = 8
 
 
 def set_sliding_window(sliding_window: int):
@@ -206,6 +217,11 @@ class FlashCausalLMBatch(Batch):
             request_ids=[r.id for r in self.requests],
             size=len(self),
             max_tokens=self.num_blocks * BLOCK_SIZE,
+            current_tokens=(
+                sum([len(i) for i in self.input_ids])
+                if isinstance(self.input_ids, list)
+                else len(self.input_ids)
+            ),
         )
 
     @classmethod
@@ -272,7 +288,7 @@ class FlashCausalLMBatch(Batch):
             prompt_lengths.append(prompt_length)
 
             prefix_length = r.prefix_len
-            postfix_length = prefix_length + 10
+            postfix_length = r.postfix_len
             assert (
                 prefix_length <= prompt_length
             ), f"Prefix {prefix_length} vs input {prompt_length}"
@@ -282,10 +298,13 @@ class FlashCausalLMBatch(Batch):
             if prefix_length + postfix_length < prompt_length:
                 # FIXME: speculate is not supported for context chunking at the moment
                 assert speculate == 0
+                assert get_support_chunking()
+                assert postfix_length > 0
 
             prefix_ids.append(tokenized_input[:prefix_length])
-            postfix_ids = tokenized_input[prefix_length : postfix_length]
-            # postfix_ids = tokenized_input[prefix_length:]
+            postfix_ids = tokenized_input[
+                prefix_length : prefix_length + postfix_length
+            ]
 
             postfix_length = len(postfix_ids)
             postfix_lengths.append(postfix_length)
@@ -371,7 +390,6 @@ class FlashCausalLMBatch(Batch):
             requests=pb.requests,
             requests_idx_mapping=requests_idx_mapping,
             input_ids=all_postfix_ids,
-
             block_tables=block_tables,
             block_tables_tensor=block_tables_tensor,
             prefix_lengths=prefix_lengths,
@@ -395,7 +413,6 @@ class FlashCausalLMBatch(Batch):
             max_blocks=max_blocks,
             speculative_ids=None,
             prompt_lengths_tensor=prompt_lengths_tensor,
-
             # These values will be set by `FlashCausalLMBatch.prepare_for_prefill`
             position_ids=None,
             cu_seqlen_prefill=None,
@@ -431,7 +448,7 @@ class FlashCausalLMBatch(Batch):
         if len(request_ids) == len(self):
             return self
 
-        device = self.input_ids.device
+        device = self.block_tables_tensor.device
 
         # New values after filtering
         requests_idx_mapping = {}
@@ -552,13 +569,13 @@ class FlashCausalLMBatch(Batch):
 
         if self.prefilling:
             # These values will be set by `FlashCausalLMBatch.prepare_for_prefill`
-            position_ids=None
-            start_slots=None
-            slot_indices=None
-            slots=None
-            prefix_lengths_tensor=None
-            postfix_lengths_tensor=None
-            adapter_meta=None
+            position_ids = None
+            start_slots = None
+            slot_indices = None
+            slots = None
+            prefix_lengths_tensor = None
+            postfix_lengths_tensor = None
+            adapter_meta = None
         else:
             # Index into tensors
             input_ids = self.input_ids[indices]
@@ -643,24 +660,24 @@ class FlashCausalLMBatch(Batch):
         max_current_length = 0
         for b in batches:
             total_batch_size += len(b)
-            total_slots += len(b.slots)
+            max_blocks = max(max_blocks, b.max_blocks)
+            # If `b` is prefilling and was just filtered, `b.slots` is None
+            # `total_slots` is not used if any of the batches is prefilling
+            total_slots += len(b.slots) if not b.prefilling else 0
             num_blocks += b.num_blocks
             speculative_length = (
                 b.speculative_ids.shape[1] if b.speculative_ids is not None else 0
             )
-            max_blocks = max(max_blocks, b.max_blocks)
             max_postfix_length = max(max_postfix_length, b.max_postfix_length)
             max_current_length = max(max_current_length, b.max_current_length)
             max_length = max(
                 max_length,
                 max(
-                    prefix_length
-                    + postfix_length
+                    prompt_length
                     + stopping_criteria.max_new_tokens
                     + speculative_length
-                    - stopping_criteria.current_tokens
-                    for prefix_length, postfix_length, stopping_criteria in zip(
-                        b.prefix_lengths, b.postfix_lengths, b.stopping_criterias
+                    for prompt_length, stopping_criteria in zip(
+                        b.prompt_lengths, b.stopping_criterias
                     )
                 ),
             )
@@ -669,14 +686,14 @@ class FlashCausalLMBatch(Batch):
         if prefilling:
             input_ids = []
             # These values will be set by `FlashCausalLMBatch.prepare_for_prefill`
-            position_ids=None
-            start_slots=None
-            slots=None
-            slot_indices=None
-            prefix_lengths_tensor=None
-            postfix_lengths_tensor=None
-            adapter_meta=None
-            adapter_segment_builder=None
+            position_ids = None
+            start_slots = None
+            slots = None
+            slot_indices = None
+            prefix_lengths_tensor = None
+            postfix_lengths_tensor = None
+            adapter_meta = None
+            adapter_segment_builder = None
         else:
             input_ids = batches[0].input_ids.new_empty(total_batch_size)
             position_ids = batches[0].position_ids.new_empty(total_batch_size)
@@ -746,8 +763,6 @@ class FlashCausalLMBatch(Batch):
 
             start_index = cumulative_batch_size
             end_index = cumulative_batch_size + len(batch)
-            slots_start_index = cumulative_slots
-            slots_end_index = cumulative_slots + len(batch.slots)
 
             # Copy tensors (GPU)
             top_n_tokens_tensor[start_index:end_index] = batch.top_n_tokens_tensor
@@ -761,10 +776,17 @@ class FlashCausalLMBatch(Batch):
             prompt_lengths_tensor[start_index:end_index] = batch.prompt_lengths_tensor
 
             if not prefilling:
+                slots_start_index = cumulative_slots
+                slots_end_index = cumulative_slots + len(batch.slots)
+
                 input_ids[start_index:end_index] = batch.input_ids
                 position_ids[start_index:end_index] = batch.position_ids
-                slot_indices[start_index:end_index] = batch.slot_indices + cumulative_slots
-                postfix_lengths_tensor[start_index:end_index] = batch.postfix_lengths_tensor
+                slot_indices[start_index:end_index] = (
+                    batch.slot_indices + cumulative_slots
+                )
+                postfix_lengths_tensor[start_index:end_index] = (
+                    batch.postfix_lengths_tensor
+                )
                 slots[slots_start_index:slots_end_index] = batch.slots
 
                 # Copy over adapter indices
@@ -779,11 +801,17 @@ class FlashCausalLMBatch(Batch):
                 cumulative_adapter_indices_size = adapter_end_index
                 adapter_set.update(batch.adapter_meta.adapter_set)
                 adapter_segment_builder.concat(
-                    batch.adapter_meta.adapter_segments, batch.adapter_meta.segment_indices
+                    batch.adapter_meta.adapter_segments,
+                    batch.adapter_meta.segment_indices,
                 )
-                prefix_lengths_tensor[start_index:end_index] = batch.prefix_lengths_tensor
+                prefix_lengths_tensor[start_index:end_index] = (
+                    batch.prefix_lengths_tensor
+                )
 
                 start_slots.append(batch.start_slots + cumulative_slots)
+
+                # Update
+                cumulative_slots += len(batch.slots)
             else:
                 if isinstance(batch.input_ids, torch.Tensor):
                     batch.input_ids = batch.input_ids.view(-1, 1).tolist()
@@ -810,7 +838,6 @@ class FlashCausalLMBatch(Batch):
 
             # Update
             cumulative_batch_size += len(batch)
-            cumulative_slots += len(batch.slots)
 
         if start_slots is not None:
             start_slots = torch.concat(start_slots)
@@ -915,7 +942,7 @@ class FlashCausalLMBatch(Batch):
             postfix_length,
             prompt_length,
             request_prefilling,
-            blocks
+            blocks,
         ) in enumerate(
             zip(
                 self.requests,
@@ -923,7 +950,7 @@ class FlashCausalLMBatch(Batch):
                 self.postfix_lengths,
                 self.prompt_lengths,
                 self.prefilling_mask,
-                self.block_tables
+                self.block_tables,
             )
         ):
             next_chunk_length = postfix_length
@@ -967,9 +994,7 @@ class FlashCausalLMBatch(Batch):
             no_prefill_logprobs = no_prefill_logprobs and not prefill_logprobs
 
             if prefill_logprobs:
-                prefill_head_indices.append(
-                    request_position_ids + cumulative_length
-                )
+                prefill_head_indices.append(request_position_ids + cumulative_length)
                 prefill_next_token_indices.append(
                     prefill_out_cumulative_length + postfix_length - 1
                 )
@@ -988,7 +1013,6 @@ class FlashCausalLMBatch(Batch):
                 prefill_cu_outlens.append(prefill_out_cumulative_length + 1)
                 prefill_out_cumulative_length += 1
 
-
             start_slots.append(cumulative_slot_tokens)
             slots.extend(request_slots)
             slot_indices.append(request_slot_indices)
@@ -998,9 +1022,7 @@ class FlashCausalLMBatch(Batch):
 
             ADAPTER_TO_INDEX = get_adapter_to_index()
             adapter_index = ADAPTER_TO_INDEX.get(r.adapter_id, 0)
-            adapter_indices_list.append(
-                torch.full((next_chunk_length,), adapter_index)
-            )
+            adapter_indices_list.append(torch.full((next_chunk_length,), adapter_index))
             adapter_set.add(adapter_index)
 
             # Update
@@ -1240,6 +1262,7 @@ class FlashCausalLM(Model):
             rank=rank,
             world_size=world_size,
             sliding_window=config.sliding_window,
+            support_chunking=True,
         )
 
     @property
@@ -1764,29 +1787,43 @@ class FlashCausalLM(Model):
         finished_prefilling = True
         next_chunk_lengths = []
         if prefill:
-            next_prefilling_mask = []
-            # Budget in tokens for the next batch
-            # We remove next input ids to always have enough space for at least a single decode
-            # for the remaining requests
-            batch_budget = TOKEN_BUDGET - len(batch)
-            for prefix_length, postfix_length, prompt_length in zip(
-                batch.prefix_lengths, batch.postfix_lengths, batch.prompt_lengths
-            ):
-                remaining_prefill_tokens = max(
-                    prompt_length - prefix_length - postfix_length, 0
-                )
-                if remaining_prefill_tokens > 0:
-                    next_chunk_length = max(
-                        min(remaining_prefill_tokens, batch_budget), 1
+            if get_support_chunking():
+                next_prefilling_mask = []
+                # Budget in tokens for the next batch
+                # We remove len(batch) to always have enough space for at least a single decode
+                # for the remaining requests
+                batch_budget = get_max_prefill_tokens() - len(batch)
+                # We reverse to prioritize older requests
+                # zip() is not reversible so reverse the underlying lists instead
+                for prefix_length, postfix_length, prompt_length in zip(
+                    reversed(batch.prefix_lengths),
+                    reversed(batch.postfix_lengths),
+                    reversed(batch.prompt_lengths),
+                ):
+                    remaining_prefill_tokens = max(
+                        prompt_length - prefix_length - postfix_length, 0
                     )
-                    batch_budget -= next_chunk_length
-                    finished_prefilling = False
-                    next_prefilling_mask.append(True)
-                else:
-                    # Since speculation will be turned off, this is always true
-                    next_chunk_length = 1
-                    next_prefilling_mask.append(False)
-                next_chunk_lengths.append(next_chunk_length)
+                    if remaining_prefill_tokens > 0:
+                        next_chunk_length = max(
+                            min(remaining_prefill_tokens, batch_budget), 1
+                        )
+                        batch_budget -= next_chunk_length
+                        finished_prefilling = False
+                        next_prefilling_mask.append(True)
+                    else:
+                        # Since speculation will be turned off, this is always true
+                        next_chunk_length = 1
+                        next_prefilling_mask.append(False)
+                    next_chunk_lengths.append(next_chunk_length)
+
+                # Reverse back the obtained values²
+                next_chunk_lengths.reverse()
+                next_prefilling_mask.reverse()
+            else:
+                # The model does not support chunking
+                # We know we only do a single prefill
+                finished_prefilling = True
+                next_prefilling_mask = [False] * len(batch)
 
             batch.prefilling = not finished_prefilling
             batch.prefilling_mask = next_prefilling_mask
@@ -2179,7 +2216,9 @@ class FlashCausalLM(Model):
                 # have more than one new token per request with speculative decoding
                 for next_token_id in _next_token_ids:
                     batch.next_token_chooser = (
-                        batch.next_token_chooser.advance_grammar_single(i, next_token_id)
+                        batch.next_token_chooser.advance_grammar_single(
+                            i, next_token_id
+                        )
                     )
 
             # Update values

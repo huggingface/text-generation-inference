@@ -1,6 +1,6 @@
 import pytest
-import os
 from text_generation_server.pb import generate_pb2
+
 
 @pytest.fixture
 def default_pb_parameters():

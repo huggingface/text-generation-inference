@@ -1,6 +1,6 @@
-use crate::client::{ClientError, Result};
+use crate::client::Health;
 /// Multi shard Client
-use crate::client::{Health, ShardInfo};
+use crate::client::{ClientError, Result};
 
 use crate::client::grpc_client::{DecodeTimings, PrefillTimings};
 use crate::client::{
@@ -49,13 +49,13 @@ impl ShardedClient {
 
     /// Get the model info
     #[instrument(skip(self))]
-    pub async fn info(&mut self) -> Result<ShardInfo> {
+    pub async fn info(&mut self) -> Result<InfoResponse> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
             .map(|client| client.info())
             .collect();
-        join_all(futures).await.pop().unwrap().map(ShardInfo::from)
+        join_all(futures).await.pop().unwrap()
     }
 
     /// GRPC health check
@@ -194,18 +194,6 @@ impl ShardedClient {
     }
 }
 
-impl From<InfoResponse> for ShardInfo {
-    fn from(value: InfoResponse) -> Self {
-        Self {
-            requires_padding: value.requires_padding,
-            dtype: value.dtype,
-            device_type: value.device_type,
-            window_size: value.window_size,
-            speculate: value.speculate,
-        }
-    }
-}
-
 #[async_trait]
 impl Health for ShardedClient {
     async fn device_health(&self) -> Result<()> {
@@ -248,6 +236,7 @@ impl Health for ShardedClient {
             slots: (0..16).collect(),
             prefix_len: 0,
             adapter_id: None,
+            postfix_len: 1,
         };
         let batch = Batch {
             id: u64::MAX,

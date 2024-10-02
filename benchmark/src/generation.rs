@@ -159,6 +159,7 @@ async fn prefill(
             blocks: vec![],
             slots: vec![],
             prefix_len: 0,
+            postfix_len: sequence_length,
             adapter_id: None,
         })
         .collect();
