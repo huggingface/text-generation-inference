@@ -1937,6 +1937,11 @@ async fn start(
         metrics::Unit::Count,
         "Maximum tokens for the current batch"
     );
+    metrics::describe_gauge!(
+        "tgi_batch_total_tokens",
+        metrics::Unit::Count,
+        "Maximum amount of tokens in total."
+    );
     metrics::describe_histogram!(
         "tgi_request_max_new_tokens",
         metrics::Unit::Count,
