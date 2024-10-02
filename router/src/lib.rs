@@ -957,12 +957,18 @@ pub fn default_tool_prompt() -> String {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
-#[serde(untagged)]
+#[schema(example = "auto")]
+/// Controls which (if any) tool is called by the model.
 pub enum ToolType {
+    /// Means the model can pick between generating a message or calling one or more tools.
+    #[schema(rename = "auto")]
     OneOf,
-    FunctionName(String),
-    Function { function: FunctionName },
+    /// Means the model will not call any tool and instead generates a message.
+    #[schema(rename = "none")]
     NoTool,
+    /// Forces the model to call a specific tool.
+    #[schema(rename = "function")]
+    Function(FunctionName),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -987,7 +993,9 @@ impl From<ToolTypeDeserializer> for ToolChoice {
             ToolTypeDeserializer::String(s) => match s.as_str() {
                 "none" => ToolChoice(Some(ToolType::NoTool)),
                 "auto" => ToolChoice(Some(ToolType::OneOf)),
-                _ => ToolChoice(Some(ToolType::FunctionName(s))),
+                _ => ToolChoice(Some(ToolType::Function(FunctionName {
+                        name: s
+                } ))),
             },
             ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
         }
