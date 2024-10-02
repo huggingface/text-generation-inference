@@ -450,6 +450,7 @@ class FlashLlamaLayer(nn.Module):
         seqlen,
         max_s,
         adapter_data,
+        cross_attention_states,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -487,6 +488,7 @@ class FlashLlamaModel(torch.nn.Module):
 
         # Skip fp8 quant for first and last layers
         self.layers = nn.ModuleList()
+        self.cross_attention_layers = getattr(config, "cross_attention_layers", [])
         with no_fp8(weights):
             self.layers.append(
                 FlashLlamaLayer(
@@ -499,22 +501,38 @@ class FlashLlamaModel(torch.nn.Module):
                 )
             )
 
-        self.layers.extend(
-            [
-                FlashLlamaLayer(
-                    index=layer_id,
-                    prefix=(
-                        f"model.layers.{layer_id}"
-                        if not prefix
-                        else f"{prefix}.model.layers.{layer_id}"
-                    ),
-                    config=config,
-                    weights=weights,
+        # Skip first and last layers
+        for layer_id in range(1, config.num_hidden_layers - 1):
+            if layer_id in self.cross_attention_layers:
+                from text_generation_server.models.custom_modeling.mllama import (
+                    FlashLlamaCrossLayer,
                 )
-                # Skip first and last layers
-                for layer_id in range(1, config.num_hidden_layers - 1)
-            ]
-        )
+
+                self.layers.append(
+                    FlashLlamaCrossLayer(
+                        index=layer_id,
+                        prefix=(
+                            f"model.layers.{layer_id}"
+                            if not prefix
+                            else f"{prefix}.model.layers.{layer_id}"
+                        ),
+                        config=config,
+                        weights=weights,
+                    )
+                )
+            else:
+                self.layers.append(
+                    FlashLlamaLayer(
+                        index=layer_id,
+                        prefix=(
+                            f"model.layers.{layer_id}"
+                            if not prefix
+                            else f"{prefix}.model.layers.{layer_id}"
+                        ),
+                        config=config,
+                        weights=weights,
+                    )
+                )
 
         with no_fp8(weights):
             last_layer_id = config.num_hidden_layers - 1
@@ -556,6 +574,7 @@ class FlashLlamaModel(torch.nn.Module):
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         adapter_data,
+        cross_attention_states=None,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
@@ -579,6 +598,7 @@ class FlashLlamaModel(torch.nn.Module):
                 seqlen,
                 max_s,
                 adapter_data,
+                cross_attention_states,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -625,6 +645,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
+        cross_attention_states=None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
@@ -639,6 +660,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,
             adapter_data=adapter_data,
+            cross_attention_states=cross_attention_states,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

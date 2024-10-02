@@ -35,6 +35,7 @@ Text Generation Inference enables serving optimized models on specific hardware 
 - [Gpt Neox](https://huggingface.co/EleutherAI/gpt-neox-20b)
 - [Gptj](https://huggingface.co/EleutherAI/gpt-j-6b)
 - [Idefics](https://huggingface.co/HuggingFaceM4/idefics-9b) (Multimodal)
+- [Mllama](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct) (Multimodal)
 
 
 If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs, but performance isn't guaranteed for non-optimized models:
