@@ -175,7 +175,6 @@ pub(crate) async fn batching_task(
                 let (min_size, max_size, prefill_token_budget) = if support_chunking {
                     // Since the next batch will be concatenated with the current batch,
                     // the current batch tokens must be subtracted to the prefill budget
-                    // In the future, we could concatenate beforehand
                     let prefill_token_budget = max_batch_prefill_tokens - current_tokens;
                     // We can ignore min_size and max_size
                     // Models than rely on max_size cannot support chunking
