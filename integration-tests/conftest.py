@@ -524,11 +524,11 @@ def launcher(event_loop):
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
-            # name=container_name,
+            name=container_name,
             environment=env,
             auto_remove=False,
             detach=True,
-            device_requests=device_requests,
+            # device_requests=device_requests,
             devices=devices,
             volumes=volumes,
             ports={"80/tcp": port},
