@@ -197,7 +197,7 @@ jobs:
           # export EXTRA_PYTEST="${{ needs.build-and-push.outputs.extra_pytest }}"
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
-          python -c 'import docker; client = docker.from_env(); client.containers.run("registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-318bbc7-rocm", devices=["/dev/kfd", "/dev/dri"], env={"MODEL_ID": "gpt2"}, devices=["/dev/kfd", "/dev/dri"])'
+          python -c 'import docker; client = docker.from_env(); client.containers.run("registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-318bbc7-rocm", devices=["/dev/kfd", "/dev/dri"], env={"MODEL_ID": "gpt2"})'
           # which pytest
           pip freeze
           # pytest -s -vv integration-tests -k flash_llama_grammar_tools_auto
