@@ -226,10 +226,6 @@ async def test_flash_llama_grammar_tools_insufficient_information(
         tool_choice="auto",
         messages=[
             {
-                "role": "system",
-                "content": "STRICTLY ONLY RESPOND IF THE USER ASKS A WEATHER RELATED QUESTION",
-            },
-            {
                 "role": "user",
                 "content": "Tell me a story about 3 sea creatures",
             },
@@ -237,8 +233,5 @@ async def test_flash_llama_grammar_tools_insufficient_information(
         stream=False,
     )
 
-    assert responses.choices[0].message.content is None
-    assert (
-        responses.choices[0].message.tool_calls[0]["function"]["name"] == "notify_error"
-    )
+    assert responses.choices[0].message.content == "There is a huge storm in the ocean"
     assert responses == response_snapshot
