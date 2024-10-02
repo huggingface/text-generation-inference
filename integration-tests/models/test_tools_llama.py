@@ -233,8 +233,5 @@ async def test_flash_llama_grammar_tools_insufficient_information(
         stream=False,
     )
 
-    assert (
-        responses.choices[0].message.content
-        == "There is a huge storm in the ocean"
-    )
+    assert responses.choices[0].message.content == "There is a huge storm in the ocean"
     assert responses == response_snapshot
