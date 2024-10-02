@@ -527,21 +527,21 @@ def launcher(event_loop):
         #     devices: {devices}
         # """
         # )
-        env.pop("LOG_LEVEL")
-        env.pop("ROCR_VISIBLE_DEVICES")
+        # env.pop("LOG_LEVEL")
+        # env.pop("ROCR_VISIBLE_DEVICES")
         container = client.containers.run(
             DOCKER_IMAGE,
-            command=args,
+            # command=args,
             # name=container_name,
-            environment=env,
-            auto_remove=False,
-            detach=True,
-            device_requests=device_requests,
-            devices=devices,
-            volumes=volumes,
-            ports={"80/tcp": port},
-            healthcheck={"timeout": int(10 * 1e9)},
-            shm_size="1G",
+            # environment=env,
+            # auto_remove=False,
+            # detach=True,
+            # device_requests=device_requests,
+            # devices=devices,
+            # volumes=volumes,
+            # ports={"80/tcp": port},
+            # healthcheck={"timeout": int(10 * 1e9)},
+            # shm_size="1G",
         )
 
         import time
