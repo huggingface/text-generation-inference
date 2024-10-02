@@ -193,5 +193,7 @@ jobs:
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
           export EXTRA_PYTEST="${{ needs.build-and-push.outputs.extra_pytest }}"
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
+          export ROCR_VISIBLE_DEVICES=0,1
           echo $DOCKER_IMAGE
+          rocm-smi
           pytest -s -vv integration-tests ${PYTEST_FLAGS} ${EXTRA_PYTEST}

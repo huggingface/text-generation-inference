@@ -534,6 +534,10 @@ def launcher(event_loop):
 
         yield ContainerLauncherHandle(client, container.name, port)
 
+        import time
+
+        time.sleep(600)
+
         if not use_flash_attention:
             del env["USE_FLASH_ATTENTION"]
 
@@ -589,7 +593,6 @@ def generate_multi():
         max_new_tokens: int,
         seed: Optional[int] = None,
     ) -> List[Response]:
-
         import numpy as np
 
         arange = np.arange(len(prompts))
