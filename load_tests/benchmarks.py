@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import traceback
@@ -141,6 +142,8 @@ def get_num_gpus() -> int:
 
 def build_df(model: str, data_files: dict[str, str]) -> pd.DataFrame:
     df = pd.DataFrame()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    created_at = now.isoformat()  # '2024-10-02T11:53:17.026215+00:00'
     # Load the results
     for key, filename in data_files.items():
         with open(filename, 'r') as f:
@@ -153,6 +156,7 @@ def build_df(model: str, data_files: dict[str, str]) -> pd.DataFrame:
                 entry['tp'] = data['config']['meta']['tp']
                 entry['version'] = data['config']['meta']['version']
                 entry['model'] = model
+                entry['created_at'] = created_at
                 del entry['config']
                 df = pd.concat([df, pd.DataFrame(entry, index=[0])])
     return df
