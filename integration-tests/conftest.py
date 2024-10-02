@@ -517,6 +517,8 @@ def launcher(event_loop):
                 docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
             ]
 
+        print("Starting docker")
+
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
@@ -531,6 +533,10 @@ def launcher(event_loop):
             healthcheck={"timeout": int(10 * 1e9)},
             shm_size="1G",
         )
+
+        import time
+
+        time.sleep(600)
 
         yield ContainerLauncherHandle(client, container.name, port)
 
