@@ -517,16 +517,18 @@ def launcher(event_loop):
                 docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
             ]
 
-        raise Exception(
-            f"""
-            Docoker image: {DOCKER_IMAGE}
-            args: {args}
-            container name: {container_name}
-            env: {env}
-            device_requests: {device_requests}
-            devices: {devices}
-        """
-        )
+        # raise Exception(
+        #     f"""
+        #     Docoker image: {DOCKER_IMAGE}
+        #     args: {args}
+        #     container name: {container_name}
+        #     env: {env}
+        #     device_requests: {device_requests}
+        #     devices: {devices}
+        # """
+        # )
+        env.pop("LOG_LEVEL")
+        env.pop("ROCR_VISIBLE_DEVICES")
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
