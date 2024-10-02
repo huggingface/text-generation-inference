@@ -533,7 +533,7 @@ def launcher(event_loop):
             DOCKER_IMAGE,
             command=args,
             # name=container_name,
-            # environment=env,
+            environment=env,
             # auto_remove=False,
             # detach=True,
             # device_requests=device_requests,

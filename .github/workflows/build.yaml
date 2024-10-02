@@ -195,7 +195,7 @@ jobs:
           # export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
           export DOCKER_DEVICES=/dev/kfd,/dev/dri
           # export EXTRA_PYTEST="${{ needs.build-and-push.outputs.extra_pytest }}"
-          # export HF_TOKEN=${{ secrets.HF_TOKEN }}
+          export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
           # python -c 'import docker; client = docker.from_env(); client.containers.run("registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-318bbc7-rocm", devices=["/dev/kfd", "/dev/dri"], env={"MODEL_ID": "gpt2"}, detach=True)'
           which pytest
