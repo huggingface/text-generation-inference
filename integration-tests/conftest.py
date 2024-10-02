@@ -538,8 +538,8 @@ def launcher(event_loop):
             # detach=True,
             # device_requests=device_requests,
             devices=devices,
-            # volumes=volumes,
-            # ports={"80/tcp": port},
+            volumes=volumes,
+            ports={"80/tcp": port},
             # healthcheck={"timeout": int(10 * 1e9)},
             # shm_size="1G",
         )
