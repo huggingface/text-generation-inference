@@ -519,6 +519,8 @@ def launcher(event_loop):
 
         print("Starting docker")
 
+        args = ["sleep", "infinity"]
+
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
