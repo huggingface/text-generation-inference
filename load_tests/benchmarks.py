@@ -1,3 +1,4 @@
+import argparse
 import datetime
 import json
 import os
@@ -162,7 +163,7 @@ def build_df(model: str, data_files: dict[str, str]) -> pd.DataFrame:
     return df
 
 
-def main():
+def main(sha, results_file):
     results_dir = 'results'
     # get absolute path
     results_dir = os.path.join(os.path.dirname(__file__), results_dir)
@@ -172,7 +173,6 @@ def main():
         # ('meta-llama/Llama-3.1-70B-Instruct', 4),
         # ('mistralai/Mixtral-8x7B-Instruct-v0.1', 2),
     ]
-    sha = os.environ.get('GITHUB_SHA')
     success = True
     for model in models:
         tgi_runner = TGIDockerRunner(model[0])
@@ -225,8 +225,18 @@ def main():
         df = pd.concat([df, build_df(directory.split('/')[-1], data_files)])
     df['device'] = get_gpu_name()
     df['error_rate'] = df['failed_requests'] / (df['failed_requests'] + df['successful_requests']) * 100.0
-    df.to_parquet(f's3://text-generation-inference-ci/benchmarks/ci/{sha}.parquet')
+    df.to_parquet(results_file)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sha", help="SHA of the commit to add to the results", required=True)
+    parser.add_argument("--results-file",
+                        help="The file where to store the results, can be a local file or a s3 path")
+    args = parser.parse_args()
+    if args.results_file is None:
+        results_file = f'{args.sha}.parquet'
+    else:
+        results_file = args.results_file
+
+    main(args.sha, results_file)

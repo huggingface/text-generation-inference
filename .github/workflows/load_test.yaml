@@ -44,7 +44,7 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           cd load_tests
           poetry install
-          poetry run python benchmarks.py
+          poetry run python benchmarks.py --sha ${{ github.sha }} --results-file "s3://text-generation-inference-ci/benchmarks/ci/${{ github.sha }}.parquet"
         shell: bash
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN_BENCHMARK }}
