@@ -169,9 +169,9 @@ jobs:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     needs: build-and-push
+    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
     runs-on:
       group: ${{ needs.build-and-push.outputs.runs_on }}
-      if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
     env:
       PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || inputs.release-tests == true) && '--release' || '--release' }}
     steps:
