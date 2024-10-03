@@ -1267,7 +1267,7 @@ async fn chat_completions(
                         function: FunctionDefinition {
                             description: None,
                             name,
-                            arguments,
+                            parameters: arguments,
                         },
                     }];
                     (Some(tool_calls), None)
@@ -2370,6 +2370,7 @@ pub enum WebServerError {
 
 type PreparedInput = (String, Option<GrammarType>, bool);
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare_chat_input(
     infer: &Infer,
     response_format: Option<GrammarType>,
@@ -2378,6 +2379,7 @@ pub(crate) fn prepare_chat_input(
     tool_prompt: &str,
     guideline: Option<String>,
     messages: Vec<Message>,
+    builtin_tools: Option<Vec<String>>,
 ) -> Result<PreparedInput, InferError> {
     if response_format.is_some() && tools.is_some() {
         return Err(InferError::ToolError(
@@ -2387,7 +2389,7 @@ pub(crate) fn prepare_chat_input(
 
     // when response_format is set, tools are not included when applying the chat template to generate inputs
     if let Some(format) = response_format {
-        let inputs = infer.apply_chat_template(guideline, messages, None)?;
+        let inputs = infer.apply_chat_template(guideline, messages, None, builtin_tools)?;
         return Ok((inputs, Some(format), false));
     }
 
@@ -2404,12 +2406,13 @@ pub(crate) fn prepare_chat_input(
             guideline,
             messages,
             Some((updated_tools, tool_prompt.into())),
+            builtin_tools,
         )?;
         return Ok((inputs, grammar, tool_schema.is_some()));
     }
 
     // if no response_format or tools are set simply apply the chat template to generate inputs
-    let inputs = infer.apply_chat_template(guideline, messages, None)?;
+    let inputs = infer.apply_chat_template(guideline, messages, None, builtin_tools)?;
     Ok((inputs, None, false))
 }
 

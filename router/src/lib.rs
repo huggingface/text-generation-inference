@@ -864,6 +864,12 @@ pub(crate) struct ChatRequest {
     #[schema(nullable = true, default = "null", example = "null")]
     pub guideline: Option<String>,
 
+    /// A list of builtin_tools (these must be trained into the model.
+    /// See https://www.llama.com/docs/model-cards-and-prompt-formats/llama3_1/#built-in-python-based-tool-calling for more information.
+    #[serde(default)]
+    #[schema(nullable = true, example = "null")]
+    pub builtin_tools: Option<Vec<String>>,
+
     /// Options for streaming response. Only set this when you set stream: true.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
@@ -885,6 +891,7 @@ impl ChatRequest {
             temperature,
             response_format,
             guideline,
+            builtin_tools,
             presence_penalty,
             frequency_penalty,
             top_p,
@@ -911,7 +918,11 @@ impl ChatRequest {
             &tool_prompt,
             guideline,
             messages,
+            builtin_tools,
         )?;
+
+        println!("inputs: {}", inputs);
+        // println!("grammar: {:?}", grammar);
 
         Ok((
             GenerateRequest {
@@ -953,7 +964,8 @@ struct StreamOptions {
 }
 
 pub fn default_tool_prompt() -> String {
-    "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
+    // "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
+    "".to_string()
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -1034,8 +1046,8 @@ pub(crate) struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
-    #[serde(alias = "parameters")]
-    pub arguments: serde_json::Value,
+    // #[serde(alias = "parameters")]
+    pub parameters: serde_json::Value,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
@@ -1056,6 +1068,8 @@ pub(crate) struct ChatTemplateInputs<'a> {
     add_generation_prompt: bool,
     tools: Option<Vec<Tool>>,
     guideline: Option<&'a str>,
+    // builtin_tools: Option<Vec<&'a str>>,
+    builtin_tools: Option<Vec<String>>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug, PartialEq)]

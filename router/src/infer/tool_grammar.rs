@@ -1,8 +1,5 @@
 use crate::infer::InferError;
-use crate::{
-    FunctionDefinition, FunctionRef, FunctionsMap, JsonSchemaTool, Properties, Tool, ToolChoice,
-    ToolType,
-};
+use crate::{FunctionRef, FunctionsMap, JsonSchemaTool, Properties, Tool, ToolChoice, ToolType};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 
@@ -29,27 +26,27 @@ impl ToolGrammar {
 
         let tool_choice = tool_choice.0.unwrap_or(ToolType::OneOf);
 
-        let mut tools = tools.clone();
+        // let mut tools = tools.clone();
 
-        // add the notify_error function to the tools
-        let notify_error = Tool {
-            r#type: "function".to_string(),
-            function: FunctionDefinition {
-                name: "notify_error".to_string(),
-                description: Some("Notify an error or issue".to_string()),
-                arguments: json!({
-                    "type": "object",
-                    "properties": {
-                        "error": {
-                            "type": "string",
-                            "description": "The error or issue to notify"
-                        }
-                    },
-                    "required": ["error"]
-                }),
-            },
-        };
-        tools.push(notify_error);
+        // // add the notify_error function to the tools
+        // let notify_error = Tool {
+        //     r#type: "function".to_string(),
+        //     function: FunctionDefinition {
+        //         name: "notify_error".to_string(),
+        //         description: Some("Notify an error or issue".to_string()),
+        //         arguments: json!({
+        //             "type": "object",
+        //             "properties": {
+        //                 "error": {
+        //                     "type": "string",
+        //                     "description": "The error or issue to notify"
+        //                 }
+        //             },
+        //             "required": ["error"]
+        //         }),
+        //     },
+        // };
+        // tools.push(notify_error);
 
         // if tools are provided and no tool_choice we default to the OneOf
         let tools_to_use = match tool_choice {
@@ -86,7 +83,7 @@ impl ToolGrammar {
                     }),
                 );
 
-                if let Value::Object(args) = func.arguments {
+                if let Value::Object(args) = func.parameters {
                     if let Some(Value::Object(props)) = args.get("properties") {
                         properties.extend(props.clone());
                     }
@@ -109,7 +106,7 @@ impl ToolGrammar {
             })
             .collect();
 
-        let tool_schema = JsonSchemaTool {
+        let _tool_schema = JsonSchemaTool {
             functions_map: FunctionsMap { functions },
             properties: Properties {
                 function: tools_to_use
@@ -121,6 +118,7 @@ impl ToolGrammar {
             },
         };
 
-        Ok((tools, Some(tool_schema)))
+        // Ok((tools, Some(tool_schema)))
+        Ok((tools, None))
     }
 }

@@ -138,6 +138,12 @@ pub(crate) struct VertexParameters {
     #[schema(nullable = true, default = "null", example = "null")]
     pub guideline: Option<String>,
 
+    /// A list of builtin_tools (these must be trained into the model.
+    /// See https://www.llama.com/docs/model-cards-and-prompt-formats/llama3_1/#built-in-python-based-tool-calling for more information.
+    #[serde(default)]
+    #[schema(nullable = true, example = "null")]
+    pub builtin_tools: Option<Vec<String>>,
+
     /// Options for streaming response. Only set this when you set stream: true.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
@@ -150,6 +156,7 @@ impl From<VertexChat> for ChatRequest {
             messages: val.messages,
             frequency_penalty: val.parameters.frequency_penalty,
             guideline: val.parameters.guideline,
+            builtin_tools: val.parameters.builtin_tools,
             logit_bias: val.parameters.logit_bias,
             logprobs: val.parameters.logprobs,
             max_tokens: val.parameters.max_tokens,
