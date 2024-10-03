@@ -23,7 +23,17 @@ TGI's docker image for AMD GPUs integrates [PyTorch's TunableOp](https://github.
 
 Experimentally, on MI300X, we noticed a 6-8% latency improvement when using TunableOp on top of ROCm 6.1 and PyTorch 2.3.
 
-TunableOp is enabled by default, the warmup may take 1-2 minutes. In case you would like to disable TunableOp, please pass `--env PYTORCH_TUNABLEOP_ENABLED="0"` when launcher TGI's docker container.
+TunableOp is enabled by default, the warmup may take 1-2 minutes. In case you would like to disable TunableOp, please pass `--env PYTORCH_TUNABLEOP_ENABLED="0"` when launching TGI's docker container.
+
+TGI's ROCm image comes preloaded with tuned configurations for commonly occurring GEMMs. However, if you want to enable tuning for other GEMMs during the warmup process, please pass `--env PYTORCH_TUNABLEOP_TUNING="1"` when launching TGI's docker container.
+
+When tuning is enabled, there are two types of tuning performed in TGI:
+* Decode: Enabled by default.
+* Prefill: Disabled by default due to its longer warmup time.
+
+To enable tuning for prefill for specific input lengths: pass `--env PYTORCH_TUNABLEOP_PREFILL_SEQLENS=<seqlen1>,<seqlen2>,...` to docker container.
+
+Note: if a shape already exist in the tuned configurations, the tuning will be skipped.
 
 ## Flash attention implementation
 

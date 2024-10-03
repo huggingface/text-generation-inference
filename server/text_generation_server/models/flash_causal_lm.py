@@ -1322,6 +1322,18 @@ class FlashCausalLM(Model):
                 else:
                     tuning_sequences = [1, 2, 3, 4, 5, 6, 7]
 
+                tuning_sequences_prefill = None
+                if (
+                    os.environ.get("PYTORCH_TUNABLEOP_PREFILL_SEQLENS") is not None
+                    and os.environ.get("PYTORCH_TUNABLEOP_PREFILL_SEQLENS") != ""
+                ):
+                    tuning_sequences_prefill = [
+                        int(val)
+                        for val in os.environ[
+                            "PYTORCH_TUNABLEOP_PREFILL_SEQLENS"
+                        ].split(",")
+                    ]
+
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
                     f"tunableop_{self.model_id.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
@@ -1329,11 +1341,9 @@ class FlashCausalLM(Model):
 
                 log_master(
                     logger.info,
-                    f"PyTorch TunableOp is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
-                )
-
-                torch.cuda.tunable.set_filename(
-                    tunableop_filepath, insert_device_ordinal=False
+                    f"PyTorch TunableOp is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target decode lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])} "
+                    f"and prefill lengths {', '.join([str(seqlen) for seqlen in tuning_sequences_prefill]) if tuning_sequences_prefill is not None else 'N/A'}, "
+                    f"with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
                 )
 
                 if os.path.isfile(tunableop_filepath):
@@ -1346,9 +1356,21 @@ class FlashCausalLM(Model):
                 os.makedirs(HUGGINGFACE_HUB_CACHE, exist_ok=True)
 
                 for seqlen in tuning_sequences:
-                    log_master(logger.info, f"Warming up TunableOp for seqlen={seqlen}")
+                    log_master(
+                        logger.info, f"Warming up TunableOp for Decode seqlen={seqlen}"
+                    )
                     self.tunableop_warmup(seqlen)
                     torch.cuda.tunable.write_file(tunableop_filepath)
+
+                if tuning_sequences_prefill is not None:
+                    for seqlen in tuning_sequences_prefill:
+                        for bs in tuning_sequences:
+                            log_master(
+                                logger.info,
+                                f"Warming up TunableOp for Prefill seqlen={seqlen}, bs={bs}",
+                            )
+                            self.tunableop_prefill_warmup(bs, seqlen)
+                            torch.cuda.tunable.write_file(tunableop_filepath)
                 if os.environ.get("PYTORCH_TUNABLEOP_TUNING_AFTER_WARMUP") != "1":
                     torch.cuda.tunable.tuning_enable(False)
             else:
@@ -1396,6 +1418,40 @@ class FlashCausalLM(Model):
         )
 
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
+        self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=cu_seqlen_prefill,
+            kv_cache=self.kv_cache,
+            block_tables=None,
+            seqlen=seqlen,
+            slots=slots,
+            max_s=max_s,
+            lm_head_indices=None,
+            prefill_cache_indices=None,
+        )
+
+    def tunableop_prefill_warmup(self, bs: int, seqlen: int):
+        input_ids = torch.zeros(seqlen * bs, dtype=torch.int64, device=self.device)
+        position_ids = torch.zeros(seqlen * bs, dtype=torch.int32, device=self.device)
+        slots = torch.arange(seqlen * bs + 1, dtype=torch.int64, device=self.device)
+
+        # Dummy value, some models (starcoder2) don't accept `None`.
+        input_lengths = torch.ones(bs, dtype=torch.int32, device=self.device) * seqlen
+        prefix_lens_tensor = torch.zeros(bs, dtype=torch.int32, device=self.device)
+
+        cu_seqlen_prefill = torch.arange(
+            0, (bs + 1) * seqlen, seqlen, device=self.device, dtype=torch.int32
+        )
+        max_s = seqlen
+        seqlen = Seqlen(
+            input_lengths=input_lengths,
+            prefix_lengths=prefix_lens_tensor,
+            cu_seqlen_q=cu_seqlen_prefill,
+            max_q=seqlen,
+            max_k=seqlen,
+        )
+
         self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,

@@ -328,6 +328,13 @@ ENV ATTENTION=paged
 ENV USE_PREFIX_CACHING=0
 ENV ROCM_USE_SKINNY_GEMM=1
 
+COPY ./rocm_tuned_ops/afo_tune_device_0_full.csv /afo_tune/
+RUN seq 1 7 | xargs -I{} cp /afo_tune/afo_tune_device_0_full.csv /afo_tune/afo_tune_device_{}_full.csv
+
+ENV PYTORCH_TUNABLEOP_FILENAME=/afo_tune/afo_tune_device_%d_full.csv
+ENV PYTORCH_TUNABLEOP_TUNING=0
+ENV PYTORCH_TUNABLEOP_ENABLED=1
+
 COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
