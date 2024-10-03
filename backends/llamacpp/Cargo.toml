@@ -1,0 +1,8 @@
+[package]
+name = "text-generation-backend-llamacpp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+
+[dependencies]
