@@ -56,7 +56,7 @@ jobs:
                 export docker_devices="/dev/kfd,/dev/dri"
                 export runs_on="amd-gpu-runners"
                 export platform=""
-                export extra_pytest="-k test_flash_gemma_load"
+                export extra_pytest="-k test_flash_gemma_gptq_load"
                 ;;
             intel-xpu)
                 export dockerfile="Dockerfile_intel"
@@ -168,7 +168,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-      needs: build-and-push
+    needs: build-and-push
     runs-on:
       group: ${{ needs.build-and-push.outputs.runs_on }}
       if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
