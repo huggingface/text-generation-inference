@@ -983,6 +983,7 @@ pub struct ToolChoice(pub Option<ToolType>);
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum ToolTypeDeserializer {
+    Null,
     String(String),
     ToolType(ToolType),
 }
@@ -990,6 +991,7 @@ enum ToolTypeDeserializer {
 impl From<ToolTypeDeserializer> for ToolChoice {
     fn from(value: ToolTypeDeserializer) -> Self {
         match value {
+            ToolTypeDeserializer::Null => ToolChoice(None),
             ToolTypeDeserializer::String(s) => match s.as_str() {
                 "none" => ToolChoice(Some(ToolType::NoTool)),
                 "auto" => ToolChoice(Some(ToolType::OneOf)),
