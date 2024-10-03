@@ -311,13 +311,11 @@ print(chat.choices[0].message.tool_calls)
 
 ```
 
-### OpenAI Integration
+### OpenAI integration
 
-Text Generation Inference (TGI) offers seamless integration with OpenAI's client libraries, allowing developers to interact with TGI's Messages API and Tool functions in a familiar way. This compatibility simplifies the implementation of advanced features, such as tools and grammar, within your applications using OpenAI’s client.
+TGI exposes an OpenAI-compatible API, which means you can use OpenAI's client libraries to interact with TGI's Messages API and Tool functions.
 
-Previously, TGI handled tool selection differently than OpenAI’s API—`tool_choice="auto"` would always pick a tool for you. However, as of the latest version, TGI now mimics OpenAI’s behavior more closely: `tool_choice="auto"` selects a tool only when the model deems it necessary, aligning with how OpenAI's API works. This enhancement ensures a smoother and more predictable integration experience.
-
-Additionally, error notifications like `notify_error`, which previously indicated that no tool was chosen, are no longer returned. Instead, TGI will proceed with generating a response as if no tool was selected, further improving consistency with OpenAI's API.
+However there are some minor differences in the API, for example `tool_choice="auto"` will ALWAYS choose the tool for you. This is different from OpenAI's API where `tool_choice="auto"` will choose a tool if the model thinks it's necessary.
 
 ```python
 from openai import OpenAI

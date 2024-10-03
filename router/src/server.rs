@@ -1246,33 +1246,17 @@ async fn chat_completions(
             if let Value::Object(ref mut props) = arguments {
                 props.remove("_name");
             }
-            match name.as_str() {
-                "notify_error" => {
-                    // parse the error message
-                    let error_message = arguments
-                        .get("error")
-                        .and_then(Value::as_str)
-                        .ok_or_else(|| {
-                            InferError::ToolError(
-                                "No error message found in generated text".to_string(),
-                            )
-                        })?
-                        .to_string();
-                    (None, Some(error_message))
-                }
-                _ => {
-                    let tool_calls = vec![ToolCall {
-                        id: "0".to_string(),
-                        r#type: "function".to_string(),
-                        function: FunctionDefinition {
-                            description: None,
-                            name,
-                            arguments,
-                        },
-                    }];
-                    (Some(tool_calls), None)
-                }
-            }
+
+            let tool_calls = vec![ToolCall {
+                id: "0".to_string(),
+                r#type: "function".to_string(),
+                function: FunctionDefinition {
+                    description: None,
+                    name,
+                    arguments,
+                },
+            }];
+            (Some(tool_calls), None)
         } else {
             (None, Some(generation.generated_text))
         };
