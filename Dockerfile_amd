@@ -265,6 +265,12 @@ COPY server/exllamav2_kernels/ .
 
 RUN python setup.py build
 
+FROM base as get_tuned_ops
+RUN apt-get update && apt-get install git-lfs
+RUN git clone https://github.com/huggingface/text-generation-inference.git
+WORKDIR /text-generation-inference
+RUN git checkout add_tunable_prefill && git lfs pull
+
 FROM install_deps AS base-copy
 
 # Text Generation Inference base env
@@ -328,7 +334,7 @@ ENV ATTENTION=paged
 ENV USE_PREFIX_CACHING=0
 ENV ROCM_USE_SKINNY_GEMM=1
 
-COPY ./rocm_tuned_ops/afo_tune_device_0_full.csv /afo_tune/
+COPY --from=get_tuned_ops /text-generation-inference/rocm_tuned_ops/afo_tune_device_0_full.csv /afo_tune/afo_tune_device_0_full.csv
 RUN seq 1 7 | xargs -I{} cp /afo_tune/afo_tune_device_0_full.csv /afo_tune/afo_tune_device_{}_full.csv
 
 ENV PYTORCH_TUNABLEOP_FILENAME=/afo_tune/afo_tune_device_%d_full.csv
