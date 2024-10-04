@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 include(FetchContent)
 include(ExternalProject)
 
+set(CMAKE_CUDA_FLAGS ${CMAKE_CUDA_FLAGS} "--allow-unsupported-compiler -ccbin=gcc")
+
 option(TGI_TRTLLM_BACKEND_BUILD_TESTS "Enable building the unittests suite" OFF)
 option(TGI_TRTLLM_BACKEND_BUILD_EXAMPLES "Enable building the examples suite" OFF)
 set(TGI_TRTLLM_BACKEND_TARGET_CUDA_ARCH_LIST "89-real" CACHE STRING "List of CUDA architectures to support")

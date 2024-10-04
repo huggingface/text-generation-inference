@@ -6,3 +6,20 @@ authors.workspace = true
 homepage.workspace = true
 
 [dependencies]
+clap = { version = "4.5.19", features = ["derive"] }
+cxx = "1.0"
+hf-hub = { workspace = true }
+image = { version = "0.25.1", features = ["default-formats"] }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+serde_json = "1.0.128"
+text-generation-router = { path = "../../router" }
+thiserror = "1.0.64"
+tokio = "1.40.0"
+tokio-stream = "0.1.16"
+tokenizers = { workspace = true }
+
+[build-dependencies]
+cmake = "0.1"
+cxx-build = { version = "1.0", features = ["parallel"] }
+pkg-config = "0.3"

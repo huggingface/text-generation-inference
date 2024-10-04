@@ -4,9 +4,10 @@ set(SPDLOG_FMT_EXTERNAL ON)
 
 # Define the level at which SPDLOG_ compilation level is defined
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_definitions(SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG)
-else ()
-    add_compile_definitions(SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO)
+    message(STATUS "Verbose logging is enabled in debug build")
+    add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG)
+else()
+    add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO)
 endif ()
 
 fetchcontent_declare(
