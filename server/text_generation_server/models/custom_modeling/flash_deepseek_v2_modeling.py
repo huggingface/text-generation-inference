@@ -33,7 +33,6 @@ from text_generation_server.layers.attention import (
     Seqlen,
     attention,
     paged_attention,
-    reshape_and_cache,
 )
 from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import FastRMSNorm
@@ -321,15 +320,15 @@ class DeepseekV2Attention(torch.nn.Module):
             value, (0, self.head_pad_size - self.value_head_size), value=0
         )
 
-        reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(key=key, value=value, slots=slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else key,
-                kv_cache[1] if PREFILL_IN_KV_CACHE else value,
+                kv_cache.key if PREFILL_IN_KV_CACHE else key,
+                kv_cache.value if PREFILL_IN_KV_CACHE else value,
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -338,8 +337,8 @@ class DeepseekV2Attention(torch.nn.Module):
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache.key,
+                kv_cache.value,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,

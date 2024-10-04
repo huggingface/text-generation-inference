@@ -46,7 +46,7 @@ from text_generation_server.models.globals import (
     TGI_WIGGLE_ROOM,
     get_adapter_to_index,
 )
-from text_generation_server.layers.attention import Seqlen
+from text_generation_server.layers.attention import KVCache, Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 from text_generation_server.utils.quantization import get_loader
@@ -937,6 +937,7 @@ class FlashCausalLM(Model):
         # Deepseek V2 uses different QK and V dims.
         head_size: Optional[int] = None,
         skip_special_tokens: bool = True,
+        kv_cache_dtype: Optional[torch.dtype] = None,
     ):
         self.quantize = quantize
         self.process_group, rank, world_size = initialize_torch_distributed()
@@ -1034,6 +1035,7 @@ class FlashCausalLM(Model):
 
         self.cuda_graphs = {}
         self.kv_cache = []
+        self.kv_cache_dtype = dtype if kv_cache_dtype is None else kv_cache_dtype
 
         if ATTENTION == "flashinfer":
             from text_generation_server.layers.attention.flashinfer import (
@@ -1083,61 +1085,16 @@ class FlashCausalLM(Model):
     ):
         self.kv_cache = []
         empty_cache()
-
-        element_size = torch.tensor([], dtype=dtype).element_size()
-        if SYSTEM == "ipex" and device.type == "xpu":
-            x = 1
-        else:
-            x = BLOCK_SIZE // element_size
-
-        if ATTENTION in {"flashdecoding", "flashinfer"}:
-            self.kv_cache = [
-                (
-                    torch.empty(
-                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                    torch.empty(
-                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                )
-                for _ in range(num_layers)
-            ]
-        elif SYSTEM == "ipex" and device == torch.device("cpu"):
-            self.kv_cache = [
-                (
-                    torch.empty(
-                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                    torch.empty(
-                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                )
-                for _ in range(num_layers)
-            ]
-        else:
-            self.kv_cache = [
-                (
-                    torch.zeros(
-                        (num_blocks, num_heads, head_size // x, BLOCK_SIZE, x),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                    torch.zeros(
-                        (num_blocks, num_heads, head_size, BLOCK_SIZE),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                )
-                for _ in range(num_layers)
-            ]
+        self.kv_cache = [
+            KVCache(
+                num_blocks=num_blocks,
+                num_heads=num_heads,
+                head_size=head_size,
+                dtype=dtype,
+                device=device,
+            )
+            for _ in range(num_layers)
+        ]
 
     def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
         input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
@@ -1258,7 +1215,7 @@ class FlashCausalLM(Model):
                 self.num_layers,
                 self.num_kv_heads,
                 self.head_size,
-                self.dtype,
+                self.kv_cache_dtype,
                 self.device,
             )
             max_bt = batch.max_blocks
@@ -1277,7 +1234,7 @@ class FlashCausalLM(Model):
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
-        dtype_size = torch.tensor([], dtype=self.dtype).element_size()
+        dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
         cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
@@ -1291,6 +1248,8 @@ class FlashCausalLM(Model):
             + batch_num_blocks
         )
 
+        log_master(logger.info, f"KV-cache blocks: {num_blocks}, size: {BLOCK_SIZE}")
+
         del batch
 
         self.init_kv_cache(
@@ -1298,7 +1257,7 @@ class FlashCausalLM(Model):
             self.num_layers,
             self.num_kv_heads,
             self.head_size,
-            self.dtype,
+            self.kv_cache_dtype,
             self.device,
         )
 

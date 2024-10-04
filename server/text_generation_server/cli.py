@@ -30,6 +30,10 @@ class Dtype(str, Enum):
     bloat16 = "bfloat16"
 
 
+class KVCacheDtype(str, Enum):
+    fp8_e5m2 = "fp8_e5m2"
+
+
 @app.command()
 def serve(
     model_id: str,
@@ -38,6 +42,7 @@ def serve(
     quantize: Optional[Quantization] = None,
     speculate: Optional[int] = None,
     dtype: Optional[Dtype] = None,
+    kv_cache_dtype: Optional[KVCacheDtype] = None,
     trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
@@ -97,6 +102,7 @@ def serve(
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = None if dtype is None else dtype.value
+    kv_cache_dtype = None if kv_cache_dtype is None else kv_cache_dtype.value
     if dtype is not None and quantize not in {
         None,
         "bitsandbytes",
@@ -114,6 +120,7 @@ def serve(
         quantize,
         speculate,
         dtype,
+        kv_cache_dtype,
         trust_remote_code,
         uds_path,
         max_input_tokens,

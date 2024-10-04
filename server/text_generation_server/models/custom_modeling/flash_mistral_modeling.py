@@ -30,7 +30,6 @@ from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
 )
 from text_generation_server.layers import (
@@ -210,17 +209,15 @@ class MistralAttention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        reshape_and_cache(
-            kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
-        )
+        kv_cache.store(key=kv_to_cache[:, 0], value=kv_to_cache[:, 1], slots=slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
+                kv_cache.key if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
+                kv_cache.value if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -230,8 +227,8 @@ class MistralAttention(torch.nn.Module):
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache.key,
+                kv_cache.value,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
