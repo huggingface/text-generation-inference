@@ -46,8 +46,11 @@ namespace huggingface::tgi::backends::llama {
     }
 
     TgiLlamaCppBackend::TgiLlamaCppBackend(llama_model *const model, llama_context *const ctx)
-        : model(model), ctx(ctx), batch() {
-
+        : model(model), ctx(ctx), batch()
+    {
+        char modelName[128];
+        llama_model_meta_val_str(model, "general.name", modelName, sizeof(modelName));
+        SPDLOG_DEBUG(FMT_STRING("Created llama.cpp backend for model: '{}'"), std::string_view(modelName));
     }
 
     TgiLlamaCppBackend::~TgiLlamaCppBackend() {
@@ -62,5 +65,9 @@ namespace huggingface::tgi::backends::llama {
             SPDLOG_DEBUG("Freeing llama.cpp context");
             llama_free(ctx);
         }
+    }
+
+    void TgiLlamaCppBackend::schedule() {
+        std::vector<llama_token> tokens;
     }
 }
