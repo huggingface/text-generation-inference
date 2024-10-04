@@ -28,7 +28,6 @@ if SYSTEM != "ipex":
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
     PREFILL_IN_KV_CACHE,
 )
@@ -330,15 +329,15 @@ class DbrxAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(key=kv[:, 0], value=kv[:, 1], slots=slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
+                kv_cache.key if PREFILL_IN_KV_CACHE else kv[:, 0],
+                kv_cache.value if PREFILL_IN_KV_CACHE else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -347,8 +346,8 @@ class DbrxAttention(torch.nn.Module):
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache.key,
+                kv_cache.value,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,

@@ -80,3 +80,12 @@ def paged_attention(
         None,
     )
     return out
+
+
+__all__ = [
+    "PREFILL_IN_KV_CACHE",
+    "SUPPORTS_WINDOWING",
+    "attention",
+    "paged_attention",
+    "reshape_and_cache",
+]

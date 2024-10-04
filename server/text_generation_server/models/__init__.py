@@ -342,6 +342,7 @@ def get_model(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[str],
+    kv_cache_dtype: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
 ) -> Model:
@@ -402,6 +403,13 @@ def get_model(
         dtype = torch.bfloat16
     else:
         raise RuntimeError(f"Unknown dtype {dtype}")
+
+    if kv_cache_dtype is None:
+        kv_cache_dtype = dtype
+    elif kv_cache_dtype == "fp8_e5m2":
+        kv_cache_dtype = torch.float8_e5m2
+    else:
+        raise RuntimeError(f"Unknown kv_cache_dtype: {kv_cache_dtype}")
 
     if speculate is not None:
         set_speculate(speculate)
@@ -563,6 +571,7 @@ def get_model(
                 speculator=speculator,
                 default_dtype=torch.bfloat16,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=DeepseekV2Config,
@@ -617,6 +626,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 aliases={"transformer.wte.weight": ["lm_head.weight"]},
@@ -668,6 +678,7 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    kv_cache_dtype=kv_cache_dtype,
                     trust_remote_code=trust_remote_code,
                     lora_adapter_ids=lora_adapter_ids,
                 )
@@ -703,6 +714,7 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    kv_cache_dtype=kv_cache_dtype,
                     trust_remote_code=trust_remote_code,
                     lora_adapter_ids=lora_adapter_ids,
                 )
@@ -741,6 +753,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=GPTNeoXConfig,
@@ -774,6 +787,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -797,6 +811,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -836,6 +851,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -859,6 +875,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 # Works better for these models
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
@@ -884,6 +901,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 # Works better for these models
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
@@ -910,6 +928,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -934,6 +953,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 # Dbrx works better in bfloat16.
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
@@ -964,6 +984,7 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    kv_cache_dtype=kv_cache_dtype,
                     aliases={
                         "lm_head.weight": ["transformer.word_embeddings.weight"],
                         "transformer.word_embeddings.weight": ["lm_head.weight"],
@@ -982,6 +1003,7 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    kv_cache_dtype=kv_cache_dtype,
                     aliases={
                         "lm_head.weight": ["transformer.word_embeddings.weight"],
                         "transformer.word_embeddings.weight": ["lm_head.weight"],
@@ -1009,6 +1031,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -1033,6 +1056,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -1057,6 +1081,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -1083,6 +1108,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -1162,6 +1188,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 # XXX: Extremely important to cap resolution in order to limit
@@ -1179,6 +1206,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 # Works better for these models
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
@@ -1197,6 +1225,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
             )
         else:
@@ -1269,6 +1298,7 @@ def get_model_with_lora_adapters(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[str],
+    kv_cache_dtype: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
     adapter_to_index: Dict[str, int],
@@ -1282,6 +1312,7 @@ def get_model_with_lora_adapters(
         quantize,
         speculate,
         dtype,
+        kv_cache_dtype,
         trust_remote_code,
         max_input_tokens,
     )

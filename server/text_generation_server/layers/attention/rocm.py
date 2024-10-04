@@ -306,3 +306,11 @@ elif ENGINE == "triton":
 
 else:
     raise RuntimeError(f"Unknown attention engine {ENGINE}")
+
+__all__ = [
+    "PREFILL_IN_KV_CACHE",
+    "SUPPORTS_WINDOWING",
+    "attention",
+    "paged_attention",
+    "reshape_and_cache",
+]

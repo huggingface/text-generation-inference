@@ -9,7 +9,6 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
 )
 from text_generation_server.layers import (
@@ -188,14 +187,14 @@ class FlashPhiAttention(torch.nn.Module):
         )
 
         # Reshape key and value and cache
-        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(key=kv[:, 0], value=kv[:, 1], slots=slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             attn_output = attention(
                 query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
+                kv_cache.key if PREFILL_IN_KV_CACHE else kv[:, 0],
+                kv_cache.value if PREFILL_IN_KV_CACHE else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -204,8 +203,8 @@ class FlashPhiAttention(torch.nn.Module):
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache.key,
+                kv_cache.value,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,

@@ -302,6 +302,22 @@ impl std::fmt::Display for Dtype {
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
+enum KVCacheDtype {
+    #[clap(name = "fp8_e5m2")]
+    Fp8e5m2,
+}
+
+impl std::fmt::Display for KVCacheDtype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KVCacheDtype::Fp8e5m2 => {
+                write!(f, "fp8_e5m2")
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
 enum RopeScaling {
     Linear,
     Dynamic,
@@ -401,6 +417,12 @@ struct Args {
     /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
     #[clap(long, env, value_enum)]
     dtype: Option<Dtype>,
+
+    /// Specify the dtype for the key-value cache. When this option is not provided,
+    /// the dtype of the model is used (typically `float16` or `bfloat16`). Currently
+    /// the only supported value is `fp8_e5m2` on CUDA.
+    #[clap(long, env, value_enum)]
+    kv_cache_dtype: Option<KVCacheDtype>,
 
     /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
     /// encouraged when loading a model with custom code to ensure no malicious code has been
@@ -670,6 +692,7 @@ fn shard_manager(
     quantize: Option<Quantization>,
     speculate: Option<usize>,
     dtype: Option<Dtype>,
+    kv_cache_dtype: Option<KVCacheDtype>,
     trust_remote_code: bool,
     uds_path: String,
     rank: usize,
@@ -741,6 +764,11 @@ fn shard_manager(
     if let Some(dtype) = dtype {
         shard_args.push("--dtype".to_string());
         shard_args.push(dtype.to_string())
+    }
+
+    if let Some(kv_cache_dtype) = kv_cache_dtype {
+        shard_args.push("--kv-cache-dtype".to_string());
+        shard_args.push(kv_cache_dtype.to_string())
     }
 
     // Model optional revision
@@ -1299,6 +1327,7 @@ fn spawn_shards(
         let otlp_service_name = args.otlp_service_name.clone();
         let speculate = args.speculate;
         let dtype = args.dtype;
+        let kv_cache_dtype = args.kv_cache_dtype;
         let trust_remote_code = args.trust_remote_code;
         let master_port = args.master_port;
         let disable_custom_kernels = args.disable_custom_kernels;
@@ -1317,6 +1346,7 @@ fn spawn_shards(
                 quantize,
                 speculate,
                 dtype,
+                kv_cache_dtype,
                 trust_remote_code,
                 uds_path,
                 rank,

@@ -355,3 +355,11 @@ else:
 # have a configuration that requires flash-attention v1, which
 # does not support block tables.
 PREFILL_IN_KV_CACHE = ATTENTION != "paged" or V2
+
+__all__ = [
+    "PREFILL_IN_KV_CACHE",
+    "SUPPORTS_WINDOWING",
+    "attention",
+    "paged_attention",
+    "reshape_and_cache",
+]
