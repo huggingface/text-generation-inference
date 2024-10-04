@@ -3,7 +3,6 @@ from typing import Tuple
 import torch
 from text_generation_server.models.globals import ATTENTION, BLOCK_SIZE
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.layers.attention import reshape_and_cache
 
 
 class KVCache:
@@ -24,10 +23,8 @@ class KVCache:
     ):
         """Construct the key-value cache for a layer."""
 
-        if (
-            dtype == torch.float8_e5m2
-            and (ATTENTION != "flashinfer"
-            or SYSTEM != "cuda")
+        if dtype == torch.float8_e5m2 and (
+            ATTENTION != "flashinfer" or SYSTEM != "cuda"
         ):
             raise ValueError(
                 "float8_e5m2 KV cache is currently only supported for flashinfer on CUDA"
@@ -118,4 +115,6 @@ class KVCache:
             key_cache.view(-1, shape[-2], shape[-1])[slots] = key
             value_cache.view(-1, shape[-2], shape[-1])[slots] = value
         else:
+            from text_generation_server.layers.attention import reshape_and_cache
+
             reshape_and_cache(key, value, key_cache, value_cache, slots)
