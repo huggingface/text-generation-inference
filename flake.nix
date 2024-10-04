@@ -37,6 +37,7 @@
           overlays = [
             rust-overlay.overlays.default
             tgi-nix.overlays.default
+            (import nix/overlay.nix)
           ];
         };
         crateOverrides = import ./nix/crate-overrides.nix { inherit pkgs nix-filter; };
