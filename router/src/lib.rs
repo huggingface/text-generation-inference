@@ -9,7 +9,10 @@ mod kserve;
 pub mod logging;
 
 pub mod usage_stats;
+mod vertex;
 
+use crate::infer::{Infer, InferError};
+use crate::server::prepare_chat_input;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use utoipa::ToSchema;
@@ -52,32 +55,6 @@ impl std::str::FromStr for Attention {
             _ => Err(ParseError),
         }
     }
-}
-
-#[derive(Clone, Deserialize, ToSchema)]
-pub(crate) struct GenerateVertexInstance {
-    #[schema(example = "What is Deep Learning?")]
-    pub inputs: String,
-    #[schema(nullable = true, default = "null", example = "null")]
-    pub parameters: Option<GenerateParameters>,
-}
-
-#[derive(Clone, Deserialize, ToSchema)]
-#[serde(untagged)]
-enum VertexInstance {
-    Generate(GenerateVertexInstance),
-    Chat(ChatRequest),
-}
-
-#[derive(Deserialize, ToSchema)]
-pub(crate) struct VertexRequest {
-    #[serde(rename = "instances")]
-    pub instances: Vec<VertexInstance>,
-}
-
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
-pub(crate) struct VertexResponse {
-    pub predictions: Vec<String>,
 }
 
 /// Hub type
@@ -174,6 +151,7 @@ impl HubProcessorConfig {
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(tag = "type", content = "value")]
 pub(crate) enum GrammarType {
     /// A string that represents a [JSON Schema](https://json-schema.org/).
@@ -230,6 +208,7 @@ pub struct Info {
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct GenerateParameters {
     /// Generate best_of sequences and return the one if the highest token logprobs.
     #[serde(default)]
@@ -774,6 +753,7 @@ impl ChatCompletionChunk {
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
+#[cfg_attr(test, derive(Debug, PartialEq, Default))]
 pub(crate) struct ChatRequest {
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     /// [UNUSED] ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
@@ -890,7 +870,82 @@ pub(crate) struct ChatRequest {
     pub stream_options: Option<StreamOptions>,
 }
 
+impl ChatRequest {
+    fn try_into_generate(self, infer: &Infer) -> Result<(GenerateRequest, bool), InferError> {
+        let ChatRequest {
+            model,
+            max_tokens,
+            messages,
+            seed,
+            stop,
+            stream,
+            tools,
+            tool_choice,
+            tool_prompt,
+            temperature,
+            response_format,
+            guideline,
+            presence_penalty,
+            frequency_penalty,
+            top_p,
+            top_logprobs,
+            ..
+        } = self;
+
+        let repetition_penalty = presence_penalty.map(|x| x + 2.0);
+        let max_new_tokens = max_tokens.or(Some(100));
+        let tool_prompt = tool_prompt
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(default_tool_prompt);
+        let stop = stop.unwrap_or_default();
+        // enable greedy only when temperature is 0
+        let (do_sample, temperature) = match temperature {
+            Some(temperature) if temperature == 0.0 => (false, None),
+            other => (true, other),
+        };
+        let (inputs, grammar, using_tools) = prepare_chat_input(
+            infer,
+            response_format,
+            tools,
+            tool_choice,
+            &tool_prompt,
+            guideline,
+            messages,
+        )?;
+
+        Ok((
+            GenerateRequest {
+                inputs: inputs.to_string(),
+                add_special_tokens: false,
+                parameters: GenerateParameters {
+                    best_of: None,
+                    temperature,
+                    repetition_penalty,
+                    frequency_penalty,
+                    top_k: None,
+                    top_p,
+                    typical_p: None,
+                    do_sample,
+                    max_new_tokens,
+                    return_full_text: None,
+                    stop,
+                    truncate: None,
+                    watermark: false,
+                    details: true,
+                    decoder_input_details: !stream,
+                    seed,
+                    top_n_tokens: top_logprobs,
+                    grammar,
+                    adapter_id: model.filter(|m| *m != "tgi").map(String::from),
+                },
+            },
+            using_tools,
+        ))
+    }
+}
+
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 struct StreamOptions {
     /// If set, an additional chunk will be streamed before the data: [DONE] message. The usage field on this chunk shows the token usage statistics for the entire request, and the choices field will always be an empty array. All other chunks will also include a usage field, but with a null value.
     #[schema(example = "true")]
@@ -984,6 +1039,7 @@ pub(crate) struct FunctionDefinition {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Tool {
     // The type of the tool. Currently, only 'function' is supported.
     #[schema(example = "function")]

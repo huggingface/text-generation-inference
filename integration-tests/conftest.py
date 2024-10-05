@@ -336,6 +336,7 @@ def launcher(event_loop):
         use_flash_attention: bool = True,
         disable_grammar_support: bool = False,
         dtype: Optional[str] = None,
+        kv_cache_dtype: Optional[str] = None,
         revision: Optional[str] = None,
         max_input_length: Optional[int] = None,
         max_batch_prefill_tokens: Optional[int] = None,
@@ -375,6 +376,9 @@ def launcher(event_loop):
         if dtype is not None:
             args.append("--dtype")
             args.append(dtype)
+        if kv_cache_dtype is not None:
+            args.append("--kv-cache-dtype")
+            args.append(kv_cache_dtype)
         if revision is not None:
             args.append("--revision")
             args.append(revision)
@@ -434,6 +438,7 @@ def launcher(event_loop):
         use_flash_attention: bool = True,
         disable_grammar_support: bool = False,
         dtype: Optional[str] = None,
+        kv_cache_dtype: Optional[str] = None,
         revision: Optional[str] = None,
         max_input_length: Optional[int] = None,
         max_batch_prefill_tokens: Optional[int] = None,
@@ -456,6 +461,9 @@ def launcher(event_loop):
         if dtype is not None:
             args.append("--dtype")
             args.append(dtype)
+        if kv_cache_dtype is not None:
+            args.append("--kv-cache-dtype")
+            args.append(kv_cache_dtype)
         if revision is not None:
             args.append("--revision")
             args.append(revision)
@@ -589,7 +597,6 @@ def generate_multi():
         max_new_tokens: int,
         seed: Optional[int] = None,
     ) -> List[Response]:
-
         import numpy as np
 
         arange = np.arange(len(prompts))

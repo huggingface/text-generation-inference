@@ -6,8 +6,8 @@ mod utils;
 
 use crate::app::App;
 use crate::event::Event;
-use crossterm::ExecutableCommand;
 use ratatui::backend::CrosstermBackend;
+use ratatui::crossterm::ExecutableCommand;
 use ratatui::Terminal;
 use std::io;
 use text_generation_client::v3::{GrammarType, NextTokenChooserParameters, ShardedClient};
@@ -50,9 +50,9 @@ pub async fn run(
     };
 
     // Initialize terminal properties
-    crossterm::terminal::enable_raw_mode()?;
-    io::stdout().execute(crossterm::terminal::EnterAlternateScreen)?;
-    io::stdout().execute(crossterm::cursor::Hide)?;
+    ratatui::crossterm::terminal::enable_raw_mode()?;
+    io::stdout().execute(ratatui::crossterm::terminal::EnterAlternateScreen)?;
+    io::stdout().execute(ratatui::crossterm::cursor::Hide)?;
 
     // Initialize terminal
     let mut terminal = {
@@ -128,9 +128,9 @@ pub async fn run(
     let _ = shutdown_guard_receiver.recv().await;
 
     // Revert terminal to original view
-    io::stdout().execute(crossterm::terminal::LeaveAlternateScreen)?;
-    crossterm::terminal::disable_raw_mode()?;
-    io::stdout().execute(crossterm::cursor::Show)?;
+    io::stdout().execute(ratatui::crossterm::terminal::LeaveAlternateScreen)?;
+    ratatui::crossterm::terminal::disable_raw_mode()?;
+    io::stdout().execute(ratatui::crossterm::cursor::Show)?;
 
     let parameters_table = table::parameters_table(
         tokenizer_name,

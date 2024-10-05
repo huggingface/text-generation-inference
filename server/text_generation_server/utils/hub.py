@@ -18,17 +18,6 @@ WEIGHTS_CACHE_OVERRIDE = os.getenv("WEIGHTS_CACHE_OVERRIDE", None)
 HF_HUB_OFFLINE = os.environ.get("HF_HUB_OFFLINE", "0").lower() in ["true", "1", "yes"]
 
 
-def _cached_adapter_weight_files(
-    adapter_id: str, revision: Optional[str], extension: str
-) -> List[str]:
-    """Guess weight files from the cached revision snapshot directory"""
-    d = _get_cached_revision_directory(adapter_id, revision)
-    if not d:
-        return []
-    filenames = _adapter_weight_files_from_dir(d, extension)
-    return filenames
-
-
 def _cached_weight_files(
     model_id: str, revision: Optional[str], extension: str
 ) -> List[str]:
@@ -65,35 +54,7 @@ def _weight_files_from_dir(d: Path, extension: str) -> List[str]:
         if f.endswith(extension)
         and "arguments" not in f
         and "args" not in f
-        and "adapter" not in f
         and "training" not in f
-    ]
-    return filenames
-
-
-def _adapter_weight_files_from_dir(d: Path, extension: str) -> List[str]:
-    # os.walk: do not iterate, just scan for depth 1, not recursively
-    # see _weight_files_from_dir, that's also what is done there
-    root, _, files = next(os.walk(str(d)))
-    filenames = [
-        os.path.join(root, f)
-        for f in files
-        if f.endswith(extension)
-        and "arguments" not in f
-        and "args" not in f
-        and "training" not in f
-    ]
-    return filenames
-
-
-def _adapter_config_files_from_dir(d: Path) -> List[str]:
-    # os.walk: do not iterate, just scan for depth 1, not recursively
-    # see _weight_files_from_dir, that's also what is done there
-    root, _, files = next(os.walk(str(d)))
-    filenames = [
-        os.path.join(root, f)
-        for f in files
-        if f.endswith(".json") and "arguments" not in f and "args" not in f
     ]
     return filenames
 

@@ -8,9 +8,11 @@ use crate::{
     ChatTemplateVersions, FinishReason, GenerateRequest, HubProcessorConfig, HubTokenizerConfig,
     Message, PrefillToken, Token,
 };
+use async_stream::stream;
 use async_trait::async_trait;
 use chat_template::ChatTemplate;
 use futures::future::try_join_all;
+use futures::Stream;
 use minijinja::ErrorKind;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -87,7 +89,14 @@ impl Infer {
     pub(crate) async fn generate_stream<'a>(
         &'a self,
         request: GenerateRequest,
-    ) -> Result<GenerateStreamResponse, InferError> {
+    ) -> Result<
+        (
+            OwnedSemaphorePermit,
+            u32, // input_length
+            impl Stream<Item = Result<InferStreamResponse, InferError>> + 'a,
+        ),
+        InferError,
+    > {
         // Limit concurrent requests by acquiring a permit from the semaphore
         let permit = self
             .clone()
@@ -107,9 +116,18 @@ impl Infer {
         })?;
 
         let input_length = valid_request.input_length;
-        let generation_stream = self.backend.schedule(valid_request)?;
+        let mut generation_stream = self.backend.schedule(valid_request)?;
 
-        Ok((permit, input_length, generation_stream))
+        // Wrap generation stream to update the backend health if the stream contains an error
+        let final_stream = stream! {
+            while let Some(response) = generation_stream.next().await {
+                yield response.inspect_err(|_err| {
+                    self.backend_health.store(false, Ordering::SeqCst);
+                })
+            }
+        };
+
+        Ok((permit, input_length, final_stream))
     }
 
     /// Tokenizer the input
@@ -277,13 +295,6 @@ impl Infer {
         health
     }
 }
-
-/// Type alias for generation responses
-pub(crate) type GenerateStreamResponse = (
-    OwnedSemaphorePermit,
-    u32, // input_length
-    UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
-);
 
 #[derive(Debug)]
 pub struct GeneratedText {

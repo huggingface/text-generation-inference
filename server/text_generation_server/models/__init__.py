@@ -32,6 +32,9 @@ from text_generation_server.models.custom_modeling.phi_modeling import (
     PhiConfig,
     PhiForCausalLM,
 )
+from text_generation_server.models.custom_modeling.flash_phi_moe_modeling import (
+    PhiMoEConfig,
+)
 from text_generation_server.models.custom_modeling.t5_modeling import (
     T5ForConditionalGeneration,
 )
@@ -73,6 +76,7 @@ FLASH_ATTENTION = True
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
     from text_generation_server.models.vlm_causal_lm import VlmCausalLM
+    from text_generation_server.models.mllama_causal_lm import MllamaCausalLM
     from text_generation_server.models.custom_modeling.flash_deepseek_v2_modeling import (
         FlashDeepseekV2ForCausalLM,
         DeepseekV2Config,
@@ -109,7 +113,11 @@ try:
     from text_generation_server.models.custom_modeling.flash_phi_modeling import (
         FlashPhiForCausalLM,
     )
-    from text_generation_server.models.idefics import IDEFICSSharded
+    from text_generation_server.models.idefics_causal_lm import IdeficsCausalLM
+    from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
+    from text_generation_server.models.custom_modeling.mllama import (
+        MllamaForConditionalGeneration,
+    )
     from text_generation_server.models.custom_modeling.llava_next import (
         LlavaNextForConditionalGeneration,
     )
@@ -146,7 +154,7 @@ except ImportError as e:
 
 if FLASH_ATTENTION:
     __all__.append(FlashCausalLM)
-    __all__.append(IDEFICSSharded)
+    __all__.append(IdeficsCausalLM)
 
 MAMBA_AVAILABLE = True
 try:
@@ -237,6 +245,11 @@ class ModelType(enum.Enum):
         "name": "Phi",
         "url": "https://huggingface.co/microsoft/phi-1_5",
     }
+    PHI_MOE = {
+        "type": "phimoe",
+        "name": "PhiMoe",
+        "url": "https://huggingface.co/microsoft/Phi-3.5-MoE-instruct",
+    }
     BAICHUAN = {
         "type": "baichuan",
         "name": "Baichuan",
@@ -308,6 +321,12 @@ class ModelType(enum.Enum):
         "url": "https://huggingface.co/HuggingFaceM4/idefics-9b",
         "multimodal": True,
     }
+    MLLAMA = {
+        "type": "mllama",
+        "name": "Mllama",
+        "url": "https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct",
+        "multimodal": True,
+    }
 
 
 __GLOBALS = locals()
@@ -323,6 +342,7 @@ def get_model(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[str],
+    kv_cache_dtype: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
 ) -> Model:
@@ -334,6 +354,7 @@ def get_model(
     model_type = config_dict.get("model_type", None)
 
     quantization_config = config_dict.get("quantization_config", None)
+    compression_config = config_dict.get("compression_config", None)
     if quantization_config is not None and quantize is None:
         method = quantization_config.get("quant_method", None)
         if method in {"gptq", "awq", "exl2"}:
@@ -344,6 +365,23 @@ def get_model(
             quantize = "fp8"
         else:
             log_master(logger.warning, f"Unknown quantization method {method}")
+    elif compression_config is not None:
+        # TODO: at some point we should probably fully parse the compression
+        # configuration to know which parameters are compressed.
+        config_groups = compression_config.get("config_groups")
+        if config_groups is not None:
+            for _, group in config_groups.items():
+                weights_config = group.get("weights")
+                if weights_config is not None:
+                    if (
+                        weights_config["type"] == "float"
+                        and weights_config["num_bits"] == 8
+                    ):
+                        log_master(
+                            logger.info, "Auto selecting quantization method fp8"
+                        )
+                        quantize = "fp8"
+                        break
 
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
@@ -365,6 +403,13 @@ def get_model(
         dtype = torch.bfloat16
     else:
         raise RuntimeError(f"Unknown dtype {dtype}")
+
+    if kv_cache_dtype is None:
+        kv_cache_dtype = dtype
+    elif kv_cache_dtype == "fp8_e5m2":
+        kv_cache_dtype = torch.float8_e5m2
+    else:
+        raise RuntimeError(f"Unknown kv_cache_dtype: {kv_cache_dtype}")
 
     if speculate is not None:
         set_speculate(speculate)
@@ -526,6 +571,7 @@ def get_model(
                 speculator=speculator,
                 default_dtype=torch.bfloat16,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=DeepseekV2Config,
@@ -580,6 +626,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 aliases={"transformer.wte.weight": ["lm_head.weight"]},
@@ -631,6 +678,7 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    kv_cache_dtype=kv_cache_dtype,
                     trust_remote_code=trust_remote_code,
                     lora_adapter_ids=lora_adapter_ids,
                 )
@@ -666,6 +714,7 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    kv_cache_dtype=kv_cache_dtype,
                     trust_remote_code=trust_remote_code,
                     lora_adapter_ids=lora_adapter_ids,
                 )
@@ -704,6 +753,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=GPTNeoXConfig,
@@ -737,6 +787,31 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+
+    elif model_type == PHI_MOE:
+        if FLASH_ATTENTION:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashLlamaForCausalLM,
+                config_class=PhiMoEConfig,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -768,7 +843,6 @@ def get_model(
             )
 
     elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
-        print(f">>> model_type: {model_type}")
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
@@ -777,6 +851,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -800,6 +875,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 # Works better for these models
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
@@ -825,6 +901,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 # Works better for these models
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
@@ -851,6 +928,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -875,6 +953,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 # Dbrx works better in bfloat16.
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
@@ -905,6 +984,7 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    kv_cache_dtype=kv_cache_dtype,
                     aliases={
                         "lm_head.weight": ["transformer.word_embeddings.weight"],
                         "transformer.word_embeddings.weight": ["lm_head.weight"],
@@ -923,6 +1003,7 @@ def get_model(
                     quantize=quantize,
                     speculator=speculator,
                     dtype=dtype,
+                    kv_cache_dtype=kv_cache_dtype,
                     aliases={
                         "lm_head.weight": ["transformer.word_embeddings.weight"],
                         "transformer.word_embeddings.weight": ["lm_head.weight"],
@@ -950,6 +1031,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -974,6 +1056,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -998,6 +1081,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -1024,6 +1108,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -1068,7 +1153,7 @@ def get_model(
         )
     if model_type == IDEFICS:
         if FLASH_ATTENTION:
-            return IDEFICSSharded(
+            return IdeficsCausalLM(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -1078,6 +1163,22 @@ def get_model(
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+    if model_type == MLLAMA:
+        if FLASH_ATTENTION:
+            return MllamaCausalLM(
+                model_id=model_id,
+                model_class=MllamaForConditionalGeneration,
+                batch_class=MllamaCausalLMBatch,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Mllama"))
     if model_type == IDEFICS2:
         if FLASH_ATTENTION:
             return VlmCausalLM(
@@ -1087,6 +1188,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 # XXX: Extremely important to cap resolution in order to limit
@@ -1104,6 +1206,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 # Works better for these models
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
@@ -1122,6 +1225,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
             )
         else:
@@ -1194,6 +1298,7 @@ def get_model_with_lora_adapters(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[str],
+    kv_cache_dtype: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
     adapter_to_index: Dict[str, int],
@@ -1207,6 +1312,7 @@ def get_model_with_lora_adapters(
         quantize,
         speculate,
         dtype,
+        kv_cache_dtype,
         trust_remote_code,
         max_input_tokens,
     )

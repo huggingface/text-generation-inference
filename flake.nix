@@ -5,7 +5,7 @@
       inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
     };
     nix-filter.url = "github:numtide/nix-filter";
-    tgi-nix.url = "github:danieldk/tgi-nix";
+    tgi-nix.url = "github:huggingface/text-generation-inference-nix";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
@@ -37,6 +37,7 @@
           overlays = [
             rust-overlay.overlays.default
             tgi-nix.overlays.default
+            (import nix/overlay.nix)
           ];
         };
         crateOverrides = import ./nix/crate-overrides.nix { inherit pkgs nix-filter; };
@@ -132,61 +133,35 @@
                 pre-commit
                 ruff
               ]);
-
           };
 
-          impure = mkShell {
-            buildInputs =
-              [
-                openssl.dev
-                pkg-config
-                (rust-bin.stable.latest.default.override {
-                  extensions = [
-                    "rust-analyzer"
-                    "rust-src"
-                  ];
-                })
-                protobuf
-              ]
-              ++ (with python3.pkgs; [
-                venvShellHook
-                docker
-                pip
-                ipdb
-                click
-                pyright
-                pytest
-                pytest-asyncio
-                redocly
-                ruff
-                syrupy
-              ]);
+          impure = callPackage ./nix/impure-shell.nix { inherit server; };
 
-            inputsFrom = [ server ];
-
-            venvDir = "./.venv";
-
-            postVenvCreation = ''
-              unset SOURCE_DATE_EPOCH
-              ( cd server ; python -m pip install --no-dependencies -e . )
-              ( cd clients/python ; python -m pip install --no-dependencies -e . )
-            '';
-            postShellHook = ''
-              unset SOURCE_DATE_EPOCH
-              export PATH=$PATH:~/.cargo/bin
-            '';
+          impure-flash-attn-v1 = callPackage ./nix/impure-shell.nix {
+            server = server.override { flash-attn = python3.pkgs.flash-attn-v1; };
           };
         };
 
-        packages.default = pkgs.writeShellApplication {
-          name = "text-generation-inference";
-          runtimeInputs = [
-            server
-            router
-          ];
-          text = ''
-            ${launcher}/bin/text-generation-launcher "$@"
-          '';
+        packages = rec {
+          default = pkgs.writeShellApplication {
+            name = "text-generation-inference";
+            runtimeInputs = [
+              server
+              router
+            ];
+            text = ''
+              ${launcher}/bin/text-generation-launcher "$@"
+            '';
+          };
+
+          dockerImage = pkgs.callPackage nix/docker.nix {
+            text-generation-inference = default;
+          };
+
+          dockerImageStreamed = pkgs.callPackage nix/docker.nix {
+            text-generation-inference = default;
+            stream = true;
+          };
         };
       }
     );

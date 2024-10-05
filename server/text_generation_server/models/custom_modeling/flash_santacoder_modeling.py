@@ -8,7 +8,6 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
 )
 from text_generation_server.layers import (
@@ -18,11 +17,11 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     get_linear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.gptq import GPTQWeightsLoader
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
-from text_generation_server.utils.import_utils import SYSTEM
 
 
 def load_multi_mqa(
@@ -284,17 +283,15 @@ class FlashMQAttention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         key_value = key_value.view(-1, 2, 1, self.head_size)
 
-        reshape_and_cache(
-            key_value[:, 0], key_value[:, 1], kv_cache[0], kv_cache[1], slots
-        )
+        kv_cache.store(key=key_value[:, 0], value=key_value[:, 1], slots=slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else key_value[:, 0],
-                kv_cache[1] if SYSTEM != "ipex" else key_value[:, 1],
+                kv_cache.key if PREFILL_IN_KV_CACHE else key_value[:, 0],
+                kv_cache.value if PREFILL_IN_KV_CACHE else key_value[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -303,8 +300,8 @@ class FlashMQAttention(torch.nn.Module):
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache.key,
+                kv_cache.value,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,

@@ -1,0 +1,109 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1724,
+        "logprob": null,
+        "text": "What"
+      },
+      {
+        "id": 338,
+        "logprob": -0.7133789,
+        "text": "is"
+      },
+      {
+        "id": 16030,
+        "logprob": -13.9296875,
+        "text": "gradient"
+      },
+      {
+        "id": 26815,
+        "logprob": -0.048919678,
+        "text": "descent"
+      },
+      {
+        "id": 29973,
+        "logprob": -3.0078125,
+        "text": "?"
+      },
+      {
+        "id": 13,
+        "logprob": -2.8105469,
+        "text": "\n"
+      },
+      {
+        "id": 13,
+        "logprob": -0.84521484,
+        "text": "\n"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 25584,
+        "logprob": -0.017028809,
+        "special": false,
+        "text": "Grad"
+      },
+      {
+        "id": 993,
+        "logprob": -0.0027313232,
+        "special": false,
+        "text": "ient"
+      },
+      {
+        "id": 26815,
+        "logprob": -0.023254395,
+        "special": false,
+        "text": " descent"
+      },
+      {
+        "id": 338,
+        "logprob": -2.0623207e-05,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 263,
+        "logprob": -0.5361328,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 937,
+        "logprob": -0.17578125,
+        "special": false,
+        "text": " first"
+      },
+      {
+        "id": 29899,
+        "logprob": 0.0,
+        "special": false,
+        "text": "-"
+      },
+      {
+        "id": 2098,
+        "logprob": -0.00011539459,
+        "special": false,
+        "text": "order"
+      },
+      {
+        "id": 13883,
+        "logprob": -0.47436523,
+        "special": false,
+        "text": " optimization"
+      },
+      {
+        "id": 5687,
+        "logprob": -0.00027680397,
+        "special": false,
+        "text": " algorithm"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Gradient descent is a first-order optimization algorithm"
+}
