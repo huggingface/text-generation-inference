@@ -47,9 +47,12 @@ class SignalHandler:
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
+    def set_keep_processing(self, value: bool):
+        self.KEEP_PROCESSING = value
+
     def exit_gracefully(self, signum, frame):
         print(f"Exiting gracefully: Signal {signum}")
-        self.KEEP_PROCESSING = False
+        self.set_keep_processing(False)
 
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
@@ -268,10 +271,12 @@ def serve(
             logger.exception("Error when initializing model")
             raise
 
+        signal_handler = SignalHandler()
+
         set_adapter_to_index(adapter_to_index)
         server = aio.server(
             interceptors=[
-                ExceptionInterceptor(),
+                ExceptionInterceptor(lambda: signal_handler.set_keep_processing(False)),
                 UDSOpenTelemetryAioServerInterceptor(),
             ],
             options=[
@@ -292,7 +297,6 @@ def serve(
         await server.start()
 
         logger.info("Server started at {}".format(local_url))
-        signal_handler = SignalHandler()
         while signal_handler.KEEP_PROCESSING:
             await asyncio.sleep(0.5)
 
