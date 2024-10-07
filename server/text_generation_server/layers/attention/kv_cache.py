@@ -24,10 +24,8 @@ class KVCache:
     ):
         """Construct the key-value cache for a layer."""
 
-        if (
-            dtype == torch.float8_e5m2
-            and (ATTENTION != "flashinfer"
-            or SYSTEM != "cuda")
+        if dtype == torch.float8_e5m2 and (
+            ATTENTION != "flashinfer" or SYSTEM != "cuda"
         ):
             raise ValueError(
                 "float8_e5m2 KV cache is currently only supported for flashinfer on CUDA"
