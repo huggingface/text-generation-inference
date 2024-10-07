@@ -237,7 +237,7 @@ async def test_flash_llama_grammar_tools_insufficient_information(
         stream=False,
     )
 
-    assert responses.choices[0].message.tool_calls == None
+    assert responses.choices[0].message.tool_calls is None
     assert (
         responses.choices[0].message.content
         == "There is no weather related function available to answer your prompt."
