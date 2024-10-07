@@ -285,7 +285,7 @@ class MllamaCausalLM(VlmCausalLM):
                 max_k = (input_lengths + prefix_lens_tensor).max().item()
                 seqlen = Seqlen(
                     input_lengths=input_lengths,
-                    prefix_lengths=prefix_lens_tensor,
+                    cache_lengths=prefix_lens_tensor,
                     cu_seqlen_q=cu_seqlen_prefill,
                     max_q=max_s,
                     max_k=max_k,

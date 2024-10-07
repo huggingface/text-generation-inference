@@ -9,8 +9,8 @@ if ATTENTION in {"flashinfer", "flashdecoding"}:
 
     @dataclass
     class Seqlen:
-        postfix_lengths: torch.Tensor
-        prefix_lengths: torch.Tensor
+        input_lengths: torch.Tensor
+        cache_lengths: torch.Tensor
         cu_seqlen_q: Optional[torch.Tensor]
         cu_seqlen_k: Optional[torch.Tensor]
         max_q: int
@@ -18,16 +18,16 @@ if ATTENTION in {"flashinfer", "flashdecoding"}:
 
         def __init__(
             self,
-            postfix_lengths,
-            prefix_lengths,
+            input_lengths,
+            cache_lengths,
             cu_seqlen_q=None,
             max_q=None,
             max_k=None,
         ):
-            self.postfix_lengths = postfix_lengths
-            self.prefix_lengths = prefix_lengths
-            device = self.postfix_lengths.device
-            shape = self.postfix_lengths.shape
+            self.input_lengths = input_lengths
+            self.cache_lengths = cache_lengths
+            device = self.input_lengths.device
+            shape = self.input_lengths.shape
             if cu_seqlen_q is None:
                 cu_seqlen_q = torch.arange(
                     shape[0] + 1,
@@ -43,7 +43,7 @@ if ATTENTION in {"flashinfer", "flashdecoding"}:
             # cuda graphs don't like this and this is necessary to clamp within mistral
             # Although FA2 might not want the clamping
             # cu_seqlen_k[0] = 0
-            total = self.postfix_lengths + self.prefix_lengths
+            total = self.input_lengths + self.cache_lengths
             torch.cumsum(total, -1, out=cu_seqlen_k[1:])
 
             self.cu_seqlen_q = cu_seqlen_q
@@ -59,8 +59,8 @@ else:
 
     @dataclass
     class Seqlen:
-        postfix_lengths: torch.Tensor
-        prefix_lengths: torch.Tensor
+        input_lengths: torch.Tensor
+        cache_lengths: torch.Tensor
         cu_seqlen_q: torch.Tensor
         max_q: int
         max_k: int
