@@ -26,8 +26,8 @@ class KVCache:
 
         if (
             dtype == torch.float8_e5m2
-            and ATTENTION != "flashinfer"
-            and SYSTEM != "cuda"
+            and (ATTENTION != "flashinfer"
+            or SYSTEM != "cuda")
         ):
             raise ValueError(
                 "float8_e5m2 KV cache is currently only supported for flashinfer on CUDA"
