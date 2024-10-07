@@ -120,15 +120,18 @@ def _load_and_merge(
         if adapter.id == BASE_MODEL_ADAPTER_ID:
             raise ValueError("Base model adapter cannot be merged.")
 
-        module_map, adapter_config, adapter_weight_names, adapter_tokenizer = (
-            load_module_map(
-                model_id,
-                adapter.revision,
-                adapter.id,
-                adapter.path,
-                weight_names,
-                trust_remote_code,
-            )
+        (
+            module_map,
+            adapter_config,
+            adapter_weight_names,
+            adapter_tokenizer,
+        ) = load_module_map(
+            model_id,
+            adapter.revision,
+            adapter.id,
+            adapter.path,
+            weight_names,
+            trust_remote_code,
         )
 
         adapters_to_merge.append((module_map, adapter_config))

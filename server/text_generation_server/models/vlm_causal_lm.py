@@ -295,7 +295,7 @@ class VlmCausalLM(FlashCausalLM):
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             postfix_lengths = batch.postfix_lengths_tensor
-            max_s = batch.max_seqlen
+            max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
             speculative_ids = batch.speculative_ids
@@ -338,7 +338,7 @@ class VlmCausalLM(FlashCausalLM):
             slots = batch.slots[batch.slot_indices]
             postfix_lengths = batch.postfix_lengths_tensor
             prefix_lengths_tensor = batch.prefix_lengths_tensor
-            max_s = batch.max_seqlen
+            max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
         if cu_seqlen_prefill is None and self.max_past() is not None:
@@ -347,7 +347,6 @@ class VlmCausalLM(FlashCausalLM):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
 
-        bs = input_ids.shape[0]
         # Try to find an associated cuda graph
         bs = input_ids.shape[0]
         sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
