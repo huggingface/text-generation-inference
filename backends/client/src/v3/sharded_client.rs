@@ -134,11 +134,12 @@ impl ShardedClient {
     pub async fn prefill(
         &mut self,
         batch: Batch,
+        cached_batch: Option<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.prefill(batch.clone())))
+            .map(|client| Box::pin(client.prefill(batch.clone(), cached_batch.clone())))
             .collect();
         #[allow(clippy::type_complexity)]
         let results: Result<Vec<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)>> =
@@ -256,7 +257,7 @@ impl Health for ShardedClient {
             max_tokens: 2,
             max_blocks: 1,
         };
-        self.clone().prefill(batch).await?;
+        self.clone().prefill(batch, None).await?;
         Ok(())
     }
 }

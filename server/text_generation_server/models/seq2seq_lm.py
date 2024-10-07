@@ -80,7 +80,7 @@ class Seq2SeqLMBatch(Batch):
             request_ids=[r.id for r in self.requests],
             size=len(self),
             max_tokens=self.max_tokens,
-            current_tokens=len(self),
+            current_tokens=len(self.input_ids),
         )
 
     @classmethod

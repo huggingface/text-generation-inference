@@ -35,6 +35,9 @@ message InfoResponse {
   optional uint32 window_size = 4;
   uint32 speculate = 5;
   bool support_chunking = 6;
+  bool use_prefix_caching = 7;
+  string attention_impl = 8;
+  uint32 block_size = 9;
 }
 
 /// Empty request
@@ -225,6 +228,8 @@ message FilterBatchResponse {
 message PrefillRequest {
   /// Batch
   Batch batch = 1;
+  /// Optional cached batch
+  CachedBatch cached_batch = 2;
 }
 
 message PrefillResponse {
@@ -238,13 +243,13 @@ message PrefillResponse {
   uint64 decode_ns = 4;
   /// Total elapsed time in nanoseconds
   uint64 total_ns = 5;
+  /// Concatenate elapsed time in nanoseconds
+  optional uint64 concat_ns = 6;
 }
 
 message DecodeRequest {
   /// Cached batches
   repeated CachedBatch batches = 1;
-  /// Optional Batch
-  optional Batch batch = 2;
 }
 
 message DecodeResponse {

@@ -171,7 +171,7 @@ class FlashCausalLMBatch(Batch):
     # Will be set by `generate_token` and reset after each prefill forward
     prefill_cu_outlens: Optional[List[int]]
     # Will be set by `generate_token` and reset after each prefill forward
-    prefill_tokens: List[Optional[Tokens]]
+    prefill_logprob_tokens: List[Optional[Tokens]]
 
     # Prefixes
     prefix_ids: List[List[int]]
@@ -290,8 +290,7 @@ class FlashCausalLMBatch(Batch):
                 prefix_length <= prompt_length
             ), f"Prefix {prefix_length} vs input {prompt_length}"
             if prefix_length == prompt_length:
-                assert prefix_length > 0
-                prefix_length -= 1
+                assert False, "unreachable"
             if prefix_length + postfix_length < prompt_length:
                 # FIXME: speculate is not supported for context chunking at the moment
                 assert speculate == 0
@@ -303,7 +302,9 @@ class FlashCausalLMBatch(Batch):
                 prefix_length : prefix_length + postfix_length
             ]
 
-            postfix_length = len(postfix_ids)
+            assert (
+                len(postfix_ids) == postfix_length
+            ), "Rust and Python tokenizers are not aligned"
             postfix_lengths.append(postfix_length)
 
             prefix_offsets.append(prompt_length - 5)
@@ -394,7 +395,7 @@ class FlashCausalLMBatch(Batch):
             max_current_length=max_current_length,
             prefilling=True,
             prefilling_mask=[True] * len(pb.requests),
-            prefill_tokens=[None] * len(pb.requests),
+            prefill_logprob_tokens=[None] * len(pb.requests),
             postfix_lengths=postfix_lengths,
             prompt_lengths=prompt_lengths,
             prefix_offsets=prefix_offsets,
@@ -475,7 +476,7 @@ class FlashCausalLMBatch(Batch):
         read_offsets = []
 
         prefilling_mask = []
-        prefill_tokens = []
+        prefill_logprob_tokens = []
 
         stopping_criterias = []
         top_n_tokens = []
@@ -518,7 +519,7 @@ class FlashCausalLMBatch(Batch):
             stopping_criterias.append(stopping_criteria)
 
             top_n_tokens.append(self.top_n_tokens[idx])
-            prefill_tokens.append(self.prefill_tokens[idx])
+            prefill_logprob_tokens.append(self.prefill_logprob_tokens[idx])
 
             ADAPTER_TO_INDEX = get_adapter_to_index()
             adapter_index = ADAPTER_TO_INDEX.get(self.requests[idx].adapter_id, 0)
@@ -611,7 +612,7 @@ class FlashCausalLMBatch(Batch):
             prefill_head_indices=None,
             prefill_next_token_indices=None,
             prefill_cu_outlens=None,
-            prefill_tokens=prefill_tokens,
+            prefill_logprob_tokens=prefill_logprob_tokens,
             prompt_lengths=prompt_lengths,
             prompt_lengths_tensor=prompt_lengths_tensor,
             postfix_lengths=postfix_lengths,
@@ -726,7 +727,7 @@ class FlashCausalLMBatch(Batch):
         prefix_offsets = []
         read_offsets = []
 
-        prefill_tokens = []
+        prefill_logprob_tokens = []
 
         next_token_chooser_parameters = []
         fsm_grammar_states = []
@@ -814,7 +815,7 @@ class FlashCausalLMBatch(Batch):
             prefix_offsets.extend(batch.prefix_offsets)
             read_offsets.extend(batch.read_offsets)
 
-            prefill_tokens.extend(batch.prefill_tokens)
+            prefill_logprob_tokens.extend(batch.prefill_logprob_tokens)
 
             next_token_chooser_parameters.extend([r.parameters for r in batch.requests])
             fsm_grammar_states.extend(batch.next_token_chooser.fsm_grammar_states)
@@ -869,7 +870,7 @@ class FlashCausalLMBatch(Batch):
             prefill_head_indices=None,
             prefill_next_token_indices=None,
             prefill_cu_outlens=None,
-            prefill_tokens=prefill_tokens,
+            prefill_logprob_tokens=prefill_logprob_tokens,
             prompt_lengths=prompt_lengths,
             prompt_lengths_tensor=prompt_lengths_tensor,
             postfix_lengths=postfix_lengths,
@@ -1769,9 +1770,10 @@ class FlashCausalLM(Model):
             if get_support_chunking():
                 next_prefilling_mask = []
                 # Budget in tokens for the next batch
-                # We remove len(batch) to always have enough space for at least a single decode
-                # for the remaining requests
-                batch_budget = get_max_prefill_tokens() - len(batch)
+                # We remove (len(batch) - 1) to always have enough space for at least a single decode
+                # for the remaining requests -1 because the first request does not need to be removed from the budget
+                # (ex: you have one request in the batch, you want it to take the full budget not budget -1)
+                batch_budget = get_max_prefill_tokens() - (len(batch) - 1)
                 # We reverse to prioritize older requests
                 # zip() is not reversible so reverse the underlying lists instead
                 for prefix_length, postfix_length, prompt_length in zip(
@@ -1790,6 +1792,7 @@ class FlashCausalLM(Model):
                         finished_prefilling = False
                         next_prefilling_mask.append(True)
                     else:
+                        # FIXME: use true number of accepted tokens instead of 1
                         # Since speculation will be turned off, this is always true
                         next_chunk_length = 1
                         next_prefilling_mask.append(False)
@@ -1807,14 +1810,7 @@ class FlashCausalLM(Model):
             batch.prefilling = not finished_prefilling
             batch.prefilling_mask = next_prefilling_mask
 
-        # Turn off speculative if some requests are still prefilling
-        # It makes the logic easier to follow
-        if prefill and not finished_prefilling:
-            speculate = 0
-            speculative_logits = None
-        else:
-            speculate = get_speculate()
-
+        speculate = get_speculate()
         (
             next_input_ids,
             next_token_logprobs,
@@ -1914,7 +1910,7 @@ class FlashCausalLM(Model):
                     ] = next_input_ids[index]
                     index += 1
 
-                cumulative_length += postfix_length
+            cumulative_length += postfix_length
 
         # Update values
         # These values can be updated without a GPU -> CPU sync
@@ -2045,18 +2041,18 @@ class FlashCausalLM(Model):
             # this state to be stable
             if request.id % self.world_size == self.rank:
                 # Prefill
-                if prefill and request.prefill_logprobs:
+                if request_prefilling and request.prefill_logprobs:
                     out_start_index = batch.prefill_cu_outlens[i]
                     out_end_index = batch.prefill_cu_outlens[i + 1]
-
-                    request_prefill_tokens = batch.prefill_tokens[i]
 
                     request_prefill_logprobs = prefill_logprobs[
                         out_start_index : out_end_index - 1
                     ]
                     prefill_token_ids = all_input_ids[:-1]
 
-                    if request_prefill_tokens is None:
+                    past_prefill_logprob_tokens = batch.prefill_logprob_tokens[i]
+
+                    if past_prefill_logprob_tokens is None:
                         # Remove generated token to only have prefill and add nan for first prompt token
                         request_prefill_logprobs = [float("nan")] * (
                             len(prefix_ids) + 1
@@ -2069,18 +2065,20 @@ class FlashCausalLM(Model):
                         skip_special_tokens=False,
                     )
 
-                    prefill_tokens = Tokens(
+                    prefill_logprob_tokens = Tokens(
                         prefill_token_ids,
                         request_prefill_logprobs,
                         prefill_texts,
                         is_special=[],
                     )
-                    if request_prefill_tokens is not None:
-                        prefill_tokens = request_prefill_tokens + prefill_tokens
+                    if past_prefill_logprob_tokens is not None:
+                        prefill_logprob_tokens = (
+                            past_prefill_logprob_tokens + prefill_logprob_tokens
+                        )
 
-                    batch.prefill_tokens[i] = prefill_tokens
+                    batch.prefill_logprob_tokens[i] = prefill_logprob_tokens
                 else:
-                    batch.prefill_tokens[i] = None
+                    batch.prefill_logprob_tokens[i] = None
 
             # If it is, the tokens we decoded should be ignored
             if request_prefilling:
@@ -2178,7 +2176,7 @@ class FlashCausalLM(Model):
 
                     generation = Generation(
                         request.id,
-                        batch.prefill_tokens[i],
+                        batch.prefill_logprob_tokens[i],
                         Tokens(
                             _next_token_ids,
                             _next_token_logprobs,

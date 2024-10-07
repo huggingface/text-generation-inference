@@ -7,6 +7,7 @@ from collections import defaultdict
 from transformers import PreTrainedTokenizerBase
 from loguru import logger
 
+from text_generation_server.models.globals import ATTENTION, PREFIX_CACHING, BLOCK_SIZE
 from text_generation_server.models.types import Batch, Generation
 from text_generation_server.utils.log import log_master
 from text_generation_server.utils.prefill_chunking import set_support_chunking
@@ -94,6 +95,9 @@ class Model(ABC):
             window_size=self.sliding_window,
             speculate=self.speculate,
             support_chunking=self.support_chunking,
+            use_prefix_caching=PREFIX_CACHING,
+            attention_impl=ATTENTION,
+            block_size=BLOCK_SIZE,
         )
 
     @property

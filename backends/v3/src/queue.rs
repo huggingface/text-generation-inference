@@ -89,6 +89,10 @@ impl Queue {
         prefill_token_budget: u32,
         token_budget: u32,
     ) -> Option<NextBatch> {
+        if prefill_token_budget == 0 || token_budget == 0 {
+            return None;
+        };
+
         // Create response channel
         let (response_sender, response_receiver) = oneshot::channel();
         // Send next batch command to the background task managing the state

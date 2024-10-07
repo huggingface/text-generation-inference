@@ -31,6 +31,12 @@ pub struct BackendInfo {
     pub max_batch_size: Option<usize>,
     #[schema(example = "false")]
     pub support_chunking: bool,
+    #[schema(example = "false")]
+    pub prefix_caching: bool,
+    #[schema(example = "flashinfer")]
+    pub attention_impl: String,
+    #[schema(example = "1")]
+    pub block_size: u32,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -113,6 +119,9 @@ pub async fn connect_backend(
         model_dtype: shard_info.dtype.clone(),
         speculate: shard_info.speculate as usize,
         support_chunking: shard_info.support_chunking,
+        prefix_caching: shard_info.use_prefix_caching,
+        attention_impl: shard_info.attention_impl.clone(),
+        block_size: shard_info.block_size,
     };
 
     let backend = BackendV3::new(
@@ -122,10 +131,7 @@ pub async fn connect_backend(
         max_batch_total_tokens,
         max_waiting_tokens,
         max_batch_size,
-        shard_info.requires_padding,
-        shard_info.window_size,
-        shard_info.speculate,
-        shard_info.support_chunking,
+        shard_info,
     );
 
     tracing::info!("Using backend V3");

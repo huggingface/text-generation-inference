@@ -174,7 +174,7 @@ async fn prefill(
 
     // Run prefill
     let start_time = Instant::now();
-    let (_, decode_batch, _) = client.prefill(batch.clone()).await?;
+    let (_, decode_batch, _) = client.prefill(batch.clone(), None).await?;
 
     // Get latency
     let latency = start_time.elapsed();

@@ -218,8 +218,13 @@ impl Client {
     pub async fn prefill(
         &mut self,
         batch: Batch,
+        cached_batch: Option<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
-        let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
+        let request = tonic::Request::new(PrefillRequest {
+            batch: Some(batch),
+            cached_batch,
+        })
+        .inject_context();
         let response = self.stub.prefill(request).await?.into_inner();
         Ok((
             response.generations,
@@ -237,11 +242,7 @@ impl Client {
         &mut self,
         batches: Vec<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, DecodeTimings)> {
-        let request = tonic::Request::new(DecodeRequest {
-            batch: None,
-            batches,
-        })
-        .inject_context();
+        let request = tonic::Request::new(DecodeRequest { batches }).inject_context();
         let response = self.stub.decode(request).await?.into_inner();
         Ok((
             response.generations,

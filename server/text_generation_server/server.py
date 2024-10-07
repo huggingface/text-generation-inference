@@ -153,6 +153,18 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 request.batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
 
+        concat_ns = None
+        if self.model.support_chunking:
+            if request.HasField("cached_batch"):
+                cached_batch = self.cache.pop(request.cached_batch.id)
+                if cached_batch is None:
+                    raise ValueError(
+                        f"Batch ID {request.cached_batch.id} not found in cache."
+                    )
+                start_concat = time.time_ns()
+                batch = self.model.batch_type.concatenate([batch, cached_batch])
+                concat_ns = time.time_ns() - start_concat
+
         generations, next_batch, timings = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
@@ -162,6 +174,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             forward_ns=timings[0],
             decode_ns=timings[1],
             total_ns=time.time_ns() - start,
+            concat_ns=concat_ns,
         )
 
     async def Decode(self, request, context):
@@ -178,16 +191,6 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
         if len(batches) == 0:
             raise ValueError("All batches are empty")
-
-        if self.model.support_chunking:
-            if request.HasField("batch"):
-                batch = self.model.batch_type.from_pb(
-                    request.batch,
-                    self.model.tokenizer,
-                    self.model.dtype,
-                    self.model.device,
-                )
-                batches.append(batch)
 
         if len(batches) > 1:
             start_concat = time.time_ns()
