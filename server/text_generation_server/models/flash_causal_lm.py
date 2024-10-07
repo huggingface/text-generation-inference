@@ -1712,8 +1712,6 @@ class FlashCausalLM(Model):
         if prefill:
             batch.prepare_for_prefill()
 
-        log_master(logger.info, f"Tokens in this forward: {len(batch.input_ids)}")
-
         prefill_logprobs = batch.prefill_next_token_indices is not None
 
         # Update adapter indices for speculative tokens (if present)
