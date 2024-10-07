@@ -165,7 +165,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                         f"Batch ID {request.cached_batch.id} not found in cache."
                     )
                 start_concat = time.time_ns()
-                batch = self.model.batch_type.concatenate([batch, cached_batch])
+                batch = self.model.batch_type.concatenate([cached_batch, batch])
                 concat_ns = time.time_ns() - start_concat
 
         generations, next_batch, timings = self.model.generate_token(batch)
