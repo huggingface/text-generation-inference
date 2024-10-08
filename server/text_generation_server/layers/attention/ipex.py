@@ -5,6 +5,7 @@ from text_generation_server.layers.attention import Seqlen
 from typing import Optional
 
 SUPPORTS_WINDOWING = False
+PREFILL_IN_KV_CACHE = False
 
 
 def attention(
@@ -79,3 +80,12 @@ def paged_attention(
         None,
     )
     return out
+
+
+__all__ = [
+    "PREFILL_IN_KV_CACHE",
+    "SUPPORTS_WINDOWING",
+    "attention",
+    "paged_attention",
+    "reshape_and_cache",
+]

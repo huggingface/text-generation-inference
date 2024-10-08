@@ -5,6 +5,7 @@ use hf_hub::{
 };
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
+use regex::Regex;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
@@ -26,6 +27,7 @@ use thiserror::Error;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod env_runtime;
+mod gpu;
 
 fn get_config(
     model_id: &str,
@@ -65,6 +67,7 @@ fn get_config(
 }
 
 fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
+    let compute_capability = gpu::get_cuda_capability();
     let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
     let mut attention: Option<String> = std::env::var("ATTENTION").ok();
     if let Some(config) = config {
@@ -77,6 +80,13 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                 prefix_caching = Some("0".to_string());
             }
         }
+
+        let fallback_attention = if matches!(compute_capability, Some((major, _)) if major < 8) {
+            "paged"
+        } else {
+            "flashdecoding"
+        };
+
         match config.head_dim {
             Some(h) if h == 64 || h == 128 || h == 256 => {
                 if lora_adapters.is_some() && prefix_caching.is_none() {
@@ -89,10 +99,14 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                         // flashinfer ?
                         if attention.is_none() {
                             tracing::info!(
-                                "Forcing flash decoding because model {} requires it",
+                                "Forcing attention to '{fallback_attention}' because model {} requires it",
                                 config.model_type.as_ref().unwrap()
                             );
-                            attention = Some("flashdecoding".to_string());
+                            attention = Some(fallback_attention.to_string());
+                        }
+                        if fallback_attention == "paged" && prefix_caching.is_none() {
+                            tracing::info!("Disabling prefix caching because it is not supported with 'paged' attention");
+                            prefix_caching = Some("0".to_string());
                         }
                     }
                     Some("t5") => {}
@@ -101,8 +115,8 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             }
             _ => {
                 if attention.is_none() {
-                    tracing::info!("Forcing flash decoding because head dim is not supported by flashinfer, also disabling prefix caching");
-                    attention = Some("flashdecoding".to_string());
+                    tracing::info!("Forcing attention to '{fallback_attention}' because head dim is not supported by flashinfer, also disabling prefix caching");
+                    attention = Some(fallback_attention.to_string());
                 }
                 if prefix_caching.is_none() {
                     prefix_caching = Some("0".to_string());
@@ -110,8 +124,10 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             }
         }
     }
-    let prefix_caching = prefix_caching.unwrap_or("true".to_string());
+
     let attention = attention.unwrap_or("flashinfer".to_string());
+    let prefix_caching = prefix_caching.unwrap_or("true".to_string());
+
     (prefix_caching, attention)
 }
 
@@ -286,6 +302,22 @@ impl std::fmt::Display for Dtype {
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
+enum KVCacheDtype {
+    #[clap(name = "fp8_e5m2")]
+    Fp8e5m2,
+}
+
+impl std::fmt::Display for KVCacheDtype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KVCacheDtype::Fp8e5m2 => {
+                write!(f, "fp8_e5m2")
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
 enum RopeScaling {
     Linear,
     Dynamic,
@@ -367,7 +399,11 @@ struct Args {
     #[clap(long, env)]
     num_shard: Option<usize>,
 
-    /// Whether you want the model to be quantized.
+    /// Quantization method to use for the model. It is not necessary to specify this option
+    /// for pre-quantized models, since the quantization method is read from the model
+    /// configuration.
+    ///
+    /// Marlin kernels will be used automatically for GPTQ/AWQ models.
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
 
@@ -381,6 +417,12 @@ struct Args {
     /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
     #[clap(long, env, value_enum)]
     dtype: Option<Dtype>,
+
+    /// Specify the dtype for the key-value cache. When this option is not provided,
+    /// the dtype of the model is used (typically `float16` or `bfloat16`). Currently
+    /// the only supported value is `fp8_e5m2` on CUDA.
+    #[clap(long, env, value_enum)]
+    kv_cache_dtype: Option<KVCacheDtype>,
 
     /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
     /// encouraged when loading a model with custom code to ensure no malicious code has been
@@ -650,6 +692,7 @@ fn shard_manager(
     quantize: Option<Quantization>,
     speculate: Option<usize>,
     dtype: Option<Dtype>,
+    kv_cache_dtype: Option<KVCacheDtype>,
     trust_remote_code: bool,
     uds_path: String,
     rank: usize,
@@ -721,6 +764,11 @@ fn shard_manager(
     if let Some(dtype) = dtype {
         shard_args.push("--dtype".to_string());
         shard_args.push(dtype.to_string())
+    }
+
+    if let Some(kv_cache_dtype) = kv_cache_dtype {
+        shard_args.push("--kv-cache-dtype".to_string());
+        shard_args.push(kv_cache_dtype.to_string())
     }
 
     // Model optional revision
@@ -1034,11 +1082,13 @@ fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
                         Ok(log) => log.trace(),
                         // For interactive debugging ?
                         Err(_) => {
-                            stdout.write_all(line).unwrap();
-                            if lines.peek().is_some() {
-                                stdout.write_all(b"\n").unwrap();
+                            if LevelFilter::current() >= tracing::Level::DEBUG {
+                                stdout.write_all(line).unwrap();
+                                if lines.peek().is_some() {
+                                    stdout.write_all(b"\n").unwrap();
+                                }
+                                stdout.flush().unwrap();
                             }
-                            stdout.flush().unwrap();
                         }
                     }
                 }
@@ -1277,6 +1327,7 @@ fn spawn_shards(
         let otlp_service_name = args.otlp_service_name.clone();
         let speculate = args.speculate;
         let dtype = args.dtype;
+        let kv_cache_dtype = args.kv_cache_dtype;
         let trust_remote_code = args.trust_remote_code;
         let master_port = args.master_port;
         let disable_custom_kernels = args.disable_custom_kernels;
@@ -1295,6 +1346,7 @@ fn spawn_shards(
                 quantize,
                 speculate,
                 dtype,
+                kv_cache_dtype,
                 trust_remote_code,
                 uds_path,
                 rank,
@@ -1787,14 +1839,37 @@ fn main() -> Result<(), LauncherError> {
             if adapter.contains('=') {
                 continue;
             }
-            download_convert_model(
-                adapter,
-                None,
-                args.trust_remote_code,
-                args.huggingface_hub_cache.as_deref(),
-                args.weights_cache_override.as_deref(),
-                running.clone(),
-            )?;
+
+            let adapter = adapter.trim();
+
+            // check if adapter has more than 1 '@'
+            if adapter.matches('@').count() > 1 {
+                return Err(LauncherError::ArgumentValidation(format!(
+                    "Invalid LoRA adapter format: {}",
+                    adapter
+                )));
+            }
+
+            // capture adapter_id, path, revision in format of adapter_id=path@revision
+            let re = Regex::new(r"^([^=@]+)(?:=([^@]+))?(?:@(.+))?$").unwrap();
+            if let Some(caps) = re.captures(adapter) {
+                let adapter_id = caps.get(1).map_or("", |m| m.as_str());
+                let revision = caps.get(3).map(|m| m.as_str());
+
+                download_convert_model(
+                    adapter_id,
+                    revision,
+                    args.trust_remote_code,
+                    args.huggingface_hub_cache.as_deref(),
+                    args.weights_cache_override.as_deref(),
+                    running.clone(),
+                )?;
+            } else {
+                return Err(LauncherError::ArgumentValidation(format!(
+                    "Invalid LoRA adapter format: {}",
+                    adapter
+                )));
+            }
         }
     }
 

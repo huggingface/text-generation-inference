@@ -100,6 +100,7 @@ pub async fn connect_backend(
             .map_err(V3Error::Warmup)?,
     )?;
     tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
+    metrics::gauge!("tgi_batch_max_total_tokens").set(max_batch_total_tokens);
 
     let backend_info = BackendInfo {
         waiting_served_ratio,

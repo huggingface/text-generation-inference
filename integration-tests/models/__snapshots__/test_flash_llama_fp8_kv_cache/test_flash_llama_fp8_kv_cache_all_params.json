@@ -1,0 +1,57 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 3,
+    "prefill": [
+      {
+        "id": 128000,
+        "logprob": null,
+        "text": "<|begin_of_text|>"
+      },
+      {
+        "id": 374,
+        "logprob": -22.96875,
+        "text": " is"
+      },
+      {
+        "id": 5655,
+        "logprob": -10.71875,
+        "text": " deep"
+      },
+      {
+        "id": 6975,
+        "logprob": -2.6992188,
+        "text": " learning"
+      },
+      {
+        "id": 30,
+        "logprob": -4.8398438,
+        "text": "?"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 720,
+        "logprob": -0.4411621,
+        "special": false,
+        "text": " \n"
+      },
+      {
+        "id": 220,
+        "logprob": -0.35864258,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 128001,
+        "logprob": 0.0,
+        "special": true,
+        "text": "<|end_of_text|>"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "What is deep learning? \n "
+}

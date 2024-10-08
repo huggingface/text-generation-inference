@@ -364,7 +364,7 @@ impl State {
                         // Add it back to the front
                         tracing::debug!("Over budget: not enough free blocks");
                         self.entries.push_front((id, entry));
-                        break;
+                        continue;
                     }
                     Some(block_allocation) => {
                         tracing::debug!("Allocation: {block_allocation:?}");
@@ -434,6 +434,12 @@ impl State {
             entry.batch_time = Some(Instant::now());
             // Insert in batch_entries IntMap
             batch_entries.insert(id, entry);
+        }
+
+        // Empty batch
+        if batch_requests.is_empty() {
+            tracing::debug!("Filterered out all entries");
+            return None;
         }
 
         // Final batch size

@@ -18,39 +18,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional, Tuple, Type
+
 import torch
 import torch.distributed
-
-
 from torch import nn
-from text_generation_server.utils.import_utils import SYSTEM
-
-if SYSTEM != "ipex":
-    from vllm.model_executor.layers.fused_moe import fused_moe
-from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
-from typing import Optional, List, Tuple
 
-from text_generation_server.layers.attention import (
-    paged_attention,
-    attention,
-    reshape_and_cache,
-    Seqlen,
-)
 from text_generation_server.layers import (
     FastLinear,
-    TensorParallelRowLinear,
+    SpeculativeHead,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    SpeculativeHead,
+    TensorParallelRowLinear,
     get_linear,
 )
-from text_generation_server.layers.layernorm import (
-    FastRMSNorm,
+from text_generation_server.layers.attention import (
+    Seqlen,
+    attention,
+    paged_attention,
 )
-from text_generation_server.layers.rotary import (
-    PositionRotaryEmbedding,
-)
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.layernorm import FastRMSNorm
+from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
+from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.utils.weights import UnquantizedWeight
 
 
@@ -266,17 +257,15 @@ class MixtralAttention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        reshape_and_cache(
-            kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
-        )
+        kv_cache.store(key=kv_to_cache[:, 0], value=kv_to_cache[:, 1], slots=slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if SYSTEM != "ipex" else kv_to_cache[:, 0],
-                kv_cache[1] if SYSTEM != "ipex" else kv_to_cache[:, 1],
+                kv_cache.key if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
+                kv_cache.value if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -286,8 +275,8 @@ class MixtralAttention(torch.nn.Module):
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache.key,
+                kv_cache.value,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
@@ -316,154 +305,41 @@ def round_up(x: torch.Tensor, value: int):
     return torch.div(x + (value - 1), value, rounding_mode="trunc") * value
 
 
-class BlockSparseMoE(nn.Module):
-    def __init__(self, prefix, config: MixtralConfig, weights):
+class MixtralMoE(nn.Module):
+    def __init__(
+        self, prefix, config: MixtralConfig, moe_layer_cls: Type[MoELayer], weights
+    ):
         super().__init__()
-        self.hidden_dim = config.hidden_size
-        self.ffn_dim = config.intermediate_size // weights.process_group.size()
-        self.num_experts = config.num_local_experts
-        self.top_k = config.num_experts_per_tok
-
-        act = config.hidden_act
-        if "gelu" in act:
-            self.act = lambda x: torch.nn.functional.gelu(
-                x,
-                approximate=(
-                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
-                ),
-            )
-        elif "silu" in act:
-            self.act = torch.nn.functional.silu
-        else:
-            self.act = ACT2FN[act]
 
         # gating
         self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
 
-        # merged expert weights, all of size  (n_experts * ffn_dim, hidden_dim)
-        w1 = _load_experts(config, f"{prefix}.experts", "w1", weights).view(
-            self.num_experts, self.ffn_dim, self.hidden_dim
+        self.moe = moe_layer_cls(
+            n_expert_group=None,
+            n_experts=config.num_local_experts,
+            prefix=f"{prefix}.experts",
+            renormalize=True,
+            topk=config.num_experts_per_tok,
+            topk_group=None,
+            weights=weights,
+            gate_proj_name="w1",
+            up_proj_name="w3",
+            down_proj_name="w2",
         )
-        w3 = _load_experts(config, f"{prefix}.experts", "w3", weights).view(
-            self.num_experts, self.ffn_dim, self.hidden_dim
-        )
-        self.w13 = torch.cat([w1, w3], dim=1)
-        self.w2 = (
-            _load_experts(config, f"{prefix}.experts", "w2", weights)
-            .view(self.num_experts, self.ffn_dim, self.hidden_dim)
-            .transpose(1, 2)
-            .contiguous()
-        )
+        assert isinstance(self.moe, MoELayer)
 
         self.process_group = weights.process_group
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # router_logits: (num_tokens, n_experts)
         router_logits = self.gate(x)
-        out = fused_moe(
-            x,
-            self.w13,
-            self.w2,
-            router_logits,
-            self.top_k,
-            renormalize=True,
-            inplace=True,
-        )
+        out = self.moe(x, gating_output=router_logits)
 
         # Reduce sum
         if self.process_group.size() > 1:
             torch.distributed.all_reduce(out, group=self.process_group)
 
         return out.view(*x.shape)
-
-
-class DenseMoE(nn.Module):
-    def __init__(self, prefix, config: MixtralConfig, weights):
-        super().__init__()
-        self.hidden_dim = config.hidden_size
-        self.ffn_dim = config.intermediate_size // weights.process_group.size()
-        self.num_experts = config.num_local_experts
-        self.top_k = config.num_experts_per_tok
-
-        act = config.hidden_act
-        if "gelu" in act:
-            self.act = lambda x: torch.nn.functional.gelu(
-                x,
-                approximate=(
-                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
-                ),
-            )
-        elif "silu" in act:
-            self.act = torch.nn.functional.silu
-        else:
-            self.act = ACT2FN[act]
-
-        # gating
-        self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
-
-        self.w1 = [
-            TensorParallelColumnLinear.load(
-                config, prefix=f"{prefix}.experts.{i}.w1", weights=weights, bias=False
-            )
-            for i in range(self.num_experts)
-        ]
-        self.w3 = [
-            TensorParallelColumnLinear.load(
-                config, prefix=f"{prefix}.experts.{i}.w3", weights=weights, bias=False
-            )
-            for i in range(self.num_experts)
-        ]
-        self.w2 = [
-            TensorParallelRowLinear.load(
-                config, prefix=f"{prefix}.experts.{i}.w2", weights=weights, bias=False
-            )
-            for i in range(self.num_experts)
-        ]
-
-        self.process_group = weights.process_group
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        x: (sequence_length, model_dim)
-        gate_logits: (sequence_length, n_experts)
-        """
-        # optional reshape
-        input_shape = x.shape
-        x = x.view(-1, input_shape[-1])
-
-        # gate_logits: (sequence_length, n_experts)
-        gate_logits = self.gate(x)
-        # all_probs: (sequence_length, n_experts) and upcast for softmax
-        all_probs = torch.nn.functional.softmax(gate_logits, dim=1, dtype=torch.float)
-
-        if self.top_k < self.num_experts:
-            _, not_selected_experts = torch.topk(
-                all_probs,
-                self.num_experts - self.top_k,
-                largest=False,
-                sorted=False,
-                dim=1,
-            )
-            # Mask not selected experts
-            all_probs.scatter_(1, not_selected_experts, 0)
-
-        # Re-normalize
-        weights = all_probs / all_probs.sum(dim=1, keepdim=True)
-        weights = weights.to(x.dtype)
-
-        # Final output tensor
-        out = x.new_zeros(x.shape[0], self.hidden_dim)
-        for i in range(self.num_experts):
-            h = self.act(self.w1[i](x)) * self.w3[i](x)
-            h = self.w2[i](h, reduce=False)
-            # Add expert output to out with masking
-            out += h * weights[:, i].view(-1, 1)
-
-        # Reduce sum
-        if self.process_group.size() > 1:
-            torch.distributed.all_reduce(out, group=self.process_group)
-
-        return out
 
 
 class MixtralLayer(nn.Module):
@@ -475,8 +351,12 @@ class MixtralLayer(nn.Module):
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
 
-        moe_cls = BlockSparseMoE if config.quantize is None else DenseMoE
-        self.moe = moe_cls(f"{prefix}.block_sparse_moe", config, weights)
+        moe_layer_cls = (
+            SparseMoELayer if SparseMoELayer.is_supported(weights) else DenseMoELayer
+        )
+        self.moe = MixtralMoE(
+            f"{prefix}.block_sparse_moe", config, moe_layer_cls, weights
+        )
 
         self.input_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps

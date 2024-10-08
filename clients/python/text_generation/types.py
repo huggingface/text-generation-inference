@@ -28,11 +28,17 @@ class ToolCall(BaseModel):
     function: dict
 
 
+class Chunk(BaseModel):
+    type: str
+    text: Optional[str] = None
+    image_url: Any = None
+
+
 class Message(BaseModel):
     # Role of the message sender
     role: str
     # Content of the message
-    content: Optional[str] = None
+    content: Optional[Union[str, List[Chunk]]] = None
     # Optional name of the message sender
     name: Optional[str] = None
     # Tool calls associated with the chat completion
@@ -168,7 +174,7 @@ class ChatCompletionComplete(BaseModel):
     # Log probabilities for the chat completion
     logprobs: Optional[Any]
     # Reason for completion
-    finish_reason: str
+    finish_reason: Optional[str]
     # Usage details of the chat completion
     usage: Optional[Any] = None
 
@@ -191,6 +197,7 @@ class ChatCompletionChunk(BaseModel):
     model: str
     system_fingerprint: str
     choices: List[Choice]
+    usage: Optional[Any] = None
 
 
 class Parameters(BaseModel):

@@ -55,7 +55,9 @@ Options:
 ## QUANTIZE
 ```shell
       --quantize <QUANTIZE>
-          Whether you want the model to be quantized
+          Quantization method to use for the model. It is not necessary to specify this option for pre-quantized models, since the quantization method is read from the model configuration.
+          
+          Marlin kernels will be used automatically for GPTQ/AWQ models.
           
           [env: QUANTIZE=]
 
@@ -86,6 +88,15 @@ Options:
           
           [env: DTYPE=]
           [possible values: float16, bfloat16]
+
+```
+## KV_CACHE_DTYPE
+```shell
+      --kv-cache-dtype <KV_CACHE_DTYPE>
+          Specify the dtype for the key-value cache. When this option is not provided, the dtype of the model is used (typically `float16` or `bfloat16`). Currently the only supported value is `fp8_e5m2` on CUDA
+          
+          [env: KV_CACHE_DTYPE=]
+          [possible values: fp8_e5m2]
 
 ```
 ## TRUST_REMOTE_CODE

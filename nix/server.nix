@@ -13,6 +13,7 @@
   flash-attn,
   flash-attn-layer-norm,
   flash-attn-rotary,
+  flash-attn-v1,
   grpc-interceptor,
   grpcio-reflection,
   grpcio-status,
@@ -21,6 +22,7 @@
   loguru,
   mamba-ssm,
   marlin-kernels,
+  moe-kernels,
   opentelemetry-api,
   opentelemetry-exporter-otlp,
   opentelemetry-instrumentation-grpc,
@@ -88,6 +90,7 @@ buildPythonPackage {
     loguru
     mamba-ssm
     marlin-kernels
+    moe-kernels
     opentelemetry-api
     opentelemetry-exporter-otlp
     opentelemetry-instrumentation-grpc

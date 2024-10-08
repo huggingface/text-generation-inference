@@ -50,7 +50,8 @@ def use_prefill_with_paged_kv_state(
     num_kv_heads: int,
     head_size: int,
     page_size: int,
-    query_dtype: str = "float16",
+    dtype: torch.dtype,
+    window_left: int,
 ):
     """
     Context manager to set the active flashinfer prefill state to the given
@@ -90,8 +91,9 @@ def use_prefill_with_paged_kv_state(
             num_qo_heads=num_heads,
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
-            q_data_type=query_dtype,
+            q_data_type=dtype,
             page_size=page_size,
+            window_left=window_left,
         )
         yield
     finally:
@@ -119,7 +121,8 @@ def use_prefill_state(
     num_heads: int,
     num_kv_heads: int,
     head_size: int,
-    query_dtype: str = "float16",
+    dtype: torch.dtype,
+    window_left: int,
 ):
     """
     Context manager to set the active flashinfer prefill state to the given
@@ -135,7 +138,8 @@ def use_prefill_state(
             num_qo_heads=num_heads,
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
-            q_data_type=query_dtype,
+            q_data_type=dtype,
+            window_left=window_left,
         )
         yield
     finally:
@@ -152,11 +156,13 @@ def create_decode_state(
 ):
     """Create a decode state."""
     workspace_buffer = get_workspace(device)
+    num_groups = num_heads // num_kv_heads
     return flashinfer.BatchDecodeWithPagedKVCacheWrapper(
         workspace_buffer,
         kv_layout="NHD",
         use_cuda_graph=False,
-        use_tensor_cores=num_heads // num_kv_heads > 4,
+        # Taken from https://github.com/flashinfer-ai/flashinfer/blob/33ef95700981ba70f4cab63b8931e562bc795b21/python/flashinfer/decode.py#L57-L60
+        use_tensor_cores=num_groups not in [1, 2, 4, 8],
     )
 
 
@@ -175,6 +181,7 @@ def create_decode_state_cuda_graphs(
     therefore stored as part of the state.
     """
     workspace_buffer = get_workspace(device)
+    num_groups = num_heads // num_kv_heads
     return flashinfer.BatchDecodeWithPagedKVCacheWrapper(
         workspace_buffer,
         kv_layout="NHD",
@@ -182,7 +189,8 @@ def create_decode_state_cuda_graphs(
         paged_kv_indices_buffer=block_tables,
         paged_kv_indptr_buffer=block_tables_ptr,
         paged_kv_last_page_len_buffer=last_page_len,
-        use_tensor_cores=num_heads // num_kv_heads > 4,
+        # Taken from https://github.com/flashinfer-ai/flashinfer/blob/33ef95700981ba70f4cab63b8931e562bc795b21/python/flashinfer/decode.py#L57-L60
+        use_tensor_cores=num_groups not in [1, 2, 4, 8],
     )
 
 
@@ -196,7 +204,8 @@ def use_decode_state(
     num_kv_heads: int,
     head_size: int,
     page_size: int,
-    query_dtype: str = "float16",
+    dtype: torch.dtype,
+    window_left: int,
 ):
     """
     Context manager to set the active flashinfer decoding state to the given
@@ -231,7 +240,9 @@ def use_decode_state(
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
             page_size=page_size,
-            q_data_type=query_dtype,
+            data_type=dtype,
+            q_data_type=dtype,
+            window_left=window_left,
         )
         yield
     finally:

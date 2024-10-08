@@ -41,7 +41,7 @@ COPY launcher launcher
 RUN cargo build --profile release-opt
 
 # Text Generation Inference base image for RoCm
-FROM rocm/dev-ubuntu-22.04:6.1.1_hip_update AS base
+FROM rocm/dev-ubuntu-22.04:6.2 AS base
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     build-essential \
@@ -50,33 +50,34 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     curl \
     git \
     make \
+    libmsgpack-dev \
     libssl-dev \
+    llvm-dev \
     g++ \
     # Needed to build VLLM & flash.
     rocthrust-dev \
     hipsparse-dev \
     hipblas-dev \
-    hipblaslt-dev \
+    hipcub-dev \
     rocblas-dev \
     hiprand-dev \
+    hipfft-dev \
     rocrand-dev \
     miopen-hip-dev \
-    hipfft-dev \
-    hipcub-dev \
     hipsolver-dev \
     rccl-dev \
     cmake \
-    python3.11-dev && \
+    python3.11-venv && \
     rm -rf /var/lib/apt/lists/*
 
 # Keep in sync with `server/pyproject.toml
 ARG MAMBA_VERSION=23.1.0-1
-ARG PYTORCH_VERSION='2.3.0'
-ARG ROCM_VERSION='6.0.2'
 ARG PYTHON_VERSION='3.11.10'
 # Automatically set by buildx
 ARG TARGETPLATFORM
-ENV PATH /opt/conda/bin:$PATH
+ENV PATH=/opt/conda/bin:$PATH
+
+ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
 
 # TGI seem to require libssl.so.1.1 instead of libssl.so.3 so we can't use ubuntu 22.04. Ubuntu 20.04 has python==3.8, and TGI requires python>=3.9, hence the need for miniconda.
 # Install mamba
@@ -100,41 +101,132 @@ RUN case ${TARGETPLATFORM} in \
                          /opt/conda/bin/conda install -y "python=${PYTHON_VERSION}" ;; \
     esac && \
     /opt/conda/bin/conda clean -ya
+
 # Install flash-attention, torch dependencies
-RUN pip install numpy einops ninja --no-cache-dir
+RUN python3 -m pip install --upgrade pip && pip install numpy einops ninja joblib msgpack cmake --no-cache-dir && rm -rf /var/lib/apt/lists/*
 
-RUN pip uninstall -y triton && \
-    git clone --depth 1 --single-branch https://github.com/ROCm/triton.git && \
-    cd triton/python && \
-    pip install .
+RUN conda install mkl=2021
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib/:/opt/conda/lib/python3.11/site-packages/torch/lib:/opt/conda/lib/
 
-RUN git clone --depth 1 --recursive --single-branch --branch 2.3-patched https://github.com/fxmarty/pytorch.git pytorch && cd pytorch && pip install -r requirements.txt --no-cache-dir
 
-ARG _GLIBCXX_USE_CXX11_ABI="1"
-ARG CMAKE_PREFIX_PATH="/opt/conda"
+ARG COMMON_WORKDIR=/
+WORKDIR ${COMMON_WORKDIR}
+
+
+# Install HIPBLASLt
+FROM base AS build_hipblaslt
+ARG HIPBLASLT_BRANCH="e6da924"
+RUN git clone https://github.com/ROCm/hipBLASLt.git \
+    && cd hipBLASLt \
+    && git checkout ${HIPBLASLT_BRANCH} \
+    && SCCACHE_IDLE_TIMEOUT=1800 ./install.sh --architecture ${PYTORCH_ROCM_ARCH} --legacy_hipblas_direct \
+    && cd build/release \
+    && make package
+
+FROM scratch AS export_hipblaslt
+ARG COMMON_WORKDIR
+COPY --from=build_hipblaslt ${COMMON_WORKDIR}/hipBLASLt/build/release/*.deb /
+
+# RCCL build stages
+FROM base AS build_rccl
+ARG RCCL_BRANCH="rocm-6.2.0"
+RUN git clone https://github.com/ROCm/rccl \
+    && cd rccl \
+    && git checkout ${RCCL_BRANCH} \
+    && ./install.sh -p --amdgpu_targets ${PYTORCH_ROCM_ARCH}
+FROM scratch AS export_rccl
+ARG COMMON_WORKDIR
+COPY --from=build_rccl ${COMMON_WORKDIR}/rccl/build/release/*.deb /
+
+# Triton build stages
+FROM base AS build_triton
+ARG TRITON_BRANCH="e192dba"
+ARG TRITON_REPO="https://github.com/triton-lang/triton.git"
+RUN python3 -m pip install ninja cmake wheel pybind11 && git clone ${TRITON_REPO} \
+    && cd triton \
+    && git checkout ${TRITON_BRANCH} \
+    && cd python \
+    && python3 setup.py bdist_wheel --dist-dir=dist
+FROM scratch AS export_triton
+ARG COMMON_WORKDIR
+COPY --from=build_triton ${COMMON_WORKDIR}/triton/python/dist/*.whl /
+
+# # AMD-SMI build stages
+FROM base AS build_amdsmi
+RUN cd /opt/rocm/share/amd_smi \
+    && pip wheel . --wheel-dir=dist
+FROM scratch AS export_amdsmi
+COPY --from=build_amdsmi /opt/rocm/share/amd_smi/dist/*.whl /
+
+
+FROM base as build_pytorch
+
+RUN --mount=type=bind,from=export_hipblaslt,src=/,target=/install \
+    if ls /install/*.deb; then \
+        dpkg -i /install/*.deb \
+        && sed -i 's/, hipblaslt-dev \(.*\), hipcub-dev/, hipcub-dev/g' /var/lib/dpkg/status \
+        && sed -i 's/, hipblaslt \(.*\), hipfft/, hipfft/g' /var/lib/dpkg/status; \
+    fi
+
+ARG BUILD_ENVIRONMENT=pytorch-linux-jammy-rocm6.2-py3.11
 ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
-ARG BUILD_CAFFE2="0" \
-    BUILD_CAFFE2_OPS="0" \
-    USE_CUDA="0" \
-    USE_ROCM="1" \
-    BUILD_TEST="0" \
-    USE_FBGEMM="0" \
-    USE_NNPACK="0" \
-    USE_QNNPACK="0" \
-    USE_XNNPACK="0" \
-    USE_FLASH_ATTENTION="1" \
-    USE_MEM_EFF_ATTENTION="0"
 
-RUN cd pytorch && python tools/amd_build/build_amd.py && python setup.py install
+# A commit to fix the output scaling factor issue in _scaled_mm
+# Not yet in 2.5.0-rc1
+ARG PYTORCH_BRANCH="cedc116"
+ARG PYTORCH_VISION_BRANCH="v0.19.1"
+ARG PYTORCH_REPO="https://github.com/ROCm/pytorch.git"
 
-# Set AS recommended: https://github.com/ROCm/triton/wiki/A-script-to-set-program-execution-environment-in-ROCm
-ENV HIP_FORCE_DEV_KERNARG=1
+RUN git clone ${PYTORCH_REPO} pytorch \
+    && cd pytorch && git checkout ${PYTORCH_BRANCH} && git submodule update --init --recursive \
+    && pip install -r requirements.txt --no-cache-dir  \
+    && python tools/amd_build/build_amd.py \
+    && CMAKE_PREFIX_PATH=$(python3 -c 'import sys; print(sys.prefix)') python3 setup.py bdist_wheel --dist-dir=dist
+FROM scratch as export_pytorch
+ARG COMMON_WORKDIR
+COPY --from=build_pytorch ${COMMON_WORKDIR}/pytorch/dist/*.whl /
 
-# On MI250 and MI300, performances for flash with Triton FA are slightly better than CK.
-# However, Triton requires a tunning for each prompt length, which is prohibitive.
-ENV ROCM_USE_FLASH_ATTN_V2_TRITON=0
+FROM base AS install_deps
 
-FROM base AS kernel-builder
+ARG COMMON_WORKDIR
+
+# Install hipblaslt
+RUN --mount=type=bind,from=export_hipblaslt,src=/,target=/install \
+    if ls /install/*.deb; then \
+        dpkg -i /install/*.deb \
+        && sed -i 's/, hipblaslt-dev \(.*\), hipcub-dev/, hipcub-dev/g' /var/lib/dpkg/status \
+        && sed -i 's/, hipblaslt \(.*\), hipfft/, hipfft/g' /var/lib/dpkg/status; \
+    fi
+
+RUN --mount=type=bind,from=export_rccl,src=/,target=/install \
+    if ls /install/*.deb; then \
+        dpkg -i /install/*.deb \
+        # RCCL needs to be installed twice
+        && dpkg -i /install/*.deb \
+        && sed -i 's/, rccl-dev \(.*\), rocalution/, rocalution/g' /var/lib/dpkg/status \
+        && sed -i 's/, rccl \(.*\), rocalution/, rocalution/g' /var/lib/dpkg/status; \
+    fi
+
+RUN --mount=type=bind,from=export_triton,src=/,target=/install \
+    if ls /install/*.whl; then \
+        # Preemptively uninstall to prevent pip same-version no-installs
+        pip uninstall -y triton \
+        && pip install /install/*.whl; \
+    fi
+
+RUN --mount=type=bind,from=export_amdsmi,src=/,target=/install \
+    # Preemptively uninstall to prevent pip same-version no-installs
+    pip uninstall -y amdsmi \
+    && pip install /install/*.whl;
+
+RUN --mount=type=bind,from=export_pytorch,src=/,target=/install \
+    if ls /install/*.whl; then \
+        # Preemptively uninstall to prevent pip same-version no-installs
+        pip uninstall -y torch torchvision \
+        && pip install /install/*.whl; \
+    fi
+
+FROM install_deps AS kernel-builder
 
 # # Build vllm kernels
 FROM kernel-builder AS vllm-builder
@@ -174,7 +266,7 @@ COPY server/exllamav2_kernels/ .
 
 RUN python setup.py build
 
-FROM base AS base-copy
+FROM install_deps AS base-copy
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \
@@ -223,6 +315,19 @@ ENTRYPOINT ["./entrypoint.sh"]
 
 # Final image
 FROM base-copy
+
+# Set AS recommended: https://github.com/ROCm/triton/wiki/A-script-to-set-program-execution-environment-in-ROCm
+ENV HIP_FORCE_DEV_KERNARG=1
+
+# On MI250 and MI300, performances for flash with Triton FA are slightly better than CK.
+# However, Triton requires a tunning for each prompt length, which is prohibitive.
+ENV ROCM_USE_FLASH_ATTN_V2_TRITON=0
+ENV ROCM_USE_CUSTOM_PAGED_ATTN=1
+ENV PYTORCH_TUNABLEOP_TUNING_AFTER_WARMUP=0
+ENV VLLM_MOE_PADDING=0
+ENV ATTENTION=paged
+ENV USE_PREFIX_CACHING=0
+ENV ROCM_USE_SKINNY_GEMM=1
 
 COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
