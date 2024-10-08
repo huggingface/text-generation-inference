@@ -505,12 +505,14 @@ def launcher(event_loop):
         if DOCKER_VOLUME:
             volumes = [f"{DOCKER_VOLUME}:/data"]
 
-        if DOCKER_DEVICES:
-            devices = DOCKER_DEVICES.split(",")
+        if DOCKER_DEVICES is not None:
+            devices = DOCKER_DEVICES.strip().split(",")
             visible = os.getenv("ROCR_VISIBLE_DEVICES")
             if visible:
                 env["ROCR_VISIBLE_DEVICES"] = visible
             device_requests = []
+            if not devices:
+                devices = None
         else:
             devices = []
             device_requests = [
@@ -532,16 +534,16 @@ def launcher(event_loop):
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
-            # name=container_name,
+            name=container_name,
             environment=env,
-            # auto_remove=False,
-            # detach=True,
-            # device_requests=device_requests,
+            auto_remove=False,
+            detach=True,
+            device_requests=device_requests,
             devices=devices,
             volumes=volumes,
             ports={"80/tcp": port},
-            # healthcheck={"timeout": int(10 * 1e9)},
-            # shm_size="1G",
+            healthcheck={"timeout": int(10 * 1e9)},
+            shm_size="1G",
         )
 
         import time
