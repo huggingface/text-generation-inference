@@ -62,7 +62,7 @@ class GPTQMarlinFP8Linear(nn.Module):
         return cls(qweight=qweight, scales=scales.to(dtype), bias=bias)
 
     @classmethod
-    def from_fp8(cls, weight, scale, _input_scale, bias, dtype):
+    def from_fp8(cls, weight, scale, _input_scale, _scale_upper_bound, bias, dtype):
         return cls(qweight=weight, scales=scale.to(dtype), bias=bias)
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
