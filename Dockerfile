@@ -1,5 +1,5 @@
 # Rust builder
-FROM lukemathwalker/cargo-chef:latest-rust-1.80 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.80.1 AS chef
 WORKDIR /usr/src
 
 ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
@@ -32,6 +32,7 @@ RUN cargo chef cook --profile release-opt --recipe-path recipe.json
 ARG GIT_SHA
 ARG DOCKER_LABEL
 
+COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
@@ -39,7 +40,7 @@ COPY benchmark benchmark
 COPY router router
 COPY backends backends
 COPY launcher launcher
-RUN cargo build --profile release-opt
+RUN cargo build --profile release-opt --frozen
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
