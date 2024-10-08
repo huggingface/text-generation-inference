@@ -34,9 +34,10 @@ def can_use_marlin_moe_gemm(
         SYSTEM == "cuda"
         and fused_marlin_moe is not None
         and has_sm_8_0
-        and quantize == "gptq"
-        and quant_method == "gptq"
-        and sym
+        and quantize in {"awq", "gptq"}
+        and quant_method in {"awq", "gptq"}
+        # We only support asymmetric quantization for AWQ.
+        and (sym or quant_method == "awq")
     )
 
 
@@ -72,10 +73,15 @@ class GPTQMarlinSparseMoELayer(nn.Module):
         super().__init__()
 
         if not (
-            isinstance(weights.loader, GPTQMarlinWeightsLoader) and weights.loader.sym
+            isinstance(weights.loader, GPTQMarlinWeightsLoader)
+            and can_use_marlin_moe_gemm(
+                quant_method=weights.loader.quant_method,
+                quantize=weights.loader.quantize,
+                sym=weights.loader.sym,
+            )
         ):
             raise ValueError(
-                f"Unsupported weights loader: {weights.loader}, only GPTQMarlinWeightsLoader with symmetric quantization is supported"
+                f"Unsupported weights loader: {type(weights.loader)}, only GPTQMarlinWeightsLoader with AWQ and symmetric GPTQ quantization is supported"
             )
 
         assert (n_expert_group is None) == (
@@ -102,17 +108,24 @@ class GPTQMarlinSparseMoELayer(nn.Module):
 
     def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
         return fused_marlin_moe(
-            x,
+            hidden_states=x,
             w1=self.gate_up_proj.qweight,
             w2=self.down_proj.qweight,
-            g_idx1=self.gate_up_proj.g_idx,
-            g_idx2=self.down_proj.g_idx,
-            perm1=self.gate_up_proj.perm,
-            perm2=self.down_proj.perm,
             w1_scale=self.gate_up_proj.scales,
             w2_scale=self.down_proj.scales,
-            is_full_k1=self.gate_up_proj.is_full_k,
-            is_full_k2=self.down_proj.is_full_k,
+            w1_zeros=(
+                self.gate_up_proj.qzeros
+                if self.gate_up_proj.qzeros.numel() > 0
+                else None
+            ),
+            w2_zeros=(
+                self.down_proj.qzeros if self.down_proj.qzeros.numel() > 0 else None
+            ),
+            g_idx1=self.gate_up_proj.g_idx,
+            g_idx2=self.down_proj.g_idx,
+            sort_indices1=self.gate_up_proj.perm,
+            sort_indices2=self.down_proj.perm,
+            is_k_full=self.gate_up_proj.is_full_k or self.down_proj.is_full_k,
             gating_output=gating_output,
             topk=self.topk,
             renormalize=self.renormalize,

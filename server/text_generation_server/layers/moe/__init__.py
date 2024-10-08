@@ -210,11 +210,17 @@ class SparseMoELayer(nn.Module):
             and isinstance(weights.loader.weight_class, UnquantizedWeight)
         ) or isinstance(weights.loader, HybridFP8UnquantLoader):
             cls = UnquantizedSparseMoELayer
-        elif isinstance(weights.loader, GPTQMarlinWeightsLoader) and weights.loader.sym:
+        elif isinstance(
+            weights.loader, GPTQMarlinWeightsLoader
+        ) and can_use_marlin_moe_gemm(
+            quant_method=weights.loader.quant_method,
+            quantize=weights.loader.quantize,
+            sym=weights.loader.sym,
+        ):
             cls = GPTQMarlinSparseMoELayer
         else:
             raise ValueError(
-                f"Unsupported weights loader: {weights.loader}, sparse MoE is only supported for unquantized and GPTQ weights"
+                f"Unsupported weights loader: {type(weights.loader)}, sparse MoE is only supported for unquantized, AWQ, and GPTQ weights"
             )
 
         log_once(
