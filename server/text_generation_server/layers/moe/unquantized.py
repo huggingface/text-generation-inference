@@ -9,7 +9,10 @@ from text_generation_server.utils.weights import UnquantizedWeight, Weights
 if SYSTEM == "rocm":
     from vllm.model_executor.layers.fused_moe import fused_moe
 elif SYSTEM != "ipex":
-    from moe_kernels.fused_moe import fused_moe
+    try:
+        from moe_kernels.fused_moe import fused_moe
+    except ImportError:
+        fused_moe = None
 
 
 class UnquantizedSparseMoELayer(nn.Module):
@@ -28,6 +31,11 @@ class UnquantizedSparseMoELayer(nn.Module):
         down_proj_name: str = "down_proj",
     ):
         super().__init__()
+
+        if fused_moe is None:
+            raise ValueError(
+                "Fused MoE kernels are not installed. Install the `moe_kernels` package"
+            )
 
         assert (n_expert_group is None) == (
             topk_group is None
@@ -54,6 +62,8 @@ class UnquantizedSparseMoELayer(nn.Module):
         )
 
     def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
+        assert fused_moe is not None
+
         if SYSTEM == "rocm":
             return fused_moe(
                 x,

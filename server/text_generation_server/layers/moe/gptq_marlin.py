@@ -12,7 +12,10 @@ from text_generation_server.layers.marlin.gptq import (
 )
 
 if SYSTEM == "cuda":
-    from moe_kernels.fused_marlin_moe import fused_marlin_moe
+    try:
+        from moe_kernels.fused_marlin_moe import fused_marlin_moe
+    except ImportError:
+        fused_marlin_moe = None
 else:
     fused_marlin_moe = None
 
@@ -72,6 +75,11 @@ class GPTQMarlinSparseMoELayer(nn.Module):
     ):
         super().__init__()
 
+        if fused_marlin_moe is None:
+            raise ValueError(
+                "Fused MoE kernels are not installed. Install the `moe_kernels` package"
+            )
+
         if not (
             isinstance(weights.loader, GPTQMarlinWeightsLoader)
             and can_use_marlin_moe_gemm(
@@ -107,6 +115,7 @@ class GPTQMarlinSparseMoELayer(nn.Module):
         self.bits = weights.loader.bits
 
     def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
+        assert fused_marlin_moe is not None
         return fused_marlin_moe(
             hidden_states=x,
             w1=self.gate_up_proj.qweight,
