@@ -179,18 +179,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .expect("Unable to clear cache");
 
-            // Warmup shard
-            let max_batch_size = batch_size.iter().max().unwrap();
-            sharded_client
-                .warmup(
-                    sequence_length,
-                    sequence_length * max_batch_size,
-                    (sequence_length + decode_length) * max_batch_size,
-                    Some(*max_batch_size as usize),
-                )
-                .await
-                .expect("Unable to warmup");
-
             tracing::info!("Connected");
 
             // Run app
