@@ -120,6 +120,7 @@ impl TokenizerConfigToken {
 #[serde(tag = "processor_class")]
 pub enum HubPreprocessorConfig {
     Idefics2Processor(Idefics2Preprocessor),
+    Idefics3Processor(Idefics2Preprocessor),
 }
 
 impl HubPreprocessorConfig {
