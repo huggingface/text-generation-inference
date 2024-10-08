@@ -21,6 +21,7 @@ jobs:
   build-and-push:
     outputs:
       docker_image: ${{ steps.final.outputs.docker_image }}
+      docker_volume: ${{ steps.final.outputs.docker_volume }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
       runs_on: ${{ steps.final.outputs.runs_on }}
       label: ${{ steps.final.outputs.label }}
@@ -45,6 +46,7 @@ jobs:
             cuda)
                 export dockerfile="Dockerfile"
                 export label_extension=""
+                export docker_volume="/mnt/cache"
                 export docker_devices=""
                 export runs_on="aws-g6-12xl-plus-priv-cache"
                 export platform=""
@@ -54,6 +56,7 @@ jobs:
                 export dockerfile="Dockerfile_amd"
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
+                export docker_volume="/mnt/cache/tgi"
                 export runs_on="amd-gpu-runners"
                 export platform=""
                 export extra_pytest="-k test_flash_gemma_gptq_load"
@@ -62,6 +65,7 @@ jobs:
                 export dockerfile="Dockerfile_intel"
                 export label_extension="-intel-xpu"
                 export docker_devices=""
+                export docker_volume="/mnt/cache"
                 export runs_on="ubuntu-latest"
                 export platform="xpu"
                 export extra_pytest=""
@@ -70,6 +74,7 @@ jobs:
                 export dockerfile="Dockerfile_intel"
                 export label_extension="-intel-cpu"
                 export docker_devices=""
+                export docker_volume="/mnt/cache"
                 export runs_on="ubuntu-latest"
                 export platform="cpu"
                 export extra_pytest=""
@@ -84,6 +89,7 @@ jobs:
           echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
           echo "LABEL=${label_extension}" >> $GITHUB_ENV
           echo "PLATFORM=${platform}" >> $GITHUB_ENV
+          echo "DOCKER_VOLUME=${docker_volume}" >> $GITHUB_ENV
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
           echo "RUNS_ON=${runs_on}" >> $GITHUB_ENV
           echo "EXTRA_PYTEST=${extra_pytest}" >> $GITHUB_ENV
@@ -188,7 +194,7 @@ jobs:
           make install-integration-tests
       - name: Run tests
         run: |
-          export DOCKER_VOLUME=/mnt/cache/
+          export DOCKER_VOLUME=${{ needs.build-and-push.outputs.docker_volume }}
           export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
           export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
           export EXTRA_PYTEST="${{ needs.build-and-push.outputs.extra_pytest }}"
