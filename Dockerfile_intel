@@ -111,6 +111,8 @@ ENV PATH=/opt/conda/bin:/opt/intel/oneapi/mpi/latest/opt/mpi/libfabric/bin:/opt/
 ENV CCL_ZE_IPC_EXCHANGE=sockets
 ENV CMAKE_PREFIX_PATH=/opt/intel/oneapi/mkl/latest/lib/cmake:/opt/intel/oneapi/compiler/latest
 ENV CPATH=/opt/intel/oneapi/mpi/latest/include:/opt/intel/oneapi/ccl/latest/include:/opt/intel/oneapi/mkl/latest/include
+ENV TORCH_LLM_ALLREDUCE=1
+ENV CCL_TOPO_FABRIC_VERTEX_CONNECTION_CHECK=0
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
