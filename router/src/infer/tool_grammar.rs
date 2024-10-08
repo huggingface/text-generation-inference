@@ -53,10 +53,7 @@ impl ToolGrammar {
 
         // if tools are provided and no tool_choice we default to the OneOf
         let tools_to_use = match tool_choice {
-            ToolType::FunctionName(name) => {
-                vec![Self::find_tool_by_name(&tools, &name)?]
-            }
-            ToolType::Function { function } => {
+            ToolType::Function(function) => {
                 vec![Self::find_tool_by_name(&tools, &function.name)?]
             }
             ToolType::OneOf => tools.clone(),
