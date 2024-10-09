@@ -2,7 +2,7 @@
   "choices": [
     {
       "delta": {
-        "content": " assistant",
+        "content": " fans",
         "role": "assistant",
         "tool_calls": null
       },
@@ -11,7 +11,7 @@
       "logprobs": null
     }
   ],
-  "created": 1728497531,
+  "created": 1728497461,
   "id": "",
   "model": "meta-llama/Llama-3.1-8B-Instruct",
   "object": "chat.completion.chunk",

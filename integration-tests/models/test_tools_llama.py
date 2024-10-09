@@ -236,21 +236,18 @@ async def test_flash_llama_grammar_tools_insufficient_information(
         messages=[
             {
                 "role": "system",
-                "content": "STRICTLY ONLY RESPOND IF THE USER ASKS A WEATHER RELATED QUESTION",
+                "content": "You're a helpful assistant! Answer the users question best you can.",
             },
             {
                 "role": "user",
-                "content": "Tell me a story about 3 sea creatures",
+                "content": "Who are you?",
             },
         ],
         stream=False,
     )
 
     assert responses.choices[0].message.tool_calls is None
-    assert (
-        responses.choices[0].message.content
-        == "There is no weather related function available to answer your prompt."
-    )
+    assert responses.choices[0].message.content == "I am a helpful assistant!"
 
     assert responses == response_snapshot
 
@@ -268,7 +265,44 @@ async def test_flash_llama_grammar_tools_insufficient_information_stream(
         messages=[
             {
                 "role": "system",
-                "content": "STRICTLY ONLY RESPOND IF THE USER ASKS A WEATHER RELATED QUESTION",
+                "content": "You're a helpful assistant! Answer the users question best you can.",
+            },
+            {
+                "role": "user",
+                "content": "Who are you?",
+            },
+        ],
+        stream=True,
+    )
+
+    count = 0
+    content_generated = ""
+    last_response = None
+    async for response in responses:
+        count += 1
+        content_generated += response.choices[0].delta.content
+        last_response = response
+        assert response.choices[0].delta.tool_calls is None
+
+    assert count == 5
+    assert content_generated == "I am a helpful assistant"
+    assert last_response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_grammar_tools_sea_creatures_stream(
+    flash_llama_grammar_tools, response_snapshot
+):
+    responses = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=24,
+        tools=tools,
+        tool_choice="auto",
+        messages=[
+            {
+                "role": "system",
+                "content": "You're a helpful assistant! Answer the users question best you can. If the question is not answerable by the tools, just generate a response.",
             },
             {
                 "role": "user",
@@ -287,10 +321,9 @@ async def test_flash_llama_grammar_tools_insufficient_information_stream(
         last_response = response
         assert response.choices[0].delta.tool_calls is None
 
-    assert count == 11
-    print(content_generated)
+    assert count == 62
     assert (
         content_generated
-        == "There is no weather related function available to answer your prompt"
+        == "Once upon a time, in the ocean, there lived three sea creatures. There was a wise old octopus named Bob, a mischievous seagull named Sam, and a gentle sea turtle named Luna. They all lived together in a beautiful coral reef, surrounded by colorful fish and swaying sea fans"
     )
     assert last_response == response_snapshot

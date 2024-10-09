@@ -1264,7 +1264,7 @@ async fn chat_completions(
                             buffer.push(stream_token);
                             if let Some(captures) = function_regex.captures(&json_buffer) {
                                 let function_name = captures[1].to_string();
-                                if function_name == "notify_error" {
+                                if function_name == "no_tool" {
                                     state = StreamState::BufferTrailing;
                                     response_as_tool = false;
                                     buffer.clear();
@@ -1290,13 +1290,13 @@ async fn chat_completions(
                         }
                         // if we skipped sending the buffer we need to avoid sending the following json key and quotes
                         StreamState::BufferTrailing => {
-                            let infix_text = "\"error\":\"";
+                            let infix_text = "\"content\":\"";
                             json_buffer.push_str(&token_text.replace(" ", ""));
                             // keep capturing until we find the infix text
                             match json_buffer.find(infix_text) {
-                                Some(error_index) => {
+                                Some(content_key_index) => {
                                     json_buffer =
-                                        json_buffer[error_index + infix_text.len()..].to_string();
+                                        json_buffer[content_key_index + infix_text.len()..].to_string();
                                 }
                                 None => {
                                     continue;
@@ -1390,18 +1390,18 @@ async fn chat_completions(
                 props.remove("_name");
             }
             match name.as_str() {
-                "notify_error" => {
-                    // parse the error message
-                    let error_message = arguments
-                        .get("error")
+                "no_tool" => {
+                    // parse the content message
+                    let content_message = arguments
+                        .get("content")
                         .and_then(Value::as_str)
                         .ok_or_else(|| {
                             InferError::ToolError(
-                                "No error message found in generated text".to_string(),
+                                "No `content` found in generated text".to_string(),
                             )
                         })?
                         .to_string();
-                    (None, Some(error_message))
+                    (None, Some(content_message))
                 }
                 _ => {
                     let tool_calls = vec![ToolCall {
@@ -2662,6 +2662,6 @@ mod tests {
         assert!(result.is_ok());
         let (inputs, _grammar, using_tools) = result.expect("Failed to prepare chat input");
         assert_eq!(using_tools, true);
-        assert_eq!(inputs, "<s>[AVAILABLE_TOOLS] [{\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}, \"description\": \"Get the current weather\", \"name\": \"get_current_weather\"}}, {\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"error\":{\"description\":\"The error or issue to notify\",\"type\":\"string\"}},\"required\":[\"error\"],\"type\":\"object\"}, \"description\": \"Notify an error or issue\", \"name\": \"notify_error\"}}][/AVAILABLE_TOOLS][INST] What is the weather like in New York?\n---\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.[/INST]".to_string());
+        assert_eq!(inputs, "<s>[AVAILABLE_TOOLS] [{\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}, \"description\": \"Get the current weather\", \"name\": \"get_current_weather\"}}, {\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"error\":{\"description\":\"The error or issue to notify\",\"type\":\"string\"}},\"required\":[\"error\"],\"type\":\"object\"}, \"description\": \"Notify an error or issue\", \"name\": \"no_tool\"}}][/AVAILABLE_TOOLS][INST] What is the weather like in New York?\n---\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.[/INST]".to_string());
     }
 }

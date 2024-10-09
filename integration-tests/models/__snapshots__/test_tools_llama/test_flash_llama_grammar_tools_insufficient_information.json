@@ -5,7 +5,7 @@
       "index": 0,
       "logprobs": null,
       "message": {
-        "content": "There is no weather related function available to answer your prompt.",
+        "content": "I am a helpful assistant!",
         "name": null,
         "role": "assistant",
         "tool_calls": null
@@ -13,14 +13,14 @@
       "usage": null
     }
   ],
-  "created": 1728306098,
+  "created": 1728497062,
   "id": "",
   "model": "meta-llama/Llama-3.1-8B-Instruct",
   "object": "chat.completion",
   "system_fingerprint": "2.3.2-dev0-native",
   "usage": {
-    "completion_tokens": 29,
-    "prompt_tokens": 616,
-    "total_tokens": 645
+    "completion_tokens": 23,
+    "prompt_tokens": 604,
+    "total_tokens": 627
   }
 }
