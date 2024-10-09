@@ -492,6 +492,7 @@ def launcher(event_loop):
         try:
             container = client.containers.get(container_name)
             container.stop()
+            container.remove()
             container.wait()
         except NotFound:
             pass
@@ -514,13 +515,28 @@ def launcher(event_loop):
             volumes = [f"{DOCKER_VOLUME}:/data"]
 
         if DOCKER_DEVICES:
-            devices = DOCKER_DEVICES.split(",")
+            if DOCKER_DEVICES.lower() == "none":
+                devices = []
+            else:
+                devices = DOCKER_DEVICES.strip().split(",")
             visible = os.getenv("ROCR_VISIBLE_DEVICES")
             if visible:
                 env["ROCR_VISIBLE_DEVICES"] = visible
             device_requests = []
+            if not devices:
+                devices = None
+            elif devices == ["nvidia.com/gpu=all"]:
+                devices = None
+                device_requests = [
+                    docker.types.DeviceRequest(
+                        driver="cdi",
+                        # count=gpu_count,
+                        device_ids=[f"nvidia.com/gpu={i}"],
+                    )
+                    for i in range(gpu_count)
+                ]
         else:
-            devices = []
+            devices = None
             device_requests = [
                 docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
             ]
@@ -540,21 +556,23 @@ def launcher(event_loop):
             shm_size="1G",
         )
 
-        yield ContainerLauncherHandle(client, container.name, port)
-
-        if not use_flash_attention:
-            del env["USE_FLASH_ATTENTION"]
-
         try:
-            container.stop()
-            container.wait()
-        except NotFound:
-            pass
+            yield ContainerLauncherHandle(client, container.name, port)
 
-        container_output = container.logs().decode("utf-8")
-        print(container_output, file=sys.stderr)
+            if not use_flash_attention:
+                del env["USE_FLASH_ATTENTION"]
 
-        container.remove()
+            try:
+                container.stop()
+                container.wait()
+            except NotFound:
+                pass
+
+            container_output = container.logs().decode("utf-8")
+            print(container_output, file=sys.stderr)
+
+        finally:
+            container.remove()
 
     if DOCKER_IMAGE is not None:
         return docker_launcher
