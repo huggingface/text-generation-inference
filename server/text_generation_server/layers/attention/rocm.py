@@ -3,7 +3,6 @@ from typing import Optional
 import torch
 from text_generation_server.layers.attention.kv_cache import KVCache
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.models.globals import ATTENTION
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils.log import log_master
 from loguru import logger
@@ -27,28 +26,6 @@ except ImportError as e:
         f"Custom Paged Attention not available. Complete error: {e}",
     )
     use_rocm_custom_paged_attn = False
-
-try:
-    import vllm._custom_ops as ops
-except Exception as e:
-    raise ImportError(
-        f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
-    )
-
-
-def reshape_and_cache(
-    key: torch.Tensor,
-    value: torch.Tensor,
-    key_cache: torch.Tensor,
-    value_cache: torch.Tensor,
-    slots: torch.Tensor,
-):
-    if ATTENTION == "flashdecoding":
-        shape = key_cache.shape
-        key_cache.view(-1, shape[-2], shape[-1])[slots] = key
-        value_cache.view(-1, shape[-2], shape[-1])[slots] = value
-    else:
-        ops.reshape_and_cache(key, value, key_cache, value_cache, slots, "auto", 1.0)
 
 
 def paged_attention(
@@ -305,5 +282,4 @@ __all__ = [
     "SUPPORTS_WINDOWING",
     "attention",
     "paged_attention",
-    "reshape_and_cache",
 ]
