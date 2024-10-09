@@ -1618,7 +1618,7 @@ class FlashCausalLM(Model):
                     input_lengths=input_lengths,
                     cache_lengths=cache_lengths_tensor,
                     cu_seqlen_q=cu_seqlen_prefill,
-                    max_q=max_s,
+                    max_q=batch.max_input_length,
                     max_k=batch.max_current_length,
                 )
                 logits, speculative_logits = self.model.forward(
@@ -2235,8 +2235,6 @@ class FlashCausalLM(Model):
             use_decode_state,
             use_prefill_with_paged_kv_state,
         )
-
-        # has_cache_lengths = any(cache_length > 0 for cache_length in cache_lengths)
 
         if cu_seqlen_prefill is not None:
             return use_prefill_with_paged_kv_state(
