@@ -34,6 +34,7 @@ from text_generation_server.layers.attention import (
     attention,
     paged_attention,
 )
+from text_generation_server.layers.attention.kv_cache import KVCache, get_kv_scales
 from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_mscale
@@ -230,6 +231,8 @@ class DeepseekV2Attention(torch.nn.Module):
             ),
         )
 
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
+
         self.kv_a_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.kv_a_layernorm", weights=weights, eps=config.rms_norm_eps
         )
@@ -258,7 +261,7 @@ class DeepseekV2Attention(torch.nn.Module):
         cos: torch.Tensor,
         sin: torch.Tensor,
         cu_seqlen_prefill: torch.Tensor,
-        kv_cache: Tuple[torch.Tensor, torch.Tensor],
+        kv_cache: KVCache,
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
@@ -328,6 +331,8 @@ class DeepseekV2Attention(torch.nn.Module):
                 query=query,
                 key=key,
                 value=value,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
                 block_tables=block_tables,
@@ -343,6 +348,8 @@ class DeepseekV2Attention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         # Remove padding.

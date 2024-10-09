@@ -12,6 +12,7 @@ from text_generation_server.layers import (
     TensorParallelRowLinear,
     get_linear,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import FastLayerNorm
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.attention import (
@@ -158,6 +159,7 @@ class FlashRWAttention(torch.nn.Module):
             weights=weights,
             bias=config.bias,
         )
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
@@ -207,6 +209,8 @@ class FlashRWAttention(torch.nn.Module):
                 query=query,
                 key=kv[:, 0],
                 value=kv[:, 1],
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
                 block_tables=block_tables,
@@ -222,6 +226,8 @@ class FlashRWAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
@@ -276,6 +282,7 @@ class FlashRWLargeAttention(torch.nn.Module):
             weights=weights,
             bias=config.bias,
         )
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
@@ -321,6 +328,8 @@ class FlashRWLargeAttention(torch.nn.Module):
                 query=query,
                 key=kv[:, :, 0],
                 value=kv[:, :, 1],
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
                 block_tables=block_tables,
@@ -336,6 +345,8 @@ class FlashRWLargeAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.dense(

@@ -38,6 +38,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -130,6 +131,7 @@ class FlashNeoxAttention(torch.nn.Module):
             head_size=self.head_size,
             hidden_size=self.hidden_size,
         )
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=True
         )
@@ -172,6 +174,8 @@ class FlashNeoxAttention(torch.nn.Module):
                 query=qkv[:, 0],
                 key=qkv[:, 1],
                 value=qkv[:, 2],
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
                 block_tables=block_tables,
@@ -187,6 +191,8 @@ class FlashNeoxAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))

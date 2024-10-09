@@ -26,6 +26,7 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -158,6 +159,7 @@ class MistralAttention(torch.nn.Module):
             ],
             process_group=weights.process_group,
         )
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
 
         o_proj = TensorParallelRowLinear.load(
             config,
@@ -217,6 +219,8 @@ class MistralAttention(torch.nn.Module):
                 query=query,
                 key=kv_to_cache[:, 0],
                 value=kv_to_cache[:, 1],
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
                 block_tables=block_tables,
@@ -233,6 +237,8 @@ class MistralAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.o_proj(

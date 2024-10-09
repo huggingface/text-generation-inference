@@ -8,6 +8,7 @@ from text_generation_server.models.globals import (
 from text_generation_server.layers.attention import Seqlen
 from typing import Optional
 
+
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
 _PARTITION_SIZE = 512
@@ -46,6 +47,8 @@ def paged_attention(
     seqlen: Seqlen,
     max_s: int,
     softcap: Optional[float] = None,
+    key_scale: float = 1.0,
+    value_scale: float = 1.0,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
@@ -70,6 +73,11 @@ def paged_attention(
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
 
+    if kv_cache.key.dtype == torch.float8_e5m2:
+        # We need to pass reciprocals to the attention kernels.
+        key_scale = 1.0 / key_scale
+        value_scale = 1.0 / value_scale
+
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
     # V1 to avoid the overhead of reduction. Also, if the number of
@@ -83,6 +91,8 @@ def paged_attention(
             paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
+            k_scale=key_scale,
+            v_scale=value_scale,
         )
     elif ATTENTION == "flashdecoding":
         max_q = 1
@@ -231,7 +241,14 @@ def attention(
     window_size_left: int = -1,
     causal: bool = True,
     softcap: float = 0.0,
+    key_scale: float = 1.0,
+    value_scale: float = 1.0,
 ):
+    if kv_cache.key.dtype == torch.float8_e5m2:
+        # We need to pass reciprocals to the attention kernels.
+        key_scale = 1.0 / key_scale
+        value_scale = 1.0 / value_scale
+
     if ATTENTION == "flashinfer":
         from text_generation_server.layers.attention.flashinfer import (
             prefill_with_paged_kv_state,
@@ -244,6 +261,8 @@ def attention(
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
             window_left=window_size_left,
+            k_scale=key_scale,
+            v_scale=value_scale,
         )
 
     elif V2:

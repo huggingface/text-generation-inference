@@ -20,6 +20,8 @@ def attention(
     window_size_left=-1,
     causal=True,
     softcap: Optional[float] = None,
+    key_scale: float = 1.0,
+    value_scale: float = 1.0,
 ):
     out = torch.empty_like(query)
 
@@ -65,6 +67,8 @@ def paged_attention(
     seqlen: Seqlen,
     max_s: int,
     softcap: Optional[float] = None,
+    key_scale: float = 1.0,
+    value_scale: float = 1.0,
 ):
     out = torch.empty_like(query)
     ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(

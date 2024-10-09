@@ -239,6 +239,8 @@ def attention(
     window_size_left: int = -1,
     causal: bool = True,
     softcap: float = 0.0,
+    key_scale: float = 1.0,
+    value_scale: float = 1.0,
 ):
     if ENGINE == "ck":
         if window_size_left <= 0 and window_size_left != -1:

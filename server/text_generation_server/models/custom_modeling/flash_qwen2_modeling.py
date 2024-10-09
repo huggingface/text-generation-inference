@@ -16,6 +16,7 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     SpeculativeHead,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -84,6 +85,8 @@ class Qwen2Attention(torch.nn.Module):
 
         self.query_key_value = load_attention(config, prefix, weights)
 
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
+
         self.o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
@@ -135,6 +138,8 @@ class Qwen2Attention(torch.nn.Module):
                 query=query,
                 key=kv_to_cache[:, 0],
                 value=kv_to_cache[:, 1],
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
                 block_tables=block_tables,
@@ -151,6 +156,8 @@ class Qwen2Attention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

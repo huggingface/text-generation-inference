@@ -36,6 +36,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 
 
 def load_qkv(config, prefix: str, weights, head_size, num_heads):
@@ -193,6 +194,7 @@ class FlashGPT2Attention(torch.nn.Module):
             head_size=self.head_size,
             num_heads=self.num_heads,
         )
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
 
         self.o_proj = load_row(
             config,
@@ -231,6 +233,8 @@ class FlashGPT2Attention(torch.nn.Module):
                 query=query,
                 key=key,
                 value=value,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
                 block_tables=block_tables,
@@ -246,6 +250,8 @@ class FlashGPT2Attention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

@@ -17,6 +17,7 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     get_linear,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.gptq import GPTQWeightsLoader
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
@@ -257,6 +258,7 @@ class FlashMQAttention(torch.nn.Module):
         self.c_proj = load_row(
             config, prefix=f"{prefix}.c_proj", weights=weights, bias=True
         )
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
         self.kv_head_mapping = torch.zeros(
             self.num_heads, dtype=torch.int32, device=weights.device
         )
@@ -291,6 +293,8 @@ class FlashMQAttention(torch.nn.Module):
                 query=query,
                 key=key_value[:, 0],
                 value=key_value[:, 1],
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
                 block_tables=block_tables,
@@ -306,6 +310,8 @@ class FlashMQAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.c_proj(attn_output.view(-1, self.num_heads * self.head_size))
