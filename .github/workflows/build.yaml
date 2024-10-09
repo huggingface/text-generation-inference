@@ -77,7 +77,7 @@ jobs:
                 export docker_volume="/mnt/cache"
                 export runs_on="aws-highmemory-32-plus-priv"
                 export platform="cpu"
-                export extra_pytest="-k test_flash_gemma_gptq_load"
+                export extra_pytest="-k test_flash_llama_load"
                 ;;
           esac
           echo $dockerfile
