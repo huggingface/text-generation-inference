@@ -23,8 +23,10 @@ set_adapter_to_index({})
 
 
 if SYSTEM == "cuda":
+
     def test_flash_causal_lm_warmup():
         flash_causal_lm_warmup()
+
 
 def flash_causal_lm_warmup():
     revision = "main"
