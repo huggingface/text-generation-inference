@@ -528,7 +528,7 @@ def launcher(event_loop):
                     for i in range(gpu_count)
                 ]
         else:
-            devices = []
+            devices = None
             device_requests = [
                 docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
             ]
