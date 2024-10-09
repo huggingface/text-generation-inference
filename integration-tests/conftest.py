@@ -507,7 +507,10 @@ def launcher(event_loop):
             volumes = [f"{DOCKER_VOLUME}:/data"]
 
         if DOCKER_DEVICES is not None:
-            devices = DOCKER_DEVICES.strip().split(",")
+            if DOCKER_DEVICES.lower() == "none":
+                devices = []
+            else:
+                devices = DOCKER_DEVICES.strip().split(",")
             visible = os.getenv("ROCR_VISIBLE_DEVICES")
             if visible:
                 env["ROCR_VISIBLE_DEVICES"] = visible

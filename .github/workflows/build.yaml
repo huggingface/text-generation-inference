@@ -73,11 +73,11 @@ jobs:
             intel-cpu)
                 export dockerfile="Dockerfile_intel"
                 export label_extension="-intel-cpu"
-                export docker_devices=""
+                export docker_devices="none"
                 export docker_volume="/mnt/cache"
                 export runs_on="aws-highmemory-32-plus-priv"
                 export platform="cpu"
-                export extra_pytest=""
+                export extra_pytest="-k test_flash_gemma_gptq_load"
                 ;;
           esac
           echo $dockerfile
