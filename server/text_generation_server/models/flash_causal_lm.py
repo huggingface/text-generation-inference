@@ -2018,12 +2018,6 @@ class FlashCausalLM(Model):
             top_token_ids,
             top_token_logprobs,
         ) in enumerate(iterator):
-            if all_input_ids[:2] == [1986, 374] and not request_is_prefilling:
-                log_master(
-                    logger.info,
-                    f"{request.id} {next_token_ids} {self.tokenizer.batch_decode(next_token_ids)}",
-                )
-
             # Compute logprobs first as, even though we might skip the token,
             # it can still be required to compute the logprobs
             # modulo on request.id as it is robust to batch.filter whereas the index in the batch is not and we need
