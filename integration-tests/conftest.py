@@ -506,7 +506,7 @@ def launcher(event_loop):
         if DOCKER_VOLUME:
             volumes = [f"{DOCKER_VOLUME}:/data"]
 
-        if DOCKER_DEVICES is not None:
+        if DOCKER_DEVICES:
             if DOCKER_DEVICES.lower() == "none":
                 devices = []
             else:
