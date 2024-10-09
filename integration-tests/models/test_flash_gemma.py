@@ -16,7 +16,7 @@ async def flash_gemma(flash_gemma_handle):
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_gemma(flash_gemma, response_snapshot):
+async def test_flash_gemma_simple(flash_gemma, response_snapshot):
     response = await flash_gemma.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
     )
