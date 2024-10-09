@@ -247,7 +247,7 @@ async def test_flash_llama_grammar_tools_insufficient_information(
     )
 
     assert responses.choices[0].message.tool_calls is None
-    assert responses.choices[0].message.content == "I am a helpful assistant!"
+    assert responses.choices[0].message.content == "I am an AI assistant"
 
     assert responses == response_snapshot
 
@@ -285,7 +285,7 @@ async def test_flash_llama_grammar_tools_insufficient_information_stream(
         assert response.choices[0].delta.tool_calls is None
 
     assert count == 5
-    assert content_generated == "I am a helpful assistant"
+    assert content_generated == "I am an AI assistant"
     assert last_response == response_snapshot
 
 

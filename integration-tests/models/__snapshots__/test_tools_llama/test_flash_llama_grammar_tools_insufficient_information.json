@@ -5,7 +5,7 @@
       "index": 0,
       "logprobs": null,
       "message": {
-        "content": "I am a helpful assistant!",
+        "content": "I am an AI assistant",
         "name": null,
         "role": "assistant",
         "tool_calls": null
