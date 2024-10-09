@@ -44,18 +44,6 @@ def attention(
     return out
 
 
-def reshape_and_cache(
-    key: torch.Tensor,
-    value: torch.Tensor,
-    key_cache: torch.Tensor,
-    value_cache: torch.Tensor,
-    slots: torch.Tensor,
-):
-    ipex.llm.modules.PagedAttention.reshape_and_cache(
-        key, value, key_cache, value_cache, slots
-    )
-
-
 def paged_attention(
     query: torch.Tensor,
     kv_cache: KVCache,
@@ -87,5 +75,4 @@ __all__ = [
     "SUPPORTS_WINDOWING",
     "attention",
     "paged_attention",
-    "reshape_and_cache",
 ]
