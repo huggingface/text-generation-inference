@@ -17,8 +17,7 @@ docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data \
 
 <Tip>
 
-If you want to serve gated or private models, which provide
-controlled access to sensitive or proprietary content, refer to
+If you want to serve gated or private models, please refer to
 [this guide](https://huggingface.co/docs/text-generation-inference/en/basic_tutorials/gated_model_access)
 for detailed instructions.
 
