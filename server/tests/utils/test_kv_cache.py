@@ -1,6 +1,4 @@
 import torch
-import pytest
-from text_generation_server.models.globals import ATTENTION, BLOCK_SIZE
 from text_generation_server.utils.import_utils import SYSTEM
 
 # only include this import when CUDA is available
@@ -18,7 +16,7 @@ def kvcache_memory():
 
     current_memory = torch.cuda.memory_allocated(device)
 
-    kv_cache = [
+    _kv_cache = [
         KVCache(
             num_blocks=num_blocks,
             num_heads=num_kv_heads,
