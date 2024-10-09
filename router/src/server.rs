@@ -459,10 +459,11 @@ async fn generate_stream(
     let response_stream = async_stream::stream! {
         let mut response_stream = Box::pin(response_stream);
         while let Some(raw_event) = response_stream.next().await {
-            yield Ok(match raw_event {
-                Ok(token) => Event::default().json_data(token).unwrap(),
-                Err(err) => Event::from(err),
-            });
+            yield Ok(raw_event.map_or_else(Event::from, |token| {
+                Event::default()
+                    .json_data(token)
+                    .unwrap_or_else(|e| InferError::StreamSerializationError(e.to_string()).into())
+            }));
         }
     };
 
@@ -847,10 +848,7 @@ async fn completions(
 
                                     yield Ok(event);
                                 }
-                                Err(_err) => {
-                                    let event = Event::default();
-                                    yield Ok(event);
-                                }
+                                Err(err) => yield Ok(Event::from(err)),
                             }
                         }
                     };
@@ -1226,18 +1224,29 @@ async fn chat_completions(
     // static values that will be returned in all cases
     let model_id = info.model_id.clone();
     let system_fingerprint = format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
-    let send_function_name = false; // TODO: fix to send function name
-
     // switch on stream
     if stream {
         let (headers, response_stream) =
             generate_stream_internal(infer, compute_type, Json(generate_request), span).await;
 
+        // regex to match any function name
+        let function_regex = match Regex::new(r#"\{"function":\{"_name":"([^"]+)""#) {
+            Ok(regex) => regex,
+            Err(e) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: format!("Failed to compile regex: {}", e),
+                        error_type: "regex".to_string(),
+                    }),
+                ))
+            }
+        };
+
         let response_stream = async_stream::stream! {
             let mut response_stream = Box::pin(response_stream);
             let mut buffer = Vec::new();
             let mut json_buffer = String::new();
-            // let mut content_buffer = String::new();
             let mut state = if using_tools {
                 StreamState::Buffering
             } else {
@@ -1246,133 +1255,99 @@ async fn chat_completions(
                 }
             };
             let mut response_as_tool = using_tools;
-
-            // Regex to match any function name
-            let function_regex = Regex::new(r#"\{"function":\{"_name":"([^"]+)""#).unwrap();
-
             while let Some(result) = response_stream.next().await {
-                match result {
-                    Ok(stream_token) => {
-                        let token_text = &stream_token.token.text.clone();
-
-                        match state {
-                            StreamState::Buffering => {
-                                json_buffer.push_str(&token_text.replace(" ", ""));
-                                buffer.push(stream_token);
-
-                                if let Some(captures) = function_regex.captures(&json_buffer) {
-                                    let function_name = captures[1].to_string();
-                                    if function_name == "notify_error" {
-                                        state = StreamState::BufferTrailing;
-                                        response_as_tool = false;
-                                        buffer.clear();
-                                        json_buffer.clear();
-                                    } else {
-                                        state = StreamState::Content {
-                                            skip_close_quote: false,
-                                        };
-
-                                        if send_function_name {
-                                            // send a message with the the function name
-                                            let event = Event::default();
-                                            let current_time = std::time::SystemTime::now()
-                                                .duration_since(std::time::UNIX_EPOCH)
-                                                .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-                                                .as_secs();
-
-                                            let chat_complete = CompletionType::ChatCompletionChunk(
-                                                ChatCompletionChunk::new(
-                                                    model_id.clone(),
-                                                    system_fingerprint.clone(),
-                                                    None,
-                                                    Some(vec![function_name.clone()]),
-                                                    current_time,
-                                                    None,
-                                                    None,
-                                                    None,
-                                                ),
-                                            );
-
-                                            let event = event.json_data(chat_complete).unwrap();
-                                            yield Ok(event);
-                                        }
-
-                                        // send all the buffered messages
-                                        for stream_token in &buffer {
-                                            let event = create_event_from_stream_token(
-                                                stream_token,
-                                                logprobs,
-                                                stream_options.clone(),
-                                                response_as_tool,
-                                                system_fingerprint.clone(),
-                                                model_id.clone(),
-                                            );
-                                            yield Ok::<Event, Infallible>(event);
-                                        }
+                if let Ok(stream_token) = result {
+                    let token_text = &stream_token.token.text.clone();
+                    match state {
+                        StreamState::Buffering => {
+                            json_buffer.push_str(&token_text.replace(" ", ""));
+                            buffer.push(stream_token);
+                            if let Some(captures) = function_regex.captures(&json_buffer) {
+                                let function_name = captures[1].to_string();
+                                if function_name == "notify_error" {
+                                    state = StreamState::BufferTrailing;
+                                    response_as_tool = false;
+                                    buffer.clear();
+                                    json_buffer.clear();
+                                } else {
+                                    state = StreamState::Content {
+                                        skip_close_quote: false,
+                                    };
+                                    // send all the buffered messages
+                                    for stream_token in &buffer {
+                                        let event = create_event_from_stream_token(
+                                            stream_token,
+                                            logprobs,
+                                            stream_options.clone(),
+                                            response_as_tool,
+                                            system_fingerprint.clone(),
+                                            model_id.clone(),
+                                        );
+                                        yield Ok::<Event, Infallible>(event);
                                     }
                                 }
                             }
-                            // if we skipped sending the buffer we need to avoid sending the following json key and quotes
-                            StreamState::BufferTrailing => {
-                                let infix_text = "\"error\":\"";
-                                json_buffer.push_str(&token_text.replace(" ", ""));
-                                if !json_buffer.contains(infix_text) {
+                        }
+                        // if we skipped sending the buffer we need to avoid sending the following json key and quotes
+                        StreamState::BufferTrailing => {
+                            let infix_text = "\"error\":\"";
+                            json_buffer.push_str(&token_text.replace(" ", ""));
+                            // keep capturing until we find the infix text
+                            match json_buffer.find(infix_text) {
+                                Some(error_index) => {
+                                    json_buffer =
+                                        json_buffer[error_index + infix_text.len()..].to_string();
+                                }
+                                None => {
                                     continue;
                                 }
-
-                                let error_index = json_buffer.find(infix_text).unwrap();
-                                json_buffer =
-                                    json_buffer[error_index + infix_text.len()..].to_string();
-
-                                if json_buffer.is_empty() {
-                                    let event = Event::default();
-                                    let current_time = std::time::SystemTime::now()
-                                        .duration_since(std::time::UNIX_EPOCH)
-                                        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-                                        .as_secs();
-
-                                    let chat_complete =
-                                        CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
-                                            model_id.clone(),
-                                            system_fingerprint.clone(),
-                                            Some(json_buffer.clone()),
-                                            None,
-                                            current_time,
-                                            None,
-                                            None,
-                                            None,
-                                        ));
-
-                                    let event = event.json_data(chat_complete).unwrap();
-                                    yield Ok(event);
-                                }
-
-                                state = StreamState::Content {
-                                    skip_close_quote: true,
-                                };
                             }
-                            StreamState::Content { skip_close_quote } => {
-                                if skip_close_quote && token_text.contains('"') {
-                                    break;
-                                }
-
-                                // send the content
-                                let event = create_event_from_stream_token(
-                                    &stream_token,
-                                    logprobs,
-                                    stream_options.clone(),
-                                    response_as_tool,
-                                    system_fingerprint.clone(),
-                                    model_id.clone(),
-                                );
-
-                                yield Ok::<Event, Infallible>(event);
+                            // if there is leftover text after removing the infix text, we need to send it
+                            if !json_buffer.is_empty() {
+                                let event = Event::default();
+                                let current_time = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                                    .as_secs();
+                                let chat_complete =
+                                    CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
+                                        model_id.clone(),
+                                        system_fingerprint.clone(),
+                                        Some(json_buffer.clone()),
+                                        None,
+                                        current_time,
+                                        None,
+                                        None,
+                                        None,
+                                    ));
+                                yield Ok(event.json_data(chat_complete).unwrap_or_else(|e| {
+                                    InferError::StreamSerializationError(e.to_string()).into()
+                                }));
                             }
+                            // cleanup the buffers
+                            buffer.clear();
+                            json_buffer.clear();
+                            state = StreamState::Content {
+                                skip_close_quote: true,
+                            };
                         }
-                    }
-                    Err(_err) => {
-                        yield Ok::<Event, Infallible>(Event::default());
-                        break;
+                        StreamState::Content { skip_close_quote } => {
+                            if skip_close_quote && token_text.contains('"') {
+                                break;
+                            }
+
+                            // send the content
+                            let event = create_event_from_stream_token(
+                                &stream_token,
+                                logprobs,
+                                stream_options.clone(),
+                                response_as_tool,
+                                system_fingerprint.clone(),
+                                model_id.clone(),
+                            );
+
+                            yield Ok::<Event, Infallible>(event);
+                        }
                     }
                 }
             }
@@ -2507,6 +2482,7 @@ impl From<InferError> for (StatusCode, Json<ErrorResponse>) {
             InferError::TemplateError(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::MissingTemplateVariable(_) => StatusCode::UNPROCESSABLE_ENTITY,
             InferError::ToolError(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            InferError::StreamSerializationError(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         (
@@ -2684,7 +2660,7 @@ mod tests {
         );
 
         assert!(result.is_ok());
-        let (inputs, _grammar, using_tools) = result.unwrap();
+        let (inputs, _grammar, using_tools) = result.expect("Failed to prepare chat input");
         assert_eq!(using_tools, true);
         assert_eq!(inputs, "<s>[AVAILABLE_TOOLS] [{\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}, \"description\": \"Get the current weather\", \"name\": \"get_current_weather\"}}, {\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"error\":{\"description\":\"The error or issue to notify\",\"type\":\"string\"}},\"required\":[\"error\"],\"type\":\"object\"}, \"description\": \"Notify an error or issue\", \"name\": \"notify_error\"}}][/AVAILABLE_TOOLS][INST] What is the weather like in New York?\n---\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.[/INST]".to_string());
     }

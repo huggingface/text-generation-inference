@@ -207,11 +207,20 @@ async def test_flash_llama_grammar_tools_stream(
     )
 
     count = 0
+    tool_calls_generated = ""
+    last_response = None
     async for response in responses:
         count += 1
+        tool_calls_generated += response.choices[0].delta.tool_calls.function.arguments
+        last_response = response
+        assert response.choices[0].delta.content is None
 
+    assert (
+        tool_calls_generated
+        == '{"function": {"_name": "get_current_weather", "format": "celsius", "location": "Paris, France"}}<|eot_id|>'
+    )
     assert count == 28
-    assert response == response_snapshot
+    assert last_response == response_snapshot
 
 
 @pytest.mark.asyncio
@@ -244,3 +253,44 @@ async def test_flash_llama_grammar_tools_insufficient_information(
     )
 
     assert responses == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_grammar_tools_insufficient_information_stream(
+    flash_llama_grammar_tools, response_snapshot
+):
+    responses = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=24,
+        tools=tools,
+        tool_choice="auto",
+        messages=[
+            {
+                "role": "system",
+                "content": "STRICTLY ONLY RESPOND IF THE USER ASKS A WEATHER RELATED QUESTION",
+            },
+            {
+                "role": "user",
+                "content": "Tell me a story about 3 sea creatures",
+            },
+        ],
+        stream=True,
+    )
+
+    count = 0
+    content_generated = ""
+    last_response = None
+    async for response in responses:
+        count += 1
+        content_generated += response.choices[0].delta.content
+        last_response = response
+        assert response.choices[0].delta.tool_calls is None
+
+    assert count == 11
+    print(content_generated)
+    assert (
+        content_generated
+        == "There is no weather related function available to answer your prompt"
+    )
+    assert last_response == response_snapshot
