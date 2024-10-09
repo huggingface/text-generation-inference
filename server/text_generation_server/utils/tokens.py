@@ -398,7 +398,7 @@ class HeterogeneousNextTokenChooser:
 
         next_logprobs = torch.gather(logprobs, 1, next_ids.view(-1, 1)).view(-1)
 
-        if speculate > 0:
+        if speculate and speculate > 0:
             if speculative_scores is not None:
                 # Medusa provided some scores
                 speculative_ids = Greedy()(speculative_scores)
