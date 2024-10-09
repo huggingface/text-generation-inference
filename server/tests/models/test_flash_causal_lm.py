@@ -58,7 +58,7 @@ def flash_causal_lm_warmup():
         available_memory_after_model_and_tokenizer - current_memory
     )
     model_and_tokenizer_memory_mb = model_and_tokenizer_memory / 1024 / 1024
-    print(f"Model and Tokenizer memory: {model_and_tokenizer_memory}")
+    print(f"Model and Tokenizer memory: {model_and_tokenizer_memory_mb}")
 
     default_pb_parameters = generate_pb2.NextTokenChooserParameters(
         temperature=0.9,
@@ -150,6 +150,7 @@ def flash_causal_lm_warmup():
         warmup_response = generate_pb2.WarmupResponse(
             max_supported_total_tokens=max_supported_total_tokens
         )
+        print(warmup_response)
 
 
 if __name__ == "__main__":
