@@ -204,6 +204,7 @@ def use_decode_state(
     num_kv_heads: int,
     head_size: int,
     page_size: int,
+    kv_cache_dtype: torch.dtype,
     dtype: torch.dtype,
     window_left: int,
 ):
@@ -240,7 +241,7 @@ def use_decode_state(
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
             page_size=page_size,
-            data_type=dtype,
+            data_type=kv_cache_dtype,
             q_data_type=dtype,
             window_left=window_left,
         )

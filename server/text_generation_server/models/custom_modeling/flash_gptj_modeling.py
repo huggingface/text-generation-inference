@@ -24,6 +24,7 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -138,6 +139,7 @@ class FlashGPTJAttention(torch.nn.Module):
             prefix=prefix,
             weights=weights,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         self.o_proj = load_row(
             config,
@@ -184,7 +186,12 @@ class FlashGPTJAttention(torch.nn.Module):
         else:
             self.rotary_emb(query, key, cos, sin)
 
-        kv_cache.store(key=key, value=value, slots=slots)
+        kv_cache.store(
+            key=key,
+            value=value,
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
@@ -194,6 +201,7 @@ class FlashGPTJAttention(torch.nn.Module):
                 key=key,
                 value=value,
                 kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
                 seqlen=seqlen,
                 block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
@@ -208,6 +216,7 @@ class FlashGPTJAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

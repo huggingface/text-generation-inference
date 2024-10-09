@@ -26,6 +26,12 @@ def is_fbgemm_gpu_available():
         return False
 
 
+try:
+    import marlin_kernels
+except ImportError:
+    marlin_kernels = None
+
+
 if is_fbgemm_gpu_available():
     if SYSTEM == "cuda":
         major, _ = torch.cuda.get_device_capability()
@@ -93,6 +99,17 @@ def fp8_quantize(
             weight, bs=None, scale_ub=scale_upper_bound, output_dtype=qdtype
         )
         return qweight, scale
+
+    if marlin_kernels is not None:
+        shape = weight.shape
+        qweight, scale = marlin_kernels.scaled_fp8_quant(
+            weight.reshape(-1, shape[-1]),
+            dtype=qdtype,
+            scale=scale,
+            scale_ub=scale_upper_bound,
+        )
+
+        return qweight.reshape(shape), scale
 
     # weight, scale = quant_weights(weight, torch.int8, False)
     finfo = torch.finfo(qdtype)

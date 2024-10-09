@@ -34,6 +34,7 @@ from text_generation_server.layers.attention import (
     attention,
     paged_attention,
 )
+from text_generation_server.layers.attention.kv_cache import KVCache, get_kv_scales
 from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_mscale
@@ -230,6 +231,8 @@ class DeepseekV2Attention(torch.nn.Module):
             ),
         )
 
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
+
         self.kv_a_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.kv_a_layernorm", weights=weights, eps=config.rms_norm_eps
         )
@@ -258,7 +261,7 @@ class DeepseekV2Attention(torch.nn.Module):
         cos: torch.Tensor,
         sin: torch.Tensor,
         cu_seqlen_prefill: torch.Tensor,
-        kv_cache: Tuple[torch.Tensor, torch.Tensor],
+        kv_cache: KVCache,
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
@@ -319,7 +322,12 @@ class DeepseekV2Attention(torch.nn.Module):
             value, (0, self.head_pad_size - self.value_head_size), value=0
         )
 
-        kv_cache.store(key=key, value=value, slots=slots)
+        kv_cache.store(
+            key=key,
+            value=value,
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
@@ -329,6 +337,7 @@ class DeepseekV2Attention(torch.nn.Module):
                 key=key,
                 value=value,
                 kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
                 seqlen=seqlen,
                 block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
@@ -343,6 +352,7 @@ class DeepseekV2Attention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         # Remove padding.

@@ -30,6 +30,7 @@ from text_generation_server.layers.attention import (
     attention,
     Seqlen,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -227,6 +228,7 @@ class FlashCohereAttention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         self.use_qk_norm = config.use_qk_norm
         if self.use_qk_norm:
@@ -289,7 +291,12 @@ class FlashCohereAttention(torch.nn.Module):
 
         self.rotary_emb(query, key, cos, sin)
 
-        kv_cache.store(key=key, value=value, slots=slots)
+        kv_cache.store(
+            key=key,
+            value=value,
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
@@ -299,6 +306,7 @@ class FlashCohereAttention(torch.nn.Module):
                 key=key,
                 value=value,
                 kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
                 seqlen=seqlen,
                 block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
@@ -313,6 +321,7 @@ class FlashCohereAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.o_proj(
