@@ -1,12 +1,14 @@
-use crate::client::{Batch, CachedBatch, ClientError, Generation, Health, ShardedClient};
 /// Batching and inference logic
+use crate::client::{
+    Batch, CachedBatch, ClientError, Generation, Health, InfoResponse, ShardedClient,
+};
 use crate::queue::{Entry, Queue};
 use async_trait::async_trait;
 use nohash_hasher::IntMap;
 use std::sync::Arc;
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::ValidGenerateRequest;
-use text_generation_router::{Attention, FinishReason, PrefillToken, Token};
+use text_generation_router::{FinishReason, PrefillToken, Token};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify};
 use tokio::time::Instant;
@@ -31,27 +33,22 @@ impl BackendV3 {
         max_batch_total_tokens: u32,
         max_waiting_tokens: usize,
         max_batch_size: Option<usize>,
-        requires_padding: bool,
-        window_size: Option<u32>,
-        speculate: u32,
+        shard_info: InfoResponse,
     ) -> Self {
-        let prefix_caching =
-            std::env::var("USE_PREFIX_CACHING").expect("Expect prefix caching env var");
-        let prefix_caching = matches!(prefix_caching.as_str(), "true" | "1");
-        let attention: String = std::env::var("ATTENTION").expect("attention env var");
+        if shard_info.support_chunking {
+            tracing::warn!("Model supports prefill chunking. `waiting_served_ratio` and `max_waiting_tokens` will be ignored.");
+        }
 
-        let attention: Attention = attention
-            .parse()
-            .unwrap_or_else(|_| panic!("Invalid attention was specified :`{attention}`"));
-        let block_size = attention.block_size();
+        let block_size = shard_info.block_size;
 
         let queue = Queue::new(
-            requires_padding,
+            shard_info.requires_padding,
             block_size,
-            prefix_caching,
-            window_size,
-            speculate,
+            shard_info.use_prefix_caching,
+            shard_info.window_size,
+            shard_info.speculate,
             max_batch_total_tokens,
+            shard_info.support_chunking,
         );
         let batching_task_notifier = Arc::new(Notify::new());
 
@@ -63,6 +60,7 @@ impl BackendV3 {
             max_batch_total_tokens,
             max_waiting_tokens,
             max_batch_size,
+            shard_info.support_chunking,
             queue.clone(),
             batching_task_notifier.clone(),
         ));
@@ -127,6 +125,7 @@ pub(crate) async fn batching_task(
     max_batch_total_tokens: u32,
     max_waiting_tokens: usize,
     max_batch_size: Option<usize>,
+    support_chunking: bool,
     queue: Queue,
     notifier: Arc<Notify>,
 ) {
@@ -147,7 +146,7 @@ pub(crate) async fn batching_task(
             )
             .await
         {
-            let mut cached_batch = prefill(&mut client, batch, &mut entries)
+            let mut cached_batch = prefill(&mut client, batch, None, &mut entries)
                 .instrument(span)
                 .await;
             let mut waiting_tokens = 1;
@@ -158,28 +157,44 @@ pub(crate) async fn batching_task(
                 // Get current batch info
                 let batch_size = batch.size;
                 let batch_max_tokens = batch.max_tokens;
+                let current_tokens = batch.current_tokens;
                 let mut batches = vec![batch];
                 metrics::gauge!("tgi_batch_current_size").set(batch_size as f64);
                 metrics::gauge!("tgi_batch_current_max_tokens").set(batch_max_tokens as f64);
 
-                let min_size = if waiting_tokens >= max_waiting_tokens {
-                    // If we didn't onboard any new requests since >= max_waiting_tokens, we try
-                    // to add a new batch even though its size might be small
-                    None
+                let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
+
+                let (min_size, max_size, prefill_token_budget) = if support_chunking {
+                    // Since the next batch will be concatenated with the current batch,
+                    // the current batch tokens must be subtracted to the prefill budget
+                    let prefill_token_budget =
+                        max_batch_prefill_tokens.saturating_sub(current_tokens);
+                    // We can ignore min_size and max_size
+                    // Models than rely on max_size cannot support chunking
+                    // Regarding min_size, chunking allow us to consistently run at the compute
+                    // bound, making min_size useless.
+                    (None, None, prefill_token_budget)
                 } else {
-                    // Minimum batch size
-                    // TODO: temporarily disable to avoid incorrect deallocation +
-                    //       reallocation when using prefix caching.
-                    Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
+                    let min_size = if waiting_tokens >= max_waiting_tokens {
+                        // If we didn't onboard any new requests since >= max_waiting_tokens, we try
+                        // to add a new batch even though its size might be small
+                        None
+                    } else {
+                        // Minimum batch size
+                        // TODO: temporarily disable to avoid incorrect deallocation +
+                        //       reallocation when using prefix caching.
+                        Some((batch_size as f32 * waiting_served_ratio).floor() as usize)
+                    };
+
+                    let max_size =
+                        max_batch_size.map(|max_size| max_size.saturating_sub(batch_size as usize));
+
+                    (min_size, max_size, max_batch_prefill_tokens)
                 };
 
-                let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
-                let max_size =
-                    max_batch_size.map(|max_size| max_size.saturating_sub(batch_size as usize));
-
                 // Try to get a new batch
-                if let Some((mut new_entries, new_batch, span)) = queue
-                    .next_batch(min_size, max_size, max_batch_prefill_tokens, token_budget)
+                if let Some((new_entries, new_batch, span)) = queue
+                    .next_batch(min_size, max_size, prefill_token_budget, token_budget)
                     .await
                 {
                     // Tracking metrics
@@ -187,31 +202,45 @@ pub(crate) async fn batching_task(
                         metrics::counter!("tgi_batch_concat", "reason" => "backpressure")
                             .increment(1);
                     } else {
-                        metrics::counter!("tgi_batch_concat", "reason" => "wait_exceeded")
-                            .increment(1);
+                        let counter = if support_chunking {
+                            metrics::counter!("tgi_batch_concat", "reason" => "chunking")
+                        } else {
+                            metrics::counter!("tgi_batch_concat", "reason" => "wait_exceeded")
+                        };
+                        counter.increment(1);
                     }
-
-                    entries.iter_mut().for_each(|(_, entry)| {
-                        // Create a new span to add the info that this entry is waiting
-                        // because a new batch is being computed
-                        let entry_waiting_span = info_span!(parent: &entry.span, "waiting");
-                        // Add relationships
-                        span.follows_from(&entry_waiting_span);
-                        entry_waiting_span.follows_from(&span);
-                        // Update entry
-                        entry.temp_span = Some(entry_waiting_span);
-                    });
+                    let cached_batch = if support_chunking {
+                        // Concat current batch to the new one
+                        batches.pop()
+                    } else {
+                        // Request are waiting only if we don't support chunking
+                        entries.iter_mut().for_each(|(_, entry)| {
+                            // Create a new span to add the info that this entry is waiting
+                            // because a new batch is being computed
+                            let entry_waiting_span = info_span!(parent: &entry.span, "waiting");
+                            // Add relationships
+                            span.follows_from(&entry_waiting_span);
+                            entry_waiting_span.follows_from(&span);
+                            // Update entry
+                            entry.temp_span = Some(entry_waiting_span);
+                        });
+                        None
+                    };
+                    entries.extend(new_entries);
 
                     // Generate one token for this new batch to have the attention past in cache
-                    let new_cached_batch = prefill(&mut client, new_batch, &mut new_entries)
-                        .instrument(span)
-                        .await;
+                    let new_cached_batch =
+                        prefill(&mut client, new_batch, cached_batch, &mut entries)
+                            .instrument(span)
+                            .await;
                     // Reset waiting counter
                     waiting_tokens = 1;
                     // Extend current batch with the new batch
                     if let Some(new_cached_batch) = new_cached_batch {
-                        entries.extend(new_entries);
                         batches.push(new_cached_batch);
+                    } else if support_chunking {
+                        // New cached batch is empty, no work left
+                        break;
                     }
                 }
 
@@ -244,13 +273,14 @@ pub(crate) async fn batching_task(
 async fn prefill(
     client: &mut ShardedClient,
     batch: Batch,
+    cached_batch: Option<CachedBatch>,
     entries: &mut IntMap<u64, Entry>,
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_id = batch.id;
     metrics::counter!("tgi_batch_inference_count", "method" => "prefill").increment(1);
 
-    match client.prefill(batch).await {
+    match client.prefill(batch, cached_batch).await {
         Ok((generations, next_batch, timings)) => {
             let start_filtering_time = Instant::now();
             // Send generated tokens and filter stopped entries
@@ -259,6 +289,10 @@ async fn prefill(
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
 
+            if let Some(concat_duration) = timings.concat {
+                metrics::histogram!("tgi_batch_concat_duration", "method" => "decode")
+                    .record(concat_duration.as_secs_f64());
+            }
             metrics::histogram!("tgi_batch_forward_duration", "method" => "prefill")
                 .record(timings.forward.as_secs_f64());
             metrics::histogram!("tgi_batch_decode_duration", "method" => "prefill")

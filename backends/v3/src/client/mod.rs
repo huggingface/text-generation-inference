@@ -29,15 +29,6 @@ pub trait Health {
     async fn model_health(&self) -> Result<()>;
 }
 
-#[derive(Debug)]
-pub struct ShardInfo {
-    pub requires_padding: bool,
-    pub dtype: String,
-    pub device_type: String,
-    pub window_size: Option<u32>,
-    pub speculate: u32,
-}
-
 #[derive(Error, Debug, Clone)]
 pub enum ClientError {
     #[error("Could not connect to Text Generation server: {0}")]

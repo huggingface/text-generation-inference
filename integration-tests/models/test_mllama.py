@@ -1,5 +1,4 @@
 import pytest
-import base64
 import asyncio
 
 
@@ -15,22 +14,8 @@ async def mllama(mllama_handle):
     return mllama_handle.client
 
 
-# TODO fix the server parsser to count inline image tokens correctly
-def get_chicken():
-    with open("integration-tests/images/chicken_on_money.png", "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read())
-    return f"data:image/png;base64,{encoded_string.decode('utf-8')}"
-
-
-def get_cow_beach():
-    with open("integration-tests/images/cow_beach.png", "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read())
-    return f"data:image/png;base64,{encoded_string.decode('utf-8')}"
-
-
 @pytest.mark.asyncio
 async def test_mllama_simpl(mllama, response_snapshot):
-    # chicken = get_chicken()
     response = await mllama.chat(
         max_tokens=10,
         temperature=0.0,

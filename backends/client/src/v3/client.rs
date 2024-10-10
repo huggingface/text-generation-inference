@@ -158,7 +158,8 @@ impl Client {
                 // Blocks and slots will be set on the server side if we use paged attention
                 blocks: vec![],
                 slots: vec![],
-                prefix_len: 0,
+                cache_len: 0,
+                chunk_len: None,
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {
                     temperature: 0.9,
@@ -217,8 +218,13 @@ impl Client {
     pub async fn prefill(
         &mut self,
         batch: Batch,
+        cached_batch: Option<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
-        let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
+        let request = tonic::Request::new(PrefillRequest {
+            batch: Some(batch),
+            cached_batch,
+        })
+        .inject_context();
         let response = self.stub.prefill(request).await?.into_inner();
         Ok((
             response.generations,

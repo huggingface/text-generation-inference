@@ -699,7 +699,6 @@ def check_args(
 
 
 class _attention(torch.autograd.Function):
-
     @staticmethod
     def forward(
         ctx,

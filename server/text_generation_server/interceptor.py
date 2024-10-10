@@ -9,6 +9,9 @@ from typing import Callable, Any
 
 
 class ExceptionInterceptor(AsyncServerInterceptor):
+    def __init__(self, shutdown_callback):
+        self.shutdown_callback = shutdown_callback
+
     async def intercept(
         self,
         method: Callable,
@@ -25,7 +28,7 @@ class ExceptionInterceptor(AsyncServerInterceptor):
 
             # Runtime Error cannot be recovered from
             if isinstance(err, RuntimeError):
-                exit(1)
+                self.shutdown_callback()
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()

@@ -158,7 +158,8 @@ async fn prefill(
             top_n_tokens: top_n_tokens.unwrap_or(0),
             blocks: vec![],
             slots: vec![],
-            prefix_len: 0,
+            cache_len: 0,
+            chunk_len: None,
             adapter_id: None,
         })
         .collect();
@@ -173,7 +174,7 @@ async fn prefill(
 
     // Run prefill
     let start_time = Instant::now();
-    let (_, decode_batch, _) = client.prefill(batch.clone()).await?;
+    let (_, decode_batch, _) = client.prefill(batch.clone(), None).await?;
 
     // Get latency
     let latency = start_time.elapsed();

@@ -493,9 +493,14 @@ class MllamaVisionModel(nn.Module):
         aspect_ratio_ids: torch.Tensor,
         attention_mask: torch.Tensor,
     ) -> torch.Tensor:
-        batch_size, num_concurrent_media, num_tiles, num_channels, height, width = (
-            pixel_values.shape
-        )
+        (
+            batch_size,
+            num_concurrent_media,
+            num_tiles,
+            num_channels,
+            height,
+            width,
+        ) = pixel_values.shape
 
         pixel_values = pixel_values.reshape(
             batch_size * num_concurrent_media * num_tiles, num_channels, height, width

@@ -6,7 +6,7 @@ use nohash_hasher::IntMap;
 use std::sync::Arc;
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::ValidGenerateRequest;
-use text_generation_router::{Attention, FinishReason, PrefillToken, Token};
+use text_generation_router::{FinishReason, PrefillToken, Token};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify};
 use tokio::time::Instant;
@@ -36,18 +36,14 @@ impl BackendV2 {
         speculate: u32,
     ) -> Self {
         // Infer shared state
-        let attention = if let Ok(attention) = std::env::var("ATTENTION") {
-            attention
-                .parse()
-                .unwrap_or_else(|_| panic!("Invalid attention was specified :`{attention}`"))
-        } else {
-            Attention::Paged
+        let attention = std::env::var("ATTENTION").unwrap_or("paged".to_string());
+        let block_size = match attention.as_str() {
+            "flashinfer" => 1,
+            "flashdecoding" => 256,
+            "paged" => 16,
+            _ => unreachable!(),
         };
-        let block_size = if attention == Attention::FlashDecoding {
-            256
-        } else {
-            16
-        };
+
         let queue = Queue::new(requires_padding, block_size, window_size, speculate);
         let batching_task_notifier = Arc::new(Notify::new());
 

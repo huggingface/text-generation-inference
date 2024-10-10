@@ -25,7 +25,6 @@ async def llama_grammar(llama_grammar_handle):
 @pytest.mark.release
 @pytest.mark.asyncio
 async def test_grammar_response_format_llama_json(llama_grammar, response_snapshot):
-
     class Weather(BaseModel):
         unit: str
         temperature: List[int]

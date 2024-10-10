@@ -1,5 +1,4 @@
 import pytest
-import base64
 
 
 @pytest.fixture(scope="module")
@@ -20,24 +19,11 @@ async def flash_pali_gemma(flash_pali_gemma_handle):
     return flash_pali_gemma_handle.client
 
 
-def get_chicken():
-    with open("integration-tests/images/chicken_on_money.png", "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read())
-    return f"data:image/png;base64,{encoded_string.decode('utf-8')}"
-
-
-def get_cow_beach():
-    with open("integration-tests/images/cow_beach.png", "rb") as image_file:
-        encoded_string = base64.b64encode(image_file.read())
-    return f"data:image/png;base64,{encoded_string.decode('utf-8')}"
-
-
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_pali_gemma(flash_pali_gemma, response_snapshot):
-    cow = get_cow_beach()
-    inputs = f"![]({cow})Where is the cow standing?\n"
+async def test_flash_pali_gemma(flash_pali_gemma, response_snapshot, cow_beach):
+    inputs = f"![]({cow_beach})Where is the cow standing?\n"
     response = await flash_pali_gemma.generate(inputs, max_new_tokens=20)
 
     assert response.generated_text == "beach"
@@ -47,9 +33,9 @@ async def test_flash_pali_gemma(flash_pali_gemma, response_snapshot):
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_pali_gemma_two_images(flash_pali_gemma, response_snapshot):
-    chicken = get_chicken()
-    cow_beach = get_cow_beach()
+async def test_flash_pali_gemma_two_images(
+    flash_pali_gemma, response_snapshot, chicken, cow_beach
+):
     response = await flash_pali_gemma.generate(
         f"caption![]({chicken})![]({cow_beach})\n",
         max_new_tokens=20,

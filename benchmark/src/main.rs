@@ -178,6 +178,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .clear_cache(None)
                 .await
                 .expect("Unable to clear cache");
+
             tracing::info!("Connected");
 
             // Run app

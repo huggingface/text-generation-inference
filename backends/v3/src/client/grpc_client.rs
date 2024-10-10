@@ -158,7 +158,8 @@ impl Client {
                 // Blocks and slots will be set on the server side if we use paged attention
                 blocks: vec![],
                 slots: vec![],
-                prefix_len: 0,
+                cache_len: 0,
+                chunk_len: None,
                 // Set sampling parameters to also take these ops into account in the max memory
                 parameters: Some(NextTokenChooserParameters {
                     temperature: 0.9,
@@ -217,13 +218,23 @@ impl Client {
     pub async fn prefill(
         &mut self,
         batch: Batch,
+        cached_batch: Option<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
-        let request = tonic::Request::new(PrefillRequest { batch: Some(batch) }).inject_context();
+        let request = tonic::Request::new(PrefillRequest {
+            batch: Some(batch),
+            cached_batch,
+        })
+        .inject_context();
         let response = self.stub.prefill(request).await?.into_inner();
         Ok((
             response.generations,
             response.batch,
-            PrefillTimings::new(response.forward_ns, response.decode_ns, response.total_ns),
+            PrefillTimings::new(
+                response.concat_ns,
+                response.forward_ns,
+                response.decode_ns,
+                response.total_ns,
+            ),
         ))
     }
 
@@ -252,14 +263,16 @@ impl Client {
 }
 
 pub struct PrefillTimings {
+    pub concat: Option<Duration>,
     pub forward: Duration,
     pub decode: Duration,
     pub total: Duration,
 }
 
 impl PrefillTimings {
-    fn new(forward_ns: u64, decode_ns: u64, total_ns: u64) -> Self {
+    fn new(concat_ns: Option<u64>, forward_ns: u64, decode_ns: u64, total_ns: u64) -> Self {
         Self {
+            concat: concat_ns.map(Duration::from_nanos),
             forward: Duration::from_nanos(forward_ns),
             decode: Duration::from_nanos(decode_ns),
             total: Duration::from_nanos(total_ns),

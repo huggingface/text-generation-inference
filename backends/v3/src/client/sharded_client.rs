@@ -1,6 +1,6 @@
-use crate::client::{ClientError, Result};
+use crate::client::Health;
 /// Multi shard Client
-use crate::client::{Health, ShardInfo};
+use crate::client::{ClientError, Result};
 
 use crate::client::grpc_client::{DecodeTimings, PrefillTimings};
 use crate::client::{
@@ -49,13 +49,13 @@ impl ShardedClient {
 
     /// Get the model info
     #[instrument(skip(self))]
-    pub async fn info(&mut self) -> Result<ShardInfo> {
+    pub async fn info(&mut self) -> Result<InfoResponse> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
             .map(|client| client.info())
             .collect();
-        join_all(futures).await.pop().unwrap().map(ShardInfo::from)
+        join_all(futures).await.pop().unwrap()
     }
 
     /// GRPC health check
@@ -135,11 +135,12 @@ impl ShardedClient {
     pub async fn prefill(
         &mut self,
         batch: Batch,
+        cached_batch: Option<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
-            .map(|client| Box::pin(client.prefill(batch.clone())))
+            .map(|client| Box::pin(client.prefill(batch.clone(), cached_batch.clone())))
             .collect();
         #[allow(clippy::type_complexity)]
         let results: Result<Vec<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)>> =
@@ -194,18 +195,6 @@ impl ShardedClient {
     }
 }
 
-impl From<InfoResponse> for ShardInfo {
-    fn from(value: InfoResponse) -> Self {
-        Self {
-            requires_padding: value.requires_padding,
-            dtype: value.dtype,
-            device_type: value.device_type,
-            window_size: value.window_size,
-            speculate: value.speculate,
-        }
-    }
-}
-
 #[async_trait]
 impl Health for ShardedClient {
     async fn device_health(&self) -> Result<()> {
@@ -246,8 +235,9 @@ impl Health for ShardedClient {
             // Block 0 is reserved for health checks
             blocks: vec![0],
             slots: (0..16).collect(),
-            prefix_len: 0,
+            cache_len: 0,
             adapter_id: None,
+            chunk_len: None,
         };
         let batch = Batch {
             id: u64::MAX,
@@ -256,7 +246,7 @@ impl Health for ShardedClient {
             max_tokens: 2,
             max_blocks: 1,
         };
-        self.clone().prefill(batch).await?;
+        self.clone().prefill(batch, None).await?;
         Ok(())
     }
 }

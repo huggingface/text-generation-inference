@@ -34,6 +34,10 @@ message InfoResponse {
   string device_type = 3;
   optional uint32 window_size = 4;
   uint32 speculate = 5;
+  bool support_chunking = 6;
+  bool use_prefix_caching = 7;
+  string attention_impl = 8;
+  uint32 block_size = 9;
 }
 
 /// Empty request
@@ -135,10 +139,14 @@ message Request {
   repeated uint32 slots = 10;
   /// LORA adapter index
   optional string adapter_id = 11;
-  /// Prefix length that can be retrieved from the KV cache.
-  uint32 prefix_len = 12;
+  /// Tokens that can be retrieved from the KV cache.
+  /// This value is set for the first prefill and never reset
+  uint32 cache_len = 12;
   /// Context truncation
   bool add_special_tokens = 13;
+  /// Chunk of tokens that must be computed for the first prefill
+  /// This value is set for the first prefill and never reset
+  optional uint32 chunk_len = 14;
 }
 
 message Batch {
@@ -163,6 +171,8 @@ message CachedBatch {
   uint32 size = 3;
   /// Maximum number of tokens this batch will grow to
   uint32 max_tokens = 4;
+  /// Number of tokens in the next forward
+  uint32 current_tokens = 5;
 }
 
 enum FinishReason {
@@ -220,6 +230,8 @@ message FilterBatchResponse {
 message PrefillRequest {
   /// Batch
   Batch batch = 1;
+  /// Optional cached batch
+  CachedBatch cached_batch = 2;
 }
 
 message PrefillResponse {
@@ -233,6 +245,8 @@ message PrefillResponse {
   uint64 decode_ns = 4;
   /// Total elapsed time in nanoseconds
   uint64 total_ns = 5;
+  /// Concatenate elapsed time in nanoseconds
+  optional uint64 concat_ns = 6;
 }
 
 message DecodeRequest {
