@@ -14,7 +14,7 @@
 namespace huggingface::hardware::cuda {
 
 #define AMPERE_SM_MAJOR 8
-#define HOPPER_SM_MAJOR 8
+#define HOPPER_SM_MAJOR 9
 
     /**
      * Store information about the version of the CUDA Compute Capabilities detected on the device
