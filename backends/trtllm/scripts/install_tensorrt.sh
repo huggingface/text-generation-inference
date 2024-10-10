@@ -34,6 +34,7 @@ install_ubuntu_requirements() {
     if [ "$ARCH" = "aarch64" ];then ARCH="sbsa";fi
     curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${ARCH}/cuda-keyring_1.1-1_all.deb
     dpkg -i cuda-keyring_1.1-1_all.deb
+    rm /etc/apt/sources.list.d/cuda-ubuntu2404-x86_64.list
 
     apt-get update
     if [[ $(apt list --installed | grep libcudnn9) ]]; then
