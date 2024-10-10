@@ -229,10 +229,10 @@ SUPPORTS_WINDOWING = False
 
 def attention(
     *,
-    query,
+    query: torch.Tensor,
     key: torch.Tensor,
-    kv_cache: KVCache,
     value: torch.Tensor,
+    kv_cache: KVCache,
     seqlen: Seqlen,
     block_tables: torch.Tensor,
     softmax_scale: float,
