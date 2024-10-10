@@ -3,7 +3,6 @@ from typing import Tuple
 import torch
 from text_generation_server.models.globals import ATTENTION, BLOCK_SIZE
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.layers.attention import reshape_and_cache
 
 
 class KVCache:
@@ -116,4 +115,41 @@ class KVCache:
             key_cache.view(-1, shape[-2], shape[-1])[slots] = key
             value_cache.view(-1, shape[-2], shape[-1])[slots] = value
         else:
-            reshape_and_cache(key, value, key_cache, value_cache, slots)
+            paged_reshape_and_cache(key, value, key_cache, value_cache, slots)
+
+
+def paged_reshape_and_cache(
+    key: torch.Tensor,
+    value: torch.Tensor,
+    key_cache: torch.Tensor,
+    value_cache: torch.Tensor,
+    slots: torch.Tensor,
+):
+    if SYSTEM == "cuda":
+        try:
+            from vllm._C import cache_ops
+        except Exception as e:
+            raise ImportError(
+                f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
+            )
+        cache_ops.reshape_and_cache(
+            key, value, key_cache, value_cache, slots, "auto", 1.0
+        )
+    elif SYSTEM == "rocm":
+        try:
+            import vllm._custom_ops as ops
+        except Exception as e:
+            raise ImportError(
+                f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
+            )
+        ops.reshape_and_cache(key, value, key_cache, value_cache, slots, "auto", 1.0)
+    elif SYSTEM == "ipex":
+        import intel_extension_for_pytorch as ipex
+
+        ipex.llm.modules.PagedAttention.reshape_and_cache(
+            key, value, key_cache, value_cache, slots
+        )
+    else:
+        raise NotImplementedError(
+            f"Cannot reshape and cache for paged attention, system '{SYSTEM}' not supportedattention"
+        )
