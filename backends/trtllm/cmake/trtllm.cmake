@@ -23,7 +23,7 @@ endif ()
 fetchcontent_declare(
         trtllm
         GIT_REPOSITORY https://github.com/NVIDIA/TensorRT-LLM.git
-        GIT_TAG 32ed92e4491baf2d54682a21d247e1948cca996e
+        GIT_TAG 201135e58aa525af7e523d091d4c9584229524bc
         GIT_SHALLOW FALSE
 )
 fetchcontent_makeavailable(trtllm)
