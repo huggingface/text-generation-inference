@@ -3,7 +3,11 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_mixtral_gptq_handle(launcher):
-    with launcher("TheBloke/Mixtral-8x7B-Instruct-v0.1-GPTQ", num_shard=2) as handle:
+    with launcher(
+        "TheBloke/Mixtral-8x7B-Instruct-v0.1-GPTQ",
+        revision="gptq-4bit-128g-actorder_True",
+        num_shard=2,
+    ) as handle:
         yield handle
 
 
@@ -16,7 +20,12 @@ async def flash_mixtral_gptq(flash_mixtral_gptq_handle):
 @pytest.mark.asyncio
 async def test_flash_mixtral_gptq(flash_mixtral_gptq, response_snapshot):
     response = await flash_mixtral_gptq.generate(
-        "Test request", max_new_tokens=10, decoder_input_details=True
+        "What is deep learning?", max_new_tokens=10, decoder_input_details=True
+    )
+
+    assert response.details.generated_tokens == 10
+    assert (
+        response.generated_text == "\n\nDeep learning is a subset of machine learning"
     )
 
     assert response == response_snapshot
@@ -25,7 +34,7 @@ async def test_flash_mixtral_gptq(flash_mixtral_gptq, response_snapshot):
 @pytest.mark.asyncio
 async def test_flash_mixtral_gptq_all_params(flash_mixtral_gptq, response_snapshot):
     response = await flash_mixtral_gptq.generate(
-        "Test request",
+        "What is deep learning?",
         max_new_tokens=10,
         repetition_penalty=1.2,
         return_full_text=True,
@@ -41,6 +50,10 @@ async def test_flash_mixtral_gptq_all_params(flash_mixtral_gptq, response_snapsh
     )
 
     assert response.details.generated_tokens == 10
+    assert (
+        response.generated_text
+        == "What is deep learning?\nDeep Learning is a subset of Machine Learning,"
+    )
     assert response == response_snapshot
 
 
@@ -49,10 +62,14 @@ async def test_flash_mixtral_gptq_load(
     flash_mixtral_gptq, generate_load, response_snapshot
 ):
     responses = await generate_load(
-        flash_mixtral_gptq, "Test request", max_new_tokens=10, n=4
+        flash_mixtral_gptq, "What is deep learning?", max_new_tokens=10, n=4
     )
 
     assert len(responses) == 4
+    assert (
+        responses[0].generated_text
+        == "\n\nDeep learning is a subset of machine learning"
+    )
     assert all(
         [r.generated_text == responses[0].generated_text for r in responses]
     ), f"{[r.generated_text  for r in responses]}"
