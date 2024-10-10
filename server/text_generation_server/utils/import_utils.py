@@ -66,6 +66,11 @@ elif is_ipex_available():
         empty_cache = noop
         synchronize = noop
         get_free_memory = get_cpu_free_memory
+elif hasattr(torch, "xpu") and torch.xpu.is_available():
+    SYSTEM = "xpu"
+    empty_cache = torch.xpu.empty_cache
+    synchronize = torch.xpu.synchronize
+    get_free_memory = get_xpu_free_memory
 else:
     SYSTEM = "cpu"
 

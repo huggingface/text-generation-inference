@@ -517,14 +517,13 @@ class CausalLM(Model):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = default_dtype if dtype is None else dtype
+        elif hasattr(torch, "xpu") and torch.xpu.is_available():
+            device = torch.device(f"xpu:{rank}")
+            dtype = default_dtype if dtype is None else dtype
         elif SYSTEM == "ipex":
-            if hasattr(torch, "xpu") and torch.xpu.is_available():
-                device = torch.device(f"xpu:{rank}")
-                dtype = default_dtype if dtype is None else dtype
-            else:
-                device = torch.device("cpu")
-                # Float16 doesn't exist on target.
-                dtype = torch.bfloat16 if dtype is None else dtype
+            device = torch.device("cpu")
+            # Float16 doesn't exist on target.
+            dtype = torch.bfloat16 if dtype is None else dtype
         else:
             device = torch.device("cpu")
             dtype = torch.float32 if dtype is None else dtype
@@ -593,8 +592,14 @@ class CausalLM(Model):
         if speculator:
             raise RuntimeError("Speculator decoding is not enabled for AutoModel")
 
+        device_count = 0
         if torch.cuda.is_available():
             device = torch.device("cuda")
+            device_count = torch.cuda.device_count()
+            dtype = torch.float16 if dtype is None else dtype
+        elif hasattr(torch, "xpu") and torch.xpu.is_available():
+            device = torch.device("xpu")
+            device_count = torch.xpu.device_count()
             dtype = torch.float16 if dtype is None else dtype
         else:
             if quantize:
@@ -616,18 +621,17 @@ class CausalLM(Model):
             torch_dtype=dtype,
             device_map=(
                 "auto"
-                if torch.cuda.is_available() and torch.cuda.device_count() > 1
+                if device_count > 1
                 else None
             ),
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
         if (
-            torch.cuda.is_available()
-            and torch.cuda.device_count() == 1
+            device_count == 1
             and quantize != "bitsandbytes"
         ):
-            model = model.cuda()
+            model = model.to(device)
 
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:
