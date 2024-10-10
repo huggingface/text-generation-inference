@@ -75,10 +75,10 @@ jobs:
                 export label_extension="-intel-cpu"
                 export docker_devices="none"
                 export docker_volume="/mnt/cache"
-                export runs_on="ubuntu-latest"
-                # export runs_on="aws-highmemory-32-plus-priv"
+                # export runs_on="ubuntu-latest"
+                export runs_on="aws-highmemory-32-plus-priv"
                 export platform="cpu"
-                export extra_pytest="-k test_flash_llama_load"
+                export extra_pytest="-k test_flash_gemma_simple"
                 ;;
           esac
           echo $dockerfile

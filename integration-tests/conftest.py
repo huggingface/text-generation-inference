@@ -572,7 +572,10 @@ def launcher(event_loop):
             print(container_output, file=sys.stderr)
 
         finally:
-            container.remove()
+            try:
+                container.remove()
+            except Exception:
+                pass
 
     if DOCKER_IMAGE is not None:
         return docker_launcher
