@@ -3,12 +3,17 @@ name: Nightly load test
 on:
   schedule:
     - cron: '0 0 * * 1-5'
+  workflow_call:
+  workflow_dispatch:
 
   pull_request:
     paths:
       - ".github/workflows/load_test.yaml"
-    branches:
-      - 'main'
+
+env:
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: ${{ secrets.S3_AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_AWS_SECRET_ACCESS_KEY }}
 
 jobs:
   load-tests:
@@ -16,28 +21,30 @@ jobs:
       group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     runs-on:
-      group: aws-g5-12xlarge
+      group: aws-g6-12xl-plus-priv-cache
     env:
       DOCKER_VOLUME: /cache
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install k6
-        run: |
-          curl https://github.com/grafana/k6/releases/download/v0.44.0/k6-v0.44.0-linux-amd64.tar.gz -L | tar xvz --strip-components 1
+      - name: Install Python 3.11
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
 
-      - name: Start starcoder
+      - name: Install poetry
         run: |
-          docker run --name tgi-starcoder --rm --gpus all -p 3000:80 -v /mnt/cache:/data -e HF_TOKEN=${{ secrets.HF_TOKEN }} --pull always -d ghcr.io/huggingface/text-generation-inference:latest --model-id bigcode/starcoder --num-shard 2 --max-batch-total-tokens 32768
-          sleep 10
-          wget --timeout 10 --retry-on-http-error --waitretry=1 --tries=240 http://localhost:3000/health
+          curl -sSL https://install.python-poetry.org | python3 -
+          export PATH="$HOME/.local/bin:$PATH"
+          poetry --version
 
-      - name: Run k6
+      - name: Run bench test
         run: |
-          ./k6 run load_tests/starcoder_load.js
-
-      - name: Stop starcoder
-        if: ${{ always() }}
-        run: |
-          docker stop tgi-starcoder || true
+          export PATH="$HOME/.local/bin:$PATH"
+          cd load_tests
+          poetry install
+          poetry run python benchmarks.py --sha ${{ github.sha }} --results-file "s3://text-generation-inference-ci/benchmarks/ci/${{ github.sha }}.parquet"
+        shell: bash
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN_BENCHMARK }}
