@@ -158,8 +158,8 @@ async fn prefill(
             top_n_tokens: top_n_tokens.unwrap_or(0),
             blocks: vec![],
             slots: vec![],
-            prefix_len: 0,
-            postfix_len: sequence_length,
+            cache_len: 0,
+            chunk_len: None,
             adapter_id: None,
         })
         .collect();

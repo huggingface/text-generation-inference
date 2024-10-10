@@ -280,24 +280,36 @@ class FlashCausalLMBatch(Batch):
             prompt_length = len(tokenized_input)
             prompt_lengths.append(prompt_length)
 
-            cache_length = r.prefix_len
-            input_length = r.postfix_len
+            cache_length = r.cache_len
+
             assert (
                 cache_length <= prompt_length
             ), f"Prefix {cache_length} vs input {prompt_length}"
             if cache_length == prompt_length:
                 assert False, "unreachable"
-            if cache_length + input_length < prompt_length:
-                # FIXME: speculate is not supported for context chunking at the moment
-                assert speculate == 0
-                assert get_support_chunking()
-                assert input_length > 0
 
-            postfix_ids = tokenized_input[cache_length : cache_length + input_length]
+            # `chunk_len` is an optional field in the protobuf
+            # It is only set if the model support chunking
+            if r.HasField("chunk_len"):
+                input_length = r.chunk_len
 
-            assert (
-                len(postfix_ids) == input_length
-            ), "Rust and Python tokenizers are not aligned"
+                if cache_length + input_length < prompt_length:
+                    # FIXME: speculate is not supported for context chunking at the moment
+                    assert speculate == 0
+                    assert get_support_chunking()
+                    assert input_length > 0
+
+                postfix_ids = tokenized_input[
+                    cache_length : cache_length + input_length
+                ]
+                assert (
+                    len(postfix_ids) == input_length
+                ), "Rust and Python tokenizers are not aligned"
+            else:
+                # Use all the remaining ids
+                postfix_ids = tokenized_input[cache_length:]
+                input_length = len(postfix_ids)
+
             input_lengths.append(input_length)
 
             prefix_offsets.append(prompt_length - 5)
@@ -1097,6 +1109,7 @@ class FlashCausalLM(Model):
         head_size: Optional[int] = None,
         skip_special_tokens: bool = True,
         kv_cache_dtype: Optional[torch.dtype] = None,
+        support_chunking: bool = True,
     ):
         self.quantize = quantize
         self.process_group, rank, world_size = initialize_torch_distributed()
@@ -1224,7 +1237,7 @@ class FlashCausalLM(Model):
             rank=rank,
             world_size=world_size,
             sliding_window=config.sliding_window,
-            support_chunking=True,
+            support_chunking=support_chunking,
         )
 
     @property

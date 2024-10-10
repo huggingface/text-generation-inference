@@ -271,6 +271,8 @@ class VlmCausalLM(FlashCausalLM):
             model_id=model_id,
             revision=revision,
             trust_remote_code=trust_remote_code,
+            # FIXME: VLM do not work with context chunking yet
+            support_chunking=False,
             **kwargs,
         )
 
@@ -356,7 +358,7 @@ class VlmCausalLM(FlashCausalLM):
         else:
             cuda_graph = None
         if cu_seqlen_prefill is not None or cuda_graph is None:
-            if PREFIX_CACHING:
+            if ATTENTION == "flashinfer":
                 block_tables = block_tables_to_ragged(
                     block_tables=block_tables,
                     input_lengths=batch.input_lengths,
@@ -368,13 +370,12 @@ class VlmCausalLM(FlashCausalLM):
                 input_lengths_tensor=input_lengths,
                 cache_lengths_tensor=cache_lengths_tensor,
             ):
-                max_k = (input_lengths + cache_lengths_tensor).max().item()
                 seqlen = Seqlen(
                     input_lengths=input_lengths,
                     cache_lengths=cache_lengths_tensor,
                     cu_seqlen_q=cu_seqlen_prefill,
-                    max_q=max_s,
-                    max_k=max_k,
+                    max_q=batch.max_input_length,
+                    max_k=batch.max_current_length,
                 )
                 logits, speculative_logits = self.model.forward(
                     input_ids=input_ids,
@@ -416,7 +417,10 @@ class VlmCausalLM(FlashCausalLM):
             cuda_graph["block_tables"][
                 : block_tables.shape[0], : block_tables.shape[1]
             ] = block_tables
-        cuda_graph["slots"].fill_(-1)
+
+        # XXX: This is working only because block 0 is reserved for the healthcheck
+        # so it doesn't matter if we override it with bogus values.
+        cuda_graph["slots"].fill_(0)
         cuda_graph["slots"][: slots.shape[0]] = slots
         cuda_graph["input_lengths"].zero_()
         cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
