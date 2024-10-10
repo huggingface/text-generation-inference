@@ -1,0 +1,6 @@
+fire==0.6.0
+numpy==2.1.1
+regex==2024.5.15
+Requests==2.32.3
+tensorflow==2.17.0
+tqdm==4.66.4
