@@ -31,25 +31,25 @@ impl ToolGrammar {
 
         let mut tools = tools.clone();
 
-        // add the notify_error function to the tools
-        let notify_error = Tool {
+        // add the no_tool function to the tools
+        let no_tool = Tool {
             r#type: "function".to_string(),
             function: FunctionDefinition {
-                name: "notify_error".to_string(),
-                description: Some("Notify an error or issue".to_string()),
+                name: "no_tool".to_string(),
+                description: Some("Open ened response with no specific tool selected".to_string()),
                 arguments: json!({
                     "type": "object",
                     "properties": {
-                        "error": {
+                        "content": {
                             "type": "string",
-                            "description": "The error or issue to notify"
+                            "description": "The response content",
                         }
                     },
-                    "required": ["error"]
+                    "required": ["content"]
                 }),
             },
         };
-        tools.push(notify_error);
+        tools.push(no_tool);
 
         // if tools are provided and no tool_choice we default to the OneOf
         let tools_to_use = match tool_choice {

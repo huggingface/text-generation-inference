@@ -355,6 +355,8 @@ pub enum InferError {
     MissingTemplateVariable(String),
     #[error("Tool error: {0}")]
     ToolError(String),
+    #[error("Stream event serialization error")]
+    StreamSerializationError(String),
 }
 
 impl InferError {
@@ -368,6 +370,7 @@ impl InferError {
             InferError::TemplateError(_) => "template_error",
             InferError::MissingTemplateVariable(_) => "missing_template_variable",
             InferError::ToolError(_) => "tool_error",
+            InferError::StreamSerializationError(_) => "stream_serialization_error",
         }
     }
 }
