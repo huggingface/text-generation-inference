@@ -16,7 +16,7 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     SpeculativeHead,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -85,6 +85,8 @@ class Qwen2Attention(torch.nn.Module):
 
         self.query_key_value = load_attention(config, prefix, weights)
 
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
+
         self.o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
@@ -133,25 +135,29 @@ class Qwen2Attention(torch.nn.Module):
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache.key if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
-                kv_cache.value if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv_to_cache[:, 0],
+                value=kv_to_cache[:, 1],
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
+                kv_cache=kv_cache,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
                 window_size_left=self.max_past,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache.key,
-                kv_cache.value,
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

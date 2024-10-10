@@ -24,6 +24,7 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -37,7 +38,6 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
@@ -139,6 +139,7 @@ class FlashGPTJAttention(torch.nn.Module):
             prefix=prefix,
             weights=weights,
         )
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
 
         self.o_proj = load_row(
             config,
@@ -191,24 +192,28 @@ class FlashGPTJAttention(torch.nn.Module):
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache.key if PREFILL_IN_KV_CACHE else key,
-                kv_cache.value if PREFILL_IN_KV_CACHE else value,
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=key,
+                value=value,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
+                kv_cache=kv_cache,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache.key,
-                kv_cache.value,
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

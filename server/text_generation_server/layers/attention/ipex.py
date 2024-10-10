@@ -1,31 +1,35 @@
 import intel_extension_for_pytorch as ipex
 import torch
+from text_generation_server.layers.attention.kv_cache import KVCache
 from text_generation_server.models.flash_causal_lm import BLOCK_SIZE
 from text_generation_server.layers.attention import Seqlen
 from typing import Optional
 
 SUPPORTS_WINDOWING = False
-PREFILL_IN_KV_CACHE = False
 
 
 def attention(
-    q: torch.Tensor,
-    key_cache: torch.Tensor,
-    value_cache: torch.Tensor,
+    *,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    kv_cache: KVCache,
     seqlen: Seqlen,
     block_tables: torch.Tensor,
     softmax_scale,
     window_size_left=-1,
     causal=True,
     softcap: Optional[float] = None,
+    key_scale: float = 1.0,
+    value_scale: float = 1.0,
 ):
-    out = torch.empty_like(q)
+    out = torch.empty_like(query)
 
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
     ipex.llm.functional.varlen_attention(
-        q.contiguous() if q.device.type == "xpu" else q,
-        key_cache.contiguous() if key_cache.device.type == "xpu" else key_cache,
-        value_cache.contiguous() if value_cache.device.type == "xpu" else value_cache,
+        query.contiguous() if query.device.type == "xpu" else query,
+        key.contiguous() if key.device.type == "xpu" else key,
+        value.contiguous() if value.device.type == "xpu" else value,
         out,
         seqlen.cu_seqlen_q,
         seqlen.cu_seqlen_q,
@@ -56,21 +60,22 @@ def reshape_and_cache(
 
 def paged_attention(
     query: torch.Tensor,
-    key_cache: torch.Tensor,
-    value_cache: torch.Tensor,
+    kv_cache: KVCache,
     kv_head_mapping: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
     softcap: Optional[float] = None,
+    key_scale: float = 1.0,
+    value_scale: float = 1.0,
 ):
     out = torch.empty_like(query)
     ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
         out,
         query,
-        key_cache,
-        value_cache,
+        kv_cache.key,
+        kv_cache.value,
         kv_head_mapping,
         softmax_scale,
         block_tables,
@@ -83,7 +88,6 @@ def paged_attention(
 
 
 __all__ = [
-    "PREFILL_IN_KV_CACHE",
     "SUPPORTS_WINDOWING",
     "attention",
     "paged_attention",

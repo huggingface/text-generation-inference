@@ -1,9 +1,12 @@
 from typing import Tuple
 
+from loguru import logger
 import torch
+
 from text_generation_server.models.globals import ATTENTION, BLOCK_SIZE
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.layers.attention import reshape_and_cache
+from text_generation_server.utils.log import log_once
+from text_generation_server.utils.weights import Weights
 
 
 class KVCache:
@@ -78,6 +81,11 @@ class KVCache:
             )
 
     @property
+    def dtype(self):
+        """Get the data type of the cache."""
+        return self.kv_cache[0].dtype
+
+    @property
     def key(self):
         """Get the key cache."""
 
@@ -95,17 +103,30 @@ class KVCache:
         key: torch.Tensor,
         value: torch.Tensor,
         slots: torch.Tensor,
+        key_scale: float,
+        value_scale: float,
     ):
         """Store the key and value at the given slots."""
 
         key_cache = self.kv_cache[0]
         value_cache = self.kv_cache[1]
 
+        # Only use scales when we have a float8 KV cache.
+        if self.dtype == torch.float8_e5m2:
+            if key_scale != 1.0:
+                key = key * key_scale
+            if value_scale != 1.0:
+                value = value * value_scale
+        elif key_scale != 1.0 or value_scale != 1.0:
+            log_once(
+                logger.info,
+                f"Ignoring FP8 KV cache scales, cache type: {self.dtype}",
+            )
+
         if ATTENTION in {"flashdecoding", "flashinfer"}:
-            # TODO: add scale
             key = key.to(key_cache.dtype)
             value = value.to(value_cache.dtype)
-            if key_cache.dtype == torch.float8_e5m2:
+            if self.dtype == torch.float8_e5m2:
                 # Torch index_put does not support float8_e5m2 yet, so
                 # put as raw data instead.
                 key_cache = key_cache.view(torch.uint8)
@@ -116,4 +137,27 @@ class KVCache:
             key_cache.view(-1, shape[-2], shape[-1])[slots] = key
             value_cache.view(-1, shape[-2], shape[-1])[slots] = value
         else:
+            from text_generation_server.layers.attention import reshape_and_cache
+
             reshape_and_cache(key, value, key_cache, value_cache, slots)
+
+
+def get_kv_scales(weights: Weights, prefix: str) -> Tuple[float, float]:
+    key_scale = 1.0
+    value_scale = 1.0
+    if weights._has_tensor(f"{prefix}.k_scale"):
+        key_scale = weights.get_scalar(f"{prefix}.k_scale")
+    if weights._has_tensor(f"{prefix}.v_scale"):
+        value_scale = weights.get_scalar(f"{prefix}.v_scale")
+
+    # Fall back to older more course-grained scale when available.
+    if (
+        weights._has_tensor(f"{prefix}.kv_scale")
+        and key_scale == 1.0
+        and value_scale == 1.0
+    ):
+        key_scale = value_scale = weights.get_scalar(f"{prefix}.kv_scale")
+        value_scale = key_scale
+
+    logger.info(f"Using k_scale={key_scale}, v_scale={value_scale} for prefix={prefix}")
+    return key_scale, value_scale

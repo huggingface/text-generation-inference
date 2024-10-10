@@ -204,6 +204,12 @@ class Weights:
             return False
         return True
 
+    def get_scalar(self, tensor_name: str):
+        tensor = self.get_tensor(tensor_name)
+        if tensor.numel() != 1:
+            raise RuntimeError(f"Tensor {tensor_name} is not a scalar")
+        return tensor.item()
+
     def get_shape(self, tensor_name: str):
         return self._get_slice(tensor_name).get_shape()
 

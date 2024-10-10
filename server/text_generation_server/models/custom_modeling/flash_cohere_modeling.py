@@ -30,6 +30,7 @@ from text_generation_server.layers.attention import (
     attention,
     Seqlen,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -38,7 +39,6 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -179,10 +179,13 @@ def _load_gqa(config, prefix: str, weights):
         head_size = config.hidden_size // config.num_attention_heads
         num_heads = config.num_attention_heads // weights.process_group.size()
         num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
-        assert list(weight.weight.shape) == [
-            (num_heads + 2 * num_key_value_heads) * head_size,
-            config.hidden_size,
-        ], f"{list(weight.weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
+        assert (
+            list(weight.weight.shape)
+            == [
+                (num_heads + 2 * num_key_value_heads) * head_size,
+                config.hidden_size,
+            ]
+        ), f"{list(weight.weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
     if config.attention_bias:
         w = [
@@ -228,6 +231,7 @@ class FlashCohereAttention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
 
         self.use_qk_norm = config.use_qk_norm
         if self.use_qk_norm:
@@ -296,24 +300,28 @@ class FlashCohereAttention(torch.nn.Module):
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache.key if PREFILL_IN_KV_CACHE else key,
-                kv_cache.value if PREFILL_IN_KV_CACHE else value,
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=key,
+                value=value,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
+                kv_cache=kv_cache,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache.key,
-                kv_cache.value,
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.o_proj(

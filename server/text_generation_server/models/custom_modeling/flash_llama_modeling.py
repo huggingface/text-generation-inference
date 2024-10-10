@@ -27,7 +27,10 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE, KVCache
+from text_generation_server.layers.attention import (
+    KVCache,
+    get_kv_scales,
+)
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
@@ -176,6 +179,8 @@ class FlashLlamaAttention(torch.nn.Module):
         self.query_key_value = load_attention(config, prefix, weights, index)
         self.index = index
 
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
+
         o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
@@ -221,30 +226,40 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        kv_cache.store(key=kv[:, 0], value=kv[:, 1], slots=slots)
+        kv_cache.store(
+            key=kv[:, 0],
+            value=kv[:, 1],
+            slots=slots,
+            key_scale=self.key_scale,
+            value_scale=self.value_scale,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache.key if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache.value if PREFILL_IN_KV_CACHE else kv[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, 0],
+                value=kv[:, 1],
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
+                kv_cache=kv_cache,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache.key,
-                kv_cache.value,
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.o_proj(

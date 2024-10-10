@@ -38,7 +38,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -131,6 +131,7 @@ class FlashNeoxAttention(torch.nn.Module):
             head_size=self.head_size,
             hidden_size=self.hidden_size,
         )
+        self.key_scale, self.value_scale = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=True
         )
@@ -170,24 +171,28 @@ class FlashNeoxAttention(torch.nn.Module):
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                qkv[:, 0],
-                kv_cache.key if PREFILL_IN_KV_CACHE else qkv[:, 1],
-                kv_cache.value if PREFILL_IN_KV_CACHE else qkv[:, 2],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=qkv[:, 0],
+                key=qkv[:, 1],
+                value=qkv[:, 2],
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
+                kv_cache=kv_cache,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 qkv[:, 0],
-                kv_cache.key,
-                kv_cache.value,
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                key_scale=self.key_scale,
+                value_scale=self.value_scale,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
