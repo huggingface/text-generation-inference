@@ -38,7 +38,6 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -170,19 +169,19 @@ class FlashNeoxAttention(torch.nn.Module):
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                qkv[:, 0],
-                kv_cache.key if PREFILL_IN_KV_CACHE else qkv[:, 1],
-                kv_cache.value if PREFILL_IN_KV_CACHE else qkv[:, 2],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=qkv[:, 0],
+                key=qkv[:, 1],
+                value=qkv[:, 2],
+                kv_cache=kv_cache,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 qkv[:, 0],
-                kv_cache.key,
-                kv_cache.value,
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,

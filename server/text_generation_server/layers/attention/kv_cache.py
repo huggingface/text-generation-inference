@@ -3,7 +3,6 @@ from typing import Tuple
 import torch
 from text_generation_server.models.globals import ATTENTION, BLOCK_SIZE
 from text_generation_server.utils.import_utils import SYSTEM
-from text_generation_server.layers.attention import reshape_and_cache
 
 
 class KVCache:
@@ -116,4 +115,6 @@ class KVCache:
             key_cache.view(-1, shape[-2], shape[-1])[slots] = key
             value_cache.view(-1, shape[-2], shape[-1])[slots] = value
         else:
+            from text_generation_server.layers.attention import reshape_and_cache
+
             reshape_and_cache(key, value, key_cache, value_cache, slots)
