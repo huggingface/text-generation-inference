@@ -40,7 +40,9 @@ huggingface::tgi::backends::TensorRtLlmBackendImpl::PullTokens() {
     auto steps = std::make_unique<std::vector<GenerationStep>>();
     steps->reserve(responses.size());
 
+#ifndef NDEBUG
     SPDLOG_DEBUG(FMT_STRING("Pulled out {:d} new tokens"), responses->size());
+#endif
 
     // Transform tle::Response to GenerationStep
     std::ranges::transform(responses.begin(), responses.end(), std::back_inserter(*steps), [](const tle::Response &r) {
