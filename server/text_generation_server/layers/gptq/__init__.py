@@ -298,6 +298,7 @@ class GPTQWeightsLoader(WeightsLoader):
         self._get_gptq_params(weights)
 
         use_exllama = True
+        desc_act = self.desc_act
         if self.bits != 4:
             use_exllama = False
 
@@ -321,7 +322,7 @@ class GPTQWeightsLoader(WeightsLoader):
             if g_idx is not None:
                 if (
                     not torch.equal(
-                        g_idx.cpu(),
+                        (g_idx - g_idx[0]).cpu(),
                         torch.tensor(
                             [i // self.groupsize for i in range(g_idx.shape[0])],
                             dtype=torch.int32,
@@ -332,6 +333,7 @@ class GPTQWeightsLoader(WeightsLoader):
                     # Exllama implementation does not support row tensor parallelism with act-order, as
                     # it would require to reorder input activations that are split unto several GPUs
                     use_exllama = False
+                    desc_act = True
 
         from text_generation_server.layers.gptq import (
             CAN_EXLLAMA,
@@ -350,15 +352,15 @@ class GPTQWeightsLoader(WeightsLoader):
             else:
                 log_once(logger.info, f"Using exllama kernels v{HAS_EXLLAMA}")
 
-        if use_exllama and self.groupsize != -1:
+        if not desc_act and self.groupsize != -1:
             qzeros = weights.get_sharded(f"{prefix}.qzeros", dim=0)
             scales = weights.get_sharded(f"{prefix}.scales", dim=0)
+            if g_idx is not None:
+                # qzeros, scales sharded, and g_idx must be adjusted accordingly
+                g_idx = g_idx - g_idx[0]
         else:
             qzeros = weights.get_tensor(f"{prefix}.qzeros")
             scales = weights.get_tensor(f"{prefix}.scales")
-
-        if use_exllama and g_idx is not None:
-            g_idx = g_idx - g_idx[0]
 
         if self.quantize == "gptq" and self.quant_method == "awq":
             log_once(
