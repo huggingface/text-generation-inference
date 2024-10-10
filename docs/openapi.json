@@ -2268,6 +2268,24 @@
                 "$ref": "#/components/schemas/FunctionName"
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "function"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "function"
+                ]
+              },
+              "function": {
+                "$ref": "#/components/schemas/FunctionName"
+              }
+            }
           }
         ],
         "description": "Controls which (if any) tool is called by the model.",

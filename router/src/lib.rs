@@ -1011,7 +1011,16 @@ pub enum ToolType {
     NoTool,
     /// Forces the model to call a specific tool.
     #[schema(rename = "function")]
+    #[serde(alias = "function")]
     Function(FunctionName),
+}
+
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(tag = "type")]
+pub enum TypedChoice {
+    #[serde(rename = "function")]
+    Function{function: FunctionName},
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -1029,7 +1038,9 @@ enum ToolTypeDeserializer {
     Null,
     String(String),
     ToolType(ToolType),
+    TypedChoice(TypedChoice) //this is the OpenAI schema
 }
+
 
 impl From<ToolTypeDeserializer> for ToolChoice {
     fn from(value: ToolTypeDeserializer) -> Self {
@@ -1040,6 +1051,7 @@ impl From<ToolTypeDeserializer> for ToolChoice {
                 "auto" => ToolChoice(Some(ToolType::OneOf)),
                 _ => ToolChoice(Some(ToolType::Function(FunctionName { name: s }))),
             },
+            ToolTypeDeserializer::TypedChoice(TypedChoice::Function{function}) => ToolChoice(Some(ToolType::Function(function))),
             ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
         }
     }
