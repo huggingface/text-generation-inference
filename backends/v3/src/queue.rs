@@ -546,7 +546,7 @@ mod tests {
             request: ValidGenerateRequest {
                 inputs: vec![],
                 input_ids: Some(Arc::new(vec![])),
-                input_length: 0,
+                input_length: 1,
                 add_special_tokens: true,
                 truncate: 0,
                 decoder_input_details: false,
