@@ -339,15 +339,23 @@ impl State {
 
                     let postfix_len = entry.request.input_length - block_allocation.prefix_len;
 
-                    // Check equality too as if we don't we might end up with a postfix_len = 0
-                    // in the next iteration of the loop
-                    if prefill_tokens + postfix_len >= prefill_token_budget {
+                    if prefill_tokens + postfix_len > prefill_token_budget {
                         // Entry is over budget
                         if self.support_chunking {
                             // We support chunking, just set postfix_len to exactly match prefill_token_budget
-                            let chunk_len = prefill_token_budget - prefill_tokens;
-                            // Push this entry inside the batch
-                            batch.push((id, entry, Some(block_allocation), Some(chunk_len)));
+                            let chunk_len = prefill_token_budget.saturating_sub(prefill_tokens);
+                            if chunk_len > 0 {
+                                // Push this entry inside the batch
+                                batch.push((id, entry, Some(block_allocation), Some(chunk_len)));
+                            } else {
+                                // We cannot prefill even one token for this entry
+                                // Add it back to the queue
+                                self.entries.push_front((id, entry));
+                            }
+                            tracing::debug!(
+                                "Matched budget: prefill_tokens={} == {prefill_token_budget}",
+                                prefill_tokens + postfix_len
+                            );
                             break 'entry_loop;
                         } else {
                             // We don't support chunking, this entry needs to go back to the buffer
@@ -658,7 +666,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_batch_token_budget() {
-        let mut state = State::new(false, 1, false, None, 0, 2, false);
+        let mut state = State::new(false, 1, false, None, 0, 16, false);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
@@ -780,7 +788,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_token_speculate() {
-        let queue = Queue::new(false, 1, false, None, 2, 16, false);
+        let queue = Queue::new(true, 1, false, None, 2, 16, false);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
