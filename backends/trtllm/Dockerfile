@@ -10,7 +10,7 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 # CUDA dependent dependencies resolver stage
-FROM nvidia/cuda:12.5.1-cudnn-devel-ubuntu22.04 AS cuda-builder
+FROM nvidia/cuda:12.6.1-cudnn-devel-ubuntu24.04 AS cuda-builder
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -82,7 +82,7 @@ RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$
     cd backends/trtllm && \
     CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --release
 
-FROM nvidia/cuda:12.5.1-cudnn-runtime-ubuntu22.04 AS runtime
+FROM nvidia/cuda:12.6.1-cudnn-runtime-ubuntu24.04 AS runtime
 WORKDIR /usr/local/tgi/bin
 
 ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"

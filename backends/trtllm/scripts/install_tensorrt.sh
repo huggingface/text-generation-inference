@@ -2,12 +2,12 @@
 
 set -ex
 
-TRT_VER="10.2.0.19"
-CUDA_VER="12.5"
-CUDNN_VER="9.2.1.18-1"
-NCCL_VER="2.22.3-1+cuda12.5"
-CUBLAS_VER="12.5.3.2-1"
-NVRTC_VER="12.5.82-1"
+TRT_VER="10.4.0.26"
+CUDA_VER="12.6"
+CUDNN_VER="9.5.0.50-1"
+NCCL_VER="2.22.3-1+cuda12.6"
+CUBLAS_VER="12.6.3.3-1"
+NVRTC_VER="12.6.77-1"
 
 for i in "$@"; do
     case $i in
@@ -32,8 +32,8 @@ install_ubuntu_requirements() {
     ARCH=$(uname -m)
     if [ "$ARCH" = "amd64" ];then ARCH="x86_64";fi
     if [ "$ARCH" = "aarch64" ];then ARCH="sbsa";fi
-    curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/${ARCH}/cuda-keyring_1.0-1_all.deb
-    dpkg -i cuda-keyring_1.0-1_all.deb
+    curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${ARCH}/cuda-keyring_1.1-1_all.deb
+    dpkg -i cuda-keyring_1.1-1_all.deb
 
     apt-get update
     if [[ $(apt list --installed | grep libcudnn9) ]]; then
