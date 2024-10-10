@@ -106,7 +106,7 @@ huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
 size_t huggingface::tgi::backends::TensorRtLlmBackend::NumResponsesReady() const {
     const auto numResponses = executor.getNumResponsesReady();
 
-#ifdef NDEBUG
+#ifndef NDEBUG
     if(numResponses > 0) SPDLOG_INFO(FMT_STRING("Num responses ready: {:d}"), numResponses);
 #endif
 
@@ -124,13 +124,7 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const float_t frequency_penalty,
         const uint64_t seed
 ) {
-#ifdef NDEBUG
-    SPDLOG_DEBUG(
-            FMT_STRING("Submitting inference over {:d} tokens to the executor ({:d} already in-flight)"),
-            tokens.size(),
-            executor.getLatestIterationStats().back().numActiveRequests
-    );
-#else
+#ifndef NDEBUG
     SPDLOG_DEBUG(
             FMT_STRING("Submitting inference [{}] to the executor ({:d} already in-flight)"),
             fmt::join(tokens, ", "),
@@ -142,7 +136,7 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
     const auto maxNewTokensChecked = static_cast<tle::SizeType32>(
             std::min(maxNewTokens, static_cast<uint32_t>(maxNumTokens - tokens.size())));
 
-#ifdef NDEBUG
+#ifndef NDEBUG
     SPDLOG_INFO(
         FMT_STRING("Sampling config: topK={:d}, topP={:d}, temperature={:d}, repetition_penalty={:d}, frequency_penalty={:d}, seed={:d}"),
         topK, topP, temperature, repetition_penalty, frequency_penalty, seed
