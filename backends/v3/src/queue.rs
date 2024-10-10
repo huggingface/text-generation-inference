@@ -49,6 +49,8 @@ impl Queue {
         prefix_caching: bool,
         window_size: Option<u32>,
         speculate: u32,
+        max_input_tokens: u32,
+        max_total_tokens: u32,
         max_batch_total_tokens: u32,
     ) -> Self {
         // Create channel
@@ -61,6 +63,8 @@ impl Queue {
             prefix_caching,
             window_size,
             speculate,
+            max_input_tokens,
+            max_total_tokens,
             max_batch_total_tokens,
             queue_receiver,
         ));
@@ -114,6 +118,8 @@ async fn queue_task(
     prefix_caching: bool,
     window_size: Option<u32>,
     speculate: u32,
+    max_input_tokens: u32,
+    max_total_tokens: u32,
     max_batch_total_tokens: u32,
     mut receiver: mpsc::UnboundedReceiver<QueueCommand>,
 ) {
@@ -123,6 +129,8 @@ async fn queue_task(
         prefix_caching,
         window_size,
         speculate,
+        max_input_tokens,
+        max_total_tokens,
         max_batch_total_tokens,
     );
 
@@ -174,6 +182,15 @@ struct State {
 
     /// Paged Attention Block Allocation
     block_allocator: Option<BlockAllocator>,
+
+    /// Require padding
+    requires_padding: bool,
+
+    /// max input tokens
+    max_input_tokens: u32,
+
+    /// max total tokens,
+    max_total_tokens: u32,
 }
 
 impl State {
@@ -183,6 +200,8 @@ impl State {
         prefix_caching: bool,
         window_size: Option<u32>,
         speculate: u32,
+        max_input_tokens: u32,
+        max_total_tokens: u32,
         max_batch_total_tokens: u32,
     ) -> Self {
         let block_allocator = (!requires_padding).then(|| {
@@ -202,6 +221,9 @@ impl State {
             window_size,
             speculate,
             block_allocator,
+            requires_padding,
+            max_input_tokens,
+            max_total_tokens,
         }
     }
 
@@ -272,10 +294,19 @@ impl State {
                 None => {
                     // We pad to max input length in the Python shards
                     // We need to take these padding tokens into the equation
-                    max_input_length = max_input_length.max(entry.request.input_length);
-                    prefill_tokens = (batch.len() + 1) as u32 * max_input_length;
+                    if self.requires_padding {
+                        prefill_tokens = (batch.len() + 1) as u32 * self.max_input_tokens;
+                    } else{
+                        max_input_length = max_input_length.max(entry.request.input_length);
+                        prefill_tokens = (batch.len() + 1) as u32 * max_input_length;
+                    }
 
-                    decode_tokens += entry.request.stopping_parameters.max_new_tokens;
+                    if self.requires_padding {
+                        decode_tokens = (batch.len() + 1) as u32 * (self.max_total_tokens - self.max_input_tokens);
+                    } else {
+                        decode_tokens += entry.request.stopping_parameters.max_new_tokens;
+                    }
+
                     let total_tokens = prefill_tokens + decode_tokens + self.speculate;
 
                     if prefill_tokens > prefill_token_budget || total_tokens > token_budget {

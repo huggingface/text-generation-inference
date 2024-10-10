@@ -27,6 +27,8 @@ impl BackendV3 {
     pub(crate) fn new(
         client: ShardedClient,
         waiting_served_ratio: f32,
+        max_input_tokens: u32,
+        max_total_tokens: u32,
         max_batch_prefill_tokens: u32,
         max_batch_total_tokens: u32,
         max_waiting_tokens: usize,
@@ -51,6 +53,8 @@ impl BackendV3 {
             prefix_caching,
             window_size,
             speculate,
+            max_input_tokens,
+            max_total_tokens,
             max_batch_total_tokens,
         );
         let batching_task_notifier = Arc::new(Notify::new());
@@ -152,6 +156,7 @@ pub(crate) async fn batching_task(
                 .await;
             let mut waiting_tokens = 1;
 
+            tracing::error!("Enter cached batch loop");
             // We loop until we do not receive any cached batch from the inference server (== until
             // all requests have met their stopping criteria)
             while let Some(batch) = cached_batch {

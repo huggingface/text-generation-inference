@@ -97,6 +97,7 @@ def serve(
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = "bfloat16" if dtype is None else dtype.value
+    logger.info(f"quantize={quantize}")
     if dtype is not None and quantize not in {
         None,
         "bitsandbytes",

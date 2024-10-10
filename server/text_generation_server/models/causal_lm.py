@@ -54,18 +54,12 @@ from text_generation_server.utils.debug import dbg_trace
 from text_generation_server.utils.speculate import get_speculate
 
 tracer = trace.get_tracer(__name__)
-
-# MAX_TOTAL_TOKENS = int(os.environ.get('MAX_TOTAL_TOKENS', 2048))
-# BATCH_BUCKET_SIZE = int(os.environ.get('BATCH_BUCKET_SIZE', 8))
-# PAD_SEQUENCE_TO_MULTIPLE_OF = int(os.environ.get('PAD_SEQUENCE_TO_MULTIPLE_OF', 128))
-# PREFILL_BATCH_BUCKET_SIZE = int(os.environ.get('PREFILL_BATCH_BUCKET_SIZE', 4))
-# CHUNK_SIZES = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
-# LAZY_MODE = int(os.environ.get('PT_HPU_LAZY_MODE', 1))
-MAX_TOTAL_TOKENS = int(os.environ.get('MAX_TOTAL_TOKENS', 8192))
-MAX_BATCH_TOTAL_TOKENS = int(os.environ.get('MAX_BATCH_TOTAL_TOKENS', 65536))
+MAX_TOTAL_TOKENS = int(os.environ.get('MAX_TOTAL_TOKENS', 2048))
 PAD_SEQUENCE_TO_MULTIPLE_OF = int(os.environ.get('PAD_SEQUENCE_TO_MULTIPLE_OF', 256))
 CHUNK_SIZES = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
 LAZY_MODE = int(os.environ.get('PT_HPU_LAZY_MODE', 1))
+BATCH_BUCKET_SIZE= int(os.environ.get('BATCH_BUCKET_SIZE', 8))
+PREFILL_BATCH_BUCKET_SIZE = int(os.environ.get('PREFILL_BATCH_BUCKET_SIZE', 2))
 
 
 PREFILL_WARMUP_BATCH_SIZE_LIST = []
@@ -81,6 +75,9 @@ def torch_compile_for_eager(func):
 
 def round_up(warmup_list:list, num) :
     i = 0
+    if len(warmup_list) == 0:
+        return num
+
     for i in warmup_list:
         if num <= i :
             break
@@ -525,22 +522,20 @@ class CausalLMBatch(Batch):
             return_token_type_ids=False,
             truncation=True,
             max_length=max_truncation,
-        ).to(device)
+        )
 
         input_len = tokenized_inputs["input_ids"].shape[1]
-
         # Round up sequence length
         bucket_size = max_input_length
         left_padding = max_input_length - input_len
-        if is_warmup is False:
-            if input_len < max_input_length and PAD_SEQUENCE_TO_MULTIPLE_OF != 0:
-                assert PAD_SEQUENCE_TO_MULTIPLE_OF <= max_input_length, "PAD_SEQUENCE_TO_MULTIPLE_OF cannot be higher than max_input_length"
-                rounded_seq_len = round_up(PREFILL_WARMUP_SEQLEN_LIST, input_len + 1)
-                if rounded_seq_len <= max_input_length:
-                    bucket_size = rounded_seq_len - 1
-                else:
-                    bucket_size = max_input_length - 1
-                left_padding = bucket_size - input_len
+        if input_len < max_input_length and PAD_SEQUENCE_TO_MULTIPLE_OF != 0:
+            assert PAD_SEQUENCE_TO_MULTIPLE_OF <= max_input_length, "PAD_SEQUENCE_TO_MULTIPLE_OF cannot be higher than max_input_length"
+            rounded_seq_len = round_up(PREFILL_WARMUP_SEQLEN_LIST, input_len + 1)
+            if rounded_seq_len <= max_input_length:
+                bucket_size = rounded_seq_len - 1
+            else:
+                bucket_size = max_input_length - 1
+            left_padding = bucket_size - input_len
 
         input_ids = tokenized_inputs["input_ids"]
         attention_mask = tokenized_inputs["attention_mask"]
@@ -554,7 +549,7 @@ class CausalLMBatch(Batch):
         )
         all_input_ids = torch.nn.functional.pad(
             input_ids, (0, max_new_tokens), value=tokenizer.pad_token_id
-        ).T.split(1, dim=1)[0:len(pb.requests)]
+        ).T.split(1, dim=1)
         input_len = bucket_size
         for r in requests:
             r.input_length = input_len
@@ -567,7 +562,6 @@ class CausalLMBatch(Batch):
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
 
-        htorch.core.mark_step()
 
         top_n_tokens_tensor = torch.tensor(
             top_n_tokens, device=device, dtype=torch.int64
@@ -908,6 +902,7 @@ class CausalLM(Model):
             kwargs["bypass_hpu_graphs"] = bypass_hpu_graph
 
         kwargs.update(self.kwargs)
+
         if past_key_values is not None:
             return self.model.forward(**kwargs)
         else:
@@ -972,7 +967,7 @@ class CausalLM(Model):
                         'top_n_tokens': batch.top_n_tokens[req_idx],
                         'top_token_ids': batch_top_token_ids[req_idx],
                         'top_token_logprobs': batch_top_token_logprobs[req_idx],
-                        'grammar_state': batch.next_token_chooser.fsm_grammar_states[req_idx],
+                        'grammar_state': batch.next_token_chooser.fsm_grammar_states[req.idx],
 
                     })
 
@@ -1203,7 +1198,7 @@ class CausalLM(Model):
         decode_ns = time.time_ns() - start_decode
         return generations, batch if not stopped else None, (forward_ns, decode_ns)
 
-    def generate_warmup_batch(self, request, seq_len, batch_size, is_warmup):
+    def generate_warmup_batch(self, request, seq_len, batch_size):
         batch = copy.deepcopy(request.batch)
         for req in batch.requests:
             req.truncate = seq_len
@@ -1211,11 +1206,13 @@ class CausalLM(Model):
         for i in range(len(batch.requests) - batch_size):
             batch.requests.pop()
 
-        return CausalLMBatch.from_pb(batch, self.tokenizer, self.dtype, self.device, is_warmup)
+        return CausalLMBatch.from_pb(batch, self.tokenizer, self.dtype, self.device, is_warmup=True)
 
 
     def warmup(self, request) -> None:
         is_warmup = True
+        MAX_TOTAL_TOKENS = request.max_total_tokens
+        MAX_BATCH_TOTAL_TOKENS = request.max_batch_total_tokens
         batch = CausalLMBatch.from_pb(request.batch, self.tokenizer, self.dtype, self.device, is_warmup = is_warmup)
         try:
             # max prefill batch size warmup
@@ -1226,104 +1223,92 @@ class CausalLM(Model):
                 f"You need to decrease `--max-batch-prefill-tokens`"
             )
 
-        global MAX_TOTAL_TOKENS, MAX_BATCH_TOTAL_TOKENS, PREFILL_WARMUP_BATCH_SIZE_LIST, PREFILL_WARMUP_SEQLEN_LIST, DECODE_WARMUP_BATCH_SIZE_LIST
-        max_input_length =  batch.input_ids.shape[1]
+        #warmup decode batch size
         max_prefill_batch_size = batch.input_ids.shape[0]
-        PREFILL_WARMUP_BATCH_SIZE_LIST = []
-        batch_size = 1
-        while batch_size <= max_prefill_batch_size:
-            PREFILL_WARMUP_BATCH_SIZE_LIST.append(batch_size)
-            batch_size = batch_size * 2
-        if PREFILL_WARMUP_BATCH_SIZE_LIST[-1] < max_prefill_batch_size :
-            PREFILL_WARMUP_BATCH_SIZE_LIST.append(max_prefill_batch_size)
-
-        seq_len = PAD_SEQUENCE_TO_MULTIPLE_OF
-        PREFILL_WARMUP_SEQLEN_LIST = []
-        i = 0
-        while seq_len <= max_input_length:
-            PREFILL_WARMUP_SEQLEN_LIST.append(seq_len)
-            seq_len += PAD_SEQUENCE_TO_MULTIPLE_OF*(2**i)
-            i += 1
-        if PREFILL_WARMUP_SEQLEN_LIST[-1] < max_input_length:
-            PREFILL_WARMUP_SEQLEN_LIST.append(max_input_length)
-
-        #Prefill and decode warmup
-        DECODE_WARMUP_BATCH_SIZE_LIST = []
-        prefill_batch = None
-        decode_batch = None
-        try:
-            for batch_size in PREFILL_WARMUP_BATCH_SIZE_LIST :
-                for seq_len in PREFILL_WARMUP_SEQLEN_LIST :
-                    batch = self.generate_warmup_batch(request, seq_len, batch_size, is_warmup)
-                    _, prefill_batch, _ = self.generate_token([batch], is_warmup)
-                    _, decode_batch, _ = self.generate_token([prefill_batch], is_warmup)
-
-                DECODE_WARMUP_BATCH_SIZE_LIST.append(batch_size)
-
-        except:
-            raise RuntimeError(
-                f"Not enough memory to handle following prefill and decode warmup."
-                f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}"
-                f"Prefill sequence length list:{PREFILL_WARMUP_SEQLEN_LIST}"
-                f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}"
-                f"You need to decrease `--max-batch-prefill-tokens`"
-            )
-
-        mem_stats = get_hpu_memory_stats(self.device)
-        logger.info(
-                f"\nFollowing prefill and decode warmup successfully.\n"
-                f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}\n"
-                f"Prefill sequence length list:{PREFILL_WARMUP_SEQLEN_LIST}\n"
-                f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}\n"
-                f"Memory stats: {mem_stats} "
-            )
-
         max_decode_batch_size = math.floor(MAX_BATCH_TOTAL_TOKENS / MAX_TOTAL_TOKENS)
-        batch_size = max_prefill_batch_size * 2
-        # Decode warmup with bigger batch_size
+        batch_size = max_decode_batch_size
+        self.limit_hpu_graph = True
         try:
-            if DECODE_WARMUP_BATCH_SIZE_LIST[-1] < max_decode_batch_size and batch_size <= max_decode_batch_size:
-                batches = []
-                for i in range(int(batch_size/max_prefill_batch_size)) :
-                    batch = self.generate_warmup_batch(request, PREFILL_WARMUP_SEQLEN_LIST[0], DECODE_WARMUP_BATCH_SIZE_LIST[-1], is_warmup)
+            while batch_size > 1:
+                batches= []
+                iters = math.floor(batch_size/max_prefill_batch_size)
+                DECODE_WARMUP_BATCH_SIZE_LIST.append(batch_size)
+                for i in range(iters):
+                    batch = self.generate_warmup_batch(request,  PAD_SEQUENCE_TO_MULTIPLE_OF - 1, max_prefill_batch_size)
                     _, prefill_batch, _ = self.generate_token([batch], is_warmup)
                     batches.append(prefill_batch)
-                while batch_size <= max_decode_batch_size:
-                    _, decode_batch, _ = self.generate_token(batches, is_warmup)
-                    DECODE_WARMUP_BATCH_SIZE_LIST.append(batch_size)
-                    batch_size = batch_size * 2
-                    batches.clear()
 
-                    for i in range(int(batch_size/max_prefill_batch_size)) :
-                        batch = self.generate_warmup_batch(request, PREFILL_WARMUP_SEQLEN_LIST[0], DECODE_WARMUP_BATCH_SIZE_LIST[-1], is_warmup)
-                        _, prefill_batch, _ = self.generate_token([batch], is_warmup)
-                        batches.append(prefill_batch)
+                if batch_size % max_prefill_batch_size != 0:
+                    batch = self.generate_warmup_batch(request,  PAD_SEQUENCE_TO_MULTIPLE_OF - 1, batch_size % max_prefill_batch_size)
+                    _, prefill_batch, _ = self.generate_token([batch], is_warmup)
+                    batches.append(batch)
 
-                batches.clear()
-                if DECODE_WARMUP_BATCH_SIZE_LIST[-1] < max_decode_batch_size:
-                    max_decode_batch_size = math.floor( max_decode_batch_size / 2) * 2
-                    batch_size = max_decode_batch_size
-                    for i in range(int(max_decode_batch_size / 2)) :
-                        batch = self.generate_warmup_batch(request, PREFILL_WARMUP_SEQLEN_LIST[0], 2, is_warmup)
-                        _, prefill_batch, _ = self.generate_token([batch], is_warmup)
-                        batches.append(prefill_batch)
-                    _, decode_batch, _ = self.generate_token(batches, is_warmup)
-                    DECODE_WARMUP_BATCH_SIZE_LIST.append(max_decode_batch_size)
-                max_batch_total_tokens = max_decode_batch_size * MAX_TOTAL_TOKENS
-                MAX_BATCH_TOTAL_TOKENS = max_batch_total_tokens
-        except :
-            raise RuntimeError(
-                f"Not enough memory to handle batch_size({batch_size}) decode warmup."
-                f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}"
-                f"max_decode_batch_size is {max_decode_batch_size}"
-                f"You need to decrease env `MAX_BATCH_TOTAL_TOKENS` or '--max_batch_total_tokens'"
-            )
-
+                _, decode_batch, _ = self.generate_token(batches, is_warmup)
+                logger.info(f"DECODE_DIVISOR={BATCH_BUCKET_SIZE}")
+                batch_size = math.floor(batch_size / BATCH_BUCKET_SIZE)
+        except:
+            DECODE_WARMUP_BATCH_SIZE_LIST.pop(-1)
+            self.model.clear_cache()
+            if len(DECODE_WARMUP_BATCH_SIZE_LIST) > 0:
+                logger.warning(
+                    f"Not enough memory to warmup all batch size of decode."
+                    f"You need to decrease `--max-batch-total-tokens`"
+                )
+            else:
+                raise RuntimeError(
+                    f"Not enough memory to warmup decode batch_size({max_decode_batch_size})."
+                    f"You need to decrease `--max-batch-total-tokens`"
+                )
+        DECODE_WARMUP_BATCH_SIZE_LIST.sort()
         mem_stats = get_hpu_memory_stats(self.device)
         logger.info(
                 f"\nFollowing decode warmup successfully.\n"
                 f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}\n"
-                f"Memory stats: {mem_stats}"
+                f"Memory stats: {mem_stats} "
             )
+
+        # Warmup prefill batch_size
+        max_input_length =  request.max_input_length
+        max_prefill_batch_size = batch.input_ids.shape[0]
+        batch_size = max_prefill_batch_size
+        while batch_size >= 1:
+            PREFILL_WARMUP_BATCH_SIZE_LIST.append(batch_size)
+            batch_size = math.floor(batch_size / PREFILL_BATCH_BUCKET_SIZE)
+
+        seq_len = max_input_length
+        while seq_len >= PAD_SEQUENCE_TO_MULTIPLE_OF:
+            PREFILL_WARMUP_SEQLEN_LIST.append(seq_len)
+            seq_len = math.floor(seq_len/2)
+
+        if PREFILL_WARMUP_SEQLEN_LIST[-1] > PAD_SEQUENCE_TO_MULTIPLE_OF:
+            PREFILL_WARMUP_SEQLEN_LIST.append(PAD_SEQUENCE_TO_MULTIPLE_OF)
+
+        #Prefill and decode warmup
+        prefill_batch = None
+        PREFILL_WARMUP_BATCH_SIZE_LIST.sort()
+        PREFILL_WARMUP_SEQLEN_LIST.sort()
+
+        try:
+            for batch_size in PREFILL_WARMUP_BATCH_SIZE_LIST :
+                for seq_len in PREFILL_WARMUP_SEQLEN_LIST :
+                    batch = self.generate_warmup_batch(request, seq_len - 1, batch_size)
+                    _, prefill_batch, _ = self.generate_token([batch], is_warmup)
+        except:
+            raise RuntimeError(
+                f"Not enough memory to run following prefill batch_size."
+                f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}"
+                f"Prefill sequence length list:{PREFILL_WARMUP_SEQLEN_LIST}"
+                f"You need to decrease `--max-batch-prefill-tokens`"
+            )
+
+        limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "false").lower() == "true"
+        if limit_hpu_graph == False:
+            mem_stats = get_hpu_memory_stats(self.device)
+            logger.info(
+                    f"\nFollowing prefill and decode warmup successfully.\n"
+                    f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}\n"
+                    f"Prefill sequence length list:{PREFILL_WARMUP_SEQLEN_LIST}\n"
+                    f"Memory stats: {mem_stats} "
+                )
 
         return MAX_BATCH_TOTAL_TOKENS

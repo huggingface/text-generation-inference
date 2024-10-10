@@ -94,6 +94,7 @@ pub async fn connect_backend(
                 max_input_tokens as u32,
                 max_batch_prefill_tokens,
                 max_total_tokens as u32,
+                max_batch_total_tokens.unwrap_or(16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens))),
                 max_batch_size,
             )
             .await
@@ -114,6 +115,8 @@ pub async fn connect_backend(
     let backend = BackendV3::new(
         sharded_client,
         waiting_served_ratio,
+        max_input_tokens as u32,
+        max_total_tokens as u32,
         max_batch_prefill_tokens,
         max_batch_total_tokens,
         max_waiting_tokens,

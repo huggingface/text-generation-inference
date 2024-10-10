@@ -1,4 +1,5 @@
 import inspect
+from loguru import logger
 import torch
 
 from abc import ABC, abstractmethod
@@ -10,7 +11,7 @@ from text_generation_server.models.types import Batch, Generation
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.pb.generate_pb2 import InfoResponse
 from text_generation_server.adapters.weights import LayerAdapterWeights
-
+import time
 BASE_MODEL_ADAPTER_ID = "__base_model__"
 
 
@@ -110,6 +111,7 @@ class Model(ABC):
             all_input_ids[prefix_offset:read_offset],
             skip_special_tokens=skip_special_tokens,
         )
+
         new_text = self.tokenizer.decode(
             all_input_ids[prefix_offset:], skip_special_tokens=skip_special_tokens
         )
