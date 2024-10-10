@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <fstream>
 
 #include <fmt/ranges.h>
@@ -8,6 +9,18 @@
 #include "hardware.h"
 
 void huggingface::tgi::backends::InitializeBackend() {
+    if(const auto TRTLLM_LOG_LEVEL_CSTR = std::getenv("TRTLLM_LOG_LEVEL")){
+        std::string log_level(TRTLLM_LOG_LEVEL_CSTR);
+        std::transform(log_level.begin(), log_level.end(), log_level.begin(), [](unsigned  char c) {
+            return std::tolower(c);
+        });
+
+        if(log_level == "debug")
+            spdlog::set_level(spdlog::level::debug);
+        else
+            spdlog::set_level(spdlog::level::info);
+    }
+
     SPDLOG_INFO("Initializing Backend...");
     nvmlInit_v2();
     initTrtLlmPlugins();
@@ -91,7 +104,13 @@ huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
 
 [[nodiscard("Returned number of requests needs to be consumed")]]
 size_t huggingface::tgi::backends::TensorRtLlmBackend::NumResponsesReady() const {
-    return executor.getNumResponsesReady();
+    const auto numResponses = executor.getNumResponsesReady();
+
+#ifdef NDEBUG
+    if(numResponses > 0) SPDLOG_INFO(FMT_STRING("Num responses ready: {:d}"), numResponses);
+#endif
+
+    return numResponses;
 }
 
 [[nodiscard("Returned request id needs to be provided back to gather generated tokens")]]
@@ -123,10 +142,18 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
     const auto maxNewTokensChecked = static_cast<tle::SizeType32>(
             std::min(maxNewTokens, static_cast<uint32_t>(maxNumTokens - tokens.size())));
 
+#ifdef NDEBUG
+    SPDLOG_INFO(
+        FMT_STRING("Sampling config: topK={:d}, topP={:d}, temperature={:d}, repetition_penalty={:d}, frequency_penalty={:d}, seed={:d}"),
+        topK, topP, temperature, repetition_penalty, frequency_penalty, seed
+    )
+    SPDLOG_INFO(FMT_STRING("Asking for max_new_tokens={:d}"), maxNewTokensChecked);
+#endif
+
     const auto sampling = GetSamplingConfig(topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
     return executor.enqueueRequest(tle::Request{tokens, maxNewTokensChecked, true, sampling, OUTPUT_CONFIG});
 }
 
 std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::PullNewTokens() {
-    return std::move(executor.awaitResponses());
+    return executor.awaitResponses();
 }
