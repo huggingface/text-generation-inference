@@ -951,6 +951,8 @@ fn shard_manager(
             if let Ok(n) = stdin.read(&mut buffer) {
                 if n > 0 {
                     let _ = pstdin.write_all(&buffer[..n]);
+                } else {
+                    break;
                 }
             }
         }
@@ -1092,6 +1094,8 @@ fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
                         }
                     }
                 }
+            } else {
+                break;
             }
         }
     }
