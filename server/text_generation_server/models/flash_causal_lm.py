@@ -46,7 +46,7 @@ from text_generation_server.models.globals import (
     TGI_WIGGLE_ROOM,
     get_adapter_to_index,
 )
-from text_generation_server.layers.attention import KVCache, Seqlen, SUPPORTS_WINDOWING
+from text_generation_server.layers.attention import KVCache, Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 from text_generation_server.utils.quantization import get_loader
@@ -993,21 +993,6 @@ class FlashCausalLM(Model):
         )
 
         prefix = ""
-        if getattr(config, "sliding_window", None) is not None and SUPPORTS_WINDOWING:
-            set_sliding_window(config.sliding_window)
-        else:
-            config.sliding_window = None
-
-        text_config = getattr(config, "text_config", None)
-        if text_config:
-            if (
-                getattr(text_config, "sliding_window", None) is not None
-                and SUPPORTS_WINDOWING
-            ):
-                set_sliding_window(text_config.sliding_window)
-            else:
-                text_config.sliding_window = None
-
         model = model_class(prefix, config, weights)
         torch.distributed.barrier(group=self.process_group)
 
@@ -1015,6 +1000,11 @@ class FlashCausalLM(Model):
         text_config = getattr(config, "text_config", None)
         if text_config is not None:
             config = text_config
+
+        if getattr(config, "sliding_window", None) is not None:
+            set_sliding_window(config.sliding_window)
+        else:
+            config.sliding_window = None
 
         self.num_layers = config.num_hidden_layers
         self.num_heads = config.num_attention_heads // self.process_group.size()

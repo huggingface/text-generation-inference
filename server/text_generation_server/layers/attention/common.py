@@ -66,7 +66,7 @@ else:
         max_k: int
 
         def clamp(self, max):
-            if SYSTEM == "rocm":
+            if SYSTEM == "rocm" or SYSTEM == "ipex":
                 return self
             raise NotImplementedError("Not implemented seqlen for paged")
             return Seqlen(torch.clamp(self.input_lengths, max=max))
