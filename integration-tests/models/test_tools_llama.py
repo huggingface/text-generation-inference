@@ -207,11 +207,20 @@ async def test_flash_llama_grammar_tools_stream(
     )
 
     count = 0
+    tool_calls_generated = ""
+    last_response = None
     async for response in responses:
         count += 1
+        tool_calls_generated += response.choices[0].delta.tool_calls.function.arguments
+        last_response = response
+        assert response.choices[0].delta.content is None
 
+    assert (
+        tool_calls_generated
+        == '{"function": {"_name": "get_current_weather", "format": "celsius", "location": "Paris, France"}}<|eot_id|>'
+    )
     assert count == 28
-    assert response == response_snapshot
+    assert last_response == response_snapshot
 
 
 @pytest.mark.asyncio
@@ -227,18 +236,94 @@ async def test_flash_llama_grammar_tools_insufficient_information(
         messages=[
             {
                 "role": "system",
-                "content": "STRICTLY ONLY RESPOND IF THE USER ASKS A WEATHER RELATED QUESTION",
+                "content": "You're a helpful assistant! Answer the users question best you can.",
+            },
+            {
+                "role": "user",
+                "content": "Who are you?",
+            },
+        ],
+        stream=False,
+    )
+
+    assert responses.choices[0].message.tool_calls is None
+    assert responses.choices[0].message.content == "I am an AI assistant"
+
+    assert responses == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_grammar_tools_insufficient_information_stream(
+    flash_llama_grammar_tools, response_snapshot
+):
+    responses = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=24,
+        tools=tools,
+        tool_choice="auto",
+        messages=[
+            {
+                "role": "system",
+                "content": "You're a helpful assistant! Answer the users question best you can.",
+            },
+            {
+                "role": "user",
+                "content": "Who are you?",
+            },
+        ],
+        stream=True,
+    )
+
+    count = 0
+    content_generated = ""
+    last_response = None
+    async for response in responses:
+        count += 1
+        content_generated += response.choices[0].delta.content
+        last_response = response
+        assert response.choices[0].delta.tool_calls is None
+
+    assert count == 5
+    assert content_generated == "I am an AI assistant"
+    assert last_response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_grammar_tools_sea_creatures_stream(
+    flash_llama_grammar_tools, response_snapshot
+):
+    responses = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=24,
+        tools=tools,
+        tool_choice="auto",
+        messages=[
+            {
+                "role": "system",
+                "content": "You're a helpful assistant! Answer the users question best you can. If the question is not answerable by the tools, just generate a response.",
             },
             {
                 "role": "user",
                 "content": "Tell me a story about 3 sea creatures",
             },
         ],
-        stream=False,
+        stream=True,
     )
 
-    assert responses.choices[0].message.content is None
+    count = 0
+    content_generated = ""
+    last_response = None
+    async for response in responses:
+        count += 1
+        content_generated += response.choices[0].delta.content
+        last_response = response
+        assert response.choices[0].delta.tool_calls is None
+
+    assert count == 62
     assert (
-        responses.choices[0].message.tool_calls[0]["function"]["name"] == "notify_error"
+        content_generated
+        == "Once upon a time, in the ocean, there lived three sea creatures. There was a wise old octopus named Bob, a mischievous seagull named Sam, and a gentle sea turtle named Luna. They all lived together in a beautiful coral reef, surrounded by colorful fish and swaying sea fans"
     )
-    assert responses == response_snapshot
+    assert last_response == response_snapshot

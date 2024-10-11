@@ -1269,12 +1269,12 @@ files = [
 
 [[package]]
 name = "moe-kernels"
-version = "0.4.0"
+version = "0.6.0"
 description = "MoE kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "moe_kernels-0.4.0+cu123torch2.4-cp310-cp310-linux_x86_64.whl", hash = "sha256:3fc0475bb3b9c09bbf08f6f6e9767d10eaba55b558f67a605fe70ae0cbb5e6a4"},
+    {file = "moe_kernels-0.6.0+cu123torch2.4-cp310-cp310-linux_x86_64.whl", hash = "sha256:f28fd2a56c3ac7bfe74bc44cc7c8c0791a2644ad689b084ea4ed6decb7f41c25"},
 ]
 
 [package.dependencies]
@@ -1284,16 +1284,16 @@ triton = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/moe-kernels/releases/download/v0.4.0/moe_kernels-0.4.0+cu123torch2.4-cp310-cp310-linux_x86_64.whl"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.6.0/moe_kernels-0.6.0+cu123torch2.4-cp310-cp310-linux_x86_64.whl"
 
 [[package]]
 name = "moe-kernels"
-version = "0.4.0"
+version = "0.6.0"
 description = "MoE kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "moe_kernels-0.4.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl", hash = "sha256:8ca72a064ceb84a23a3437cc6e6363907ad41588877f6acb1febc010fc7beb22"},
+    {file = "moe_kernels-0.6.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl", hash = "sha256:db475948fd9f7a8647aa3f73256ff4d3bb111425305bcd0b0d3559ccc75b8937"},
 ]
 
 [package.dependencies]
@@ -1303,16 +1303,16 @@ triton = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/moe-kernels/releases/download/v0.4.0/moe_kernels-0.4.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.6.0/moe_kernels-0.6.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl"
 
 [[package]]
 name = "moe-kernels"
-version = "0.4.0"
+version = "0.6.0"
 description = "MoE kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "moe_kernels-0.4.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl", hash = "sha256:d302d6b16bb4905b2312dc68da6a6f51e87d0cd3c4bf1f23d995501162399a8e"},
+    {file = "moe_kernels-0.6.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl", hash = "sha256:364be07c06aafbab1f51d9e26d9a4ff658defe1462a4c645abaf7b895ed163a8"},
 ]
 
 [package.dependencies]
@@ -1322,16 +1322,16 @@ triton = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/moe-kernels/releases/download/v0.4.0/moe_kernels-0.4.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.6.0/moe_kernels-0.6.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl"
 
 [[package]]
 name = "moe-kernels"
-version = "0.4.0"
+version = "0.6.0"
 description = "MoE kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "moe_kernels-0.4.0+cu123torch2.4-cp39-cp39-linux_x86_64.whl", hash = "sha256:6aee3e723efa5113c338b40e6cb20fa62da6c442c65c1a6cc97751d34158a93a"},
+    {file = "moe_kernels-0.6.0+cu123torch2.4-cp39-cp39-linux_x86_64.whl", hash = "sha256:81e7fa25fb5ed5336f5151994f5e3f600df7e166fe013576968c59415e442894"},
 ]
 
 [package.dependencies]
@@ -1341,7 +1341,7 @@ triton = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/moe-kernels/releases/download/v0.4.0/moe_kernels-0.4.0+cu123torch2.4-cp39-cp39-linux_x86_64.whl"
+url = "https://github.com/danieldk/moe-kernels/releases/download/v0.6.0/moe_kernels-0.6.0+cu123torch2.4-cp39-cp39-linux_x86_64.whl"
 
 [[package]]
 name = "mpmath"
@@ -3402,11 +3402,6 @@ files = [
     {file = "triton-3.0.0-1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:34e509deb77f1c067d8640725ef00c5cbfcb2052a1a3cb6a6d343841f92624eb"},
     {file = "triton-3.0.0-1-cp38-cp38-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:bcbf3b1c48af6a28011a5c40a5b3b9b5330530c3827716b5fbf6d7adcc1e53e9"},
     {file = "triton-3.0.0-1-cp39-cp39-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:6e5727202f7078c56f91ff13ad0c1abab14a0e7f2c87e91b12b6f64f3e8ae609"},
-    {file = "triton-3.0.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:39b052da883351fdf6be3d93cedae6db3b8e3988d3b09ed221bccecfa9612230"},
-    {file = "triton-3.0.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:cd34f19a8582af96e6291d4afce25dac08cb2a5d218c599163761e8e0827208e"},
-    {file = "triton-3.0.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0d5e10de8c011adeb7c878c6ce0dd6073b14367749e34467f1cff2bde1b78253"},
-    {file = "triton-3.0.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e8903767951bf86ec960b4fe4e21bc970055afc65e9d57e916d79ae3c93665e3"},
-    {file = "triton-3.0.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:41004fb1ae9a53fcb3e970745feb87f0e3c94c6ce1ba86e95fa3b8537894bef7"},
 ]
 
 [package.dependencies]

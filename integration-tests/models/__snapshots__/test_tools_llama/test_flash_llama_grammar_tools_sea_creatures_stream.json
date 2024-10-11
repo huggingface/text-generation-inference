@@ -1,0 +1,20 @@
+{
+  "choices": [
+    {
+      "delta": {
+        "content": " fans",
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "finish_reason": null,
+      "index": 0,
+      "logprobs": null
+    }
+  ],
+  "created": 1728497461,
+  "id": "",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "object": "chat.completion.chunk",
+  "system_fingerprint": "2.3.2-dev0-native",
+  "usage": null
+}

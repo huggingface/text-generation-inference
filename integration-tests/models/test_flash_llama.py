@@ -15,7 +15,7 @@ async def flash_llama(flash_llama_handle):
 
 @pytest.mark.asyncio
 @pytest.mark.private
-async def test_flash_llama(flash_llama, response_snapshot):
+async def test_flash_llama_simple(flash_llama, response_snapshot):
     response = await flash_llama.generate(
         "Test request", max_new_tokens=10, decoder_input_details=True
     )

@@ -13,3 +13,6 @@ pytest = "^7.4.0"
 pytest-asyncio = "^0.21.1"
 docker = "^7"
 numpy = "^1.20"
+
+[tool.isort]
+profile = "black"
