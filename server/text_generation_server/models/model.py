@@ -72,6 +72,12 @@ class Model(ABC):
                 "Prefill chunking will be turned off",
             )
             support_chunking = False
+        if ATTENTION not in ["flashinfer", "flashdecoding"] and support_chunking:
+            log_master(
+                logger.warning,
+                "Prefill chunking is only supported with `flashinfer` or `flashdecoding` attention types.",
+            )
+            support_chunking = False
 
         self.support_chunking = support_chunking
         set_support_chunking(support_chunking)
