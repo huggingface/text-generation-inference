@@ -2245,18 +2245,12 @@
       "ToolType": {
         "oneOf": [
           {
-            "type": "string",
-            "description": "Means the model can pick between generating a message or calling one or more tools.",
-            "enum": [
-              "auto"
-            ]
+            "type": "object",
+            "default": null,
+            "nullable": true
           },
           {
-            "type": "string",
-            "description": "Means the model will not call any tool and instead generates a message.",
-            "enum": [
-              "none"
-            ]
+            "type": "string"
           },
           {
             "type": "object",
@@ -2271,25 +2265,10 @@
           },
           {
             "type": "object",
-            "required": [
-              "type",
-              "function"
-            ],
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "function"
-                ]
-              },
-              "function": {
-                "$ref": "#/components/schemas/FunctionName"
-              }
-            }
+            "default": null,
+            "nullable": true
           }
-        ],
-        "description": "Controls which (if any) tool is called by the model.",
-        "example": "auto"
+        ]
       },
       "Url": {
         "type": "object",
