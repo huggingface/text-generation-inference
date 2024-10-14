@@ -1,7 +1,7 @@
 use crate::infer::InferError;
 use crate::{
-    FunctionDefinition, FunctionRef, FunctionsMap, JsonSchemaTool, Properties, Tool, ToolChoice,
-    ToolType,
+    ChatCompletionToolChoiceOption, FunctionDefinition, FunctionRef, FunctionsMap, JsonSchemaTool,
+    Properties, Tool,
 };
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -20,44 +20,47 @@ impl ToolGrammar {
 
     pub fn apply(
         tools: Vec<Tool>,
-        tool_choice: ToolChoice,
+        tool_choice: ChatCompletionToolChoiceOption,
     ) -> Result<(Vec<Tool>, Option<JsonSchemaTool>), InferError> {
         // if no tools are provided, we return None
         if tools.is_empty() {
             return Ok((tools, None));
         }
 
-        let tool_choice = tool_choice.0.unwrap_or(ToolType::OneOf);
-
         let mut tools = tools.clone();
 
-        // add the no_tool function to the tools
-        let no_tool = Tool {
-            r#type: "function".to_string(),
-            function: FunctionDefinition {
-                name: "no_tool".to_string(),
-                description: Some("Open ened response with no specific tool selected".to_string()),
-                arguments: json!({
-                    "type": "object",
-                    "properties": {
-                        "content": {
-                            "type": "string",
-                            "description": "The response content",
-                        }
-                    },
-                    "required": ["content"]
-                }),
-            },
-        };
-        tools.push(no_tool);
+        // add the no_tool function to the tools as long as we are not required to use a specific tool
+        if tool_choice != ChatCompletionToolChoiceOption::Required {
+            let no_tool = Tool {
+                r#type: "function".to_string(),
+                function: FunctionDefinition {
+                    name: "no_tool".to_string(),
+                    description: Some(
+                        "Open ended response with no specific tool selected".to_string(),
+                    ),
+                    arguments: json!({
+                        "type": "object",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "The response content",
+                            }
+                        },
+                        "required": ["content"]
+                    }),
+                },
+            };
+            tools.push(no_tool);
+        }
 
         // if tools are provided and no tool_choice we default to the OneOf
         let tools_to_use = match tool_choice {
-            ToolType::Function(function) => {
+            ChatCompletionToolChoiceOption::Function(function) => {
                 vec![Self::find_tool_by_name(&tools, &function.name)?]
             }
-            ToolType::OneOf => tools.clone(),
-            ToolType::NoTool => return Ok((tools, None)),
+            ChatCompletionToolChoiceOption::Required => tools.clone(),
+            ChatCompletionToolChoiceOption::Auto => tools.clone(),
+            ChatCompletionToolChoiceOption::NoTool => return Ok((tools, None)),
         };
 
         let functions: HashMap<String, serde_json::Value> = tools_to_use

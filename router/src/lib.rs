@@ -892,8 +892,8 @@ pub(crate) struct ChatRequest {
 
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
     #[serde(default)]
-    #[schema(nullable = true, example = "null")]
-    pub tool_choice: ToolChoice,
+    #[schema(nullable = true, default = "null", example = "null")]
+    pub tool_choice: Option<ChatCompletionToolChoiceOption>,
 
     /// Response format constraints for the generation.
     ///
@@ -949,8 +949,18 @@ impl ChatRequest {
         let (inputs, grammar, using_tools) = prepare_chat_input(
             infer,
             response_format,
-            tools,
-            tool_choice,
+            tools.clone(),
+            // unwrap or default (use "auto" if tools are present, and "none" if not)
+            tool_choice.map_or_else(
+                || {
+                    if tools.is_some() {
+                        ChatCompletionToolChoiceOption::Auto
+                    } else {
+                        ChatCompletionToolChoiceOption::NoTool
+                    }
+                },
+                |t| t,
+            ),
             &tool_prompt,
             guideline,
             messages,
@@ -999,22 +1009,6 @@ pub fn default_tool_prompt() -> String {
     "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
-#[schema(example = "auto")]
-/// Controls which (if any) tool is called by the model.
-pub enum ToolType {
-    /// Means the model can pick between generating a message or calling one or more tools.
-    #[schema(rename = "auto")]
-    OneOf,
-    /// Means the model will not call any tool and instead generates a message.
-    #[schema(rename = "none")]
-    NoTool,
-    /// Forces the model to call a specific tool.
-    #[schema(rename = "function")]
-    #[serde(alias = "function")]
-    Function(FunctionName),
-}
-
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "type")]
 pub enum TypedChoice {
@@ -1027,29 +1021,59 @@ pub struct FunctionName {
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema, Default)]
 #[serde(from = "ToolTypeDeserializer")]
-pub struct ToolChoice(pub Option<ToolType>);
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum ToolTypeDeserializer {
-    Null,
-    String(String),
-    ToolType(TypedChoice),
+pub enum ChatCompletionToolChoiceOption {
+    /// Means the model can pick between generating a message or calling one or more tools.
+    #[schema(rename = "auto")]
+    Auto,
+    /// Means the model will not call any tool and instead generates a message.
+    #[schema(rename = "none")]
+    #[default]
+    NoTool,
+    /// Means the model must call one or more tools.
+    #[schema(rename = "required")]
+    Required,
+    /// Forces the model to call a specific tool.
+    #[schema(rename = "function")]
+    #[serde(alias = "function")]
+    Function(FunctionName),
 }
 
-impl From<ToolTypeDeserializer> for ToolChoice {
+#[derive(Deserialize, ToSchema)]
+#[serde(untagged)]
+/// Controls which (if any) tool is called by the model.
+/// - `none` means the model will not call any tool and instead generates a message.
+/// - `auto` means the model can pick between generating a message or calling one or more tools.
+/// - `required` means the model must call one or more tools.
+/// - Specifying a particular tool via `{\"type\": \"function\", \"function\": {\"name\": \"my_function\"}}` forces the model to call that tool.
+///
+/// `none` is the default when no tools are present. `auto` is the default if tools are present."
+enum ToolTypeDeserializer {
+    /// `none` means the model will not call any tool and instead generates a message.
+    Null,
+
+    /// `auto` means the model can pick between generating a message or calling one or more tools.
+    #[schema(example = "auto")]
+    String(String),
+
+    /// Specifying a particular tool forces the model to call that tool, with structured function details.
+    #[schema(example = r#"{"type": "function", "function": {"name": "my_function"}}"#)]
+    TypedChoice(TypedChoice),
+}
+
+impl From<ToolTypeDeserializer> for ChatCompletionToolChoiceOption {
     fn from(value: ToolTypeDeserializer) -> Self {
         match value {
-            ToolTypeDeserializer::Null => ToolChoice(None),
+            ToolTypeDeserializer::Null => ChatCompletionToolChoiceOption::NoTool,
             ToolTypeDeserializer::String(s) => match s.as_str() {
-                "none" => ToolChoice(Some(ToolType::NoTool)),
-                "auto" => ToolChoice(Some(ToolType::OneOf)),
-                _ => ToolChoice(Some(ToolType::Function(FunctionName { name: s }))),
+                "none" => ChatCompletionToolChoiceOption::NoTool,
+                "auto" => ChatCompletionToolChoiceOption::Auto,
+                "required" => ChatCompletionToolChoiceOption::Required,
+                _ => ChatCompletionToolChoiceOption::Function(FunctionName { name: s }),
             },
-            ToolTypeDeserializer::ToolType(TypedChoice::Function { function }) => {
-                ToolChoice(Some(ToolType::Function(function)))
+            ToolTypeDeserializer::TypedChoice(TypedChoice::Function { function }) => {
+                ChatCompletionToolChoiceOption::Function(function)
             }
         }
     }
@@ -1661,20 +1685,27 @@ mod tests {
     fn tool_choice_formats() {
         #[derive(Deserialize)]
         struct TestRequest {
-            tool_choice: ToolChoice,
+            tool_choice: ChatCompletionToolChoiceOption,
         }
 
         let none = r#"{"tool_choice":"none"}"#;
         let de_none: TestRequest = serde_json::from_str(none).unwrap();
-        assert_eq!(de_none.tool_choice, ToolChoice(Some(ToolType::NoTool)));
+        assert_eq!(de_none.tool_choice, ChatCompletionToolChoiceOption::NoTool);
 
         let auto = r#"{"tool_choice":"auto"}"#;
         let de_auto: TestRequest = serde_json::from_str(auto).unwrap();
-        assert_eq!(de_auto.tool_choice, ToolChoice(Some(ToolType::OneOf)));
+        assert_eq!(de_auto.tool_choice, ChatCompletionToolChoiceOption::Auto);
 
-        let ref_choice = ToolChoice(Some(ToolType::Function(FunctionName {
+        let auto = r#"{"tool_choice":"required"}"#;
+        let de_auto: TestRequest = serde_json::from_str(auto).unwrap();
+        assert_eq!(
+            de_auto.tool_choice,
+            ChatCompletionToolChoiceOption::Required
+        );
+
+        let ref_choice = ChatCompletionToolChoiceOption::Function(FunctionName {
             name: "myfn".to_string(),
-        })));
+        });
 
         let named = r#"{"tool_choice":"myfn"}"#;
         let de_named: TestRequest = serde_json::from_str(named).unwrap();

@@ -28,7 +28,7 @@ use crate::{
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
-use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
+use crate::{ChatCompletionToolChoiceOption, FunctionDefinition, HubPreprocessorConfig, ToolCall};
 use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
@@ -1551,12 +1551,11 @@ GrammarType,
 Usage,
 StreamOptions,
 DeltaToolCall,
-ToolType,
 Tool,
 ToolCall,
 Function,
 FunctionDefinition,
-ToolChoice,
+ChatCompletionToolChoiceOption,
 ModelInfo,
 )
 ),
@@ -2522,7 +2521,7 @@ pub(crate) fn prepare_chat_input(
     infer: &Infer,
     response_format: Option<GrammarType>,
     tools: Option<Vec<Tool>>,
-    tool_choice: ToolChoice,
+    tool_choice: ChatCompletionToolChoiceOption,
     tool_prompt: &str,
     guideline: Option<String>,
     messages: Vec<Message>,
@@ -2660,7 +2659,7 @@ mod tests {
             &infer,
             response_format,
             tools,
-            ToolChoice(None),
+            ChatCompletionToolChoiceOption::Auto,
             tool_prompt,
             guideline,
             messages,
