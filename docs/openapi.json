@@ -829,6 +829,42 @@
           }
         }
       },
+      "ChatCompletionToolChoiceOption": {
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Means the model can pick between generating a message or calling one or more tools.",
+            "enum": [
+              "auto"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "Means the model will not call any tool and instead generates a message.",
+            "enum": [
+              "none"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "Means the model must call one or more tools.",
+            "enum": [
+              "required"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "function"
+            ],
+            "properties": {
+              "function": {
+                "$ref": "#/components/schemas/FunctionName"
+              }
+            }
+          }
+        ]
+      },
       "ChatCompletionTopLogprob": {
         "type": "object",
         "required": [
@@ -963,9 +999,10 @@
           "tool_choice": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ToolChoice"
+                "$ref": "#/components/schemas/ChatCompletionToolChoiceOption"
               }
             ],
+            "default": "null",
             "nullable": true
           },
           "tool_prompt": {
@@ -2102,45 +2139,6 @@
             }
           }
         }
-      },
-      "ToolChoice": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ToolType"
-          }
-        ],
-        "nullable": true
-      },
-      "ToolType": {
-        "oneOf": [
-          {
-            "type": "string",
-            "description": "Means the model can pick between generating a message or calling one or more tools.",
-            "enum": [
-              "auto"
-            ]
-          },
-          {
-            "type": "string",
-            "description": "Means the model will not call any tool and instead generates a message.",
-            "enum": [
-              "none"
-            ]
-          },
-          {
-            "type": "object",
-            "required": [
-              "function"
-            ],
-            "properties": {
-              "function": {
-                "$ref": "#/components/schemas/FunctionName"
-              }
-            }
-          }
-        ],
-        "description": "Controls which (if any) tool is called by the model.",
-        "example": "auto"
       },
       "Url": {
         "type": "object",
