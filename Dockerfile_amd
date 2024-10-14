@@ -330,8 +330,5 @@ ENV ATTENTION=paged
 ENV USE_PREFIX_CACHING=0
 ENV ROCM_USE_SKINNY_GEMM=1
 
-COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
-RUN chmod +x /tgi-entrypoint.sh
-
-ENTRYPOINT ["/tgi-entrypoint.sh"]
+ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]

@@ -295,8 +295,5 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base
 
-COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
-RUN chmod +x /tgi-entrypoint.sh
-
-ENTRYPOINT ["/tgi-entrypoint.sh"]
+ENTRYPOINT ["text-generation-launcher"]
 # CMD ["--json-output"]
