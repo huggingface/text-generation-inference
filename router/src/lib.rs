@@ -972,12 +972,11 @@ pub enum ToolType {
     Function(FunctionName),
 }
 
-
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(tag = "type")]
 pub enum TypedChoice {
     #[serde(rename = "function")]
-    Function{function: FunctionName},
+    Function { function: FunctionName },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -995,9 +994,8 @@ enum ToolTypeDeserializer {
     Null,
     String(String),
     ToolType(ToolType),
-    TypedChoice(TypedChoice) //this is the OpenAI schema
+    TypedChoice(TypedChoice), //this is the OpenAI schema
 }
-
 
 impl From<ToolTypeDeserializer> for ToolChoice {
     fn from(value: ToolTypeDeserializer) -> Self {
@@ -1008,7 +1006,9 @@ impl From<ToolTypeDeserializer> for ToolChoice {
                 "auto" => ToolChoice(Some(ToolType::OneOf)),
                 _ => ToolChoice(Some(ToolType::Function(FunctionName { name: s }))),
             },
-            ToolTypeDeserializer::TypedChoice(TypedChoice::Function{function}) => ToolChoice(Some(ToolType::Function(function))),
+            ToolTypeDeserializer::TypedChoice(TypedChoice::Function { function }) => {
+                ToolChoice(Some(ToolType::Function(function)))
+            }
             ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
         }
     }
@@ -1619,7 +1619,6 @@ mod tests {
 
     #[test]
     fn tool_choice_formats() {
-
         #[derive(Deserialize)]
         struct TestRequest {
             tool_choice: ToolChoice,
@@ -1633,7 +1632,9 @@ mod tests {
         let de_auto: TestRequest = serde_json::from_str(auto).unwrap();
         assert_eq!(de_auto.tool_choice, ToolChoice(Some(ToolType::OneOf)));
 
-        let ref_choice = ToolChoice(Some(ToolType::Function(FunctionName { name: "myfn".to_string() })));
+        let ref_choice = ToolChoice(Some(ToolType::Function(FunctionName {
+            name: "myfn".to_string(),
+        })));
 
         let named = r#"{"tool_choice":"myfn"}"#;
         let de_named: TestRequest = serde_json::from_str(named).unwrap();
