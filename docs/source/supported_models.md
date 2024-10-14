@@ -34,4 +34,18 @@ Text Generation Inference enables serving optimized models. The following sectio
 - [Idefics](https://huggingface.co/HuggingFaceM4/idefics-9b) (Multimodal)
 
 
-If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs, but performance isn't guaranteed for non-optimized models. Read more about [Non-core Model Serving](../basic_tutorials/non_core_models).
+
+If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs, but performance isn't guaranteed for non-optimized models:
+
+```python
+# for causal LMs/text-generation models
+AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
+# or, for text-to-text generation models
+AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")
+```
+
+If you wish to serve a supported model that already exists on a local folder, just point to the local folder.
+
+```bash
+text-generation-launcher --model-id <PATH-TO-LOCAL-BLOOM>
+```

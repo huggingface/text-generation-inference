@@ -9,6 +9,8 @@ TEMPLATE = """
 
 Text Generation Inference enables serving optimized models. The following sections list which models (VLMs & LLMs) are supported.
 
+SUPPORTED_MODELS
+
 
 If the above list lacks the model you would like to serve, depending on the model's pipeline type, you can try to initialize and serve the model anyways to see how well it performs, but performance isn't guaranteed for non-optimized models:
 
