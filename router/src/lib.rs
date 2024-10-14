@@ -1036,8 +1036,7 @@ pub struct ToolChoice(pub Option<ToolType>);
 enum ToolTypeDeserializer {
     Null,
     String(String),
-    ToolType(ToolType),
-    TypedChoice(TypedChoice), //this is the OpenAI schema
+    ToolType(TypedChoice),
 }
 
 impl From<ToolTypeDeserializer> for ToolChoice {
@@ -1049,10 +1048,9 @@ impl From<ToolTypeDeserializer> for ToolChoice {
                 "auto" => ToolChoice(Some(ToolType::OneOf)),
                 _ => ToolChoice(Some(ToolType::Function(FunctionName { name: s }))),
             },
-            ToolTypeDeserializer::TypedChoice(TypedChoice::Function { function }) => {
+            ToolTypeDeserializer::ToolType(TypedChoice::Function { function }) => {
                 ToolChoice(Some(ToolType::Function(function)))
             }
-            ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
         }
     }
 }
@@ -1681,10 +1679,6 @@ mod tests {
         let named = r#"{"tool_choice":"myfn"}"#;
         let de_named: TestRequest = serde_json::from_str(named).unwrap();
         assert_eq!(de_named.tool_choice, ref_choice);
-
-        let old_named = r#"{"tool_choice":{"function":{"name":"myfn"}}}"#;
-        let de_old_named: TestRequest = serde_json::from_str(old_named).unwrap();
-        assert_eq!(de_old_named.tool_choice, ref_choice);
 
         let openai_named = r#"{"tool_choice":{"type":"function","function":{"name":"myfn"}}}"#;
         let de_openai_named: TestRequest = serde_json::from_str(openai_named).unwrap();
