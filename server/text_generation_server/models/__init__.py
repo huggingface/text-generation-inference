@@ -342,22 +342,19 @@ def get_model(
     model_type = config_dict.get("model_type", None)
 
     quantization_config = config_dict.get("quantization_config", None)
-    compression_config = config_dict.get("compression_config", None)
     if quantization_config is not None and quantize is None:
         method = quantization_config.get("quant_method", None)
+        config_groups = quantization_config.get("config_groups", None)
         if method in {"gptq", "awq", "exl2"}:
             log_master(logger.info, f"Auto selecting quantization method {method}")
             quantize = method
         elif method == "fbgemm_fp8" or method == "fp8":
             log_master(logger.info, "Auto selecting quantization method fp8")
             quantize = "fp8"
-        else:
-            log_master(logger.warning, f"Unknown quantization method {method}")
-    elif compression_config is not None:
-        # TODO: at some point we should probably fully parse the compression
-        # configuration to know which parameters are compressed.
-        config_groups = compression_config.get("config_groups")
-        if config_groups is not None:
+        elif config_groups is not None:
+            # Compression config renamed to quantization_config
+            # TODO: at some point we should probably fully parse the compression
+            # configuration to know which parameters are compressed.
             for _, group in config_groups.items():
                 weights_config = group.get("weights")
                 if weights_config is not None:
@@ -370,6 +367,8 @@ def get_model(
                         )
                         quantize = "fp8"
                         break
+        else:
+            log_master(logger.warning, f"Unknown quantization method {method}")
 
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq", "marlin"]:

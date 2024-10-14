@@ -123,12 +123,12 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 .reshape(-1)
                 .expand(w.shape[0])
             )
-            try:
+
+            input_scale = None
+            if weights.has_tensor(f"{prefix}.input_scale"):
                 input_scale = weights.get_tensor(
                     f"{prefix}.input_scale", to_dtype=False
                 ).reshape(-1)
-            except Exception:
-                input_scale = None
 
             return Fp8Weight(
                 weight=w,
@@ -163,7 +163,9 @@ class HybridFP8UnquantLoader(WeightsLoader):
                     to_dtype=False,
                 )
             scale = scale.reshape(-1).expand(w.shape[0])
-            try:
+
+            input_scale = None
+            if weights.get_tensor(f"{prefix}.input_scale"):
                 input_scale = weights.get_tensor(
                     f"{prefix}.input_scale", to_dtype=False
                 )
@@ -175,8 +177,6 @@ class HybridFP8UnquantLoader(WeightsLoader):
                         to_dtype=False,
                     )
                 input_scale = input_scale.reshape(-1).max()
-            except Exception:
-                input_scale = None
 
             return Fp8Weight(
                 weight=w,
@@ -207,14 +207,17 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 for p, shape in zip(prefixes, shapes)
             ]
             scale = torch.cat(scale, dim=0).reshape(-1)
-            try:
-                input_scale = [
-                    _load_scalar_or_matrix_scale(weights, f"{p}.input_scale", shape)
-                    for p, shape in zip(prefixes, shapes)
-                ]
-                input_scale = torch.cat(input_scale, dim=0).reshape(-1).max()
-            except Exception:
-                input_scale = None
+
+            input_scale = [
+                _load_scalar_or_matrix_scale(weights, f"{p}.input_scale", shape)
+                for p, shape in zip(prefixes, shapes)
+                if weights.has_tensor(f"{p}.input_scale")
+            ]
+            input_scale = (
+                torch.cat(input_scale, dim=0).reshape(-1).max()
+                if len(input_scale) != 0
+                else None
+            )
 
             return Fp8Weight(
                 weight=w,
@@ -237,12 +240,11 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 .reshape(-1)
                 .expand(w.shape[0])
             )
-            try:
+            input_scale = None
+            if weights.has_tensor(f"{prefix}.input_scale"):
                 input_scale = weights.get_tensor(
                     f"{prefix}.input_scale", to_dtype=False
                 ).reshape(-1)
-            except Exception:
-                input_scale = None
 
             return Fp8Weight(
                 weight=w,
@@ -272,12 +274,12 @@ class Fp8Weight(Weight):
         # memory. Can be non-contiguous when we e.g. expand from scalars.
         self.weight_scale = self.weight_scale.contiguous()
         return get_fp8_linear().from_fp8(
-            self.weight,
-            self.weight_scale,
-            self.input_scale,
-            self.activation_scale_ub,
-            bias,
-            self.dtype,
+            weight=self.weight,
+            scale=self.weight_scale,
+            dtype=self.dtype,
+            bias=bias,
+            input_scale=self.input_scale,
+            scale_upper_bound=self.activation_scale_ub,
         )
 
 
@@ -286,12 +288,12 @@ class Fp8Linear(torch.nn.Module):
 
     def __init__(
         self,
-        qweight,
-        scale,
-        input_scale,
-        scale_upper_bound,
-        bias,
-        dtype,
+        qweight: torch.Tensor,
+        scale: torch.Tensor,
+        dtype: torch.dtype,
+        bias: Optional[torch.Tensor] = None,
+        input_scale: Optional[torch.Tensor] = None,
+        scale_upper_bound: Optional[float] = None,
     ) -> None:
         super().__init__()
         if FBGEMM_MM_AVAILABLE:
@@ -327,14 +329,24 @@ class Fp8Linear(torch.nn.Module):
         return cls(
             qweight=qweight,
             scale=scale,
+            dtype=dtype,
+            bias=bias,
             input_scale=None,
             scale_upper_bound=None,
-            bias=bias,
-            dtype=dtype,
         )
 
     @classmethod
-    def from_fp8(cls, weight, scale, input_scale, scale_upper_bound, bias, dtype):
+    def from_fp8(
+        cls,
+        weight: torch.Tensor,
+        scale: torch.Tensor,
+        dtype: torch.dtype,
+        bias: Optional[torch.Tensor] = None,
+        **kwargs,
+    ) -> "Fp8Linear":
+        input_scale = kwargs.get("input_scale", None)
+        scale_upper_bound = kwargs.get("scale_upper_bound", None)
+
         if FBGEMM_DYN_AVAILABLE:
             # fbgemm needs float32 scales.
             scale = scale.float()
@@ -391,7 +403,7 @@ class Fp8Linear(torch.nn.Module):
                 bias=self.bias,
             )
 
-            if type(output) is tuple and len(output) == 2:
+            if isinstance(output, tuple) and len(output) == 2:
                 output = output[0]
         else:
             device_identity = None
@@ -405,7 +417,7 @@ class Fp8Linear(torch.nn.Module):
                 scale_b=device_identity,
                 out_dtype=torch.float32,
             )
-            if type(output) is tuple and len(output) == 2:
+            if isinstance(output, tuple) and len(output) == 2:
                 output = output[0]
 
             output = output * scale * self.scale.t()

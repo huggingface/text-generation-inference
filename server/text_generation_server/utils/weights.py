@@ -197,7 +197,7 @@ class Weights:
         slice_ = f.get_slice(tensor_name)
         return slice_
 
-    def _has_tensor(self, tensor_name: str):
+    def has_tensor(self, tensor_name: str):
         try:
             self.get_filename(tensor_name)
         except Exception:
