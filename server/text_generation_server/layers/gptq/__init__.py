@@ -36,7 +36,12 @@ class GPTQWeight(Weight):
                     "to use Exllama/GPTQ kernels for AWQ inference."
                 )
             try:
-                from text_generation_server.layers.awq.quantize.qmodule import WQLinear
+                if SYSTEM == "ipex":
+                    from text_generation_server.layers.awq.quantize.ipex import WQLinear
+                else:
+                    from text_generation_server.layers.awq.quantize.qmodule import (
+                        WQLinear,
+                    )
 
                 return WQLinear(
                     w_bit=self.bits,
@@ -60,7 +65,10 @@ class GPTQWeight(Weight):
 
             return ExllamaQuantLinear(self, bias)
         else:
-            from text_generation_server.layers.gptq.quant_linear import QuantLinear
+            if SYSTEM == "ipex":
+                from text_generation_server.layers.gptq.ipex import QuantLinear
+            else:
+                from text_generation_server.layers.gptq.quant_linear import QuantLinear
 
             return QuantLinear(
                 self.qweight,
