@@ -1,38 +1,26 @@
 {
   "choices": [
     {
-      "finish_reason": "eos_token",
+      "finish_reason": "stop",
       "index": 0,
       "logprobs": null,
       "message": {
-        "content": null,
+        "content": "I am an AI assistant",
         "name": null,
         "role": "assistant",
-        "tool_calls": [
-          {
-            "function": {
-              "arguments": {
-                "error": "Cannot get current weather forecast from specified location and temperature unit. Please try again with different options."
-              },
-              "description": null,
-              "name": "notify_error"
-            },
-            "id": 0,
-            "type": "function"
-          }
-        ]
+        "tool_calls": null
       },
       "usage": null
     }
   ],
-  "created": 1712852597,
+  "created": 1728497062,
   "id": "",
-  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-  "object": "text_completion",
-  "system_fingerprint": "1.4.5-native",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "2.3.2-dev0-native",
   "usage": {
-    "completion_tokens": 39,
-    "prompt_tokens": 496,
-    "total_tokens": 535
+    "completion_tokens": 23,
+    "prompt_tokens": 604,
+    "total_tokens": 627
   }
 }

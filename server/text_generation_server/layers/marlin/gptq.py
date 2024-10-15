@@ -43,7 +43,7 @@ def can_use_gptq_marlin(
         and quant_method in {"awq", "gptq"}
         and bits in GPTQ_MARLIN_BITS
         and groupsize in GPTQ_MARLIN_GROUP_SIZES
-        # We only suppord asymmetric quantization for AWQ.
+        # We only support asymmetric quantization for AWQ.
         and (sym or quant_method == "awq")
     )
 

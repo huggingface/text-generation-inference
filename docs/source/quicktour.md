@@ -17,8 +17,7 @@ docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data \
 
 <Tip>
 
-If you want to serve gated or private models, which provide
-controlled access to sensitive or proprietary content, refer to
+If you want to serve gated or private models, please refer to
 [this guide](https://huggingface.co/docs/text-generation-inference/en/basic_tutorials/gated_model_access)
 for detailed instructions.
 
@@ -97,7 +96,7 @@ curl 127.0.0.1:8080/generate \
 To see all possible deploy flags and options, you can use the `--help` flag. It's possible to configure the number of shards, quantization, generation parameters, and more.
 
 ```bash
-docker run ghcr.io/huggingface/text-generation-inference:2.2.0 --help
+docker run ghcr.io/huggingface/text-generation-inference:2.3.1 --help
 ```
 
 </Tip>

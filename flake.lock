@@ -978,11 +978,11 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1728029332,
-        "narHash": "sha256-j0RX3a67lvi2PC5w6J5DHTxM+l96J/OV5sAf34IUfUo=",
+        "lastModified": 1728381423,
+        "narHash": "sha256-gpHy1WtlA8ZTd8XmxsdCoDd4Z7DE7co37lH7P+nsADA=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "98049f853346ca780b81fee730715c90d33ac2b4",
+        "rev": "93123736c97e9f7bfe825bfaf3d7de0fc9a21a1e",
         "type": "github"
       },
       "original": {
