@@ -1,9 +1,4 @@
-use std::sync::LazyLock;
-
-pub static COMPUTE_CAPABILITY: LazyLock<Option<(usize, usize)>> =
-    LazyLock::new(get_cuda_capability);
-
-fn get_cuda_capability() -> Option<(usize, usize)> {
+pub fn get_cuda_capability() -> Option<(usize, usize)> {
     use pyo3::prelude::*;
 
     let py_get_capability = |py: Python| -> PyResult<(isize, isize)> {

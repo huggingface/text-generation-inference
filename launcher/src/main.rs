@@ -5,6 +5,7 @@ use hf_hub::{
 };
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
+use regex::Regex;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
@@ -66,7 +67,7 @@ fn get_config(
 }
 
 fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
-    let compute_capability = *gpu::COMPUTE_CAPABILITY;
+    let compute_capability = gpu::get_cuda_capability();
     let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
     let mut attention: Option<String> = std::env::var("ATTENTION").ok();
     if let Some(config) = config {
@@ -301,6 +302,22 @@ impl std::fmt::Display for Dtype {
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
+enum KVCacheDtype {
+    #[clap(name = "fp8_e5m2")]
+    Fp8e5m2,
+}
+
+impl std::fmt::Display for KVCacheDtype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KVCacheDtype::Fp8e5m2 => {
+                write!(f, "fp8_e5m2")
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
 enum RopeScaling {
     Linear,
     Dynamic,
@@ -400,6 +417,12 @@ struct Args {
     /// The dtype to be forced upon the model. This option cannot be used with `--quantize`.
     #[clap(long, env, value_enum)]
     dtype: Option<Dtype>,
+
+    /// Specify the dtype for the key-value cache. When this option is not provided,
+    /// the dtype of the model is used (typically `float16` or `bfloat16`). Currently
+    /// the only supported value is `fp8_e5m2` on CUDA.
+    #[clap(long, env, value_enum)]
+    kv_cache_dtype: Option<KVCacheDtype>,
 
     /// Whether you want to execute hub modelling code. Explicitly passing a `revision` is
     /// encouraged when loading a model with custom code to ensure no malicious code has been
@@ -669,6 +692,7 @@ fn shard_manager(
     quantize: Option<Quantization>,
     speculate: Option<usize>,
     dtype: Option<Dtype>,
+    kv_cache_dtype: Option<KVCacheDtype>,
     trust_remote_code: bool,
     uds_path: String,
     rank: usize,
@@ -740,6 +764,11 @@ fn shard_manager(
     if let Some(dtype) = dtype {
         shard_args.push("--dtype".to_string());
         shard_args.push(dtype.to_string())
+    }
+
+    if let Some(kv_cache_dtype) = kv_cache_dtype {
+        shard_args.push("--kv-cache-dtype".to_string());
+        shard_args.push(kv_cache_dtype.to_string())
     }
 
     // Model optional revision
@@ -915,19 +944,19 @@ fn shard_manager(
         }
     });
     // We read stdin in another thread as it seems that lines() can block in some cases
-    thread::spawn(move || {
-        let mut stdin = io::stdin(); // We get `Stdin` here.
-        loop {
-            let mut buffer = vec![0; 4096];
-            if let Ok(n) = stdin.read(&mut buffer) {
-                if n > 0 {
-                    let _ = pstdin.write_all(&buffer[..n]);
-                } else {
-                    break;
+    if LevelFilter::current() >= tracing::Level::DEBUG {
+        thread::spawn(move || {
+            let mut stdin = io::stdin(); // We get `Stdin` here.
+            loop {
+                let mut buffer = vec![0; 4096];
+                if let Ok(n) = stdin.read(&mut buffer) {
+                    if n > 0 {
+                        let _ = pstdin.write_all(&buffer[..n]);
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 
     let mut ready = false;
     let start_time = Instant::now();
@@ -1302,6 +1331,7 @@ fn spawn_shards(
         let otlp_service_name = args.otlp_service_name.clone();
         let speculate = args.speculate;
         let dtype = args.dtype;
+        let kv_cache_dtype = args.kv_cache_dtype;
         let trust_remote_code = args.trust_remote_code;
         let master_port = args.master_port;
         let disable_custom_kernels = args.disable_custom_kernels;
@@ -1320,6 +1350,7 @@ fn spawn_shards(
                 quantize,
                 speculate,
                 dtype,
+                kv_cache_dtype,
                 trust_remote_code,
                 uds_path,
                 rank,
@@ -1812,14 +1843,37 @@ fn main() -> Result<(), LauncherError> {
             if adapter.contains('=') {
                 continue;
             }
-            download_convert_model(
-                adapter,
-                None,
-                args.trust_remote_code,
-                args.huggingface_hub_cache.as_deref(),
-                args.weights_cache_override.as_deref(),
-                running.clone(),
-            )?;
+
+            let adapter = adapter.trim();
+
+            // check if adapter has more than 1 '@'
+            if adapter.matches('@').count() > 1 {
+                return Err(LauncherError::ArgumentValidation(format!(
+                    "Invalid LoRA adapter format: {}",
+                    adapter
+                )));
+            }
+
+            // capture adapter_id, path, revision in format of adapter_id=path@revision
+            let re = Regex::new(r"^([^=@]+)(?:=([^@]+))?(?:@(.+))?$").unwrap();
+            if let Some(caps) = re.captures(adapter) {
+                let adapter_id = caps.get(1).map_or("", |m| m.as_str());
+                let revision = caps.get(3).map(|m| m.as_str());
+
+                download_convert_model(
+                    adapter_id,
+                    revision,
+                    args.trust_remote_code,
+                    args.huggingface_hub_cache.as_deref(),
+                    args.weights_cache_override.as_deref(),
+                    running.clone(),
+                )?;
+            } else {
+                return Err(LauncherError::ArgumentValidation(format!(
+                    "Invalid LoRA adapter format: {}",
+                    adapter
+                )));
+            }
         }
     }
 

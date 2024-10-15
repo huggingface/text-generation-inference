@@ -4,3 +4,4 @@ server/transformers
 server/flash-attention
 cmake-build-debug/
 cmake-build-release/
+Dockerfile*

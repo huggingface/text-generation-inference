@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 3735,
+        "logprob": -11.0078125,
+        "text": "Test"
+      },
+      {
+        "id": 2159,
+        "logprob": -13.59375,
+        "text": "request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": -0.34838867,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 13940,
+        "logprob": -0.38916016,
+        "special": false,
+        "text": "``"
+      },
+      {
+        "id": 28832,
+        "logprob": 0.0,
+        "special": false,
+        "text": "`"
+      },
+      {
+        "id": 3371,
+        "logprob": -1.2529297,
+        "special": false,
+        "text": "json"
+      },
+      {
+        "id": 13,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 28751,
+        "logprob": 0.0,
+        "special": false,
+        "text": "{"
+      },
+      {
+        "id": 13,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 2287,
+        "logprob": 0.0,
+        "special": false,
+        "text": "   "
+      },
+      {
+        "id": 345,
+        "logprob": 0.0,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 3134,
+        "logprob": -0.640625,
+        "special": false,
+        "text": "request"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request\n```json\n{\n    \"request"
+}

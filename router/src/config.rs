@@ -146,6 +146,7 @@ pub enum Config {
     ClipVisionModel(ClipVisionModel),
     Mistral,
     Idefics,
+    Mllama,
     Idefics2(Idefics2),
     Ssm,
     GptBigcode,
@@ -159,6 +160,7 @@ pub enum Config {
     #[serde(rename = "phi-msft")]
     PhiMsft,
     Phi3,
+    PhiMoe,
     Llama,
     Baichuan,
     Paligemma(Paligemma),

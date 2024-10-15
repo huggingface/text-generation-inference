@@ -3,6 +3,8 @@
     title: Text Generation Inference
   - local: quicktour
     title: Quick Tour
+  - local: supported_models
+    title: Supported Models
   - local: installation_nvidia
     title: Using TGI with Nvidia GPUs
   - local: installation_amd
@@ -15,8 +17,7 @@
     title: Using TGI with Intel GPUs
   - local: installation
     title: Installation from source
-  - local: supported_models
-    title: Supported Models and Hardware
+
   - local: architecture
     title: Internal Architecture
   - local: usage_statistics

@@ -46,7 +46,7 @@ from text_generation_server.models.globals import (
     TGI_WIGGLE_ROOM,
     get_adapter_to_index,
 )
-from text_generation_server.layers.attention import Seqlen
+from text_generation_server.layers.attention import KVCache, Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
 from text_generation_server.utils.quantization import get_loader
@@ -937,6 +937,7 @@ class FlashCausalLM(Model):
         # Deepseek V2 uses different QK and V dims.
         head_size: Optional[int] = None,
         skip_special_tokens: bool = True,
+        kv_cache_dtype: Optional[torch.dtype] = None,
     ):
         self.quantize = quantize
         self.process_group, rank, world_size = initialize_torch_distributed()
@@ -1034,6 +1035,7 @@ class FlashCausalLM(Model):
 
         self.cuda_graphs = {}
         self.kv_cache = []
+        self.kv_cache_dtype = dtype if kv_cache_dtype is None else kv_cache_dtype
 
         if ATTENTION == "flashinfer":
             from text_generation_server.layers.attention.flashinfer import (
@@ -1083,61 +1085,16 @@ class FlashCausalLM(Model):
     ):
         self.kv_cache = []
         empty_cache()
-
-        element_size = torch.tensor([], dtype=dtype).element_size()
-        if SYSTEM == "ipex" and device.type == "xpu":
-            x = 1
-        else:
-            x = BLOCK_SIZE // element_size
-
-        if ATTENTION in {"flashdecoding", "flashinfer"}:
-            self.kv_cache = [
-                (
-                    torch.empty(
-                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                    torch.empty(
-                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                )
-                for _ in range(num_layers)
-            ]
-        elif SYSTEM == "ipex" and device == torch.device("cpu"):
-            self.kv_cache = [
-                (
-                    torch.empty(
-                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                    torch.empty(
-                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                )
-                for _ in range(num_layers)
-            ]
-        else:
-            self.kv_cache = [
-                (
-                    torch.empty(
-                        (num_blocks, num_heads, head_size // x, BLOCK_SIZE, x),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                    torch.empty(
-                        (num_blocks, num_heads, head_size, BLOCK_SIZE),
-                        dtype=dtype,
-                        device=device,
-                    ),
-                )
-                for _ in range(num_layers)
-            ]
+        self.kv_cache = [
+            KVCache(
+                num_blocks=num_blocks,
+                num_heads=num_heads,
+                head_size=head_size,
+                dtype=dtype,
+                device=device,
+            )
+            for _ in range(num_layers)
+        ]
 
     def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
         input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
@@ -1258,7 +1215,7 @@ class FlashCausalLM(Model):
                 self.num_layers,
                 self.num_kv_heads,
                 self.head_size,
-                self.dtype,
+                self.kv_cache_dtype,
                 self.device,
             )
             max_bt = batch.max_blocks
@@ -1277,7 +1234,7 @@ class FlashCausalLM(Model):
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
-        dtype_size = torch.tensor([], dtype=self.dtype).element_size()
+        dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
         cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
@@ -1291,6 +1248,8 @@ class FlashCausalLM(Model):
             + batch_num_blocks
         )
 
+        log_master(logger.info, f"KV-cache blocks: {num_blocks}, size: {BLOCK_SIZE}")
+
         del batch
 
         self.init_kv_cache(
@@ -1298,7 +1257,7 @@ class FlashCausalLM(Model):
             self.num_layers,
             self.num_kv_heads,
             self.head_size,
-            self.dtype,
+            self.kv_cache_dtype,
             self.device,
         )
 
@@ -1320,8 +1279,7 @@ class FlashCausalLM(Model):
                 elif CUDA_GRAPHS is not None:
                     tuning_sequences = CUDA_GRAPHS
                 else:
-                    # For seqlen = 1, we dispatch to LLMM1 kernel.
-                    tuning_sequences = [2, 3, 4, 5, 6, 7]
+                    tuning_sequences = [1, 2, 3, 4, 5, 6, 7]
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
@@ -1330,7 +1288,11 @@ class FlashCausalLM(Model):
 
                 log_master(
                     logger.info,
-                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
+                    f"PyTorch TunableOp is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
+                )
+
+                torch.cuda.tunable.set_filename(
+                    tunableop_filepath, insert_device_ordinal=False
                 )
 
                 if os.path.isfile(tunableop_filepath):
@@ -1346,7 +1308,8 @@ class FlashCausalLM(Model):
                     log_master(logger.info, f"Warming up TunableOp for seqlen={seqlen}")
                     self.tunableop_warmup(seqlen)
                     torch.cuda.tunable.write_file(tunableop_filepath)
-                torch.cuda.tunable.tuning_enable(False)
+                if os.environ.get("PYTORCH_TUNABLEOP_TUNING_AFTER_WARMUP") != "1":
+                    torch.cuda.tunable.tuning_enable(False)
             else:
                 log_master(
                     logger.info,
@@ -1382,6 +1345,7 @@ class FlashCausalLM(Model):
         cu_seqlen_prefill = torch.tensor(
             [0, seqlen], device=self.device, dtype=torch.int32
         )
+        max_s = seqlen
         seqlen = Seqlen(
             input_lengths=input_lengths,
             prefix_lengths=prefix_lens_tensor,
@@ -1399,7 +1363,7 @@ class FlashCausalLM(Model):
             block_tables=None,
             seqlen=seqlen,
             slots=slots,
-            max_s=seqlen,
+            max_s=max_s,
             lm_head_indices=None,
             prefill_cache_indices=None,
         )
@@ -1960,6 +1924,8 @@ class FlashCausalLM(Model):
                 num_kv_heads=self.num_kv_heads,
                 head_size=self.head_size,
                 page_size=BLOCK_SIZE,
+                dtype=self.dtype,
+                window_left=self.sliding_window,
             )
         else:
             assert input_lengths_tensor is not None
@@ -1971,6 +1937,8 @@ class FlashCausalLM(Model):
                 num_kv_heads=self.num_kv_heads,
                 head_size=self.head_size,
                 page_size=BLOCK_SIZE,
+                dtype=self.dtype,
+                window_left=self.sliding_window,
             )
 
 

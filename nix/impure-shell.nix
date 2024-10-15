@@ -1,5 +1,7 @@
 {
   mkShell,
+  black,
+  isort,
   openssl,
   pkg-config,
   protobuf,
@@ -14,6 +16,8 @@
 mkShell {
   buildInputs =
     [
+      black
+      isort
       openssl.dev
       pkg-config
       (rust-bin.stable.latest.default.override {

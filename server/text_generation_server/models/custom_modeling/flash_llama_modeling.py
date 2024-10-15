@@ -19,7 +19,7 @@
 # limitations under the License.
 
 from contextlib import contextmanager
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Type
 
 import torch
 import torch.distributed
@@ -27,12 +27,12 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE, KVCache
+from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
 )
 from text_generation_server.layers import (
@@ -46,11 +46,18 @@ from text_generation_server.layers import (
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
+    FastLayerNorm,
+)
+from text_generation_server.layers import (
+    FastLinear,
 )
 from text_generation_server.utils.weights import (
     Weights,
 )
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
+
+if SYSTEM != "ipex":
+    pass
 
 if SYSTEM == "rocm":
     try:
@@ -194,7 +201,7 @@ class FlashLlamaAttention(torch.nn.Module):
         cos,
         sin,
         cu_seqlen_prefill,
-        kv_cache,
+        kv_cache: KVCache,
         block_tables,
         slots,
         seqlen,
@@ -214,15 +221,15 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(key=kv[:, 0], value=kv[:, 1], slots=slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
                 query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
+                kv_cache.key if PREFILL_IN_KV_CACHE else kv[:, 0],
+                kv_cache.value if PREFILL_IN_KV_CACHE else kv[:, 1],
                 seqlen,
                 block_tables,
                 self.softmax_scale,
@@ -231,8 +238,8 @@ class FlashLlamaAttention(torch.nn.Module):
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache.key,
+                kv_cache.value,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
@@ -243,6 +250,42 @@ class FlashLlamaAttention(torch.nn.Module):
         return self.o_proj(
             attn_output.view(-1, self.num_heads * self.head_size), adapter_data
         )
+
+
+class Phi3MoE(nn.Module):
+    def __init__(
+        self, prefix: str, config, moe_layer_cls: Type[MoELayer], weights: Weights
+    ):
+        super().__init__()
+
+        # gating
+        self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
+
+        self.moe = moe_layer_cls(
+            prefix=f"{prefix}.experts",
+            n_experts=config.num_local_experts,
+            n_expert_group=None,
+            renormalize=True,
+            topk=config.num_experts_per_tok,
+            topk_group=None,
+            weights=weights,
+            gate_proj_name="w1",
+            up_proj_name="w3",
+            down_proj_name="w2",
+        )
+
+        self.process_group = weights.process_group
+
+    def forward(self, x, adapter_data) -> torch.Tensor:
+        # router_logits: (num_tokens, n_experts)
+        router_logits = self.gate(x)
+        out = self.moe(x, gating_output=router_logits)
+
+        # Reduce sum
+        if self.process_group.size() > 1:
+            torch.distributed.all_reduce(out, group=self.process_group)
+
+        return out.view(*x.shape)
 
 
 class LlamaMLP(nn.Module):
@@ -316,12 +359,17 @@ class LlamaMLP(nn.Module):
         # TODO: This is a hotfix to be removed & properly refactored.
         self.quantize = config.quantize
 
+        self.hidden_size = config.hidden_size
+
     def forward(self, hidden_states, adapter_data):
         if (
             SYSTEM == "rocm"
             and self.hidden_act == "silu"
+            and hidden_states.dtype == torch.float16
             and hidden_states.shape[0] == 1
             and not self.quantize
+            and self.hidden_size
+            != 16384  # TODO: Temporary workaround for `LLMM_Silu` kernel not working with LLama3.1 405B; needs refactoring once fixed.
         ):
             out = torch.empty(
                 hidden_states.shape[0],
@@ -353,18 +401,40 @@ class FlashLlamaLayer(nn.Module):
                 weights=weights,
             )
 
-        self.mlp = LlamaMLP(
-            prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
-        )
-
-        self.input_layernorm = FastRMSNorm.load(
-            prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
-        )
-        self.post_attention_layernorm = FastRMSNorm.load(
-            prefix=f"{prefix}.post_attention_layernorm",
-            weights=weights,
-            eps=config.rms_norm_eps,
-        )
+        if config.model_type == "phimoe":
+            moe_layer_cls = (
+                SparseMoELayer
+                if SparseMoELayer.is_supported(weights)
+                else DenseMoELayer
+            )
+            self.dense = Phi3MoE(
+                f"{prefix}.block_sparse_moe", config, moe_layer_cls, weights
+            )
+            # with moe the layernorms are are not rmsnorms and they have bias
+            self.input_layernorm = FastLayerNorm.load(
+                prefix=f"{prefix}.input_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
+            self.post_attention_layernorm = FastLayerNorm.load(
+                prefix=f"{prefix}.post_attention_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
+        else:
+            self.dense = LlamaMLP(
+                prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
+            )
+            self.input_layernorm = FastRMSNorm.load(
+                prefix=f"{prefix}.input_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
+            self.post_attention_layernorm = FastRMSNorm.load(
+                prefix=f"{prefix}.post_attention_layernorm",
+                weights=weights,
+                eps=config.rms_norm_eps,
+            )
 
     def forward(
         self,
@@ -379,6 +449,7 @@ class FlashLlamaLayer(nn.Module):
         seqlen,
         max_s,
         adapter_data,
+        cross_attention_states,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -401,7 +472,7 @@ class FlashLlamaLayer(nn.Module):
             attn_output, res
         )
 
-        mlp_output = self.mlp(normed_attn_res_output, adapter_data)
+        mlp_output = self.dense(normed_attn_res_output, adapter_data)
 
         return mlp_output, attn_res
 
@@ -416,6 +487,7 @@ class FlashLlamaModel(torch.nn.Module):
 
         # Skip fp8 quant for first and last layers
         self.layers = nn.ModuleList()
+        self.cross_attention_layers = getattr(config, "cross_attention_layers", [])
         with no_fp8(weights):
             self.layers.append(
                 FlashLlamaLayer(
@@ -428,22 +500,38 @@ class FlashLlamaModel(torch.nn.Module):
                 )
             )
 
-        self.layers.extend(
-            [
-                FlashLlamaLayer(
-                    index=layer_id,
-                    prefix=(
-                        f"model.layers.{layer_id}"
-                        if not prefix
-                        else f"{prefix}.model.layers.{layer_id}"
-                    ),
-                    config=config,
-                    weights=weights,
+        # Skip first and last layers
+        for layer_id in range(1, config.num_hidden_layers - 1):
+            if layer_id in self.cross_attention_layers:
+                from text_generation_server.models.custom_modeling.mllama import (
+                    FlashLlamaCrossLayer,
                 )
-                # Skip first and last layers
-                for layer_id in range(1, config.num_hidden_layers - 1)
-            ]
-        )
+
+                self.layers.append(
+                    FlashLlamaCrossLayer(
+                        index=layer_id,
+                        prefix=(
+                            f"model.layers.{layer_id}"
+                            if not prefix
+                            else f"{prefix}.model.layers.{layer_id}"
+                        ),
+                        config=config,
+                        weights=weights,
+                    )
+                )
+            else:
+                self.layers.append(
+                    FlashLlamaLayer(
+                        index=layer_id,
+                        prefix=(
+                            f"model.layers.{layer_id}"
+                            if not prefix
+                            else f"{prefix}.model.layers.{layer_id}"
+                        ),
+                        config=config,
+                        weights=weights,
+                    )
+                )
 
         with no_fp8(weights):
             last_layer_id = config.num_hidden_layers - 1
@@ -485,6 +573,7 @@ class FlashLlamaModel(torch.nn.Module):
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         adapter_data,
+        cross_attention_states=None,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
@@ -508,6 +597,7 @@ class FlashLlamaModel(torch.nn.Module):
                 seqlen,
                 max_s,
                 adapter_data,
+                cross_attention_states,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -554,6 +644,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
+        cross_attention_states=None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
@@ -568,6 +659,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,
             adapter_data=adapter_data,
+            cross_attention_states=cross_attention_states,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

@@ -1,12 +1,21 @@
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
 from torch.nn import functional as F
+import os
 
 if SYSTEM == "rocm":
-    try:
-        from vllm import _custom_C
-    except Exception as e:
-        raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
+    ROCM_USE_SKINNY_GEMM = os.getenv("ROCM_USE_SKINNY_GEMM", "True").lower() in (
+        "true",
+        "1",
+    )
+
+    if ROCM_USE_SKINNY_GEMM:
+        try:
+            from vllm import _custom_C
+        except Exception as e:
+            raise ImportError(
+                f"Could not load `vllm._custom_C` for ROCm skinny gemm. Full error: {e}"
+            )
 
 
 class FastLinear(torch.nn.Module):
@@ -48,6 +57,14 @@ class FastLinearROCm(torch.nn.Module):
         else:
             self.bias = None
 
+        self.cu_count = torch.cuda.get_device_properties(
+            device="cuda"
+        ).multi_processor_count
+        self.use_skinny_gemm = (
+            ROCM_USE_SKINNY_GEMM
+            and "gfx1" not in torch.cuda.get_device_properties("cuda").gcnArchName
+        )
+
     @classmethod
     def load(cls, config, prefix: str, weights, bias: bool):
         weight = weights.get_tensor(f"{prefix}.weight")
@@ -61,7 +78,11 @@ class FastLinearROCm(torch.nn.Module):
         weight = self.weight
         bias = self.bias
 
-        if SYSTEM == "rocm" and inp.numel() // inp.shape[-1] == 1:
+        if (
+            self.use_skinny_gemm
+            and inp.dtype == torch.float16
+            and inp.shape[-1] % 8 == 0
+        ):
             batched = False
             inp_shape = inp.shape
 
@@ -69,13 +90,16 @@ class FastLinearROCm(torch.nn.Module):
                 inp = inp.view(-1, inp_shape[-1])
                 batched = True
 
-            m, k = weight.shape[0], inp_shape[1]
-            out = torch.empty(
-                inp_shape[0], weight.shape[0], dtype=inp.dtype, device="cuda"
-            )
-            if (k == 8192 and (m == 1280 or m == 7168)) or (k == 3584 and m == 8192):
-                _custom_C.LLMM1(weight, inp, out, 8)
-            elif k <= 8192 and k % 8 == 0 and m % 4 == 0:
+            m, n, k = weight.shape[0], inp_shape[0], inp_shape[1]
+            if m > 8 and n <= 4:
+                out = torch.empty(
+                    inp_shape[0], weight.shape[0], dtype=inp.dtype, device=weight.device
+                )
+                _custom_C.wvSpltK(weight, inp, out, n, self.cu_count)
+            elif m % 4 == 0 and n == 1 and k <= 8192:
+                out = torch.empty(
+                    inp_shape[0], weight.shape[0], dtype=inp.dtype, device=weight.device
+                )
                 _custom_C.LLMM1(weight, inp, out, 4)
             else:
                 out = F.linear(inp, weight)

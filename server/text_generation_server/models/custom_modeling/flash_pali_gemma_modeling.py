@@ -48,7 +48,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             bias=True,
         )
 
-        self.vocab_size = config.vocab_size
+        self.vocab_size = config.text_config.vocab_size
         self.config = config
 
         text_config = config.text_config
