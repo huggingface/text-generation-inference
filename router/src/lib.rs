@@ -946,21 +946,19 @@ impl ChatRequest {
             Some(temperature) if temperature == 0.0 => (false, None),
             other => (true, other),
         };
+        // unwrap or default (use "auto" if tools are present, and "none" if not)
+        let choice = tool_choice.unwrap_or_else(|| {
+            if tools.is_some() {
+                ChatCompletionToolChoiceOption::Auto
+            } else {
+                ChatCompletionToolChoiceOption::NoTool
+            }
+        });
         let (inputs, grammar, using_tools) = prepare_chat_input(
             infer,
             response_format,
-            tools.clone(),
-            // unwrap or default (use "auto" if tools are present, and "none" if not)
-            tool_choice.map_or_else(
-                || {
-                    if tools.is_some() {
-                        ChatCompletionToolChoiceOption::Auto
-                    } else {
-                        ChatCompletionToolChoiceOption::NoTool
-                    }
-                },
-                |t| t,
-            ),
+            tools,
+            choice,
             &tool_prompt,
             guideline,
             messages,
@@ -1023,6 +1021,7 @@ pub struct FunctionName {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema, Default)]
 #[serde(from = "ToolTypeDeserializer")]
+/// <https://platform.openai.com/docs/guides/function-calling/configuring-function-calling-behavior-using-the-tool_choice-parameter>
 pub enum ChatCompletionToolChoiceOption {
     /// Means the model can pick between generating a message or calling one or more tools.
     #[schema(rename = "auto")]
@@ -1034,7 +1033,7 @@ pub enum ChatCompletionToolChoiceOption {
     /// Means the model must call one or more tools.
     #[schema(rename = "required")]
     Required,
-    /// Forces the model to call a specific tool.
+    /// Forces the model to call a specific tool. This structure aligns with the `OpenAI` API schema to force a specific tool.
     #[schema(rename = "function")]
     #[serde(alias = "function")]
     Function(FunctionName),
@@ -1688,32 +1687,36 @@ mod tests {
             tool_choice: ChatCompletionToolChoiceOption,
         }
 
-        let none = r#"{"tool_choice":"none"}"#;
-        let de_none: TestRequest = serde_json::from_str(none).unwrap();
+        let de_none: TestRequest = serde_json::from_str(r#"{"tool_choice":"none"}"#).unwrap();
         assert_eq!(de_none.tool_choice, ChatCompletionToolChoiceOption::NoTool);
 
-        let auto = r#"{"tool_choice":"auto"}"#;
-        let de_auto: TestRequest = serde_json::from_str(auto).unwrap();
+        let de_auto: TestRequest = serde_json::from_str(r#"{"tool_choice":"auto"}"#).unwrap();
         assert_eq!(de_auto.tool_choice, ChatCompletionToolChoiceOption::Auto);
 
-        let auto = r#"{"tool_choice":"required"}"#;
-        let de_auto: TestRequest = serde_json::from_str(auto).unwrap();
+        let de_required: TestRequest =
+            serde_json::from_str(r#"{"tool_choice":"required"}"#).unwrap();
         assert_eq!(
-            de_auto.tool_choice,
+            de_required.tool_choice,
             ChatCompletionToolChoiceOption::Required
         );
 
-        let ref_choice = ChatCompletionToolChoiceOption::Function(FunctionName {
-            name: "myfn".to_string(),
-        });
+        let de_named: TestRequest = serde_json::from_str(r#"{"tool_choice":"myfn"}"#).unwrap();
+        assert_eq!(
+            de_named.tool_choice,
+            ChatCompletionToolChoiceOption::Function(FunctionName {
+                name: "myfn".to_string(),
+            })
+        );
 
-        let named = r#"{"tool_choice":"myfn"}"#;
-        let de_named: TestRequest = serde_json::from_str(named).unwrap();
-        assert_eq!(de_named.tool_choice, ref_choice);
-
-        let openai_named = r#"{"tool_choice":{"type":"function","function":{"name":"myfn"}}}"#;
-        let de_openai_named: TestRequest = serde_json::from_str(openai_named).unwrap();
-
-        assert_eq!(de_openai_named.tool_choice, ref_choice);
+        let de_openai_named: TestRequest = serde_json::from_str(
+            r#"{"tool_choice":{"type":"function","function":{"name":"myfn"}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            de_openai_named.tool_choice,
+            ChatCompletionToolChoiceOption::Function(FunctionName {
+                name: "myfn".to_string(),
+            })
+        );
     }
 }

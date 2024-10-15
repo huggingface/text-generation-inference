@@ -955,7 +955,8 @@
               }
             }
           }
-        ]
+        ],
+        "description": "<https://platform.openai.com/docs/guides/function-calling/configuring-function-calling-behavior-using-the-tool_choice-parameter>"
       },
       "ChatCompletionTopLogprob": {
         "type": "object",
