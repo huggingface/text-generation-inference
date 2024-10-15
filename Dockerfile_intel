@@ -145,6 +145,7 @@ RUN update-alternatives --set cc /usr/bin/gcc
 RUN update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++ 30
 RUN update-alternatives --set c++ /usr/bin/g++
 
+
 ENV HUGGINGFACE_HUB_CACHE=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     PORT=80
@@ -175,6 +176,7 @@ RUN case ${TARGETPLATFORM} in \
     /opt/conda/bin/conda clean -ya
 
 RUN conda install -c conda-forge gperftools mkl
+
 
 RUN pip install https://download.pytorch.org/whl/nightly/cpu/torch-2.5.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
 RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchvision-0.20.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
