@@ -1679,9 +1679,9 @@ class FlashCausalLM(Model):
         cuda_graph["input_lengths"].zero_()
         cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
         cuda_graph["cache_lengths"].zero_()
-        cuda_graph["cache_lengths"][: cache_lengths_tensor.shape[0]] = (
-            cache_lengths_tensor
-        )
+        cuda_graph["cache_lengths"][
+            : cache_lengths_tensor.shape[0]
+        ] = cache_lengths_tensor
 
         with self._forward_context(
             block_tables=cuda_graph["block_tables"],

@@ -243,6 +243,7 @@ if ATTENTION == "flashinfer":
             sm_scale=softmax_scale,
             window_left=window_size_left,
         )
+
 elif ATTENTION == "flashdecoding":
     if V2:
 
@@ -351,6 +352,7 @@ elif ATTENTION == "flashdecoding":
                 None,
             )
             return out
+
 elif ATTENTION == "paged":
     if V2:
 
@@ -459,6 +461,7 @@ elif ATTENTION == "paged":
                 None,
             )
             return out
+
 else:
     raise RuntimeError(f"Unknwon attention {ATTENTION}")
 
