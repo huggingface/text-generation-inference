@@ -165,7 +165,7 @@ class HybridFP8UnquantLoader(WeightsLoader):
             scale = scale.reshape(-1).expand(w.shape[0])
 
             input_scale = None
-            if weights.get_tensor(f"{prefix}.input_scale"):
+            if weights.has_tensor(f"{prefix}.input_scale"):
                 input_scale = weights.get_tensor(
                     f"{prefix}.input_scale", to_dtype=False
                 )
@@ -213,6 +213,7 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 for p, shape in zip(prefixes, shapes)
                 if weights.has_tensor(f"{p}.input_scale")
             ]
+            assert len(input_scale) == 0 or len(input_scale) == len(prefixes)
             input_scale = (
                 torch.cat(input_scale, dim=0).reshape(-1).max()
                 if len(input_scale) != 0
