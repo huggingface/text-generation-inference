@@ -478,7 +478,7 @@ async fn generate_stream(
 async fn generate_stream_internal(
     infer: Infer,
     ComputeType(compute_type): ComputeType,
-    Json(req): Json<GenerateRequest>,
+    Json(mut req): Json<GenerateRequest>,
     span: tracing::Span,
 ) -> (
     HeaderMap,
@@ -487,7 +487,11 @@ async fn generate_stream_internal(
     let start_time = Instant::now();
     metrics::counter!("tgi_request_count").increment(1);
 
-    tracing::debug!("Input: {}", req.inputs);
+    // Do not long ultra long inputs, like image payloads.
+    tracing::debug!(
+        "Input: {}",
+        &req.inputs.chars().take(1000).collect::<String>()
+    );
 
     let compute_characters = req.inputs.chars().count();
 
@@ -508,6 +512,10 @@ async fn generate_stream_internal(
         if req.parameters.return_full_text.unwrap_or(false) {
             add_prompt = Some(req.inputs.clone());
         }
+        if req.parameters.max_new_tokens.is_none() {
+            req.parameters.max_new_tokens = Some(100);
+        }
+
         let details = req.parameters.details;
 
         let best_of = req.parameters.best_of.unwrap_or(1);
