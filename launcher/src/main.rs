@@ -94,7 +94,7 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                     prefix_caching = Some("0".to_string());
                 }
                 match config.model_type.as_deref() {
-                    Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
+                    Some("falcon") | Some("deepseek_v2") => {
                         // Required because gemma2 needs bfloat16 which is not supported by
                         // flashinfer ?
                         if attention.is_none() {
@@ -944,17 +944,19 @@ fn shard_manager(
         }
     });
     // We read stdin in another thread as it seems that lines() can block in some cases
-    thread::spawn(move || {
-        let mut stdin = io::stdin(); // We get `Stdin` here.
-        loop {
-            let mut buffer = vec![0; 4096];
-            if let Ok(n) = stdin.read(&mut buffer) {
-                if n > 0 {
-                    let _ = pstdin.write_all(&buffer[..n]);
+    if LevelFilter::current() >= tracing::Level::DEBUG {
+        thread::spawn(move || {
+            let mut stdin = io::stdin(); // We get `Stdin` here.
+            loop {
+                let mut buffer = vec![0; 4096];
+                if let Ok(n) = stdin.read(&mut buffer) {
+                    if n > 0 {
+                        let _ = pstdin.write_all(&buffer[..n]);
+                    }
                 }
             }
-        }
-    });
+        });
+    }
 
     let mut ready = false;
     let start_time = Instant::now();
