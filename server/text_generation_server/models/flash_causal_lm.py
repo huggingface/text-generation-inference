@@ -1602,6 +1602,8 @@ class FlashCausalLM(Model):
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
+        print(slots)
+
         if cu_seqlen_prefill is None and self.max_past() is not None:
             # In decode, not prefill, we're actually overwriting the KV-cache
             # in a circular buffer mode.
@@ -1677,9 +1679,9 @@ class FlashCausalLM(Model):
         cuda_graph["input_lengths"].zero_()
         cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
         cuda_graph["cache_lengths"].zero_()
-        cuda_graph["cache_lengths"][
-            : cache_lengths_tensor.shape[0]
-        ] = cache_lengths_tensor
+        cuda_graph["cache_lengths"][: cache_lengths_tensor.shape[0]] = (
+            cache_lengths_tensor
+        )
 
         with self._forward_context(
             block_tables=cuda_graph["block_tables"],
