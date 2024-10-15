@@ -696,7 +696,7 @@ class CausalLM(Model):
 
         if model.config.model_type in ["llama", "mistral", "starcoder2", "qwen2", "falcon"]:
 
-            if model.config.model_type not in ["falcon"]
+            if model.config.model_type not in ["falcon"]:
                 kwargs["attn_softmax_bf16"] = True
             kwargs["trim_logits"] = True
 
