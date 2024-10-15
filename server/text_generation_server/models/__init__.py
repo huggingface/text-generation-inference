@@ -370,7 +370,7 @@ def get_model(
         else:
             log_master(logger.warning, f"Unknown quantization method {method}")
     elif compression_config is not None:
-        # For backward compatibility: compression_config is renamed to quantization_config
+        # `compression_config` renamed to `quantization_config`; support retained for backward compatibility.
         config_groups = compression_config.get("config_groups")
         if config_groups is not None:
             for _, group in config_groups.items():
