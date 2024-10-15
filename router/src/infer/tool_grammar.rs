@@ -27,39 +27,37 @@ impl ToolGrammar {
             return Ok((tools, None));
         }
 
-        let mut tools = tools.clone();
-
-        // add the no_tool function to the tools as long as we are not required to use a specific tool
-        if tool_choice != ChatCompletionToolChoiceOption::Required {
-            let no_tool = Tool {
-                r#type: "function".to_string(),
-                function: FunctionDefinition {
-                    name: "no_tool".to_string(),
-                    description: Some(
-                        "Open ended response with no specific tool selected".to_string(),
-                    ),
-                    arguments: json!({
-                        "type": "object",
-                        "properties": {
-                            "content": {
-                                "type": "string",
-                                "description": "The response content",
-                            }
-                        },
-                        "required": ["content"]
-                    }),
-                },
-            };
-            tools.push(no_tool);
-        }
-
-        // if tools are provided and no tool_choice we default to the OneOf
         let tools_to_use = match tool_choice {
             ChatCompletionToolChoiceOption::Function(function) => {
                 vec![Self::find_tool_by_name(&tools, &function.name)?]
             }
-            ChatCompletionToolChoiceOption::Required => tools.clone(),
-            ChatCompletionToolChoiceOption::Auto => tools.clone(),
+            ChatCompletionToolChoiceOption::Required => tools,
+            ChatCompletionToolChoiceOption::Auto => {
+                // only add the no_tool function if the user has selected the auto option
+                tools
+                    .iter()
+                    .cloned()
+                    .chain(std::iter::once(Tool {
+                        r#type: "function".to_string(),
+                        function: FunctionDefinition {
+                            name: "no_tool".to_string(),
+                            description: Some(
+                                "Open ended response with no specific tool selected".to_string(),
+                            ),
+                            arguments: json!({
+                                "type": "object",
+                                "properties": {
+                                    "content": {
+                                        "type": "string",
+                                        "description": "The response content",
+                                    }
+                                },
+                                "required": ["content"]
+                            }),
+                        },
+                    }))
+                    .collect::<Vec<_>>()
+            }
             ChatCompletionToolChoiceOption::NoTool => return Ok((tools, None)),
         };
 
@@ -121,6 +119,6 @@ impl ToolGrammar {
             },
         };
 
-        Ok((tools, Some(tool_schema)))
+        Ok((tools_to_use, Some(tool_schema)))
     }
 }
