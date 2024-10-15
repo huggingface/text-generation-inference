@@ -1917,7 +1917,7 @@ class FlashCausalLM(Model):
             batch.speculative_ids = speculative_ids
             batch.position_ids = next_position_ids + accepted_ids
             batch.cache_lengths_tensor += batch.input_lengths_tensor
-            batch.input_lengths_tensor = accepted_ids
+            batch.input_lengths_tensor = accepted_ids.to(dtype=torch.int32)
             batch.slot_indices += accepted_ids
             batch.adapter_meta.adapter_indices = next_adapter_indices
 

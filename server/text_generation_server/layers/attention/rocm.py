@@ -104,7 +104,7 @@ def paged_attention(
         _PARTITION_SIZE = _PARTITION_SIZE_CUSTOM
 
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
-    input_lengths = seqlen.input_lengths
+    input_lengths = seqlen.input_lengths + seqlen.cache_lengths
 
     out = torch.empty_like(query)
 
