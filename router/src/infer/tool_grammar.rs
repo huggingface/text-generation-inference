@@ -58,7 +58,7 @@ impl ToolGrammar {
                     }))
                     .collect::<Vec<_>>()
             }
-            ChatCompletionToolChoiceOption::NoTool => return Ok((tools, None)),
+            ChatCompletionToolChoiceOption::NoTool => Vec::with_capacity(0),
         };
 
         let functions: HashMap<String, serde_json::Value> = tools_to_use
@@ -107,18 +107,22 @@ impl ToolGrammar {
             })
             .collect();
 
-        let tool_schema = JsonSchemaTool {
-            functions_map: FunctionsMap { functions },
-            properties: Properties {
-                function: tools_to_use
-                    .iter()
-                    .map(|tool| FunctionRef {
-                        ref_path: format!("#/$functions/{}", tool.function.name.clone()),
-                    })
-                    .collect(),
-            },
+        let tool_schema = if tools_to_use.is_empty() {
+            None
+        } else {
+            Some(JsonSchemaTool {
+                functions_map: FunctionsMap { functions },
+                properties: Properties {
+                    function: tools_to_use
+                        .iter()
+                        .map(|tool| FunctionRef {
+                            ref_path: format!("#/$functions/{}", tool.function.name.clone()),
+                        })
+                        .collect(),
+                },
+            })
         };
 
-        Ok((tools_to_use, Some(tool_schema)))
+        Ok((tools_to_use, tool_schema))
     }
 }
