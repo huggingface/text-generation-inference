@@ -893,7 +893,6 @@ impl ChatRequest {
         } = self;
 
         let repetition_penalty = presence_penalty.map(|x| x + 2.0);
-        let max_new_tokens = max_tokens.or(Some(100));
         let tool_prompt = tool_prompt
             .filter(|s| !s.is_empty())
             .unwrap_or_else(default_tool_prompt);
@@ -926,7 +925,7 @@ impl ChatRequest {
                     top_p,
                     typical_p: None,
                     do_sample,
-                    max_new_tokens,
+                    max_new_tokens: max_tokens,
                     return_full_text: None,
                     stop,
                     truncate: None,

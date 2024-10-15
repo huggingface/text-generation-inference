@@ -260,7 +260,7 @@ async fn generate(
 pub(crate) async fn generate_internal(
     infer: Extension<Infer>,
     ComputeType(compute_type): ComputeType,
-    Json(req): Json<GenerateRequest>,
+    Json(mut req): Json<GenerateRequest>,
     span: tracing::Span,
 ) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
@@ -276,6 +276,10 @@ pub(crate) async fn generate_internal(
     let mut add_prompt = None;
     if req.parameters.return_full_text.unwrap_or(false) {
         add_prompt = Some(req.inputs.clone());
+    }
+
+    if req.parameters.max_new_tokens.is_none() {
+        req.parameters.max_new_tokens = Some(100);
     }
 
     let details: bool = req.parameters.details || req.parameters.decoder_input_details;
