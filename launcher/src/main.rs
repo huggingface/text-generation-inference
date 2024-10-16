@@ -124,6 +124,10 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             }
         }
     }
+    if attention == Some("paged".to_string()) && prefix_caching.is_none() {
+        tracing::info!("Disabling prefix caching on paged attention");
+        prefix_caching = Some("0".to_string());
+    }
 
     let attention = attention.unwrap_or("flashinfer".to_string());
     let prefix_caching = prefix_caching.unwrap_or("true".to_string());
