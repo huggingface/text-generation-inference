@@ -66,6 +66,7 @@ def paged_attention(
     softcap: Optional[float] = None,
 ):
     out = torch.empty_like(query)
+    input_lengths = seqlen.input_lengths + seqlen.cache_lengths
     ipex.llm.modules.PagedAttention.single_query_cached_kv_attention(
         out,
         query,
@@ -74,7 +75,7 @@ def paged_attention(
         kv_head_mapping,
         softmax_scale,
         block_tables,
-        seqlen.input_lengths,
+        input_lengths,
         BLOCK_SIZE,
         max_s,
         None,

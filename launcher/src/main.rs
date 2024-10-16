@@ -68,7 +68,7 @@ fn get_config(
 
 fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
     let compute_capability = gpu::get_cuda_capability();
-    let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
+    let mut prefix_caching: Option<String> = std::env::var("PREFIX_CACHING").ok();
     let mut attention: Option<String> = std::env::var("ATTENTION").ok();
     if let Some(config) = config {
         if prefix_caching.is_none() {
@@ -123,6 +123,10 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                 }
             }
         }
+    }
+    if attention == Some("paged".to_string()) && prefix_caching.is_none() {
+        tracing::info!("Disabling prefix caching on paged attention");
+        prefix_caching = Some("0".to_string());
     }
 
     let attention = attention.unwrap_or("flashinfer".to_string());
@@ -1678,7 +1682,7 @@ fn main() -> Result<(), LauncherError> {
     };
     let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
     tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
-    std::env::set_var("USE_PREFIX_CACHING", prefix_caching);
+    std::env::set_var("PREFIX_CACHING", prefix_caching);
     std::env::set_var("ATTENTION", attention);
 
     let max_input_tokens = {
@@ -1728,12 +1732,6 @@ fn main() -> Result<(), LauncherError> {
         return Err(LauncherError::ArgumentValidation(
             "`max_input_tokens must be < `max_total_tokens`".to_string(),
         ));
-    }
-    if max_input_tokens as u32 > max_batch_prefill_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {} and {}",
-            max_batch_prefill_tokens, max_input_tokens
-        )));
     }
 
     if matches!(args.quantize, Some(Quantization::Bitsandbytes)) {
@@ -1788,12 +1786,6 @@ fn main() -> Result<(), LauncherError> {
     }
 
     if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
-        if max_batch_prefill_tokens > *max_batch_total_tokens {
-            return Err(LauncherError::ArgumentValidation(format!(
-                "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-                max_batch_prefill_tokens, max_batch_total_tokens
-            )));
-        }
         if max_total_tokens as u32 > *max_batch_total_tokens {
             return Err(LauncherError::ArgumentValidation(format!(
                 "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
