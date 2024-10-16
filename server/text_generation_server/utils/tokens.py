@@ -1,5 +1,6 @@
 # Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
 
+import os
 import re
 from typing import List, Optional, Tuple, Set, Union
 
@@ -164,7 +165,11 @@ class StoppingCriteria:
         self.max_new_tokens = max_new_tokens
         self.current_tokens = 0
         self.current_output = ""
-        self.ignore_eos_token = ignore_eos_token
+
+        if os.getenv("TEXT_GENERATION_SERVER_IGNORE_EOS_TOKEN", "false") == "true":
+            self.ignore_eos_token = True
+        else:
+            self.ignore_eos_token = ignore_eos_token
 
     def __call__(self, last_token: int, last_output: str) -> Tuple[bool, Optional[str]]:
         self.current_tokens += 1
