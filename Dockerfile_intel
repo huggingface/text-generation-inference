@@ -218,7 +218,8 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/lo
 
 FROM ${PLATFORM} AS final
 ENV ATTENTION=paged
-ENV USE_PREFIX_CACHING=0
+ENV PREFIX_CACHING=0
+ENV PREFILL_CHUNKING=0
 ENV CUDA_GRAPHS=0
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]

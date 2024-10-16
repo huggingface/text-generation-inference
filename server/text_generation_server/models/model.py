@@ -7,7 +7,12 @@ from collections import defaultdict
 from transformers import PreTrainedTokenizerBase
 from loguru import logger
 
-from text_generation_server.models.globals import ATTENTION, PREFIX_CACHING, BLOCK_SIZE
+from text_generation_server.models.globals import (
+    ATTENTION,
+    PREFIX_CACHING,
+    BLOCK_SIZE,
+    PREFILL_CHUNKING,
+)
 from text_generation_server.models.types import Batch, Generation
 from text_generation_server.utils.log import log_master
 from text_generation_server.utils.prefill_chunking import set_support_chunking
@@ -65,6 +70,8 @@ class Model(ABC):
             speculate = get_speculate()
         self.speculate = speculate
 
+        support_chunking = support_chunking and PREFILL_CHUNKING
+
         if speculate != 0 and support_chunking:
             log_master(
                 logger.warning,
@@ -78,6 +85,10 @@ class Model(ABC):
                 "Prefill chunking is only supported with `flashinfer` or `flashdecoding` attention types.",
             )
             support_chunking = False
+
+        log_master(
+            logger.info, f"Using experimental prefill chunking = {support_chunking}"
+        )
 
         self.support_chunking = support_chunking
         set_support_chunking(support_chunking)

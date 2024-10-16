@@ -406,6 +406,7 @@ def launcher(event_loop):
         print(" ".join(args), file=sys.stderr)
 
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
+        env["PREFILL_CHUNKING"] = "1"
 
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
@@ -504,6 +505,7 @@ def launcher(event_loop):
 
         env = {
             "LOG_LEVEL": "info,text_generation_router=debug",
+            "PREFILL_CHUNKING": "1",
         }
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"

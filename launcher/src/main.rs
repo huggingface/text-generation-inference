@@ -68,7 +68,7 @@ fn get_config(
 
 fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
     let compute_capability = gpu::get_cuda_capability();
-    let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
+    let mut prefix_caching: Option<String> = std::env::var("PREFIX_CACHING").ok();
     let mut attention: Option<String> = std::env::var("ATTENTION").ok();
     if let Some(config) = config {
         if prefix_caching.is_none() {
@@ -1678,7 +1678,7 @@ fn main() -> Result<(), LauncherError> {
     };
     let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
     tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
-    std::env::set_var("USE_PREFIX_CACHING", prefix_caching);
+    std::env::set_var("PREFIX_CACHING", prefix_caching);
     std::env::set_var("ATTENTION", attention);
 
     let max_input_tokens = {
