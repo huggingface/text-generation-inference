@@ -591,6 +591,73 @@ fn image_tokens(
 
             image_string
         }
+        Idefics3(config) => {
+            const FAKE: &str = "<fake_token_around_image>";
+            const IMAGE: &str = "<image>";
+            const GLOBAL_IMG: &str = "<global-img>";
+
+            let max_longest_edge_for_image_resize = config.get_max_longest_edge_for_image_resize();
+
+            // resize image if it is larger than max_longest_edge_for_image_resize keeping aspect ratio
+            let (height, width) = if height > max_longest_edge_for_image_resize
+                || width > max_longest_edge_for_image_resize
+            {
+                let aspect_ratio = height as f32 / width as f32;
+                if height > width {
+                    (
+                        max_longest_edge_for_image_resize,
+                        (max_longest_edge_for_image_resize as f32 / aspect_ratio) as usize,
+                    )
+                } else {
+                    (
+                        (max_longest_edge_for_image_resize as f32 * aspect_ratio) as usize,
+                        max_longest_edge_for_image_resize,
+                    )
+                }
+            } else {
+                (height, width)
+            };
+
+            let image_seq_len = config.get_number_of_features();
+            let max_edge = config.get_max_longest_edge();
+
+            let (image_rows, image_cols) = if height > max_edge || width > max_edge {
+                (
+                    (height as f32 / max_edge as f32).ceil() as usize,
+                    (width as f32 / max_edge as f32).ceil() as usize,
+                )
+            } else {
+                (0, 0)
+            };
+
+            let mut image_string = String::new();
+
+            if image_rows == 0 && image_cols == 0 {
+                // Single image case
+                image_string.push_str(FAKE);
+                image_string.push_str(GLOBAL_IMG);
+                image_string.push_str(&IMAGE.repeat(image_seq_len));
+                image_string.push_str(FAKE);
+            } else {
+                // Split image case
+                for n_h in 0..image_rows {
+                    for n_w in 0..image_cols {
+                        image_string.push_str(FAKE);
+                        image_string.push_str(&format!("<row_{}_col_{}>", n_h + 1, n_w + 1));
+                        image_string.push_str(&IMAGE.repeat(image_seq_len));
+                    }
+                    image_string.push('\n');
+                }
+
+                image_string.push('\n');
+                image_string.push_str(FAKE);
+                image_string.push_str(GLOBAL_IMG);
+                image_string.push_str(&IMAGE.repeat(image_seq_len));
+                image_string.push_str(FAKE);
+            }
+
+            image_string
+        }
         Paligemma(config) => "<image>".repeat(config.get_number_of_features(height, width)),
         LlavaNext(config) => "<image>".repeat(config.get_number_of_features(height, width)),
         _ => unimplemented!("Images tokens are not supported for this model configuration"),
@@ -619,7 +686,7 @@ fn prepare_input(
     use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     let (tokenizer_query, input_chunks) = match config {
-        Some(config @ (Idefics | Mllama | Idefics2(_) | Paligemma(_) | LlavaNext(_))) => {
+        Some(config @ (Idefics | Mllama | Idefics2(_) | Idefics3(_) | Paligemma(_) | LlavaNext(_))) => {
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());
             let mut start = 0;
@@ -818,7 +885,7 @@ pub enum ValidationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{Idefics2, PaliTextConfig, Paligemma};
+    use crate::config::{Idefics2, Idefics3, PaliTextConfig, Paligemma};
     use crate::default_parameters;
     use crate::tests::get_tokenizer;
 
@@ -1220,5 +1287,46 @@ mod tests {
                 .count(),
             11
         );
+    }
+
+    #[tokio::test]
+    async fn test_idefics2_image_tokens() {
+        let config = Config::Idefics3(Idefics3 {});
+
+        let preprocessor_config = Some(&HubPreprocessorConfig::Idefics2Processor(
+            Idefics2Preprocessor {
+                do_image_splitting: true,
+            },
+        ));
+
+        let height = 1067;
+        let width = 1600;
+
+        let tokens = image_tokens(&config, preprocessor_config, height, width);
+
+        // get all unique tags `<tag>` from the tokens
+        let tags: std::collections::HashSet<&str> = tokens
+            .split(|c| c == '<' || c == '>')
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        assert_eq!(tags.len(), 17); // all below and `\n` and `\n\n`
+        assert_eq!(tags.contains(&"row_1_col_1"), true);
+        assert_eq!(tags.contains(&"row_1_col_2"), true);
+        assert_eq!(tags.contains(&"row_1_col_3"), true);
+        assert_eq!(tags.contains(&"row_1_col_4"), true);
+        assert_eq!(tags.contains(&"row_2_col_1"), true);
+        assert_eq!(tags.contains(&"row_2_col_2"), true);
+        assert_eq!(tags.contains(&"row_2_col_3"), true);
+        assert_eq!(tags.contains(&"row_2_col_4"), true);
+        assert_eq!(tags.contains(&"row_3_col_1"), true);
+        assert_eq!(tags.contains(&"row_3_col_2"), true);
+        assert_eq!(tags.contains(&"row_3_col_3"), true);
+        assert_eq!(tags.contains(&"row_3_col_4"), true);
+        assert_eq!(tags.contains(&"global-img"), true);
+        assert_eq!(tags.contains(&"image"), true);
+        assert_eq!(tags.contains(&"fake_token_around_image"), true);
+
+        assert_eq!(tokens.len(), 15_901)
     }
 }
