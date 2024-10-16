@@ -5,9 +5,9 @@ from typing import Dict, Optional
 
 from text_generation_server.utils.log import log_master
 
-ATTENTION = os.getenv("ATTENTION", "flashinfer")
-default_prefix_caching = "1" if ATTENTION in {"flashinfer", "flashdecoding"} else "0"
-PREFIX_CACHING = os.getenv("PREFIX_CACHING", default_prefix_caching).lower() in {
+ATTENTION = os.environ["ATTENTION"]
+# default_prefix_caching = "1" if ATTENTION in {"flashinfer", "flashdecoding"} else "0"
+PREFIX_CACHING = os.environ["PREFIX_CACHING"].lower() in {
     "1",
     "true",
 }
