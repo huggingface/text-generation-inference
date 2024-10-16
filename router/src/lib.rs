@@ -100,7 +100,6 @@ impl<'a> TokenizerTrait for PyTokenizer<'a> {
     }
 }
 
-
 /// Hub type
 #[derive(Clone, Debug, Deserialize)]
 pub struct HubModelInfo {
