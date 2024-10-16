@@ -5,7 +5,7 @@ from loguru import logger
 from typing import Dict, Union
 from text_generation_server.pb.generate_pb2 import GrammarType
 
-from outlines.fsm.fsm import RegexFSM
+from outlines.fsm.guide import RegexGuide
 from outlines.fsm.json_schema import build_regex_from_schema
 from functools import lru_cache
 from typing import List, Optional, DefaultDict
@@ -482,7 +482,7 @@ class HeterogeneousProcessorWrapper(LogitsProcessor):
 
 class GrammarLogitProcessor(LogitsProcessor):
     fsm_state: DefaultDict[int, int]
-    fsm: RegexFSM
+    fsm: RegexGuide
 
     def __init__(self, tokenizer, device, grammar, grammar_type):
         self.device = device
@@ -530,7 +530,7 @@ class GrammarLogitProcessor(LogitsProcessor):
                 schema = "(.*?)"
         elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
             pass  # schema is already a regex just here for clarity
-        fsm = RegexFSM(schema, tokenizer)
+        fsm = RegexGuide.from_regex(schema, tokenizer)
         logger.debug(f"Compiled FSM in {time.time() - start_time:.2f}s")
         return fsm
 
