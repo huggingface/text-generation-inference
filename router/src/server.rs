@@ -27,7 +27,7 @@ use crate::{
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
-use crate::{ChatCompletionToolChoiceOption, FunctionDefinition, HubPreprocessorConfig, ToolCall};
+use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
 use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
 use axum::extract::Extension;
@@ -1554,7 +1554,7 @@ Tool,
 ToolCall,
 Function,
 FunctionDefinition,
-ChatCompletionToolChoiceOption,
+ToolChoice,
 ModelInfo,
 )
 ),

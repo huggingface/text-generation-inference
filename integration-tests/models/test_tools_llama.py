@@ -395,7 +395,7 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
             "tools": tools,
             "tool_choice": {
                 "type": "function",
-                "function": {"name": "get_current_weather"},
+                "function": {"name": "get_n_day_weather_forecast"},
             },
             "seed": 24,
             "max_tokens": 100,
@@ -421,10 +421,9 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
                 ]["arguments"]
                 last_response = response
 
-    assert count == 30
-    print(tool_calls_generated)
+    assert count == 39
     assert (
         tool_calls_generated
-        == '{"function": {"_name": "get_current_weather", "format": "celsius", "location": "Tokyo, JP"}}<|eot_id|>'
+        == '{"function": {"_name": "get_n_day_weather_forecast", "format": "celsius", "location": "San Francisco, CA", "num_days":3}}<|eot_id|>'
     )
     assert last_response == response_snapshot

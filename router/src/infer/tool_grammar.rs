@@ -1,7 +1,6 @@
 use crate::infer::InferError;
 use crate::{
-    ChatCompletionToolChoiceOption, FunctionDefinition, FunctionRef, FunctionsMap, JsonSchemaTool,
-    Properties, Tool,
+    FunctionDefinition, FunctionRef, FunctionsMap, JsonSchemaTool, Properties, Tool, ToolChoice,
 };
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -20,19 +19,19 @@ impl ToolGrammar {
 
     pub fn apply(
         tools: Vec<Tool>,
-        tool_choice: ChatCompletionToolChoiceOption,
+        tool_choice: ToolChoice,
     ) -> Result<(Vec<Tool>, Option<JsonSchemaTool>), InferError> {
-        // if no tools are provided, we return None
+        // if no tools are provided, we return None and an empty vec
         if tools.is_empty() {
-            return Ok((tools, None));
+            return Ok((Vec::with_capacity(0), None));
         }
 
         let tools_to_use = match tool_choice {
-            ChatCompletionToolChoiceOption::Function(function) => {
+            ToolChoice::Function(function) => {
                 vec![Self::find_tool_by_name(&tools, &function.name)?]
             }
-            ChatCompletionToolChoiceOption::Required => tools,
-            ChatCompletionToolChoiceOption::Auto => {
+            ToolChoice::Required => tools,
+            ToolChoice::Auto => {
                 // only add the no_tool function if the user has selected the auto option
                 tools
                     .iter()
@@ -58,7 +57,7 @@ impl ToolGrammar {
                     }))
                     .collect::<Vec<_>>()
             }
-            ChatCompletionToolChoiceOption::NoTool => Vec::with_capacity(0),
+            ToolChoice::NoTool => Vec::with_capacity(0),
         };
 
         let functions: HashMap<String, serde_json::Value> = tools_to_use

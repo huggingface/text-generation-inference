@@ -921,43 +921,6 @@
           }
         }
       },
-      "ChatCompletionToolChoiceOption": {
-        "oneOf": [
-          {
-            "type": "string",
-            "description": "Means the model can pick between generating a message or calling one or more tools.",
-            "enum": [
-              "auto"
-            ]
-          },
-          {
-            "type": "string",
-            "description": "Means the model will not call any tool and instead generates a message.",
-            "enum": [
-              "none"
-            ]
-          },
-          {
-            "type": "string",
-            "description": "Means the model must call one or more tools.",
-            "enum": [
-              "required"
-            ]
-          },
-          {
-            "type": "object",
-            "required": [
-              "function"
-            ],
-            "properties": {
-              "function": {
-                "$ref": "#/components/schemas/FunctionName"
-              }
-            }
-          }
-        ],
-        "description": "<https://platform.openai.com/docs/guides/function-calling/configuring-function-calling-behavior-using-the-tool_choice-parameter>"
-      },
       "ChatCompletionTopLogprob": {
         "type": "object",
         "required": [
@@ -1052,7 +1015,7 @@
                 "$ref": "#/components/schemas/GrammarType"
               }
             ],
-            "default": "null",
+            "default": "auto",
             "nullable": true
           },
           "seed": {
@@ -1092,7 +1055,7 @@
           "tool_choice": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/ChatCompletionToolChoiceOption"
+                "$ref": "#/components/schemas/ToolChoice"
               }
             ],
             "default": "null",
@@ -2271,6 +2234,43 @@
             }
           }
         }
+      },
+      "ToolChoice": {
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Means the model can pick between generating a message or calling one or more tools.",
+            "enum": [
+              "auto"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "Means the model will not call any tool and instead generates a message.",
+            "enum": [
+              "none"
+            ]
+          },
+          {
+            "type": "string",
+            "description": "Means the model must call one or more tools.",
+            "enum": [
+              "required"
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "function"
+            ],
+            "properties": {
+              "function": {
+                "$ref": "#/components/schemas/FunctionName"
+              }
+            }
+          }
+        ],
+        "description": "<https://platform.openai.com/docs/guides/function-calling/configuring-function-calling-behavior-using-the-tool_choice-parameter>"
       },
       "Url": {
         "type": "object",
