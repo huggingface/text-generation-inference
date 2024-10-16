@@ -231,7 +231,7 @@ class GPTQMarlinWeightsLoader(WeightsLoader):
         )
 
     def _get_gptq_params(self, weights: Weights):
-        if weights._has_tensor("gptq_bits") and weights._has_tensor("gptq_groupsize"):
+        if weights.has_tensor("gptq_bits") and weights.has_tensor("gptq_groupsize"):
             self.bits = weights.get_tensor("gptq_bits").item()
             self.groupsize = weights.get_tensor("gptq_groupsize").item()
             self.desc_act = False
@@ -239,7 +239,7 @@ class GPTQMarlinWeightsLoader(WeightsLoader):
             # before the `gptq_sym` setting tensor was added.
             self.sym = (
                 weights.get_tensor("gptq_sym").item()
-                if weights._has_tensor("gptq_sym")
+                if weights.has_tensor("gptq_sym")
                 else False
             )
             self.quant_method = "gptq"
