@@ -58,19 +58,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
    --max-total-tokens 2048
    ```
 
-   ii. On 1 Gaudi card using PyTorch eager mode with torch compile:
-   ```bash
-   model=meta-llama/Llama-2-7b-hf
-   hf_token=YOUR_ACCESS_TOKEN
-   volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
-
-   docker run -p 8080:80 -v $volume:/data --runtime=habana -e HABANA_VISIBLE_DEVICES=all \
-    -e PT_HPU_LAZY_MODE=0 -e OMPI_MCA_btl_vader_single_copy_mechanism=none \
-    -e HF_TOKEN=$hf_token --cap-add=sys_nice --ipc=host \
-    ghcr.io/huggingface/tgi-gaudi:2.0.5 --model-id $model --max-input-tokens 1024 --max-total-tokens 2048
-   ```
-
-   iii. On 8 Gaudi cards:
+   ii. On 8 Gaudi cards:
    ```bash
    model=meta-llama/Llama-2-70b-hf
    hf_token=YOUR_ACCESS_TOKEN
