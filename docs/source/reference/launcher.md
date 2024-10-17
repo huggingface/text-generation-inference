@@ -93,10 +93,10 @@ Options:
 ## KV_CACHE_DTYPE
 ```shell
       --kv-cache-dtype <KV_CACHE_DTYPE>
-          Specify the dtype for the key-value cache. When this option is not provided, the dtype of the model is used (typically `float16` or `bfloat16`). Currently the only supported value is `fp8_e5m2` on CUDA
+          Specify the dtype for the key-value cache. When this option is not provided, the dtype of the model is used (typically `float16` or `bfloat16`). Currently the only supported value are `fp8_e4m3fn` and `fp8_e5m2` on CUDA
           
           [env: KV_CACHE_DTYPE=]
-          [possible values: fp8_e5m2]
+          [possible values: fp8_e4m3fn, fp8_e5m2]
 
 ```
 ## TRUST_REMOTE_CODE

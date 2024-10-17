@@ -421,6 +421,8 @@ def get_model(
 
     if kv_cache_dtype is None:
         kv_cache_dtype = dtype
+    elif kv_cache_dtype == "fp8_e4m3fn":
+        kv_cache_dtype = torch.float8_e4m3fn
     elif kv_cache_dtype == "fp8_e5m2":
         kv_cache_dtype = torch.float8_e5m2
     else:

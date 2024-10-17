@@ -24,11 +24,11 @@ class KVCache:
     ):
         """Construct the key-value cache for a layer."""
 
-        if dtype == torch.float8_e5m2 and (
+        if dtype in {torch.float8_e5m2, torch.float8_e4m3fn} and (
             ATTENTION != "flashinfer" or SYSTEM != "cuda"
         ):
             raise ValueError(
-                "float8_e5m2 KV cache is currently only supported for flashinfer on CUDA"
+                "FP8 KV cache is currently only supported for flashinfer on CUDA"
             )
 
         element_size = torch.tensor([], dtype=dtype).element_size()
@@ -105,8 +105,8 @@ class KVCache:
             # TODO: add scale
             key = key.to(key_cache.dtype)
             value = value.to(value_cache.dtype)
-            if key_cache.dtype == torch.float8_e5m2:
-                # Torch index_put does not support float8_e5m2 yet, so
+            if key_cache.dtype in {torch.float8_e5m2, torch.float8_e4m3fn}:
+                # Torch index_put does not support float8_{e5m2,e4m3fn} yet, so
                 # put as raw data instead.
                 key_cache = key_cache.view(torch.uint8)
                 value_cache = value_cache.view(torch.uint8)

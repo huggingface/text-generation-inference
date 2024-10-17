@@ -307,6 +307,9 @@ impl std::fmt::Display for Dtype {
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum KVCacheDtype {
+    #[clap(name = "fp8_e4m3fn")]
+    Fp8e4m3fn,
+
     #[clap(name = "fp8_e5m2")]
     Fp8e5m2,
 }
@@ -314,6 +317,9 @@ enum KVCacheDtype {
 impl std::fmt::Display for KVCacheDtype {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            KVCacheDtype::Fp8e4m3fn => {
+                write!(f, "fp8_e4m3fn")
+            }
             KVCacheDtype::Fp8e5m2 => {
                 write!(f, "fp8_e5m2")
             }
@@ -424,7 +430,7 @@ struct Args {
 
     /// Specify the dtype for the key-value cache. When this option is not provided,
     /// the dtype of the model is used (typically `float16` or `bfloat16`). Currently
-    /// the only supported value is `fp8_e5m2` on CUDA.
+    /// the only supported value are `fp8_e4m3fn` and `fp8_e5m2` on CUDA.
     #[clap(long, env, value_enum)]
     kv_cache_dtype: Option<KVCacheDtype>,
 
