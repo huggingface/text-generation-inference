@@ -1,4 +1,5 @@
 import torch
+from text_generation_server.layers.attention.kv_cache import KVCache
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import (
     ATTENTION,
@@ -38,8 +39,7 @@ def reshape_and_cache(
 
 def paged_attention(
     query: torch.Tensor,
-    key_cache: torch.Tensor,
-    value_cache: torch.Tensor,
+    kv_cache: KVCache,
     kv_head_mapping: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
@@ -80,7 +80,7 @@ def paged_attention(
 
         return decode_state.get().forward(
             query.contiguous(),
-            paged_kv_cache=(key_cache, value_cache),
+            paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
         )
@@ -98,8 +98,8 @@ def paged_attention(
             softcap = 0.0
         out = flash_attn_2_cuda.varlen_fwd(
             query,
-            key_cache,
-            value_cache,
+            kv_cache.key,
+            kv_cache.value,
             None,
             seqlen.cu_seqlen_q,
             seqlen.cu_seqlen_k,
@@ -135,8 +135,8 @@ def paged_attention(
             ops.paged_attention_v1(
                 out,
                 query,
-                key_cache,
-                value_cache,
+                kv_cache.key,
+                kv_cache.value,
                 kv_head_mapping,
                 softmax_scale,
                 block_tables,
@@ -168,8 +168,8 @@ def paged_attention(
                 max_logits,
                 tmp_output,
                 query,
-                key_cache,
-                value_cache,
+                kv_cache.key,
+                kv_cache.value,
                 kv_head_mapping,
                 softmax_scale,
                 block_tables,
@@ -216,263 +216,133 @@ except ImportError:
             ) from e
 
 
+if ATTENTION == "flashdecoding" and not V2:
+    raise ValueError("Flash decoding requires Flash Attention V2")
+
 SUPPORTS_WINDOWING = V2
 
-if ATTENTION == "flashinfer":
 
-    def attention(
-        q: torch.Tensor,
-        key_cache: torch.Tensor,
-        value_cache: torch.Tensor,
-        seqlen: Seqlen,
-        block_tables: torch.Tensor,
-        softmax_scale,
-        window_size_left=-1,
-        causal=True,
-        softcap=0.0,
-    ):
+def attention(
+    *,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    kv_cache: KVCache,
+    seqlen: Seqlen,
+    block_tables: torch.Tensor,
+    softmax_scale: float,
+    window_size_left: int = -1,
+    causal: bool = True,
+    softcap: Optional[float] = None,
+):
+    if ATTENTION == "flashinfer":
         from text_generation_server.layers.attention.flashinfer import (
             prefill_with_paged_kv_state,
         )
 
+        if softcap is None:
+            softcap = 0.0
+
         return prefill_with_paged_kv_state.get().forward(
-            q.contiguous(),
+            query.contiguous(),
             causal=causal,
-            paged_kv_cache=(key_cache, value_cache),
+            paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
             window_left=window_size_left,
         )
 
-elif ATTENTION == "flashdecoding":
-    if V2:
+    # If we are using flashdecoding or paged, we always use flash-attn for
+    # the prefill. We have to branch on whether we use flash-attn v1 or v2.
+    elif V2:
+        out = torch.empty_like(query)
+        if window_size_left <= 0 and window_size_left != -1:
+            raise ValueError("`window_size_left` must be > 0 or -1")
 
-        def attention(
-            q,
-            key_cache: torch.Tensor,
-            value_cache: torch.Tensor,
-            seqlen: Seqlen,
-            block_tables: torch.Tensor,
+        if softcap is None:
+            softcap = 0.0
+
+        return flash_attn_2_cuda.varlen_fwd(
+            query,
+            # flashdecoding: pass the KV caches, paged: pass the KV.
+            kv_cache.key if ATTENTION == "flashdecoding" else key,
+            kv_cache.value if ATTENTION == "flashdecoding" else value,
+            out,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_k,
+            None,
+            None,
+            block_tables if ATTENTION == "flashdecoding" else None,
+            None,
+            seqlen.max_q,
+            seqlen.max_k,
+            0.0,
             softmax_scale,
-            window_size_left=-1,
-            causal=True,
-            softcap=0.0,
-        ):
-            out = torch.empty_like(q)
-            if window_size_left <= 0 and window_size_left != -1:
-                raise ValueError("`window_size_left` must be > 0 or -1")
-            return flash_attn_2_cuda.varlen_fwd(
-                q,
-                key_cache,
-                value_cache,
-                out,
-                seqlen.cu_seqlen_q,
-                seqlen.cu_seqlen_k,
-                None,
-                None,
-                block_tables,
-                None,
-                seqlen.max_q,
-                seqlen.max_k,
-                0.0,
-                softmax_scale,
-                False,
-                causal,
-                window_size_left,
-                0,
-                softcap,
-                False,
-                None,
-            )[0]
+            False,
+            causal,
+            window_size_left,
+            0,
+            softcap,
+            False,
+            None,
+        )[0]
 
     else:
-
-        def attention(
-            q: torch.Tensor,
-            k: torch.Tensor,
-            v: torch.Tensor,
-            seqlen: Seqlen,
-            block_tables: torch.Tensor,
-            softmax_scale: float,
-            window_size_left: int = -1,
-            causal: bool = True,
-            softcap=None,
-        ):
-            if window_size_left != -1:
-                raise NotImplementedError(
-                    "window_size_left is only available with flash attn v2"
-                )
-            if softcap is not None:
-                raise NotImplementedError(
-                    "softcap is only available with flash attn v2"
-                )
-
-            # Flash attention v1 requires q, k and v to have the same number of heads
-            if k.shape[1] != q.shape[1]:
-                # MQA expand
-                if k.shape[1] == 1:
-                    k = k.expand(-1, q.shape[1], -1)
-                # Grouped attention reshape
-                else:
-                    original_shape = k.shape
-                    k = (
-                        k.unsqueeze(2)
-                        .expand(-1, -1, q.shape[1] // k.shape[1], -1)
-                        .reshape(original_shape[0], -1, original_shape[2])
-                    )
-            if v.shape[1] != q.shape[1]:
-                # MQA expand
-                if v.shape[1] == 1:
-                    v = v.expand(-1, q.shape[1], -1)
-                # Grouped attention reshape
-                else:
-                    original_shape = v.shape
-                    v = (
-                        v.unsqueeze(2)
-                        .expand(-1, -1, q.shape[1] // v.shape[1], -1)
-                        .reshape(original_shape[0], -1, original_shape[2])
-                    )
-
-            out = torch.empty_like(q)
-            flash_attn_cuda.fwd(
-                q,
-                k,
-                v,
-                out,
-                seqlen.cu_seqlen_q,
-                seqlen.cu_seqlen_q,
-                seqlen.max_q,
-                seqlen.max_k,
-                0.0,
-                softmax_scale,
-                False,
-                causal,
-                False,
-                0,
-                None,
+        if window_size_left != -1:
+            raise NotImplementedError(
+                "window_size_left is only available with flash attn v2"
             )
-            return out
+        if softcap is not None:
+            raise NotImplementedError("softcap is not available in flash attn v1")
 
-elif ATTENTION == "paged":
-    if V2:
+        # Flash attention v1 requires q, k and v to have the same number of heads
+        if key.shape[1] != query.shape[1]:
+            # MQA expand
+            if key.shape[1] == 1:
+                key = key.expand(-1, query.shape[1], -1)
+            # Grouped attention reshape
+            else:
+                original_shape = key.shape
+                key = (
+                    key.unsqueeze(2)
+                    .expand(-1, -1, query.shape[1] // key.shape[1], -1)
+                    .reshape(original_shape[0], -1, original_shape[2])
+                )
+        if value.shape[1] != query.shape[1]:
+            # MQA expand
+            if value.shape[1] == 1:
+                value = value.expand(-1, query.shape[1], -1)
+            # Grouped attention reshape
+            else:
+                original_shape = value.shape
+                value = (
+                    value.unsqueeze(2)
+                    .expand(-1, -1, query.shape[1] // value.shape[1], -1)
+                    .reshape(original_shape[0], -1, original_shape[2])
+                )
 
-        def attention(
-            q,
-            key_cache: torch.Tensor,
-            value_cache: torch.Tensor,
-            seqlen: Seqlen,
-            block_tables: torch.Tensor,
+        out = torch.empty_like(query)
+        flash_attn_cuda.fwd(
+            query,
+            key,
+            value,
+            out,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_q,
+            seqlen.max_q,
+            seqlen.max_k,
+            0.0,
             softmax_scale,
-            window_size_left=-1,
-            causal=True,
-            softcap=0.0,
-        ):
-            out = torch.empty_like(q)
-            if window_size_left <= 0 and window_size_left != -1:
-                raise ValueError("`window_size_left` must be > 0 or -1")
-            return flash_attn_2_cuda.varlen_fwd(
-                q,
-                key_cache,
-                value_cache,
-                out,
-                seqlen.cu_seqlen_q,
-                seqlen.cu_seqlen_k,
-                None,
-                None,
-                None,  # block_tables,
-                None,
-                seqlen.max_q,
-                seqlen.max_k,
-                0.0,
-                softmax_scale,
-                False,
-                causal,
-                window_size_left,
-                0,
-                softcap,
-                False,
-                None,
-            )[0]
+            False,
+            causal,
+            False,
+            0,
+            None,
+        )
+        return out
 
-    else:
-
-        def attention(
-            q: torch.Tensor,
-            k: torch.Tensor,
-            v: torch.Tensor,
-            seqlen: Seqlen,
-            block_tables: torch.Tensor,
-            softmax_scale: float,
-            window_size_left: int = -1,
-            causal: bool = True,
-            softcap=None,
-        ):
-            if window_size_left != -1:
-                raise NotImplementedError(
-                    "window_size_left is only available with flash attn v2"
-                )
-            if softcap is not None:
-                raise NotImplementedError(
-                    "softcap is only available with flash attn v2"
-                )
-
-            # Flash attention v1 requires q, k and v to have the same number of heads
-            if k.shape[1] != q.shape[1]:
-                # MQA expand
-                if k.shape[1] == 1:
-                    k = k.expand(-1, q.shape[1], -1)
-                # Grouped attention reshape
-                else:
-                    original_shape = k.shape
-                    k = (
-                        k.unsqueeze(2)
-                        .expand(-1, -1, q.shape[1] // k.shape[1], -1)
-                        .reshape(original_shape[0], -1, original_shape[2])
-                    )
-            if v.shape[1] != q.shape[1]:
-                # MQA expand
-                if v.shape[1] == 1:
-                    v = v.expand(-1, q.shape[1], -1)
-                # Grouped attention reshape
-                else:
-                    original_shape = v.shape
-                    v = (
-                        v.unsqueeze(2)
-                        .expand(-1, -1, q.shape[1] // v.shape[1], -1)
-                        .reshape(original_shape[0], -1, original_shape[2])
-                    )
-
-            out = torch.empty_like(q)
-            flash_attn_cuda.fwd(
-                q,
-                k,
-                v,
-                out,
-                seqlen.cu_seqlen_q,
-                seqlen.cu_seqlen_q,
-                seqlen.max_q,
-                seqlen.max_k,
-                0.0,
-                softmax_scale,
-                False,
-                causal,
-                False,
-                0,
-                None,
-            )
-            return out
-
-else:
-    raise RuntimeError(f"Unknwon attention {ATTENTION}")
-
-
-# Prefill in the cache with every kind of attention, unless we
-# have a configuration that requires flash-attention v1, which
-# does not support block tables.
-PREFILL_IN_KV_CACHE = ATTENTION == "flashinfer" or (ATTENTION == "flashdecoding" and V2)
 
 __all__ = [
-    "PREFILL_IN_KV_CACHE",
     "SUPPORTS_WINDOWING",
     "attention",
     "paged_attention",
