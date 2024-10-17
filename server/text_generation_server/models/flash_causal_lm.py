@@ -1122,7 +1122,6 @@ class FlashCausalLM(Model):
                 dtype = default_dtype if dtype is None else dtype
             else:
                 device = torch.device("cpu")
-                # Float16 doesn't exist on target.
                 dtype = torch.bfloat16 if dtype is None else dtype
                 init_cpu_threads_env(rank_id=rank, world_size=world_size)
         else:
