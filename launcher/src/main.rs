@@ -1104,6 +1104,8 @@ fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
                         }
                     }
                 }
+            } else {
+                break;
             }
         }
     }
