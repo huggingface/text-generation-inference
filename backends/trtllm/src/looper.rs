@@ -257,6 +257,33 @@ impl TensorRtLlmBackendV2 {
         let engine_folder = engine_folder.as_ref();
         let executor_worker_path = executor_worker_path.as_ref();
 
+        // Ensure the engine folder exists
+        if !engine_folder.exists() {
+            let err =
+                TensorRtLlmBackendError::EngineFolderDoesntExists(engine_folder.to_path_buf());
+
+            error!(
+                err,
+                engine_folder = engine_folder.display(),
+                executor_worker_path = executor_worker_path.display()
+            );
+
+            return Err(err);
+        }
+
+        // Ensure executor worker binary exists
+        if !executor_worker_path.exists() {
+            let err = TensorRtLlmBackendError::ExecutorWorkerNotFound(engine_folder.to_path_buf());
+
+            error!(
+                err,
+                engine_folder = engine_folder.display(),
+                executor_worker_path = executor_worker_path.display()
+            );
+
+            return Err(err);
+        }
+
         let engine_folder = String::from(
             engine_folder
                 .to_str()
