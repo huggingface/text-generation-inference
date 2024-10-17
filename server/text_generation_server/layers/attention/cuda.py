@@ -12,30 +12,6 @@ major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
 _PARTITION_SIZE = 512
 
-try:
-    from vllm._C import cache_ops
-except Exception as e:
-    raise ImportError(
-        f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
-    )
-
-
-def reshape_and_cache(
-    key: torch.Tensor,
-    value: torch.Tensor,
-    key_cache: torch.Tensor,
-    value_cache: torch.Tensor,
-    slots: torch.Tensor,
-):
-    if ATTENTION in {"flashdecoding", "flashinfer"}:
-        shape = key_cache.shape
-        key_cache.view(-1, shape[-2], shape[-1])[slots] = key
-        value_cache.view(-1, shape[-2], shape[-1])[slots] = value
-    else:
-        cache_ops.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
-        )
-
 
 def paged_attention(
     query: torch.Tensor,
@@ -346,5 +322,4 @@ __all__ = [
     "SUPPORTS_WINDOWING",
     "attention",
     "paged_attention",
-    "reshape_and_cache",
 ]

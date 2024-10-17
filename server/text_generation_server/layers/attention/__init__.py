@@ -11,21 +11,18 @@ if SYSTEM == "cuda":
         SUPPORTS_WINDOWING,
         attention,
         paged_attention,
-        reshape_and_cache,
     )
 elif SYSTEM == "rocm":
     from .rocm import (
         SUPPORTS_WINDOWING,
         attention,
         paged_attention,
-        reshape_and_cache,
     )
 elif SYSTEM == "ipex":
     from .ipex import (
         SUPPORTS_WINDOWING,
         attention,
         paged_attention,
-        reshape_and_cache,
     )
 else:
     raise ImportError(f"System {SYSTEM} doesn't support flash/paged attention")
@@ -36,7 +33,6 @@ from .kv_cache import KVCache
 __all__ = [
     "attention",
     "paged_attention",
-    "reshape_and_cache",
     "SUPPORTS_WINDOWING",
     "KVCache",
     "Seqlen",
