@@ -1,17 +1,15 @@
 use std::path::{Path, PathBuf};
 
 use clap::Parser;
-use hf_hub::{Cache, Repo, RepoType};
 use hf_hub::api::tokio::{Api, ApiBuilder};
+use hf_hub::{Cache, Repo, RepoType};
 use tokenizers::Tokenizer;
 use tracing::info;
 
 use text_generation_backends_trtllm::errors::TensorRtLlmBackendError;
 use text_generation_backends_trtllm::TensorRtLlmBackendV2;
-use text_generation_router::{HubTokenizerConfig, server};
-use text_generation_router::server::{
-    create_post_processor, get_base_tokenizer,
-};
+use text_generation_router::server::{create_post_processor, get_base_tokenizer};
+use text_generation_router::{server, HubTokenizerConfig};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -282,7 +280,12 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
     .expect("Failed to retrieve tokenizer implementation");
 
     info!("Successfully retrieved tokenizer {}", &tokenizer_name);
-    let backend = TensorRtLlmBackendV2::new(tokenizer, model_id, executor_worker)?;
+    let backend = TensorRtLlmBackendV2::new(
+        tokenizer,
+        model_id,
+        executor_worker,
+        max_concurrent_requests,
+    )?;
 
     info!("Successfully created backend");
 
