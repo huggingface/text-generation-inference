@@ -8,6 +8,11 @@ from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
+if SYSTEM == "ipex":
+    from .ipex import QuantLinear
+elif SYSTEM == "cuda":
+    from .cuda import QuantLinear
+
 
 @dataclass
 class GPTQWeight(Weight):
@@ -36,12 +41,7 @@ class GPTQWeight(Weight):
                     "to use Exllama/GPTQ kernels for AWQ inference."
                 )
             try:
-                if SYSTEM == "ipex":
-                    from text_generation_server.layers.awq.quantize.ipex import WQLinear
-                else:
-                    from text_generation_server.layers.awq.quantize.qmodule import (
-                        WQLinear,
-                    )
+                from text_generation_server.layers.awq.quantize import WQLinear
 
                 return WQLinear(
                     w_bit=self.bits,
@@ -65,10 +65,7 @@ class GPTQWeight(Weight):
 
             return ExllamaQuantLinear(self, bias)
         else:
-            if SYSTEM == "ipex":
-                from text_generation_server.layers.gptq.ipex import QuantLinear
-            else:
-                from text_generation_server.layers.gptq.quant_linear import QuantLinear
+            from text_generation_server.layers.gptq import QuantLinear
 
             return QuantLinear(
                 self.qweight,
