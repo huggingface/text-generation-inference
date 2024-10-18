@@ -400,8 +400,11 @@ def get_model(
 
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
-            # These quantizers only work with float16 params.
-            dtype = torch.float16
+            if SYSTEM == "ipex" and not hasattr(torch, "xpu"):
+                dtype = torch.bfloat16
+            else:
+                # These quantizers only work with float16 params.
+                dtype = torch.float16
         elif quantize == "fp8":
             from text_generation_server.layers.fp8 import FBGEMM_DYN_AVAILABLE
 

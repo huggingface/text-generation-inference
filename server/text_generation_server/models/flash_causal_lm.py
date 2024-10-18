@@ -1122,7 +1122,6 @@ class FlashCausalLM(Model):
                 dtype = default_dtype if dtype is None else dtype
             else:
                 device = torch.device("cpu")
-                # Float16 doesn't exist on target.
                 dtype = torch.bfloat16 if dtype is None else dtype
                 init_cpu_threads_env(rank_id=rank, world_size=world_size)
         else:
@@ -1601,8 +1600,6 @@ class FlashCausalLM(Model):
             cache_lengths_tensor = batch.cache_lengths_tensor
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
-
-        print(slots)
 
         if cu_seqlen_prefill is None and self.max_past() is not None:
             # In decode, not prefill, we're actually overwriting the KV-cache
