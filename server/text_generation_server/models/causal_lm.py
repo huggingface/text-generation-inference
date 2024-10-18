@@ -629,7 +629,7 @@ class CausalLM(Model):
             model = self.get_deepspeed_model(
                 model_id, dtype, revision
             )
-            model = self.prepare_model_for_quantization(model)
+            model = hq_env.prepare_model_for_quantization(model)
         else:
             get_repo_root(model_id)
 
@@ -648,7 +648,7 @@ class CausalLM(Model):
                 trust_remote_code=trust_remote_code,
                 **model_kwargs
             )
-            model = self.prepare_model_for_quantization(model)
+            model = hq_env.prepare_model_for_quantization(model)
             model = model.eval().to(device)
 
         self.enable_hpu_graph = os.getenv("ENABLE_HPU_GRAPH", "true").lower() == "true" and LAZY_MODE == 1
@@ -667,7 +667,7 @@ class CausalLM(Model):
                     "TORCH COMPILE", f'Torch compiling of model')
                 model.model = torch.compile(model.model, backend="hpu_backend", options={"keep_input_mutations": True})
 
-        model = self.setup_quantization(model)
+        model = hq_env.setup_quantization(model)
 
         if model.config.model_type not in MODELS_OPTIMIZED_WITH_STATIC_SHAPES:
             raise ValueError(f"Model type {model.config.model_type} is not supported!")
@@ -798,29 +798,6 @@ class CausalLM(Model):
         return {
             'type': rope_scaling, 'factor': float(rope_factor)
         }
-
-    def setup_quantization(self, model):
-        if hq_env.is_quantization_enabled:
-            htorch.core.quantization._mark_params_as_const(model)
-            htorch.core.quantization._check_params_as_const(model)
-            htorch.core.hpu_initialize(model)
-        return model
-
-    def prepare_model_for_quantization(self, model):
-        if hq_env.is_quantization_enabled:
-            if model.config.model_type == "llama":
-                self.patch_scoped_linear_all_reduce(model)
-            model = hq_env.prepare_model_for_quantization(model)
-        return model
-
-    def patch_scoped_linear_all_reduce(self, model):
-        from deepspeed.module_inject.layers import LinearAllreduce
-        from optimum.habana.transformers.models.modeling_all_models import ScopedLinearAllReduce
-        for name, module in model.named_children():
-            if type(module) is LinearAllreduce:
-                SL = ScopedLinearAllReduce(mod=module)
-                setattr(model, name, SL)
-            self.patch_scoped_linear_all_reduce(module)
 
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
