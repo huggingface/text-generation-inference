@@ -1823,7 +1823,7 @@ mod tests {
             stop: None,
             stream: false,
             tools: tools,
-            tool_choice: None,
+            tool_choice: ToolChoice::Auto,
             tool_prompt: Some("Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.".to_string()),
             temperature: None,
             response_format: None,
