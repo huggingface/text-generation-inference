@@ -1,12 +1,67 @@
+use axum::{extract::Request, middleware::Next, response::Response};
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use opentelemetry::sdk::trace;
 use opentelemetry::sdk::trace::Sampler;
 use opentelemetry::sdk::Resource;
+use opentelemetry::trace::{SpanContext, SpanId, TraceContextExt, TraceFlags, TraceId};
+use opentelemetry::Context;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter, Layer};
+
+struct TraceParent {
+    #[allow(dead_code)]
+    version: u8,
+    trace_id: TraceId,
+    parent_id: SpanId,
+    trace_flags: TraceFlags,
+}
+
+fn parse_traceparent(header_value: &str) -> Option<TraceParent> {
+    let parts: Vec<&str> = header_value.split('-').collect();
+    if parts.len() != 4 {
+        return None;
+    }
+
+    let version = u8::from_str_radix(parts[0], 16).ok()?;
+    if version == 0xff {
+        return None;
+    }
+
+    let trace_id = TraceId::from_hex(parts[1]).ok()?;
+    let parent_id = SpanId::from_hex(parts[2]).ok()?;
+    let trace_flags = u8::from_str_radix(parts[3], 16).ok()?;
+
+    Some(TraceParent {
+        version,
+        trace_id,
+        parent_id,
+        trace_flags: TraceFlags::new(trace_flags),
+    })
+}
+
+pub async fn trace_context_middleware(mut request: Request, next: Next) -> Response {
+    let context = request
+        .headers()
+        .get("traceparent")
+        .and_then(|v| v.to_str().ok())
+        .and_then(parse_traceparent)
+        .map(|traceparent| {
+            Context::new().with_remote_span_context(SpanContext::new(
+                traceparent.trace_id,
+                traceparent.parent_id,
+                traceparent.trace_flags,
+                true,
+                Default::default(),
+            ))
+        });
+
+    request.extensions_mut().insert(context);
+
+    next.run(request).await
+}
 
 /// Init logging using env variables LOG_LEVEL and LOG_FORMAT:
 ///     - otlp_endpoint is an optional URL to an Open Telemetry collector
