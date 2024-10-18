@@ -1015,7 +1015,7 @@
                 "$ref": "#/components/schemas/GrammarType"
               }
             ],
-            "default": "auto",
+            "default": "null",
             "nullable": true
           },
           "seed": {
@@ -1058,7 +1058,7 @@
                 "$ref": "#/components/schemas/ToolChoice"
               }
             ],
-            "default": "null",
+            "default": "auto",
             "nullable": true
           },
           "tool_prompt": {

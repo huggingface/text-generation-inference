@@ -20,12 +20,7 @@ impl ToolGrammar {
     pub fn apply(
         tools: Vec<Tool>,
         tool_choice: ToolChoice,
-    ) -> Result<(Vec<Tool>, Option<JsonSchemaTool>), InferError> {
-        // if no tools are provided, we return None and an empty vec
-        if tools.is_empty() {
-            return Ok((Vec::with_capacity(0), None));
-        }
-
+    ) -> Result<Option<(Vec<Tool>, JsonSchemaTool)>, InferError> {
         let tools_to_use = match tool_choice {
             ToolChoice::Function(function) => {
                 vec![Self::find_tool_by_name(&tools, &function.name)?]
@@ -57,8 +52,13 @@ impl ToolGrammar {
                     }))
                     .collect::<Vec<_>>()
             }
-            ToolChoice::NoTool => Vec::with_capacity(0),
+            ToolChoice::NoTool => vec![],
         };
+
+        // if no tools are provided or if the user has selected the no_tool option, return None
+        if tools_to_use.is_empty() {
+            return Ok(None);
+        }
 
         let functions: HashMap<String, serde_json::Value> = tools_to_use
             .iter()
@@ -106,22 +106,18 @@ impl ToolGrammar {
             })
             .collect();
 
-        let tool_schema = if tools_to_use.is_empty() {
-            None
-        } else {
-            Some(JsonSchemaTool {
-                functions_map: FunctionsMap { functions },
-                properties: Properties {
-                    function: tools_to_use
-                        .iter()
-                        .map(|tool| FunctionRef {
-                            ref_path: format!("#/$functions/{}", tool.function.name.clone()),
-                        })
-                        .collect(),
-                },
-            })
+        let tool_schema = JsonSchemaTool {
+            functions_map: FunctionsMap { functions },
+            properties: Properties {
+                function: tools_to_use
+                    .iter()
+                    .map(|tool| FunctionRef {
+                        ref_path: format!("#/$functions/{}", tool.function.name.clone()),
+                    })
+                    .collect(),
+            },
         };
 
-        Ok((tools_to_use, tool_schema))
+        Ok(Some((tools_to_use, tool_schema)))
     }
 }

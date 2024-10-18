@@ -892,14 +892,14 @@ pub(crate) struct ChatRequest {
 
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
     #[serde(default)]
-    #[schema(nullable = true, default = "null", example = "null")]
-    pub tool_choice: Option<ToolChoice>,
+    #[schema(nullable = true, default = "auto", example = "auto")]
+    pub tool_choice: ToolChoice,
 
     /// Response format constraints for the generation.
     ///
     /// NOTE: A request can use `response_format` OR `tools` but not both.
     #[serde(default)]
-    #[schema(nullable = true, default = "auto", example = "auto")]
+    #[schema(nullable = true, default = "null", example = "null")]
     pub response_format: Option<GrammarType>,
 
     /// A guideline to be used in the chat_template
@@ -946,8 +946,6 @@ impl ChatRequest {
             Some(temperature) if temperature == 0.0 => (false, None),
             other => (true, other),
         };
-        // if no tool_choice is set, set default (Auto)
-        let tool_choice = tool_choice.unwrap_or_default();
 
         if response_format.is_some() && tools.is_some() {
             return Err(InferError::ToolError(
@@ -962,18 +960,22 @@ impl ChatRequest {
             }
             None => {
                 if let Some(tools) = tools {
-                    let (updated_tools, tool_schema) = ToolGrammar::apply(tools, tool_choice)?;
-
-                    let grammar = tool_schema
-                        .as_ref()
-                        .map(|t| GrammarType::Json(serde_json::json!(t)));
-
-                    let inputs: String = infer.apply_chat_template(
-                        guideline,
-                        messages,
-                        Some((updated_tools, tool_prompt)),
-                    )?;
-                    (inputs, grammar, tool_schema.is_some())
+                    match ToolGrammar::apply(tools, tool_choice)? {
+                        Some((updated_tools, tool_schema)) => {
+                            let grammar = GrammarType::Json(serde_json::json!(tool_schema));
+                            let inputs: String = infer.apply_chat_template(
+                                guideline,
+                                messages,
+                                Some((updated_tools, tool_prompt)),
+                            )?;
+                            (inputs, Some(grammar), true)
+                        }
+                        None => {
+                            // same as if no response_format or tools are set
+                            let inputs = infer.apply_chat_template(guideline, messages, None)?;
+                            (inputs, None, false)
+                        }
+                    }
                 } else {
                     // if no response_format or tools are set simply apply the chat template to generate inputs
                     let inputs = infer.apply_chat_template(guideline, messages, None)?;
@@ -1046,7 +1048,7 @@ pub enum ToolChoice {
     #[default]
     Auto,
     /// Means the model will not call any tool and instead generates a message.
-    #[schema(rename = "none")]
+    #[serde(rename = "none")]
     NoTool,
     /// Means the model must call one or more tools.
     Required,

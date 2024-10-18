@@ -373,6 +373,47 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_required(
 
 @pytest.mark.asyncio
 @pytest.mark.private
+async def test_flash_llama_grammar_tools_sea_creatures_stream_none(
+    flash_llama_grammar_tools, response_snapshot
+):
+    responses = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=24,
+        tools=tools,
+        tool_choice="none",
+        messages=[
+            {
+                "role": "system",
+                "content": "You're a helpful assistant! Answer the users question best you can. If the question is not answerable by the tools, just generate a response.",
+            },
+            {
+                "role": "user",
+                "content": "Tell me a story about 3 sea creatures",
+            },
+        ],
+        stream=True,
+    )
+
+    count = 0
+    content_generated = ""
+    last_response = None
+    async for response in responses:
+        count += 1
+        content_generated += response.choices[0].delta.content
+        last_response = response
+        assert response.choices[0].delta.tool_calls is None
+
+    assert count == 100
+    print(content_generated)
+    assert (
+        content_generated
+        == "Once upon a time, in a vibrant ocean filled with coral reefs and schools of shimmering fish, lived three dear friends: Luna the sea turtle, Finley the friendly fish, and Crusty the wise crab.\n\nLuna was the oldest of the three. She had traveled the world, exploring hidden caves and shipwrecks, and collecting sparkling shells and shiny pebbles. Her shell was a beautiful mosaic of blues and greens, and her gentle eyes twinkled with the secrets of the deep"
+    )
+    assert last_response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
 async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
     flash_llama_grammar_tools, response_snapshot
 ):
