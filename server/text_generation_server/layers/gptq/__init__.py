@@ -65,8 +65,6 @@ class GPTQWeight(Weight):
 
             return ExllamaQuantLinear(self, bias)
         else:
-            from text_generation_server.layers.gptq import QuantLinear
-
             return QuantLinear(
                 self.qweight,
                 self.qzeros,
