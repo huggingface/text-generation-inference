@@ -325,6 +325,7 @@ class GPTQWeightsLoader(WeightsLoader):
             if g_idx is not None:
                 if (
                     not torch.equal(
+                        # Remove g_idx[0] to adapt the check with TP>1.
                         (g_idx - g_idx[0]).cpu(),
                         torch.tensor(
                             [i // self.groupsize for i in range(g_idx.shape[0])],
