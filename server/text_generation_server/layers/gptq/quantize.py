@@ -12,7 +12,6 @@ from huggingface_hub import HfApi
 from accelerate import init_empty_weights
 from text_generation_server.utils import initialize_torch_distributed, Weights
 from text_generation_server.utils.hub import weight_files
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.gptq import QuantLinear
 from loguru import logger
 from typing import Optional
