@@ -182,15 +182,16 @@ RUN pip install https://download.pytorch.org/whl/nightly/cpu/torch-2.5.0.dev2024
 RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchvision-0.20.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
 RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchaudio-2.4.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
 
-RUN pip install triton py-libnuma numa
+RUN pip install triton py-libnuma
 
 WORKDIR /usr/src
 
 RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout f86e93e4890dc2c989024d148d415c9aa8a1649f
 RUN git clone https://github.com/intel/torch-ccl.git && cd torch-ccl && git checkout v2.4.0+cpu+rc0
-RUN cd intel-extension-for-pytorch && git submodule sync && git submodule update --init --recursive && python setup.py install
-RUN cd torch-ccl && git submodule sync && git submodule update --init --recursive && pip install .
 
+RUN cd intel-extension-for-pytorch && git submodule sync && git submodule update --init --recursive && python setup.py install
+
+RUN cd torch-ccl && git submodule sync && git submodule update --init --recursive && pip install .
 
 ENV LD_PRELOAD=/opt/conda/lib/libtcmalloc.so
 ENV CCL_ROOT=/opt/conda/lib/python3.11/site-packages/oneccl_bindings_for_pytorch
