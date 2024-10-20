@@ -1066,7 +1066,7 @@ pub enum ToolChoice {
 ///
 /// `none` is the default when no tools are present. `auto` is the default if tools are present."
 enum ToolTypeDeserializer {
-    /// `none` means the model will not call any tool and instead generates a message.
+    /// None means `null` was passed in the JSON, and the default choice is applied based on the presence of tools.
     Null,
 
     /// `auto` means the model can pick between generating a message or calling one or more tools.
@@ -1081,7 +1081,7 @@ enum ToolTypeDeserializer {
 impl From<ToolTypeDeserializer> for ToolChoice {
     fn from(value: ToolTypeDeserializer) -> Self {
         match value {
-            ToolTypeDeserializer::Null => ToolChoice::NoTool,
+            ToolTypeDeserializer::Null => ToolChoice::Auto,
             ToolTypeDeserializer::String(s) => match s.as_str() {
                 "none" => ToolChoice::NoTool,
                 "auto" => ToolChoice::Auto,
