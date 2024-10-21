@@ -1263,7 +1263,7 @@ fn download_convert_model(
 
     let download_stdout = BufReader::new(download_process.stdout.take().unwrap());
 
-    let t = thread::spawn(move || {
+    let stdout_thread = thread::spawn(move || {
         log_lines(download_stdout);
     });
 
@@ -1271,7 +1271,7 @@ fn download_convert_model(
 
     // We read stderr in another thread as it seems that lines() can block in some cases
     let (err_sender, err_receiver) = mpsc::channel();
-    thread::spawn(move || {
+    let stderr_thread = thread::spawn(move || {
         for line in download_stderr.lines().map_while(Result::ok) {
             err_sender.send(line).unwrap_or(());
         }
@@ -1305,7 +1305,8 @@ fn download_convert_model(
         }
         sleep(Duration::from_millis(100));
     }
-    t.join().expect("Closing log reading thread");
+    stdout_thread.join().expect("Closing log reading thread");
+    stderr_thread.join().expect("Closing log reading thread");
     Ok(())
 }
 
