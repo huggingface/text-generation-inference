@@ -164,10 +164,9 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
 #endif
 
     const auto sampling = GetSamplingConfig(topK, topP, temperature, repetitionPenalty, frequencyPenalty, seed);
-    const auto maxNewTokensChecked_ = static_cast<tle::SizeType32>(maxNewTokensChecked);
 
     // Build the request
-    auto request = tle::Request{tokens, maxNewTokensChecked_, true, sampling, OUTPUT_CONFIG};
+    auto request = tle::Request{tokens, CAST_SIZETYPE(maxNewTokensChecked), true, sampling, OUTPUT_CONFIG};
     request.setStopWords(stopWords);
 
     // Submit to the executor for batching
