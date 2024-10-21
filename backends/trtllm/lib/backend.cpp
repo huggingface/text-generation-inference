@@ -9,13 +9,13 @@
 #include "hardware.h"
 
 void huggingface::tgi::backends::InitializeBackend() {
-    if(const auto TRTLLM_LOG_LEVEL_CSTR = std::getenv("TRTLLM_LOG_LEVEL")){
+    if (const auto TRTLLM_LOG_LEVEL_CSTR = std::getenv("TRTLLM_LOG_LEVEL")) {
         std::string log_level(TRTLLM_LOG_LEVEL_CSTR);
-        std::transform(log_level.begin(), log_level.end(), log_level.begin(), [](unsigned  char c) {
+        std::transform(log_level.begin(), log_level.end(), log_level.begin(), [](unsigned char c) {
             return std::tolower(c);
         });
 
-        if(log_level == "debug")
+        if (log_level == "debug")
             spdlog::set_level(spdlog::level::debug);
         else
             spdlog::set_level(spdlog::level::info);
@@ -102,17 +102,6 @@ huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
     SPDLOG_INFO(FMT_STRING("Engine (version={})"), config["/version"_json_pointer].get_ref<const std::string &>());
 }
 
-[[nodiscard("Returned number of requests needs to be consumed")]]
-size_t huggingface::tgi::backends::TensorRtLlmBackend::NumResponsesReady() const {
-    const auto numResponses = executor.getNumResponsesReady();
-
-#ifndef NDEBUG
-    if(numResponses > 0) SPDLOG_INFO(FMT_STRING("Num responses ready: {:d}"), numResponses);
-#endif
-
-    return numResponses;
-}
-
 [[nodiscard("Returned request id needs to be provided back to gather generated tokens")]]
 tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const std::vector<tle::TokenIdType> &tokens,
@@ -138,10 +127,11 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
 
 #ifndef NDEBUG
     SPDLOG_INFO(
-        FMT_STRING("Sampling config: topK={:d}, topP={:d}, temperature={:d}, repetition_penalty={:d}, frequency_penalty={:d}, seed={:d}"),
-        topK, topP, temperature, repetition_penalty, frequency_penalty, seed
+            FMT_STRING(
+                    "Sampling config: topK={:d}, topP={:d}, temperature={:d}, repetition_penalty={:d}, frequency_penalty={:d}, seed={:d}"),
+            topK, topP, temperature, repetition_penalty, frequency_penalty, seed
     )
-    SPDLOG_INFO(FMT_STRING("Asking for max_new_tokens={:d}"), maxNewTokensChecked);
+            SPDLOG_INFO(FMT_STRING("Asking for max_new_tokens={:d}"), maxNewTokensChecked);
 #endif
 
     const auto sampling = GetSamplingConfig(topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
