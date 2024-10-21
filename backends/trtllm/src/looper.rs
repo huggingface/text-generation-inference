@@ -387,9 +387,7 @@ impl Backend for TensorRtLlmBackendV2 {
         }
     }
 
-    async fn health(&self, current_health: bool) -> bool {
-        current_health
-            & !self.executor_looper.is_finished()
-            & !self.post_processor_looper.is_finished()
+    async fn health(&self, _: bool) -> bool {
+        !self.executor_looper.is_finished() & !self.post_processor_looper.is_finished()
     }
 }
