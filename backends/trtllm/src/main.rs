@@ -9,6 +9,7 @@ use tracing::info;
 use text_generation_backends_trtllm::errors::TensorRtLlmBackendError;
 use text_generation_backends_trtllm::TensorRtLlmBackendV2;
 use text_generation_router::server::{create_post_processor, get_base_tokenizer};
+use text_generation_router::usage_stats::UsageStatsLevel;
 use text_generation_router::{server, HubTokenizerConfig};
 
 /// App Configuration
@@ -312,8 +313,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         messages_api_enabled,
         true,
         max_client_batch_size,
-        false,
-        false,
+        UsageStatsLevel::Off,
     )
     .await?;
     Ok(())
