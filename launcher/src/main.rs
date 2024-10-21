@@ -1263,7 +1263,7 @@ fn download_convert_model(
 
     let download_stdout = BufReader::new(download_process.stdout.take().unwrap());
 
-    thread::spawn(move || {
+    let t = thread::spawn(move || {
         log_lines(download_stdout);
     });
 
@@ -1305,6 +1305,7 @@ fn download_convert_model(
         }
         sleep(Duration::from_millis(100));
     }
+    t.join().expect("Closing log reading thread");
     Ok(())
 }
 
