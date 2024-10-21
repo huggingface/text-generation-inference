@@ -84,7 +84,7 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
 fn build_ffi_layer(deps_folder: &PathBuf, is_debug: bool) {
     let ndebug = match is_debug {
         true => "1",
-        false => "0"
+        false => "0",
     };
 
     CFG.include_prefix = "backends/trtllm";

@@ -65,5 +65,4 @@ mod ffi {
             self: Pin<&mut TensorRtLlmBackendImpl>,
         ) -> Result<UniquePtr<CxxVector<GenerationStep>>>;
     }
-
 }
