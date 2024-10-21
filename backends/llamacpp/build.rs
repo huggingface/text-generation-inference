@@ -2,6 +2,7 @@ use cxx_build::CFG;
 use std::env;
 use std::path::PathBuf;
 
+const CMAKE_LLAMA_CPP_DEFAULT_CUDA_ARCHS: &str = "75-real;80-real;86-real;89-real;90-real";
 const CMAKE_LLAMA_CPP_TARGET: &str = "tgi_llama_cpp_backend_impl";
 const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 2] = ["spdlog", "fmt"];
 const MPI_REQUIRED_VERSION: &str = "4.1";
@@ -20,6 +21,10 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> PathBuf 
         .map(|val| PathBuf::from(val))
         .unwrap_or(out_dir.join("dist"));
 
+    let build_cuda = option_env!("LLAMA_CPP_BUILD_CUDA").unwrap_or("OFF");
+    let cuda_archs =
+        option_env!("LLAMA_CPP_TARGET_CUDA_ARCHS").unwrap_or(CMAKE_LLAMA_CPP_DEFAULT_CUDA_ARCHS);
+
     let _ = cmake::Config::new(".")
         .uses_cxx11()
         .generator("Ninja")
@@ -29,9 +34,8 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> PathBuf 
         })
         .env("OPT_LEVEL", opt_level)
         .define("CMAKE_INSTALL_PREFIX", &install_path)
-        // .define("CMAKE_CUDA_COMPILER", "/usr/local/cuda/bin/nvcc")
-        // .define("TGI_TRTLLM_BACKEND_TARGET_CUDA_ARCH_LIST", cuda_arch_list)
-        // .define("TGI_TRTLLM_BACKEND_TRT_ROOT", tensorrt_path)
+        .define("LLAMA_CPP_BUILD_CUDA", build_cuda)
+        .define("LLAMA_CPP_TARGET_CUDA_ARCHS", cuda_archs)
         .build();
 
     // Additional transitive CMake dependencies
@@ -61,7 +65,7 @@ fn build_ffi_layer(deps_folder: &PathBuf) {
         .include(deps_folder.join("llama-src").join("ggml").join("include"))
         .include(deps_folder.join("llama-src").join("include"))
         .file("csrc/backend.cpp")
-        .std("c++20")
+        .std("c++23")
         .compile(CMAKE_LLAMA_CPP_TARGET);
 
     println!("cargo:rerun-if-changed=CMakeLists.txt");

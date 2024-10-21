@@ -10,14 +10,15 @@
 
 namespace huggingface::tgi::backends::llama {
 
-    std::unique_ptr<TgiLlamaCppBackend> CreateLlamaCppBackend(std::string_view root) {
+    std::unique_ptr<huggingface::tgi::backends::llama::TgiLlamaCppBackend>
+    CreateLlamaCppBackend(std::string_view root) {
         SPDLOG_INFO(FMT_STRING("Loading model from {}"), root);
         gpt_init();
 
         // Fake argv
         std::vector<std::string_view> args = {"tgi_llama_cpp_backend", "--model", root};
-        std::vector<char*> argv;
-        for(const auto& arg : args) {
+        std::vector<char *> argv;
+        for (const auto &arg: args) {
             argv.push_back(const_cast<char *>(arg.data()));
         }
         argv.push_back(nullptr);
@@ -39,35 +40,39 @@ namespace huggingface::tgi::backends::llama {
         auto loras = result.lora_adapters;
 
         // Make sure everything is correctly initialized
-        if(model == nullptr)
+        if (model == nullptr)
             throw std::runtime_error(fmt::format("Failed to load model from {}", root));
 
-        return std::make_unique<TgiLlamaCppBackend>(model, context);
+        return std::make_unique<huggingface::tgi::backends::llama::TgiLlamaCppBackend>(model, context);
     }
 
-    TgiLlamaCppBackend::TgiLlamaCppBackend(llama_model *const model, llama_context *const ctx)
-        : model(model), ctx(ctx), batch()
-    {
+    huggingface::tgi::backends::llama::TgiLlamaCppBackend::TgiLlamaCppBackend(llama_model *const model,
+                                                                              llama_context *const ctx)
+            : model(model), ctx(ctx), batch() {
         char modelName[128];
         llama_model_meta_val_str(model, "general.name", modelName, sizeof(modelName));
         SPDLOG_DEBUG(FMT_STRING("Created llama.cpp backend for model: '{}'"), std::string_view(modelName));
     }
 
-    TgiLlamaCppBackend::~TgiLlamaCppBackend() {
-        if(model)
-        {
+    huggingface::tgi::backends::llama::TgiLlamaCppBackend::~TgiLlamaCppBackend() {
+        if (model) {
             SPDLOG_DEBUG("Freeing llama.cpp model");
             llama_free_model(model);
         }
 
-        if(ctx)
-        {
+        if (ctx) {
             SPDLOG_DEBUG("Freeing llama.cpp context");
             llama_free(ctx);
         }
     }
 
-    void TgiLlamaCppBackend::schedule() {
+    void huggingface::tgi::backends::llama::TgiLlamaCppBackend::schedule() {
         std::vector<llama_token> tokens;
+    }
+
+    namespace impl {
+        class LlamaCppBackendImpl {
+
+        };
     }
 }
