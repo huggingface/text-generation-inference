@@ -9,21 +9,11 @@
 #include "hardware.h"
 
 void huggingface::tgi::backends::InitializeBackend() {
-    if (const auto TRTLLM_LOG_LEVEL_CSTR = std::getenv("TRTLLM_LOG_LEVEL")) {
-        std::string log_level(TRTLLM_LOG_LEVEL_CSTR);
-        std::transform(log_level.begin(), log_level.end(), log_level.begin(), [](unsigned char c) {
-            return std::tolower(c);
-        });
-
-        if (log_level == "debug")
-            spdlog::set_level(spdlog::level::debug);
-        else
-            spdlog::set_level(spdlog::level::info);
-    }
-
     SPDLOG_INFO("Initializing Backend...");
     nvmlInit_v2();
     initTrtLlmPlugins();
+
+    InitializeLogging();
 
     SPDLOG_INFO("Backend Executor Version: {}", tle::version());
     const auto numGpus = huggingface::hardware::cuda::GetNumDevices();
@@ -32,6 +22,21 @@ void huggingface::tgi::backends::InitializeBackend() {
     } else {
         SPDLOG_WARN("Failed to detected Nvidia GPU(s) on the system");
     }
+}
+
+[[nodiscard]] tle::ParallelConfig GetParallelConfig(const size_t worldSize, std::string workerPath) {
+    auto mode = tle::CommunicationMode::kLEADER;
+    std::optional<tle::OrchestratorConfig> orchestratorConfig = std::nullopt;
+
+    if (worldSize > 1) {
+        SPDLOG_INFO("Detected sharded engine deployment, using orchestrator mode");
+        mode = tle::CommunicationMode::kORCHESTRATOR;
+        orchestratorConfig = std::make_optional<tle::OrchestratorConfig>(true, workerPath, nullptr, true);
+    } else {
+        SPDLOG_INFO("Detected single engine deployment, using leader mode");
+    }
+
+    return tle::ParallelConfig(tle::CommunicationType::kMPI, mode, std::nullopt, std::nullopt, orchestratorConfig);
 }
 
 [[nodiscard]]

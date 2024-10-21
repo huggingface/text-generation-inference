@@ -25,6 +25,8 @@ namespace huggingface::tgi::backends {
     using TokenId = tle::TokenIdType;
 
     const static auto OUTPUT_CONFIG = tle::OutputConfig(true, false, false, true, false);
+    constexpr auto FMT_NOT_ENOUGH_GPUS = FMT_STRING(
+            "Not enough GPUs to allocate requested model (detected: {:d}, required: {:d})");
     constexpr auto FMT_EXECUTOR_STATS = FMT_STRING(
             "Submitting inference [{}] to the executor ({:d} already in-flight)");
     constexpr auto FMT_SAMPLING_CONFIG = FMT_STRING(
@@ -37,12 +39,42 @@ namespace huggingface::tgi::backends {
     void InitializeBackend();
 
     /**
+     * Initialize logging mechanism
+     */
+    void huggingface::tgi::backends::InitializeLogging() {
+#ifdef NDEBUG
+        if (const auto TRTLLM_LOG_LEVEL_CSTR = std::getenv("TRTLLM_LOG_LEVEL")) {
+        std::string log_level(TRTLLM_LOG_LEVEL_CSTR);
+        std::transform(log_level.begin(), log_level.end(), log_level.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+
+        if (log_level == "debug")
+            spdlog::set_level(spdlog::level::debug);
+        else
+            spdlog::set_level(spdlog::level::info);
+    }
+#else
+        spdlog::set_level(spdlog::level::debug);
+#endif
+    }
+
+
+    /**
      *
      * @param config TensorRT-LLM configuration object
      * @param workerPath Path to the "executorWorker" provided by TensorRT-LLM when using orchestrator mode
      * @return
      */
     tle::ExecutorConfig GetExecutorConfig(const json &config, const std::string &workerPath);
+
+    /**
+     *
+     * @param worldSize
+     * @param workerPath
+     * @return
+     */
+    tle::ParallelConfig GetParallelConfig(size_t worldSize, std::string workerPath) noexcept;
 
     /**
      * Get the sampling configuration from the parameters provided by TGI
