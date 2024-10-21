@@ -20,6 +20,9 @@
 using json = nlohmann::json;
 namespace tle = tensorrt_llm::executor;
 
+
+#define CAST_SIZETYPE(x) static_cast<tle::SizeType32>(x)
+
 namespace huggingface::tgi::backends {
     using RequestId = tle::IdType;
     using TokenId = tle::TokenIdType;
