@@ -100,11 +100,10 @@ huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
             SPDLOG_INFO(FMT_STRING("Found {:d} EOS tokens"), eosTokenIds.size());
             stopWords = std::list<decltype(stopWords)::value_type>(eosTokenIds.size());
 
-            std::transform(eosTokenIds.cbegin(), eosTokenIds.cend(), stopWords.begin(),
-                           [](const auto tokenIdObj) -> decltype(stopWords)::value_type {
-                               const auto tokenId = tokenIdObj.template get<tle::TokenIdType>();
-                               return {tokenId};
-                           });
+            const auto to_single_token = [](const auto tokenIdObj) -> decltype(stopWords)::value_type {
+                return {tokenIdObj.template get<tle::TokenIdType>()};
+            };
+            std::transform(eosTokenIds.cbegin(), eosTokenIds.cend(), stopWords.begin(), to_single_token);
         }
     } else {
         SPDLOG_INFO("No EOS tokens found, generation_config.json doesn't exist");
@@ -114,13 +113,13 @@ huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
 
 [[nodiscard("Returned number of requests needs to be consumed")]]
 size_t huggingface::tgi::backends::TensorRtLlmBackend::NumResponsesReady() const {
+#ifdef NDEBUG
+    return executor.getNumResponsesReady();
+#else
     const auto numResponses = executor.getNumResponsesReady();
-
-#ifndef NDEBUG
-    if(numResponses > 0) SPDLOG_INFO(FMT_STRING("Num responses ready: {:d}"), numResponses);
-#endif
-
+    if (numResponses > 0) SPDLOG_INFO(FMT_STRING("Num responses ready: {:d}"), numResponses);
     return numResponses;
+#endif
 }
 
 [[nodiscard("Returned request id needs to be provided back to gather generated tokens")]]
