@@ -24,7 +24,8 @@ void huggingface::tgi::backends::InitializeBackend() {
     }
 }
 
-[[nodiscard]] tle::ParallelConfig GetParallelConfig(const size_t worldSize, std::string workerPath) {
+[[nodiscard]]
+tle::ParallelConfig GetParallelConfig(const size_t worldSize, std::string workerPath) {
     auto mode = tle::CommunicationMode::kLEADER;
     std::optional<tle::OrchestratorConfig> orchestratorConfig = std::nullopt;
 

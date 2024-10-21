@@ -44,7 +44,7 @@ namespace huggingface::tgi::backends {
     /**
      * Initialize logging mechanism
      */
-    void huggingface::tgi::backends::InitializeLogging() {
+    void InitializeLogging() {
 #ifdef NDEBUG
         if (const auto TRTLLM_LOG_LEVEL_CSTR = std::getenv("TRTLLM_LOG_LEVEL")) {
         std::string log_level(TRTLLM_LOG_LEVEL_CSTR);
