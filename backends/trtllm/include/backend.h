@@ -24,6 +24,10 @@ namespace huggingface::tgi::backends {
     using TokenId = tle::TokenIdType;
 
     const static auto OUTPUT_CONFIG = tle::OutputConfig(true, false, false, true, false);
+    constexpr auto FMT_EXECUTOR_STATS = FMT_STRING(
+            "Submitting inference [{}] to the executor ({:d} already in-flight)");
+    constexpr auto FMT_SAMPLING_CONFIG = FMT_STRING(
+            "Sampling: topK={:d}, topP={:.1f}, temperature={:.1f}, repetition_penalty={:.1f}, frequency_penalty={:.1f}, seed={:d}");
 
     /**
      * Initialize all the components required by TRTLLM.
@@ -50,12 +54,12 @@ namespace huggingface::tgi::backends {
      * @return
      */
     tle::SamplingConfig GetSamplingConfig(
-            const uint32_t topK,
-            const float_t topP,
-            const float_t temperature,
-            const float_t repetition_penalty,
-            const float_t frequency_penalty,
-            const uint64_t seed
+            uint32_t topK,
+            float_t topP,
+            float_t temperature,
+            float_t repetition_penalty,
+            float_t frequency_penalty,
+            uint64_t seed
     ) noexcept;
 
     /**
@@ -65,6 +69,9 @@ namespace huggingface::tgi::backends {
     private:
         const json config;
         tle::Executor executor;
+
+        /** Frequently accessed variables cached here **/
+        uint32_t maxNumTokens;
 
     public:
         explicit TensorRtLlmBackend(
