@@ -2706,9 +2706,9 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b69a91d4893e713e06f724597ad630f1fa76057a5e1026c0ca67054a9032a76"
+checksum = "4c365a63eec4f55b7efeceb724f1336f26a9cf3427b70e59e2cd2a5b947fba96"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -2819,19 +2819,17 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry_sdk"
-version = "0.23.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae312d58eaa90a82d2e627fd86e075cf5230b3f11794e2ed74199ebbe572d4fd"
+checksum = "692eac490ec80f24a17828d49b40b60f5aeaccdfe6a503f939713afd22bc28df"
 dependencies = [
  "async-trait",
  "futures-channel",
  "futures-executor",
  "futures-util",
  "glob",
- "lazy_static",
  "once_cell",
- "opentelemetry 0.23.0",
- "ordered-float 4.3.0",
+ "opentelemetry 0.24.0",
  "percent-encoding",
  "rand",
  "thiserror",
@@ -4185,16 +4183,17 @@ dependencies = [
  "cmake",
  "cxx",
  "cxx-build",
+ "hashbrown 0.14.5",
+ "hf-hub",
  "log",
- "parking_lot",
  "pkg-config",
  "text-generation-router",
  "thiserror",
- "tokenizers 0.19.1",
+ "tokenizers",
  "tokio",
  "tokio-stream",
  "tracing",
- "tracing-opentelemetry 0.24.0",
+ "tracing-opentelemetry 0.25.0",
  "tracing-subscriber",
 ]
 
@@ -4212,7 +4211,7 @@ dependencies = [
  "tabled",
  "text-generation-client",
  "thiserror",
- "tokenizers 0.20.0",
+ "tokenizers",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -4292,7 +4291,7 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "thiserror",
- "tokenizers 0.20.0",
+ "tokenizers",
  "tokio",
  "tokio-stream",
  "tower-http",
@@ -4341,7 +4340,7 @@ dependencies = [
  "slotmap",
  "text-generation-router",
  "thiserror",
- "tokenizers 0.20.0",
+ "tokenizers",
  "tokio",
  "tokio-stream",
  "tonic 0.10.2",
@@ -4392,7 +4391,7 @@ dependencies = [
  "slotmap",
  "text-generation-router",
  "thiserror",
- "tokenizers 0.20.0",
+ "tokenizers",
  "tokio",
  "tokio-stream",
  "tonic 0.10.2",
@@ -4513,39 +4512,6 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
-
-[[package]]
-name = "tokenizers"
-version = "0.19.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e500fad1dd3af3d626327e6a3fe5050e664a6eaa4708b8ca92f1794aaf73e6fd"
-dependencies = [
- "aho-corasick",
- "derive_builder",
- "esaxx-rs",
- "getrandom",
- "hf-hub",
- "indicatif",
- "itertools 0.12.1",
- "lazy_static",
- "log",
- "macro_rules_attribute",
- "monostate",
- "onig",
- "paste",
- "rand",
- "rayon",
- "rayon-cond",
- "regex",
- "regex-syntax 0.8.5",
- "serde",
- "serde_json",
- "spm_precompiled",
- "thiserror",
- "unicode-normalization-alignments",
- "unicode-segmentation",
- "unicode_categories",
-]
 
 [[package]]
 name = "tokenizers"
@@ -4933,14 +4899,14 @@ dependencies = [
 
 [[package]]
 name = "tracing-opentelemetry"
-version = "0.24.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f68803492bf28ab40aeccaecc7021096bd256baf7ca77c3d425d89b35a7be4e4"
+checksum = "a9784ed4da7d921bc8df6963f8c80a0e4ce34ba6ba76668acadd3edbd985ff3b"
 dependencies = [
  "js-sys",
  "once_cell",
- "opentelemetry 0.23.0",
- "opentelemetry_sdk 0.23.0",
+ "opentelemetry 0.24.0",
+ "opentelemetry_sdk 0.24.1",
  "smallvec",
  "tracing",
  "tracing-core",

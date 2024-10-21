@@ -2,12 +2,13 @@
 
 set -ex
 
-TRT_VER="10.2.0.19"
-CUDA_VER="12.5"
-CUDNN_VER="9.2.1.18-1"
-NCCL_VER="2.22.3-1+cuda12.5"
-CUBLAS_VER="12.5.3.2-1"
-NVRTC_VER="12.5.82-1"
+TRT_VER_BASE="10.4.0"
+TRT_VER_FULL="${TRT_VER_BASE}.26"
+CUDA_VER="12.6"
+CUDNN_VER="9.5.0.50-1"
+NCCL_VER="2.22.3-1+cuda12.6"
+CUBLAS_VER="12.6.3.3-1"
+NVRTC_VER="12.6.77-1"
 
 for i in "$@"; do
     case $i in
@@ -32,8 +33,9 @@ install_ubuntu_requirements() {
     ARCH=$(uname -m)
     if [ "$ARCH" = "amd64" ];then ARCH="x86_64";fi
     if [ "$ARCH" = "aarch64" ];then ARCH="sbsa";fi
-    curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/${ARCH}/cuda-keyring_1.0-1_all.deb
-    dpkg -i cuda-keyring_1.0-1_all.deb
+    curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${ARCH}/cuda-keyring_1.1-1_all.deb
+    dpkg -i cuda-keyring_1.1-1_all.deb
+    rm /etc/apt/sources.list.d/cuda-ubuntu2404-x86_64.list
 
     apt-get update
     if [[ $(apt list --installed | grep libcudnn9) ]]; then
@@ -71,7 +73,7 @@ install_centos_requirements() {
 install_tensorrt() {
     #PY_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[0:2])))')
     #PARSED_PY_VERSION=$(echo "${PY_VERSION//./}")
-    TRT_CUDA_VERSION="12.5"
+    TRT_CUDA_VERSION="12.6"
 
     if [ -z "$RELEASE_URL_TRT" ];then
         ARCH=${TRT_TARGETARCH}
@@ -79,12 +81,12 @@ install_tensorrt() {
         if [ "$ARCH" = "arm64" ];then ARCH="aarch64";fi
         if [ "$ARCH" = "amd64" ];then ARCH="x86_64";fi
         if [ "$ARCH" = "x86_64" ];then DIR_NAME="x64-agnostic"; else DIR_NAME=${ARCH};fi
-        if [ "$ARCH" = "aarch64" ];then OS1="Ubuntu22_04" && OS2="Ubuntu-22.04" && OS="ubuntu-22.04"; else OS1="Linux" && OS2="Linux" && OS="linux";fi
-        RELEASE_URL_TRT=https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/10.2.0/tars/TensorRT-${TRT_VER}.${OS2}.${ARCH}-gnu.cuda-${TRT_CUDA_VERSION}.tar.gz
+        if [ "$ARCH" = "aarch64" ];then OS1="Ubuntu22_04" && OS2="Ubuntu-24.04" && OS="ubuntu-24.04"; else OS1="Linux" && OS2="Linux" && OS="linux";fi
+        RELEASE_URL_TRT=https://developer.nvidia.com/downloads/compute/machine-learning/tensorrt/${TRT_VER_BASE}/tars/TensorRT-${TRT_VER_FULL}.${OS2}.${ARCH}-gnu.cuda-${TRT_CUDA_VERSION}.tar.gz
     fi
     wget --no-verbose ${RELEASE_URL_TRT} -O /tmp/TensorRT.tar
     tar -xf /tmp/TensorRT.tar -C /usr/local/
-    mv /usr/local/TensorRT-${TRT_VER} /usr/local/tensorrt
+    mv /usr/local/TensorRT-${TRT_VER_FULL} /usr/local/tensorrt
     # pip3 install /usr/local/tensorrt/python/tensorrt-*-cp${PARSED_PY_VERSION}-*.whl
     rm -rf /tmp/TensorRT.tar
 }
