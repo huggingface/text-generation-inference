@@ -8,7 +8,7 @@ use tracing::info;
 
 use text_generation_backends_trtllm::errors::TensorRtLlmBackendError;
 use text_generation_backends_trtllm::TensorRtLlmBackendV2;
-use text_generation_router::server::{create_post_processor, get_base_tokenizer};
+use text_generation_router::server::get_base_tokenizer;
 use text_generation_router::usage_stats::UsageStatsLevel;
 use text_generation_router::{server, HubTokenizerConfig};
 
@@ -125,10 +125,10 @@ async fn get_tokenizer(
     // Load tokenizer and model info
     let (
         tokenizer_filename,
-        config_filename,
+        _config_filename,
         tokenizer_config_filename,
-        preprocessor_config_filename,
-        processor_config_filename,
+        _preprocessor_config_filename,
+        _processor_config_filename,
     ) = match api {
         Type::None => (
             Some(local_path.join("tokenizer.json")),
@@ -184,25 +184,8 @@ async fn get_tokenizer(
     } else {
         tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
     };
-    let tokenizer_config = tokenizer_config.unwrap_or_else(|| {
-        tracing::warn!("Could not find tokenizer config locally and no API specified");
-        HubTokenizerConfig::default()
-    });
 
-    tokenizer_filename.and_then(|filename| {
-        let mut tokenizer = Tokenizer::from_file(filename).ok();
-        if let Some(tokenizer) = &mut tokenizer {
-            if let Some(class) = &tokenizer_config.tokenizer_class {
-                if class == "LlamaTokenizer" || class == "LlamaTokenizerFast"{
-                    if let Ok(post_processor) = create_post_processor(tokenizer, &tokenizer_config) {
-                        tracing::info!("Overriding LlamaTokenizer with TemplateProcessing to follow python override defined in https://github.com/huggingface/transformers/blob/4aa17d00690b7f82c95bb2949ea57e22c35b4336/src/transformers/models/llama/tokenization_llama_fast.py#L203-L205");
-                        tokenizer.with_post_processor(post_processor);
-                    }
-                }
-            }
-        }
-        tokenizer
-    })
+    tokenizer_filename.and_then(|filename| Tokenizer::from_file(filename).ok())
 }
 
 #[tokio::main]

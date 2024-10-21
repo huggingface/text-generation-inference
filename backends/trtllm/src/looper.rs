@@ -5,14 +5,13 @@ use std::path::Path;
 use async_trait::async_trait;
 use cxx::UniquePtr;
 use hashbrown::HashMap;
-use log::warn;
-use tokenizers::{Encoding, Tokenizer};
+use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::TryAcquireError;
 use tokio::task::{spawn_blocking, JoinHandle};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{debug, error, info};
+use tracing::{debug, error, warn};
 
 use text_generation_router::infer::InferError::{GenerationError, ValidationError};
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
@@ -285,7 +284,6 @@ fn ensure_paths_exist<P: AsRef<Path>, PP: AsRef<Path>>(
 unsafe impl Send for TensorRtLlmBackendImpl {}
 
 pub struct TensorRtLlmBackendV2 {
-    tokenizer: Tokenizer,
     executor_looper: JoinHandle<()>,
     post_processor_looper: JoinHandle<()>,
     executor: UnboundedSender<GenerationContext>,
@@ -320,10 +318,9 @@ impl TensorRtLlmBackendV2 {
         });
 
         // Post processor looper is responsible from receiving a bunch of tokens, decoding them and sending them back to the user
-        let tokenizer_ = tokenizer.clone();
         let post_processor_looper = spawn_blocking(move || {
             post_processor_looper(
-                tokenizer_,
+                tokenizer,
                 512,
                 max_inflight_requests,
                 post_processor_receiver,
@@ -331,7 +328,6 @@ impl TensorRtLlmBackendV2 {
         });
 
         Ok(TensorRtLlmBackendV2 {
-            tokenizer,
             executor_looper,
             post_processor_looper,
             executor: executor_sender,
@@ -358,7 +354,7 @@ impl TensorRtLlmBackendV2 {
                 "TensorRT-LLM backend don't support multi-chunk".into(),
             )),
             1 => match request.inputs.first().expect("Single item-chunk") {
-                Chunk::Text(text) => Ok(()),
+                Chunk::Text(_) => Ok(()),
                 Chunk::Image(_) => Err(ValidationError(UnsupportedModality("image"))),
             },
         }
