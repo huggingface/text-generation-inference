@@ -80,6 +80,12 @@ namespace huggingface::tgi::backends {
         );
 
         /**
+         * Query the executor for the number of token available for pulling
+         * @return
+         */
+        [[nodiscard]] size_t NumResponsesReady() const;
+
+        /**
          * Submit a new generation task to the executor
          * @param tokens
          * @param topK

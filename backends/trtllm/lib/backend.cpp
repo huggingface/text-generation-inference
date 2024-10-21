@@ -106,6 +106,17 @@ huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
     maxNumTokens = config["/build_config/max_num_tokens"_json_pointer].get<uint32_t>();
 }
 
+[[nodiscard("Returned number of requests needs to be consumed")]]
+size_t huggingface::tgi::backends::TensorRtLlmBackend::NumResponsesReady() const {
+    const auto numResponses = executor.getNumResponsesReady();
+
+#ifndef NDEBUG
+    if(numResponses > 0) SPDLOG_INFO(FMT_STRING("Num responses ready: {:d}"), numResponses);
+#endif
+
+    return numResponses;
+}
+
 [[nodiscard("Returned request id needs to be provided back to gather generated tokens")]]
 tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const std::vector<tle::TokenIdType> &tokens,
@@ -122,9 +133,8 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
     {
         const auto &iterations = executor.getLatestIterationStats();
         const auto &lastIteration = iterations.front();
+
         SPDLOG_DEBUG(FMT_EXECUTOR_STATS, fmt::join(tokens, ", "), lastIteration.numActiveRequests);
-
-
         SPDLOG_DEBUG(FMT_SAMPLING_CONFIG, topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
         SPDLOG_DEBUG(FMT_STRING("Asking for max_new_tokens={:d}"), maxNewTokensChecked);
     }
