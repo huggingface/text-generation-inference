@@ -4,7 +4,9 @@ import pytest
 @pytest.fixture(scope="module")
 def flash_llama_fp8_kv_cache_handle(launcher):
     with launcher(
-        "meta-llama/Meta-Llama-3-8B", num_shard=2, kv_cache_dtype="fp8_e5m2"
+        "neuralmagic/Meta-Llama-3-8B-Instruct-FP8-KV",
+        num_shard=2,
+        kv_cache_dtype="fp8_e4m3fn",
     ) as handle:
         yield handle
 
@@ -25,7 +27,7 @@ async def test_flash_llama_fp8_kv_cache(flash_llama_fp8_kv_cache, response_snaps
 
     assert (
         response.generated_text
-        == " Deep learning is a subset of machine learning that is"
+        == " Deep learning is a subset of machine learning that involves"
     )
     assert response.details.generated_tokens == 10
     assert response == response_snapshot
@@ -69,7 +71,7 @@ async def test_flash_llama_fp8_kv_cache_load(
     assert len(responses) == 4
     assert (
         responses[0].generated_text
-        == " Deep learning is a subset of machine learning that is"
+        == " Deep learning is a subset of machine learning that involves"
     )
     assert all(
         [r.generated_text == responses[0].generated_text for r in responses]
