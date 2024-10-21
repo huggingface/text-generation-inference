@@ -104,6 +104,24 @@ huggingface::tgi::backends::TensorRtLlmBackend::TensorRtLlmBackend(
 
     // Cache variables
     maxNumTokens = config["/build_config/max_num_tokens"_json_pointer].get<uint32_t>();
+
+    // Attempt to discover stopWords from the generation_config.json
+    if (auto generationConfigPath = enginesFolder / "generation_config.json"; exists(generationConfigPath)) {
+        const auto generationConfig = json::parse(std::ifstream(generationConfigPath));
+        if (const auto eosTokenIds = generationConfig["/eos_token_ids"_json_pointer]; eosTokenIds.is_array()) {
+            SPDLOG_INFO(FMT_STRING("Found {:d} EOS tokens"), eosTokenIds.size());
+            stopWords = std::list<decltype(stopWords)::value_type>(eosTokenIds.size());
+
+            std::transform(eosTokenIds.cbegin(), eosTokenIds.cend(), stopWords.begin(),
+                           [](const auto tokenIdObj) -> decltype(stopWords)::value_type {
+                               const auto tokenId = tokenIdObj.template get<tle::TokenIdType>();
+                               return {tokenId};
+                           });
+        }
+    } else {
+        SPDLOG_INFO("No EOS tokens found, generation_config.json doesn't exist");
+        stopWords = {};
+    }
 }
 
 [[nodiscard("Returned number of requests needs to be consumed")]]
@@ -124,8 +142,8 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const int32_t topK,
         const float_t topP,
         const float_t temperature,
-        const float_t repetition_penalty,
-        const float_t frequency_penalty,
+        const float_t repetitionPenalty,
+        const float_t frequencyPenalty,
         const uint64_t seed
 ) {
     const auto maxNewTokensChecked = std::min(maxNewTokens, static_cast<uint32_t>(maxNumTokens - tokens.size()));
@@ -135,14 +153,20 @@ tle::IdType huggingface::tgi::backends::TensorRtLlmBackend::Submit(
         const auto &lastIteration = iterations.front();
 
         SPDLOG_DEBUG(FMT_EXECUTOR_STATS, fmt::join(tokens, ", "), lastIteration.numActiveRequests);
-        SPDLOG_DEBUG(FMT_SAMPLING_CONFIG, topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
+        SPDLOG_DEBUG(FMT_SAMPLING_CONFIG, topK, topP, temperature, repetitionPenalty, frequencyPenalty, seed);
         SPDLOG_DEBUG(FMT_STRING("Asking for max_new_tokens={:d}"), maxNewTokensChecked);
     }
 #endif
 
-    const auto sampling = GetSamplingConfig(topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
+    const auto sampling = GetSamplingConfig(topK, topP, temperature, repetitionPenalty, frequencyPenalty, seed);
     const auto maxNewTokensChecked_ = static_cast<tle::SizeType32>(maxNewTokensChecked);
-    return executor.enqueueRequest(tle::Request{tokens, maxNewTokensChecked_, true, sampling, OUTPUT_CONFIG});
+
+    // Build the request
+    auto request = tle::Request{tokens, maxNewTokensChecked_, true, sampling, OUTPUT_CONFIG};
+    request.setStopWords(stopWords);
+
+    // Submit to the executor for batching
+    return executor.enqueueRequest(request);
 }
 
 std::vector<tle::Response> huggingface::tgi::backends::TensorRtLlmBackend::PullNewTokens() {
