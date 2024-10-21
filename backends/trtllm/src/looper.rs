@@ -8,6 +8,7 @@ use hashbrown::HashMap;
 use log::warn;
 use tokenizers::{Encoding, Tokenizer};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::TryAcquireError;
 use tokio::task::{spawn_blocking, JoinHandle};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -121,7 +122,7 @@ fn executor_status_looper(
                         let what = e.to_string();
                         error!(error = what.as_str(), "Failed to schedule request");
 
-                        let err = Err(InferError::SchedulingError(what));
+                        let err = Err(InferError::Overloaded(TryAcquireError::NoPermits));
                         if let Err(_) = ctx.streamer.send(err) {
                             error!("Failed to send back error to the client");
                         }
