@@ -53,6 +53,7 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
     // Define some configuration variables
     execConfig.setKvCacheConfig(tle::KvCacheConfig(true));
     execConfig.setEnableChunkedContext(computeCapabilities.isPostAmpere());
+    execConfig.setSchedulerConfig(tle::SchedulerConfig(tle::CapacitySchedulerPolicy::kMAX_UTILIZATION));
     return execConfig;
 }
 
