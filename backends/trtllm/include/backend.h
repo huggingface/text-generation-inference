@@ -5,6 +5,7 @@
 #ifndef TGI_TRTLLM_BACKEND_H
 #define TGI_TRTLLM_BACKEND_H
 
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <span>
@@ -72,6 +73,7 @@ namespace huggingface::tgi::backends {
 
         /** Frequently accessed variables cached here **/
         uint32_t maxNumTokens;
+        std::list<std::vector<TokenId>> stopWords;
 
     public:
         explicit TensorRtLlmBackend(
@@ -91,20 +93,20 @@ namespace huggingface::tgi::backends {
          * @param topK
          * @param topP
          * @param temperature
-         * @param repetition_penalty
-         * @param frequency_penalty
+         * @param repetitionPenalty
+         * @param frequencyPenalty
          * @param seed
          * @return Request id related to this generation for reference
          */
         [[nodiscard]] RequestId Submit(
                 const std::vector<TokenId> &tokens,
-                const uint32_t maxNewTokens,
-                const int32_t topK,
-                const float_t topP,
-                const float_t temperature,
-                const float_t repetition_penalty,
-                const float_t frequency_penalty,
-                const uint64_t seed
+                uint32_t maxNewTokens,
+                int32_t topK,
+                float_t topP,
+                float_t temperature,
+                float_t repetitionPenalty,
+                float_t frequencyPenalty,
+                uint64_t seed
         );
 
         [[nodiscard]] std::vector<tle::Response> PullNewTokens();
