@@ -39,6 +39,7 @@ from text_generation_server.layers import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -206,6 +207,7 @@ class FlashGemma2Attention(torch.nn.Module):
             ],
             process_group=weights.process_group,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         o_proj = TensorParallelRowLinear.load(
             config,
@@ -251,7 +253,12 @@ class FlashGemma2Attention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        kv_cache.store(key=kv[:, 0], value=kv[:, 1], slots=slots)
+        kv_cache.store(
+            key=kv[:, 0],
+            value=kv[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
@@ -261,6 +268,7 @@ class FlashGemma2Attention(torch.nn.Module):
                 key=kv[:, 0],
                 value=kv[:, 1],
                 kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
                 seqlen=seqlen,
                 block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
@@ -278,6 +286,7 @@ class FlashGemma2Attention(torch.nn.Module):
                 seqlen,
                 max_s,
                 softcap=self.softcap,
+                kv_scales=self.kv_scales,
             )
 
         return self.o_proj(

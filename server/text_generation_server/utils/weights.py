@@ -207,7 +207,9 @@ class Weights:
     def get_shape(self, tensor_name: str):
         return self._get_slice(tensor_name).get_shape()
 
-    def get_tensor(self, tensor_name: str, to_device=True, to_dtype=True):
+    def get_tensor(
+        self, tensor_name: str, to_device: bool = True, to_dtype: bool = True
+    ) -> torch.Tensor:
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         tensor = f.get_tensor(tensor_name)

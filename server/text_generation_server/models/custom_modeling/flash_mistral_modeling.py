@@ -26,6 +26,7 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -158,6 +159,7 @@ class MistralAttention(torch.nn.Module):
             ],
             process_group=weights.process_group,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         o_proj = TensorParallelRowLinear.load(
             config,
@@ -208,7 +210,12 @@ class MistralAttention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        kv_cache.store(key=kv_to_cache[:, 0], value=kv_to_cache[:, 1], slots=slots)
+        kv_cache.store(
+            key=kv_to_cache[:, 0],
+            value=kv_to_cache[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
@@ -218,6 +225,7 @@ class MistralAttention(torch.nn.Module):
                 key=kv_to_cache[:, 0],
                 value=kv_to_cache[:, 1],
                 kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
                 seqlen=seqlen,
                 block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
@@ -233,6 +241,7 @@ class MistralAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.o_proj(

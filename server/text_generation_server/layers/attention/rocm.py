@@ -1,7 +1,7 @@
 import os
 from typing import Optional
 import torch
-from text_generation_server.layers.attention.kv_cache import KVCache
+from text_generation_server.layers.attention.kv_cache import KVCache, KVScales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils.log import log_master
@@ -36,6 +36,8 @@ def paged_attention(
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
+    *,
+    kv_scales: KVScales,
     softcap: Optional[float] = None,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
@@ -210,6 +212,7 @@ def attention(
     key: torch.Tensor,
     value: torch.Tensor,
     kv_cache: KVCache,
+    kv_scales: KVScales,
     seqlen: Seqlen,
     block_tables: torch.Tensor,
     softmax_scale: float,
