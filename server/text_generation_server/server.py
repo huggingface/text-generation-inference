@@ -132,10 +132,22 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch = self.model.batch_type.from_pb(
                 request.batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
-        max_supported_total_tokens = self.model.warmup(batch)
+
+        # Override default values with None for clearer semantics.
+        max_input_tokens = (
+            request.max_input_tokens if request.HasField("max_input_tokens") else None
+        )
+        max_total_tokens = (
+            request.max_total_tokens if request.HasField("max_total_tokens") else None
+        )
+        max_supported_total_tokens, max_input_tokens, max_total_tokens = (
+            self.model.warmup(batch, max_input_tokens, max_total_tokens)
+        )
 
         return generate_pb2.WarmupResponse(
-            max_supported_total_tokens=max_supported_total_tokens
+            max_supported_total_tokens=max_supported_total_tokens,
+            max_input_tokens=max_input_tokens,
+            max_total_tokens=max_total_tokens,
         )
 
     async def Prefill(self, request, context):

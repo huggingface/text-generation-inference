@@ -137,10 +137,7 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
 
 #[derive(Deserialize)]
 struct RawConfig {
-    max_position_embeddings: Option<usize>,
-    n_positions: Option<usize>,
     model_type: Option<String>,
-    max_seq_len: Option<usize>,
     quantization_config: Option<QuantizationConfig>,
     n_embd: Option<usize>,
     hidden_size: Option<usize>,
@@ -160,7 +157,6 @@ struct VisionConfig {}
 
 #[derive(Deserialize)]
 struct Config {
-    max_position_embeddings: Option<usize>,
     quantize: Option<Quantization>,
     head_dim: Option<usize>,
     model_type: Option<String>,
@@ -170,10 +166,6 @@ struct Config {
 
 impl From<RawConfig> for Config {
     fn from(other: RawConfig) -> Self {
-        let max_position_embeddings = other
-            .max_position_embeddings
-            .or(other.max_seq_len)
-            .or(other.n_positions);
         let quantize = other.quantization_config.and_then(|q| q.quant_method);
         let head_dim = other.head_dim.or_else(|| {
             match (other.hidden_size, other.n_embd, other.num_attention_heads) {
@@ -195,7 +187,6 @@ impl From<RawConfig> for Config {
         let vision_config = other.vision_config;
         let is_encoder_decoder = other.is_encoder_decoder.unwrap_or(false);
         Config {
-            max_position_embeddings,
             quantize,
             head_dim,
             model_type,
@@ -472,7 +463,7 @@ struct Args {
     /// for users. The larger this value, the longer prompt users can send which
     /// can impact the overall memory required to handle the load.
     /// Please note that some models have a finite range of sequence they can handle.
-    /// Default to min(max_position_embeddings - 1, 4095)
+    /// Default to min(max_allocatable, max_position_embeddings) - 1
     #[clap(long, env)]
     max_input_tokens: Option<usize>,
 
@@ -488,7 +479,7 @@ struct Args {
     /// `1511` max_new_tokens.
     /// The larger this value, the larger amount each request will be in your RAM
     /// and the less effective batching can be.
-    /// Default to min(max_position_embeddings, 4096)
+    /// Default to min(max_allocatable, max_position_embeddings)
     #[clap(long, env)]
     max_total_tokens: Option<usize>,
 
@@ -718,9 +709,9 @@ fn shard_manager(
     cuda_memory_fraction: f32,
     rope_scaling: Option<RopeScaling>,
     rope_factor: Option<f32>,
-    max_total_tokens: usize,
+    max_total_tokens: Option<usize>,
     max_batch_size: Option<usize>,
-    max_input_tokens: usize,
+    max_input_tokens: Option<usize>,
     lora_adapters: Option<String>,
     otlp_endpoint: Option<String>,
     otlp_service_name: String,
@@ -805,8 +796,10 @@ fn shard_manager(
     shard_args.push(otlp_service_name);
 
     // In case we use sliding window, we may ignore the sliding in flash for some backends depending on the parameter.
-    shard_args.push("--max-input-tokens".to_string());
-    shard_args.push(max_input_tokens.to_string());
+    if let Some(max_input_tokens) = max_input_tokens {
+        shard_args.push("--max-input-tokens".to_string());
+        shard_args.push(max_input_tokens.to_string());
+    }
 
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
@@ -854,10 +847,12 @@ fn shard_manager(
         envs.push(("ROPE_FACTOR".into(), factor.to_string().into()));
     }
 
-    envs.push((
-        "MAX_TOTAL_TOKENS".into(),
-        max_total_tokens.to_string().into(),
-    ));
+    if let Some(max_total_tokens) = max_total_tokens {
+        envs.push((
+            "MAX_TOTAL_TOKENS".into(),
+            max_total_tokens.to_string().into(),
+        ));
+    }
     if let Some(max_batch_size) = max_batch_size {
         envs.push(("MAX_BATCH_SIZE".into(), max_batch_size.to_string().into()));
     }
@@ -1313,8 +1308,8 @@ fn spawn_shards(
     num_shard: usize,
     args: &Args,
     cuda_graphs: Vec<usize>,
-    max_total_tokens: usize,
-    max_input_tokens: usize,
+    max_total_tokens: Option<usize>,
+    max_input_tokens: Option<usize>,
     quantize: Option<Quantization>,
     max_log_level: LevelFilter,
     shutdown: Arc<AtomicBool>,
@@ -1432,8 +1427,8 @@ fn compute_type(num_shard: usize) -> Option<String> {
 fn spawn_webserver(
     num_shard: usize,
     args: Args,
-    max_input_tokens: usize,
-    max_total_tokens: usize,
+    max_input_tokens: Option<usize>,
+    max_total_tokens: Option<usize>,
     max_batch_prefill_tokens: u32,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
@@ -1452,10 +1447,6 @@ fn spawn_webserver(
         args.max_stop_sequences.to_string(),
         "--max-top-n-tokens".to_string(),
         args.max_top_n_tokens.to_string(),
-        "--max-input-tokens".to_string(),
-        max_input_tokens.to_string(),
-        "--max-total-tokens".to_string(),
-        max_total_tokens.to_string(),
         "--max-batch-prefill-tokens".to_string(),
         max_batch_prefill_tokens.to_string(),
         "--waiting-served-ratio".to_string(),
@@ -1473,6 +1464,18 @@ fn spawn_webserver(
         "--tokenizer-name".to_string(),
         args.model_id,
     ];
+    if let Some(max_input_tokens) = max_input_tokens {
+        router_args.extend_from_slice(&[
+            "--max-input-tokens".to_string(),
+            max_input_tokens.to_string(),
+        ]);
+    }
+    if let Some(max_total_tokens) = max_total_tokens {
+        router_args.extend_from_slice(&[
+            "--max-total-tokens".to_string(),
+            max_total_tokens.to_string(),
+        ]);
+    }
 
     // Pass usage stats flags to router
     router_args.push("--usage-stats".to_string());
@@ -1664,28 +1667,6 @@ fn main() -> Result<(), LauncherError> {
     let config: Option<Config> = get_config(&args.model_id, &args.revision).ok();
     let quantize = config.as_ref().and_then(|c| c.quantize);
     // Quantization usually means you're even more RAM constrained.
-    let max_default = 4096;
-
-    let max_position_embeddings = if let Some(config) = &config {
-        if let Some(max_position_embeddings) = config.max_position_embeddings {
-            if max_position_embeddings > max_default {
-                let max = max_position_embeddings;
-                if args.max_input_tokens.is_none()
-                    && args.max_total_tokens.is_none()
-                    && args.max_batch_prefill_tokens.is_none()
-                {
-                    tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
-                }
-                max_default
-            } else {
-                max_position_embeddings
-            }
-        } else {
-            max_default
-        }
-    } else {
-        max_default
-    };
     let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
     tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
     std::env::set_var("PREFIX_CACHING", prefix_caching);
@@ -1698,35 +1679,26 @@ fn main() -> Result<(), LauncherError> {
                     format!("Both `max_input_tokens` ({max_input_tokens}) and `max_input_length` ({max_input_length}) are set. Please define only `max_input_tokens` as `max_input_length is deprecated for naming consistency.",
                 )));
             }
-            (Some(max_input_tokens), None) | (None, Some(max_input_tokens)) => max_input_tokens,
-            (None, None) => {
-                let value = max_position_embeddings - 1;
-                tracing::info!("Default `max_input_tokens` to {value}");
-                value
+            (Some(max_input_tokens), None) | (None, Some(max_input_tokens)) => {
+                Some(max_input_tokens)
             }
+            (None, None) => None,
         }
     };
-    let max_total_tokens = {
-        match args.max_total_tokens {
-            Some(max_total_tokens) => max_total_tokens,
-            None => {
-                let value = max_position_embeddings;
-                tracing::info!("Default `max_total_tokens` to {value}");
-                value
-            }
-        }
-    };
+    let max_total_tokens = args.max_total_tokens;
     let max_batch_prefill_tokens = {
         match args.max_batch_prefill_tokens {
             Some(max_batch_prefill_tokens) => max_batch_prefill_tokens,
             None => {
-                let value: u32 = if let Some(max_batch_size) = args.max_batch_size {
-                    max_batch_size * max_input_tokens
-                } else {
-                    // Adding some edge in order to account for potential block_size alignement
-                    // issue.
-                    max_input_tokens + 50
-                } as u32;
+                // let value: u32 = if let Some(max_batch_size) = args.max_batch_size {
+                //     max_batch_size * max_input_tokens
+                // } else {
+                //     // Adding some edge in order to account for potential block_size alignement
+                //     // issue.
+                //     max_input_tokens + 50
+                // } as u32;
+                // TODO figure out hardware optimal value
+                let value = 4096;
                 tracing::info!("Default `max_batch_prefill_tokens` to {value}");
                 value
             }
@@ -1734,10 +1706,12 @@ fn main() -> Result<(), LauncherError> {
     };
 
     // Validate args
-    if max_input_tokens >= max_total_tokens {
-        return Err(LauncherError::ArgumentValidation(
-            "`max_input_tokens must be < `max_total_tokens`".to_string(),
-        ));
+    if let (Some(max_input_tokens), Some(max_total_tokens)) = (max_input_tokens, max_total_tokens) {
+        if max_input_tokens >= max_total_tokens {
+            return Err(LauncherError::ArgumentValidation(
+                    format!("`max_input_tokens`({max_input_tokens}) must be < `max_total_tokens`({max_total_tokens})"),
+                ));
+        }
     }
 
     if matches!(args.quantize, Some(Quantization::Bitsandbytes)) {
@@ -1792,11 +1766,13 @@ fn main() -> Result<(), LauncherError> {
     }
 
     if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
-        if max_total_tokens as u32 > *max_batch_total_tokens {
-            return Err(LauncherError::ArgumentValidation(format!(
-                "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-                max_total_tokens, max_batch_total_tokens
-            )));
+        if let Some(max_total_tokens) = max_total_tokens {
+            if max_total_tokens as u32 > *max_batch_total_tokens {
+                return Err(LauncherError::ArgumentValidation(format!(
+                    "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
+                    max_total_tokens, max_batch_total_tokens
+                )));
+            }
         }
     }
 

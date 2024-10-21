@@ -107,20 +107,22 @@ impl Client {
     #[instrument(skip_all)]
     pub async fn warmup(
         &mut self,
-        max_input_length: u32,
+        max_input_tokens: Option<u32>,
         max_prefill_tokens: u32,
-        max_total_tokens: u32,
+        max_total_tokens: Option<u32>,
         max_batch_size: Option<usize>,
-    ) -> Result<Option<u32>> {
+    ) -> Result<(Option<u32>, u32, u32)> {
         let mut n_tokens = 0;
         let mut requests = Vec::new();
         // Create requests
         while n_tokens < max_prefill_tokens {
-            let truncate = min(max_input_length, max_prefill_tokens - n_tokens);
+            let mut truncate = max_prefill_tokens - n_tokens;
+            if let Some(max_input_tokens) = max_input_tokens {
+                truncate = min(max_input_tokens, truncate);
+            }
 
             let mut input_chunks = Vec::new();
-            input_chunks
-                .push(Chunk::Text("_test ".to_string().repeat(max_input_length as usize)).into());
+            input_chunks.push(Chunk::Text("_test ".to_string().repeat(truncate as usize)).into());
             if n_tokens == 0 {
                 input_chunks.push(
                     Chunk::Image(Image {
@@ -136,7 +138,7 @@ impl Client {
             // been updated to support chunks.
 
             let mut inputs = String::new();
-            inputs.push_str(&"_test ".to_string().repeat(max_input_length as usize));
+            inputs.push_str(&"_test ".to_string().repeat(truncate as usize));
             if n_tokens == 0 {
                 // 1 request is enough to test vision heads.
                 // Sending images on other queries messes up easily with truncation.
@@ -144,6 +146,12 @@ impl Client {
                     "![](data:image/jpeg;base64,{WARMUP_IMAGE_BASE64})",
                 ));
             }
+
+            let max_new_tokens = if let Some(max_total_tokens) = max_total_tokens {
+                max_total_tokens - truncate
+            } else {
+                1
+            };
 
             requests.push(Request {
                 id: 0,
@@ -175,7 +183,7 @@ impl Client {
                     grammar_type: GrammarType::None as i32,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
-                    max_new_tokens: max_total_tokens - truncate,
+                    max_new_tokens,
                     stop_sequences: vec![],
                     ignore_eos_token: true,
                 }),
@@ -183,7 +191,7 @@ impl Client {
                 top_n_tokens: 20,
                 adapter_id: None,
             });
-            n_tokens += max_input_length;
+            n_tokens += truncate;
 
             // Check max_batch_size
             if Some(requests.len()) == max_batch_size {
@@ -195,19 +203,23 @@ impl Client {
             id: 0,
             size: requests.len() as u32,
             requests,
-            max_tokens: max_input_length,
+            max_tokens: max_input_tokens.unwrap_or(0),
             max_blocks: 0,
         };
 
         let request = tonic::Request::new(WarmupRequest {
             batch: Some(batch),
-            max_input_length,
+            max_input_tokens,
             max_prefill_tokens,
             max_total_tokens,
         })
         .inject_context();
         let response = self.stub.warmup(request).await?.into_inner();
-        Ok(response.max_supported_total_tokens)
+        Ok((
+            response.max_supported_total_tokens,
+            response.max_input_tokens,
+            response.max_total_tokens,
+        ))
     }
 
     /// Generate one token for each request in the given batch
