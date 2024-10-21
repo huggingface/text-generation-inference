@@ -160,9 +160,8 @@ fn executor_status_looper(
     }
 }
 
-fn post_processor_looper(
+fn post_processor_looper<const max_num_tokens: usize>(
     tokenizer: Tokenizer,
-    max_num_tokens: usize,
     max_inflight_requests: usize,
     mut decoded_tokens: UnboundedReceiver<(u64, InferResult<DecodedTokenContext>)>,
 ) {
@@ -317,12 +316,7 @@ impl TensorRtLlmBackendV2 {
         // Post processor looper is responsible from receiving a bunch of tokens, decoding them and sending them back to the user
         let tokenizer_ = tokenizer.clone();
         let post_processor_looper = spawn_blocking(move || {
-            post_processor_looper(
-                tokenizer_,
-                512,
-                max_inflight_requests,
-                post_processor_receiver,
-            )
+            post_processor_looper::<512>(tokenizer_, max_inflight_requests, post_processor_receiver)
         });
 
         Ok(TensorRtLlmBackendV2 {
