@@ -18,10 +18,10 @@ struct Args {
     max_stop_sequences: usize,
     #[clap(default_value = "5", long, env)]
     max_top_n_tokens: u32,
-    #[clap(default_value = "1024", long, env)]
-    max_input_tokens: usize,
-    #[clap(default_value = "2048", long, env)]
-    max_total_tokens: usize,
+    #[clap(long, env)]
+    max_input_tokens: Option<usize>,
+    #[clap(long, env)]
+    max_total_tokens: Option<usize>,
     #[clap(default_value = "1.2", long, env)]
     waiting_served_ratio: f32,
     #[clap(default_value = "4096", long, env)]
@@ -126,12 +126,6 @@ async fn main() -> Result<(), RouterError> {
     text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
 
     // Validate args
-    if max_input_tokens >= max_total_tokens {
-        return Err(RouterError::ArgumentValidation(
-            "`max_input_tokens` must be < `max_total_tokens`".to_string(),
-        ));
-    }
-
     if validation_workers == 0 {
         return Err(RouterError::ArgumentValidation(
             "`validation_workers` must be > 0".to_string(),
@@ -160,6 +154,28 @@ async fn main() -> Result<(), RouterError> {
     // Validate remaining args now that the backend is known
     let support_chunking = backend_info.support_chunking;
     let max_batch_total_tokens = backend_info.max_batch_total_tokens;
+
+    if max_input_tokens.is_none() {
+        tracing::info!(
+            "Maximum input tokens defaulted to {}",
+            backend_info.max_input_tokens
+        );
+    }
+    if max_total_tokens.is_none() {
+        tracing::info!(
+            "Maximum total tokens defaulted to {}",
+            backend_info.max_total_tokens
+        );
+    }
+
+    let max_input_tokens = backend_info.max_input_tokens;
+    let max_total_tokens = backend_info.max_total_tokens;
+    if max_input_tokens >= max_total_tokens {
+        return Err(RouterError::ArgumentValidation(
+            "`max_input_tokens` must be < `max_total_tokens`".to_string(),
+        ));
+    }
+
     if max_input_tokens as u32 > max_batch_prefill_tokens && !support_chunking {
         return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {max_batch_prefill_tokens} and {max_input_tokens}")));
     }

@@ -272,12 +272,18 @@ message DecodeResponse {
 message WarmupRequest {
   /// Batch to warmup on
   Batch batch = 1;
-  uint32 max_input_length = 2;
+  optional uint32 max_input_tokens = 2;
   uint32 max_prefill_tokens = 3;
-  uint32 max_total_tokens = 4;
+  optional uint32 max_total_tokens = 4;
 }
 
 message WarmupResponse {
   /// Maximum number of tokens supported by the model
   optional uint32 max_supported_total_tokens = 1;
+  /// Maximum input tokens by clients should be equal to request value if it's set
+  /// Otherwise warmup automatically allocates a value here
+  uint32 max_input_tokens = 2;
+  /// Maximum total tokens by clients should be equal to request value if it's set
+  /// Otherwise warmup automatically allocates a value here
+  uint32 max_total_tokens = 3;
 }

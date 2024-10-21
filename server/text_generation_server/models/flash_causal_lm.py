@@ -78,6 +78,10 @@ tracer = trace.get_tracer(__name__)
 SLIDING_WINDOW: Optional[int] = None
 
 
+def small_power_of_2(n: int):
+    return 1 << ((n - 1).bit_length() - 1)
+
+
 def set_sliding_window(sliding_window: int):
     global SLIDING_WINDOW
     SLIDING_WINDOW = sliding_window
@@ -1377,10 +1381,39 @@ class FlashCausalLM(Model):
                 self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
         torch.cuda.synchronize()
 
-    def warmup(self, batch: FlashCausalLMBatch):
+    def warmup(
+        self,
+        batch: FlashCausalLMBatch,
+        max_input_tokens: Optional[int],
+        max_total_tokens: Optional[int],
+    ):
         # The warmup batch is the biggest batch we could ever receive
         self.kv_cache = []
         empty_cache()
+
+        # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
+        # Calculate the number of blocks that can be allocated with the free memory
+        dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
+        cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
+        total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
+
+        if max_total_tokens is None:
+            model_max_length = self.tokenizer.model_max_length
+            free_memory = get_free_memory(self.device, MEMORY_FRACTION)
+            spare_blocks = (
+                # Leave 5% for some wiggle room
+                int((free_memory * TGI_WIGGLE_ROOM) // total_cache_size)
+                + batch.num_blocks
+            )
+            spare_blocks = small_power_of_2(spare_blocks)
+
+            available_blocks = min(model_max_length, spare_blocks)
+            batch.num_blocks = available_blocks
+            batch.max_blocks = available_blocks
+            max_input_tokens = (
+                available_blocks - 1 if max_input_tokens is None else max_input_tokens
+            )
+            max_total_tokens = available_blocks
 
         try:
             self.init_kv_cache(
@@ -1393,6 +1426,7 @@ class FlashCausalLM(Model):
             )
             max_bt = batch.max_blocks
             max_s = max_bt * BLOCK_SIZE
+            batch_num_blocks = batch.num_blocks
 
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
@@ -1405,14 +1439,7 @@ class FlashCausalLM(Model):
 
         synchronize(self.device)
 
-        # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
-        # Calculate the number of blocks that can be allocated with the free memory
-        dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
-        cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
-        total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
-
         free_memory = get_free_memory(self.device, MEMORY_FRACTION)
-        batch_num_blocks = batch.num_blocks if batch is not None else 0
 
         num_blocks = (
             # Leave 5% for some wiggle room
@@ -1505,7 +1532,9 @@ class FlashCausalLM(Model):
                 logger.info, f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS})."
             )
 
-        return int(num_blocks * BLOCK_SIZE)
+        assert max_input_tokens is not None
+        assert max_total_tokens is not None
+        return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
 
     def tunableop_warmup(self, seqlen: int):
         input_ids = torch.zeros(seqlen, dtype=torch.int64, device=self.device)

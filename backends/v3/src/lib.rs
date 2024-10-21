@@ -37,12 +37,17 @@ pub struct BackendInfo {
     pub attention_impl: String,
     #[schema(example = "1")]
     pub block_size: u32,
+
+    #[schema(example = "30000")]
+    pub max_input_tokens: usize,
+    #[schema(example = "32000")]
+    pub max_total_tokens: usize,
 }
 
 #[allow(clippy::too_many_arguments)]
 pub async fn connect_backend(
-    max_input_tokens: usize,
-    max_total_tokens: usize,
+    max_input_tokens: Option<usize>,
+    max_total_tokens: Option<usize>,
     master_shard_uds_path: String,
     waiting_served_ratio: f32,
     max_batch_prefill_tokens: u32,
@@ -51,14 +56,32 @@ pub async fn connect_backend(
     max_batch_size: Option<usize>,
 ) -> Result<(BackendV3, BackendInfo), V3Error> {
     // Helper function
-    let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
+    let check_max_batch_total_tokens = |(
+        max_supported_batch_total_tokens,
+        shard_max_input_tokens,
+        shard_max_total_tokens,
+    ): (Option<u32>, u32, u32)|
+     -> Result<(u32, usize, usize), V3Error> {
+        if let Some(max_input_tokens) = max_input_tokens {
+            assert_eq!(max_input_tokens as u32, shard_max_input_tokens);
+        }
+        if let Some(max_total_tokens) = max_total_tokens {
+            assert_eq!(max_total_tokens as u32, shard_max_total_tokens);
+        }
         match max_supported_batch_total_tokens {
             // Older models do not support automatic max-batch-total-tokens
             None => {
-                let max_batch_total_tokens = max_batch_total_tokens
-                    .unwrap_or(16000.max((max_total_tokens as u32).max(max_batch_prefill_tokens)));
+                let max_batch_total_tokens = max_batch_total_tokens.unwrap_or(
+                    16000
+                        .max(shard_max_total_tokens)
+                        .max(max_batch_prefill_tokens),
+                );
                 tracing::warn!("Model does not support automatic max batch total tokens");
-                Ok(max_batch_total_tokens)
+                Ok((
+                    max_batch_total_tokens,
+                    shard_max_input_tokens as usize,
+                    shard_max_total_tokens as usize,
+                ))
             }
             // Flash attention models return their max supported total tokens
             Some(max_supported_batch_total_tokens) => {
@@ -72,11 +95,15 @@ pub async fn connect_backend(
                         "Inferred max batch total tokens: {max_supported_batch_total_tokens}"
                     );
                 }
-                if max_total_tokens as u32 > max_supported_batch_total_tokens {
-                    return Err(V3Error::NotEnoughMemory(max_total_tokens));
+                if shard_max_total_tokens > max_supported_batch_total_tokens {
+                    return Err(V3Error::NotEnoughMemory(shard_max_total_tokens as usize));
                 }
 
-                Ok(max_supported_batch_total_tokens)
+                Ok((
+                    max_supported_batch_total_tokens,
+                    shard_max_input_tokens as usize,
+                    shard_max_total_tokens as usize,
+                ))
             }
         }
     };
@@ -96,23 +123,25 @@ pub async fn connect_backend(
 
     // Warmup model
     tracing::info!("Warming up model");
-    let max_batch_total_tokens = check_max_batch_total_tokens(
-        sharded_client
-            .warmup(
-                max_input_tokens as u32,
-                max_batch_prefill_tokens,
-                max_total_tokens as u32,
-                max_batch_size,
-            )
-            .await
-            .map_err(V3Error::Warmup)?,
-    )?;
+    let answer = sharded_client
+        .warmup(
+            max_input_tokens.map(|p| p as u32),
+            max_batch_prefill_tokens,
+            max_total_tokens.map(|p| p as u32),
+            max_batch_size,
+        )
+        .await
+        .map_err(V3Error::Warmup)?;
+    let (max_batch_total_tokens, max_input_tokens, max_total_tokens) =
+        check_max_batch_total_tokens(answer)?;
     tracing::info!("Setting max batch total tokens to {max_batch_total_tokens}");
     metrics::gauge!("tgi_batch_max_total_tokens").set(max_batch_total_tokens);
 
     let backend_info = BackendInfo {
         waiting_served_ratio,
         max_batch_total_tokens,
+        max_input_tokens,
+        max_total_tokens,
         max_waiting_tokens,
         max_batch_size,
         model_device_type: shard_info.device_type.clone(),
