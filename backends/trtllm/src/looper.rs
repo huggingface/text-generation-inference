@@ -27,11 +27,6 @@ use crate::utils::first_line;
 
 type InferResult<T> = Result<T, InferError>;
 
-struct IdentifiableRequest<T> {
-    request_id: u64,
-    inner: T,
-}
-
 /// Wrap the requests along with the channel used to stream back to the client the decoded tokens
 struct GenerationContext {
     request: ValidGenerateRequest,
