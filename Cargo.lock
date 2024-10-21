@@ -4184,6 +4184,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "text-generation-backend-llamacpp"
+version = "2.4.1-dev0"
+dependencies = [
+ "clap 4.5.20",
+ "cmake",
+ "cxx",
+ "cxx-build",
+ "hf-hub",
+ "image",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "pkg-config",
+ "serde_json",
+ "text-generation-router",
+ "thiserror",
+ "tokenizers",
+ "tokio",
+ "tokio-stream",
+]
+
+[[package]]
 name = "text-generation-backends-trtllm"
 version = "2.4.1-dev0"
 dependencies = [
