@@ -3,11 +3,13 @@
 //
 #pragma once
 
-#include <cmath>
+#include <algorithm>
 #include <exception>
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <iterator>
+#include <ranges>
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -20,61 +22,64 @@ huggingface::tgi::backends::TensorRtLlmBackendImpl::TensorRtLlmBackendImpl(
 ) : TensorRtLlmBackend(engineFolder, executorWorker) {}
 
 
-bool huggingface::tgi::backends::TensorRtLlmBackendImpl::IsReady() const {
-    return TensorRtLlmBackend::IsReady();
-}
-
 uint64_t huggingface::tgi::backends::TensorRtLlmBackendImpl::Submit(
-        rust::Slice<const uint32_t> tokens, int32_t topK, float_t topP, float_t temperature, float_t repetition_penalty,
-        float_t frequency_penalty, uint64_t seed) {
+        rust::Slice<const uint32_t> tokens,
+        uint32_t maxNewTokens,
+        int32_t topK,
+        float_t topP,
+        float_t temperature,
+        float_t repetition_penalty,
+        float_t frequency_penalty,
+        uint64_t seed) {
 
     // This will copy all the items from the initial slice
-    std::vector<int32_t> tokens_(std::make_move_iterator(tokens.begin()), std::make_move_iterator(tokens.end()));
+    std::vector<int32_t> tokens_(tokens.begin(), tokens.end());
     return TensorRtLlmBackend::Submit(
-            std::move(tokens_), topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
+            std::move(tokens_), maxNewTokens, topK, topP, temperature, repetition_penalty, frequency_penalty, seed);
 }
 
-size_t huggingface::tgi::backends::TensorRtLlmBackendImpl::StreamTokens(
-        const uint64_t requestId,
-        huggingface::tgi::backends::GenerationContext *ctx,
-        rust::Fn<void(huggingface::tgi::backends::GenerationContext *,
-                      huggingface::tgi::backends::GenerationStep)> callback) {
+std::unique_ptr<std::vector<huggingface::tgi::backends::GenerationStep>>
+huggingface::tgi::backends::TensorRtLlmBackendImpl::PullTokens() {
+    const auto responses = TensorRtLlmBackend::PullNewTokens();
 
-    size_t numTokens = 0;
-    for (const auto &item: Poll(requestId)) {
-        GenerationStep step;
-        if (!item.hasError()) {
-            SPDLOG_DEBUG("\tStreamTokens -> Decoding token...");
-            const auto decoded = item.getResult();
+    auto steps = std::make_unique<std::vector<GenerationStep>>();
+    steps->reserve(responses.size());
 
-            const auto token = decoded.outputTokenIds[0][0];
-            const auto isFinal = decoded.isFinal;
-            const auto logProb = decoded.logProbs.value()[0][0];
+#ifndef NDEBUG
+    SPDLOG_DEBUG(FMT_STRING("Pulled out {:d} new tokens"), responses->size());
+#endif
 
-            ++numTokens;
-
-            SPDLOG_DEBUG(FMT_STRING("\tStreamTokens -> {:d} {:.2f} (final = {})"), token, logProb, isFinal);
-            step = huggingface::tgi::backends::GenerationStep{
-                    static_cast<uint32_t>(token), logProb, isFinal, false, std::move(std::string())
+    // Transform tle::Response to GenerationStep
+    std::ranges::transform(responses.begin(), responses.end(), std::back_inserter(*steps), [](const tle::Response &r) {
+        const auto reqId = r.getRequestId();
+        if (!r.hasError()) {
+            const auto result = r.getResult();
+            return GenerationStep{
+                    reqId,
+                    static_cast<uint32_t>(result.outputTokenIds[0][0]),
+                    result.logProbs.value()[0][0],
+                    result.isFinal,
+                    false,
+                    std::string()
             };
-            SPDLOG_DEBUG("\tStreamTokens -> Post callback");
         } else {
-            // TODO : Return rest::Result with error
-            const auto what = item.getErrorMsg();
-            SPDLOG_WARN("\tStreamTokens -> Got error while decoding: {}", what);
-            step = huggingface::tgi::backends::GenerationStep{
-                    std::numeric_limits<uint32_t>::max(), 0.0, true, true, std::move(what)
+            return GenerationStep{
+                    reqId,
+                    0,
+                    0.0,
+                    true,
+                    true,
+                    std::move(r.getErrorMsg())
             };
         }
+    });
 
-        callback(std::move(ctx), std::move(step));
-    }
-
-    return numTokens;
+    return steps;
 }
 
 std::unique_ptr<huggingface::tgi::backends::TensorRtLlmBackendImpl>
 huggingface::tgi::backends::CreateTensorRtLlmBackend(rust::Str engineFolder, rust::Str executorWorker) {
+    SPDLOG_INFO("Creating TensorRT-LLM Backend");
     // Unconditionally call this to initialize and discover TRTLLM plugins
     InitializeBackend();
 
