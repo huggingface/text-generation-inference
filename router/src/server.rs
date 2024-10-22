@@ -866,7 +866,14 @@ pub(crate) async fn completions(
 
                                     yield Ok(event);
                                 }
-                                Err(err) => yield Ok(Event::from(err)),
+                                Err(err) => {
+                                    let error_event: ErrorEvent = err.into();
+                                    let event = Event::default().json_data(error_event).unwrap_or_else(|e| {
+                                        InferError::StreamSerializationError(e.to_string()).into()
+                                    });
+                                    yield Ok::<Event, Infallible>(event);
+                                    break
+                                }
                             }
                         }
                     };
@@ -2527,20 +2534,22 @@ impl From<InferError> for Event {
 }
 
 #[derive(serde::Serialize)]
-pub struct ErrorWithMessage {
+pub struct APIError {
     message: String,
+    http_status_code: i32,
 }
 
 #[derive(serde::Serialize)]
 pub struct ErrorEvent {
-    error: ErrorWithMessage,
+    error: APIError,
 }
 
 impl From<InferError> for ErrorEvent {
     fn from(err: InferError) -> Self {
         ErrorEvent {
-            error: ErrorWithMessage {
+            error: APIError {
                 message: err.to_string(),
+                http_status_code: 500,
             },
         }
     }
