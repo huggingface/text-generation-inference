@@ -19,7 +19,7 @@ namespace huggingface::tgi::backends::llama {
 
 
     class TgiLlamaCppBackend {
-        using TokenId = int32_t;
+        using TokenId = llama_token;
 
     private:
         llama_model* model;
