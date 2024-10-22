@@ -68,6 +68,7 @@ mkShell {
         cuda_cccl
         cuda_cudart
         cuda_nvtx
+        cudnn
         libcublas
         libcusolver
         libcusparse
