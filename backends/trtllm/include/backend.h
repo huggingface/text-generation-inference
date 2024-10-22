@@ -23,6 +23,12 @@ namespace huggingface::tgi::backends {
     using RequestId = tle::IdType;
     using TokenId = tle::TokenIdType;
 
+    const static auto OUTPUT_CONFIG = tle::OutputConfig(true, false, false, true, false);
+    constexpr auto FMT_EXECUTOR_STATS = FMT_STRING(
+            "Submitting inference [{}] to the executor ({:d} already in-flight)");
+    constexpr auto FMT_SAMPLING_CONFIG = FMT_STRING(
+            "Sampling: topK={:d}, topP={:.1f}, temperature={:.1f}, repetition_penalty={:.1f}, frequency_penalty={:.1f}, seed={:d}");
+
     /**
      * Initialize all the components required by TRTLLM.
      * It is required to call this function before attempting to load any engine
@@ -54,7 +60,7 @@ namespace huggingface::tgi::backends {
             float_t repetition_penalty,
             float_t frequency_penalty,
             uint64_t seed
-    );
+    ) noexcept;
 
     /**
      *
@@ -64,17 +70,14 @@ namespace huggingface::tgi::backends {
         const json config;
         tle::Executor executor;
 
+        /** Frequently accessed variables cached here **/
+        uint32_t maxNumTokens;
+
     public:
         explicit TensorRtLlmBackend(
                 const std::filesystem::path &engineFolder,
                 const std::filesystem::path &executorWorker
         );
-
-        /**
-         * Indicate if the backend is ready to accept incoming request
-         * @return true if ready, false otherwise
-         */
-        [[nodiscard]] bool IsReady() const;
 
         /**
          * Query the executor for the number of token available for pulling
@@ -95,25 +98,16 @@ namespace huggingface::tgi::backends {
          */
         [[nodiscard]] RequestId Submit(
                 const std::vector<TokenId> &tokens,
-                int32_t topK,
-                float_t topP,
-                float_t temperature,
-                float_t repetition_penalty,
-                float_t frequency_penalty,
-                uint64_t seed
+                const uint32_t maxNewTokens,
+                const int32_t topK,
+                const float_t topP,
+                const float_t temperature,
+                const float_t repetition_penalty,
+                const float_t frequency_penalty,
+                const uint64_t seed
         );
 
-        /**
-         *
-         * @param requestId The request id to poll the generation results
-         * @return
-         */
-        std::vector<tle::Response> Poll(RequestId requestId);
-
-        /**
-         * Stop the underlying executor
-         */
-        void Shutdown();
+        [[nodiscard]] std::vector<tle::Response> PullNewTokens();
     };
 }
 
