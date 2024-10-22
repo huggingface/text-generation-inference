@@ -8,6 +8,25 @@
 #include "backend.h"
 #include "hardware.h"
 
+
+void huggingface::tgi::backends::InitializeLogging() {
+#ifdef NDEBUG
+    if (const auto TRTLLM_LOG_LEVEL_CSTR = std::getenv("TRTLLM_LOG_LEVEL")) {
+        std::string log_level(TRTLLM_LOG_LEVEL_CSTR);
+        std::transform(log_level.begin(), log_level.end(), log_level.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+
+        if (log_level == "debug")
+            spdlog::set_level(spdlog::level::debug);
+        else
+            spdlog::set_level(spdlog::level::info);
+    }
+#else
+    spdlog::set_level(spdlog::level::debug);
+#endif
+}
+
 void huggingface::tgi::backends::InitializeBackend() {
     SPDLOG_INFO("Initializing Backend...");
     nvmlInit_v2();
@@ -25,7 +44,8 @@ void huggingface::tgi::backends::InitializeBackend() {
 }
 
 [[nodiscard]]
-tle::ParallelConfig GetParallelConfig(const size_t worldSize, std::string workerPath) {
+tle::ParallelConfig
+huggingface::tgi::backends::GetParallelConfig(const size_t worldSize, const std::string workerPath) noexcept {
     auto mode = tle::CommunicationMode::kLEADER;
     std::optional<tle::OrchestratorConfig> orchestratorConfig = std::nullopt;
 
@@ -53,7 +73,7 @@ tle::ExecutorConfig huggingface::tgi::backends::GetExecutorConfig(const json &co
 
     // Define some configuration variables
     execConfig.setKvCacheConfig(tle::KvCacheConfig(true));
-    execConfig.setEnableChunkedContext(computeCapabilities.isPostAmpere());
+    execConfig.setEnableChunkedContext(computeCapabilities.IsPostAmpere());
     execConfig.setSchedulerConfig(tle::SchedulerConfig(tle::CapacitySchedulerPolicy::kMAX_UTILIZATION));
     return execConfig;
 }

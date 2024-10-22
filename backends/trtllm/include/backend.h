@@ -44,23 +44,7 @@ namespace huggingface::tgi::backends {
     /**
      * Initialize logging mechanism
      */
-    void InitializeLogging() {
-#ifdef NDEBUG
-        if (const auto TRTLLM_LOG_LEVEL_CSTR = std::getenv("TRTLLM_LOG_LEVEL")) {
-        std::string log_level(TRTLLM_LOG_LEVEL_CSTR);
-        std::transform(log_level.begin(), log_level.end(), log_level.begin(), [](unsigned char c) {
-            return std::tolower(c);
-        });
-
-        if (log_level == "debug")
-            spdlog::set_level(spdlog::level::debug);
-        else
-            spdlog::set_level(spdlog::level::info);
-    }
-#else
-        spdlog::set_level(spdlog::level::debug);
-#endif
-    }
+    void InitializeLogging();
 
 
     /**
