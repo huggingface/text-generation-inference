@@ -2,52 +2,40 @@
 // Created by Morgan Funtowicz on 9/28/2024.
 //
 
-#include <arg.h>
-#include <common.h>
+#include <expected>
+#include <filesystem>
+#include <ggml.h>
+#include <llama.h>
 #include <fmt/format.h>
+#include <fmt/std.h>
 #include <spdlog/spdlog.h>
 #include "backend.hpp"
 
 namespace huggingface::tgi::backends::llama {
 
-    std::unique_ptr<huggingface::tgi::backends::llama::TgiLlamaCppBackend>
-    CreateLlamaCppBackend(std::string_view root) {
-        SPDLOG_INFO(FMT_STRING("Loading model from {}"), root);
-        gpt_init();
+    std::expected<std::unique_ptr<TgiLlamaCppBackend>, TgiLlamaCppBackendError>
+    CreateLlamaCppBackend(const std::filesystem::path& modelPath) {
+        SPDLOG_INFO(FMT_STRING("Loading model from {}"), modelPath);
+        llama_backend_init();
+        llama_numa_init(ggml_numa_strategy::GGML_NUMA_STRATEGY_NUMACTL);
 
-        // Fake argv
-        std::vector<std::string_view> args = {"tgi_llama_cpp_backend", "--model", root};
-        std::vector<char *> argv;
-        for (const auto &arg: args) {
-            argv.push_back(const_cast<char *>(arg.data()));
-        }
-        argv.push_back(nullptr);
-
-        // Create the GPT parameters
-        gpt_params params;
-        if (!gpt_params_parse(args.size(), argv.data(), params, LLAMA_EXAMPLE_SERVER)) {
-            throw std::runtime_error("Failed to create GPT Params from model");
+        // Load the model
+        if(!exists(modelPath)) {
+            return std::unexpected(TgiLlamaCppBackendError::MODEL_FILE_DOESNT_EXIST);
         }
 
-
-        // Create the inference engine
-        SPDLOG_INFO("Allocating llama.cpp model from gpt_params");
-        auto result = llama_init_from_gpt_params(params);
-
-        // Unpack all the inference engine components
-        auto model = result.model;
-        auto context = result.context;
-        auto loras = result.lora_adapters;
-
-        // Make sure everything is correctly initialized
-        if (model == nullptr)
-            throw std::runtime_error(fmt::format("Failed to load model from {}", root));
+        auto params = llama_model_default_params();
+        auto* model = llama_load_model_from_file(modelPath.c_str(), params);
+        auto* context = llama_new_context_with_model(model, {
+            .n_batch = 1,
+            .attention_type = llama_attention_type::LLAMA_ATTENTION_TYPE_CAUSAL,
+            .flash_attn = true,
+        });
 
         return std::make_unique<huggingface::tgi::backends::llama::TgiLlamaCppBackend>(model, context);
     }
 
-    huggingface::tgi::backends::llama::TgiLlamaCppBackend::TgiLlamaCppBackend(llama_model *const model,
-                                                                              llama_context *const ctx)
+    huggingface::tgi::backends::llama::TgiLlamaCppBackend::TgiLlamaCppBackend(llama_model *const model, llama_context *const ctx)
             : model(model), ctx(ctx), batch() {
         char modelName[128];
         llama_model_meta_val_str(model, "general.name", modelName, sizeof(modelName));

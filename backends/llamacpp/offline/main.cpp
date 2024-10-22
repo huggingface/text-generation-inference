@@ -4,6 +4,7 @@
 
 #include <string_view>
 #include <fmt/format.h>
+#include <fmt/std.h>
 #include <fmt/color.h>
 #include <spdlog/spdlog.h>
 #include "../csrc/backend.hpp"
@@ -16,7 +17,7 @@ int main(int argc, char** argv) {
 
     spdlog::set_level(spdlog::level::debug);
 
-    const std::string_view model_root = argv[1];
-    auto backend = huggingface::tgi::backends::llama::CreateLlamaCppBackend(model_root);
-    fmt::print(fmt::emphasis::bold | fg(fmt::color::yellow), "Successfully initialized llama.cpp model from {}\n", model_root);
+    const auto modelPath = absolute(std::filesystem::path(argv[1]));
+    if(auto backend = huggingface::tgi::backends::llama::CreateLlamaCppBackend(modelPath); backend.has_value())
+        fmt::print(fmt::emphasis::bold | fg(fmt::color::yellow), "Successfully initialized llama.cpp model from {}\n", modelPath);
 }
