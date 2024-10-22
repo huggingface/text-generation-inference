@@ -4,28 +4,61 @@
 #ifndef TGI_LLAMA_CPP_BACKEND_BACKEND_HPP
 #define TGI_LLAMA_CPP_BACKEND_BACKEND_HPP
 
+#include <cmath>
+#include <expected>
 #include <filesystem>
 #include <memory>
 #include <llama.h>
 
-namespace huggingface::tgi::backends::llama {
-//    const char* TGI_BACKEND_LLAMA_CPP_NAME = "llama.cpp";
+#define LLAMA_SUCCESS 0
 
+namespace huggingface::tgi::backends::llama {
     enum TgiLlamaCppBackendError {
         MODEL_FILE_DOESNT_EXIST = 1
     };
 
 
     class TgiLlamaCppBackend {
+        using TokenId = int32_t;
+
     private:
         llama_model* model;
         llama_context* ctx;
-        llama_batch batch;
+
+        /**
+         *
+         * @param topK
+         * @param topP
+         * @return
+         */
+        std::unique_ptr<llama_sampler *> GetSamplerFromArgs(
+                uint32_t topK, float_t topP, float_t frequencyPenalty, float_t repetitionPenalty, uint64_t seed);
+
     public:
         TgiLlamaCppBackend(llama_model *model, llama_context *ctx);
         ~TgiLlamaCppBackend();
 
-        void schedule();
+        /**
+         *
+         * @param text
+         * @return
+         */
+        [[nodiscard]] std::vector<TgiLlamaCppBackend::TokenId> Tokenize(const std::string& text) const;
+
+        /**
+         *
+         * @param tokens
+         * @param topK
+         * @param topP
+         * @param maxNewTokens
+         * @return
+         */
+        [[nodiscard]] std::vector<TgiLlamaCppBackend::TokenId> Generate(
+                std::span<const TokenId> tokens,
+                uint32_t topK,
+                float_t topP = 1.0f,
+                uint32_t maxNewTokens = std::numeric_limits<uint32_t>::max()
+        );
     };
 
     std::expected<std::unique_ptr<TgiLlamaCppBackend>, TgiLlamaCppBackendError>
