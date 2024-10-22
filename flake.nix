@@ -137,6 +137,11 @@
 
           impure = callPackage ./nix/impure-shell.nix { inherit server; };
 
+          impureWithCuda = callPackage ./nix/impure-shell.nix {
+            inherit server;
+            withCuda = true;
+          };
+
           impure-flash-attn-v1 = callPackage ./nix/impure-shell.nix {
             server = server.override { flash-attn = python3.pkgs.flash-attn-v1; };
           };
