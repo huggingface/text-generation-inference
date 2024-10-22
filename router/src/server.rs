@@ -867,10 +867,10 @@ pub(crate) async fn completions(
                                     yield Ok(event);
                                 }
                                 Err(err) => {
-                                    let error_event: ErrorEvent = err.into();
-                                    let event = Event::default().json_data(error_event).unwrap_or_else(|e| {
-                                        InferError::StreamSerializationError(e.to_string()).into()
-                                    });
+                                    let event = Event::default()
+                                        .json_data(ErrorEvent::into_api_error(err, 422))
+                                        .unwrap_or_else(|e| InferError::StreamSerializationError(e.to_string()).into());
+                                    println!("{:?}", event);
                                     yield Ok::<Event, Infallible>(event);
                                     break
                                 }
@@ -1376,10 +1376,9 @@ pub(crate) async fn chat_completions(
                         }
                     }
                     Err(err) => {
-                        let error_event: ErrorEvent = err.into();
-                        let event = Event::default().json_data(error_event).unwrap_or_else(|e| {
-                            InferError::StreamSerializationError(e.to_string()).into()
-                        });
+                        let event = Event::default()
+                            .json_data(ErrorEvent::into_api_error(err, 422))
+                            .unwrap_or_else(|e| InferError::StreamSerializationError(e.to_string()).into());
                         yield Ok::<Event, Infallible>(event);
                         break;
                     }
@@ -2536,7 +2535,7 @@ impl From<InferError> for Event {
 #[derive(serde::Serialize)]
 pub struct APIError {
     message: String,
-    http_status_code: i32,
+    http_status_code: usize,
 }
 
 #[derive(serde::Serialize)]
@@ -2544,12 +2543,12 @@ pub struct ErrorEvent {
     error: APIError,
 }
 
-impl From<InferError> for ErrorEvent {
-    fn from(err: InferError) -> Self {
+impl ErrorEvent {
+    fn into_api_error(err: InferError, http_status_code: usize) -> Self {
         ErrorEvent {
             error: APIError {
                 message: err.to_string(),
-                http_status_code: 500,
+                http_status_code,
             },
         }
     }
