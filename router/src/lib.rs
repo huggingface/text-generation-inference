@@ -120,7 +120,7 @@ pub(crate) enum GrammarType {
     /// JSON Schema is a declarative language that allows to annotate JSON documents
     /// with types and descriptions.
     #[serde(rename = "json")]
-    #[serde(alias = "json_object")]
+    #[serde(alias = "json_object", alias = "json_schema")]
     #[schema(example = json ! ({"properties": {"location":{"type": "string"}}}))]
     Json(serde_json::Value),
     #[serde(rename = "regex")]
