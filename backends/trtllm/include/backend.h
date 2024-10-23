@@ -83,6 +83,14 @@ namespace huggingface::tgi::backends {
     ) noexcept;
 
     /**
+     * Attempt to retrieve the
+     * @param generationConfigPath
+     * @return
+     */
+    std::optional<std::list<std::vector<TokenId>>>
+    GetStopWordsFromConfig(const std::filesystem::path &generationConfigPath) noexcept;
+
+    /**
      *
      */
     class TensorRtLlmBackend {
