@@ -89,7 +89,7 @@ RUN apt update && apt install -y python3-minimal python3-dev && \
 
 WORKDIR /usr/local/tgi/bin
 
-ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
+ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/mpi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
 ENV TOKENIZERS_PARALLELISM=false
 ENV OMPI_MCA_plm_rsh_agent=""
 
