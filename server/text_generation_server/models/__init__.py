@@ -195,6 +195,11 @@ class ModelType(enum.Enum):
         "name": "Phi 3",
         "url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
     }
+    GRANITE = {
+        "type": "granite",
+        "name": "Granite",
+        "url": "https://huggingface.co/ibm-granite/granite-3.0-8b-instruct",
+    }
     GEMMA = {
         "type": "gemma",
         "name": "Gemma",
@@ -862,7 +867,12 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
+    elif (
+        model_type == LLAMA
+        or model_type == BAICHUAN
+        or model_type == PHI3
+        or model_type == GRANITE
+    ):
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
@@ -876,7 +886,9 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format(f"Sharded {model_type}")
+            )
         else:
             return CausalLM.fallback(
                 model_id,

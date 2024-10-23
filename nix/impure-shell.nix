@@ -67,7 +67,9 @@ mkShell {
       [
         cuda_cccl
         cuda_cudart
+        cuda_nvrtc
         cuda_nvtx
+        cuda_profiler_api
         cudnn
         libcublas
         libcusolver
