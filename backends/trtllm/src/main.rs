@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use text_generation_backends_trtllm::errors::TensorRtLlmBackendError;
 use text_generation_backends_trtllm::TensorRtLlmBackend;
-use text_generation_router::server;
+use text_generation_router::{server, usage_stats};
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 
 /// App Configuration
@@ -48,14 +48,14 @@ struct Args {
     otlp_service_name: String,
     #[clap(long, env)]
     cors_allow_origin: Option<Vec<String>>,
-    #[clap(long, env, default_value_t = false)]
-    messages_api_enabled: bool,
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
     #[clap(long, env)]
     auth_token: Option<String>,
     #[clap(long, env, help = "Path to the TensorRT-LLM Orchestrator worker")]
     executor_worker: PathBuf,
+    #[clap(default_value = "on", long, env)]
+    usage_stats: usage_stats::UsageStatsLevel,
 }
 
 #[tokio::main]
@@ -83,10 +83,10 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         otlp_endpoint,
         otlp_service_name,
         cors_allow_origin,
-        messages_api_enabled,
         max_client_batch_size,
         auth_token,
         executor_worker,
+        usage_stats,
     } = args;
 
     // Launch Tokio runtime
@@ -155,11 +155,9 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         false,
         None,
         None,
-        messages_api_enabled,
         true,
         max_client_batch_size,
-        false,
-        false,
+        usage_stats,
     )
     .await?;
     Ok(())
