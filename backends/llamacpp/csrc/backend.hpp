@@ -13,7 +13,7 @@
 #define LLAMA_SUCCESS(x) x == 0
 
 namespace huggingface::tgi::backends::llama {
-    enum TgiLlamaCppBackendError {
+    enum TgiLlamaCppBackendError: uint8_t {
         MODEL_FILE_DOESNT_EXIST = 1
     };
 
@@ -43,24 +43,33 @@ namespace huggingface::tgi::backends::llama {
          * @param text
          * @return
          */
-        [[nodiscard]] std::vector<TgiLlamaCppBackend::TokenId> Tokenize(const std::string& text) const;
+        [[nodiscard("Tokens will be freed after this call if not assigned to an lvalue")]]
+        std::vector<TgiLlamaCppBackend::TokenId> Tokenize(const std::string& text) const;
 
         /**
          *
          * @param tokens
          * @param topK
          * @param topP
+         * @param frequencyPenalty
+         * @param repetitionPenalty
          * @param maxNewTokens
+         * @param seed
          * @return
          */
-        [[nodiscard]] std::vector<TgiLlamaCppBackend::TokenId> Generate(
+        [[nodiscard("Generated tokens will be freed after this call if not assigned to an lvalue")]]
+        std::expected<std::vector<TgiLlamaCppBackend::TokenId>, TgiLlamaCppBackendError> Generate(
                 std::span<const TokenId> tokens,
                 uint32_t topK,
                 float_t topP = 1.0f,
-                uint32_t maxNewTokens = std::numeric_limits<uint32_t>::max()
+                float_t frequencyPenalty = 0.0f,
+                float_t repetitionPenalty = 0.0f,
+                uint32_t maxNewTokens = std::numeric_limits<uint32_t>::max() - 1,
+                uint64_t seed = 2014
         );
     };
 
+    [[nodiscard("Create backend will be freed after this call if not assigned to an lvalue")]]
     std::expected<std::unique_ptr<TgiLlamaCppBackend>, TgiLlamaCppBackendError>
     CreateLlamaCppBackend(const std::filesystem::path& root);
 }

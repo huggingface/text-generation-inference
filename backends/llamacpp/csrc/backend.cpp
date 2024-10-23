@@ -100,8 +100,15 @@ namespace huggingface::tgi::backends::llama {
         return std::make_unique<llama_sampler*>(sampler);
     }
 
-    std::vector<TgiLlamaCppBackend::TokenId> huggingface::tgi::backends::llama::TgiLlamaCppBackend::Generate(
-            std::span<const TokenId> tokens, const uint32_t topK, const float_t topP, const uint32_t maxNewTokens) {
+    std::expected<std::vector<TgiLlamaCppBackend::TokenId>, TgiLlamaCppBackendError> huggingface::tgi::backends::llama::TgiLlamaCppBackend::Generate(
+            std::span<const TokenId> tokens,
+            const uint32_t topK,
+            const float_t topP,
+            const float_t frequencyPenalty,
+            const float_t repetitionPenalty,
+            const uint32_t maxNewTokens,
+            const uint64_t seed
+        ) {
         SPDLOG_DEBUG(FMT_STRING("Received {:d} tokens to schedule"), tokens.size());
 
         // Allocate generation result
@@ -110,7 +117,7 @@ namespace huggingface::tgi::backends::llama {
 
         // Retrieve decoding context
         auto batch = llama_batch_get_one(const_cast<int32_t *>(tokens.data()), static_cast<int32_t>(tokens.size()));
-        auto sampler = GetSamplerFromArgs(topK, topP, 1.0, 1.0, 2014);
+        auto sampler = GetSamplerFromArgs(topK, topP, frequencyPenalty, repetitionPenalty, seed);
 
         // Decode
         for(auto [generating, nDecoded] = std::pair{true, 0uz}; generating && nDecoded < maxNewTokens; ++nDecoded) {

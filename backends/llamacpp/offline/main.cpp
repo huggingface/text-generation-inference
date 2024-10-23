@@ -27,8 +27,15 @@ int main(int argc, char** argv) {
 
         // Generate
         const auto promptTokens = backend->Tokenize(prompt);
-        const auto out = backend->Generate(promptTokens, 30, 1.0, 32);
-        fmt::print(FMT_STRING("Generated: {}"), out);
+        const auto out = backend->Generate(promptTokens, 30, 1.0, 2.0, 0.0, 32);
+
+        if(out.has_value())
+            fmt::print(FMT_STRING("Generated: {}"), *out);
+        else {
+            const auto err = out.error();
+            fmt::print(fmt::emphasis::bold | fg(fmt::color::red), "Got an error: {:d}", static_cast<uint8_t>(err));
+        }
+
     } else {
         switch (maybeBackend.error()) {
             case huggingface::tgi::backends::llama::TgiLlamaCppBackendError::MODEL_FILE_DOESNT_EXIST:
