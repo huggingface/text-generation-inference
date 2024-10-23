@@ -1,11 +1,14 @@
 use crate::infer::Infer;
 use crate::server::{chat_completions, compat_generate, completions, ComputeType};
-use crate::{ChatRequest, CompatGenerateRequest, CompletionRequest, ErrorResponse, Info};
+use crate::{
+    ChatCompletion, ChatCompletionChunk, ChatRequest, Chunk, CompatGenerateRequest,
+    CompletionFinal, CompletionRequest, ErrorResponse, GenerateResponse, Info, StreamResponse,
+};
 use axum::extract::Extension;
 use axum::http::StatusCode;
 use axum::response::Response;
 use axum::Json;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::instrument;
 use utoipa::ToSchema;
 
@@ -17,6 +20,26 @@ pub(crate) enum SagemakerRequest {
     Completion(CompletionRequest),
 }
 
+/// Used for OpenAPI specs
+#[allow(dead_code)]
+#[derive(Serialize, ToSchema)]
+#[serde(untagged)]
+pub(crate) enum SagemakerResponse {
+    Generate(GenerateResponse),
+    Chat(ChatCompletion),
+    Completion(CompletionFinal),
+}
+
+/// Used for OpenAPI specs
+#[allow(dead_code)]
+#[derive(Serialize, ToSchema)]
+#[serde(untagged)]
+pub(crate) enum SagemakerStreamResponse {
+    Generate(StreamResponse),
+    Chat(ChatCompletionChunk),
+    Completion(Chunk),
+}
+
 // Generate tokens from Sagemaker request
 #[utoipa::path(
 post,
@@ -26,12 +49,8 @@ request_body = SagemakerRequest,
 responses(
 (status = 200, description = "Generated Chat Completion",
 content(
-("application/json" = GenerateResponse),
-("application/json" = ChatCompletion),
-("application/json" = CompletionFinal),
-("text/event-stream" = StreamResponse),
-("text/event-stream" = ChatCompletionChunk),
-("text/event-stream" = Chunk),
+("application/json" = SagemakerResponse),
+("text/event-stream" = SagemakerStreamResponse),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
 example = json ! ({"error": "Request failed during generation"})),

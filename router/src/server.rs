@@ -7,7 +7,10 @@ use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
     kserve_model_metadata, kserve_model_metadata_ready,
 };
-use crate::sagemaker::{sagemaker_compatibility, SagemakerRequest, __path_sagemaker_compatibility};
+use crate::sagemaker::{
+    sagemaker_compatibility, SagemakerRequest, SagemakerResponse, SagemakerStreamResponse,
+    __path_sagemaker_compatibility,
+};
 use crate::validation::ValidationError;
 use crate::vertex::vertex_compatibility;
 use crate::ChatTokenizeResponse;
@@ -1543,6 +1546,8 @@ ChatCompletionTopLogprob,
 ChatCompletion,
 CompletionRequest,
 CompletionComplete,
+SagemakerResponse,
+SagemakerStreamResponse,
 Chunk,
 Completion,
 CompletionFinal,
