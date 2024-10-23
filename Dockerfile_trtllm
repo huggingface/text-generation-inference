@@ -84,8 +84,9 @@ RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$
     CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --release
 
 FROM nvidia/cuda:12.6.1-cudnn-runtime-ubuntu22.04 AS runtime
-RUN apt update && apt install -y python3-minimal python3-dev && \
-    rm -rf /var/lib/{apt,dpkg,cache,log}/
+RUN apt update && apt install -y python3-minimal python3-dev python3-pip && \
+    rm -rf /var/lib/{apt,dpkg,cache,log}/ && \
+    python3 -m pip install transformers tokenizers
 
 WORKDIR /usr/local/tgi/bin
 
