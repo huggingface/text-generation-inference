@@ -20,7 +20,7 @@ pub(crate) enum SagemakerRequest {
     Completion(CompletionRequest),
 }
 
-/// Used for OpenAPI specs
+// Used for OpenAPI specs
 #[allow(dead_code)]
 #[derive(Serialize, ToSchema)]
 #[serde(untagged)]
@@ -30,7 +30,7 @@ pub(crate) enum SagemakerResponse {
     Completion(CompletionFinal),
 }
 
-/// Used for OpenAPI specs
+// Used for OpenAPI specs
 #[allow(dead_code)]
 #[derive(Serialize, ToSchema)]
 #[serde(untagged)]
@@ -40,7 +40,7 @@ pub(crate) enum SagemakerStreamResponse {
     Completion(Chunk),
 }
 
-// Generate tokens from Sagemaker request
+/// Generate tokens from Sagemaker request
 #[utoipa::path(
 post,
 tag = "Text Generation Inference",
@@ -53,13 +53,13 @@ content(
 ("text/event-stream" = SagemakerStreamResponse),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error", "error_type": "validation"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"})),
 )
 )]
 #[instrument(skip_all)]

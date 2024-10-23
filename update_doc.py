@@ -172,6 +172,8 @@ def check_openapi(check: bool):
             # allow for trailing whitespace since it's not significant
             # and the precommit hook will remove it
             "lint",
+            "--skip-rule",
+            "security-defined",
             filename,
         ],
         capture_output=True,

@@ -321,6 +321,7 @@
         "tags": [
           "Text Generation Inference"
         ],
+        "summary": "Generate tokens from Sagemaker request",
         "operationId": "sagemaker_compatibility",
         "requestBody": {
           "content": {
@@ -356,7 +357,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Input validation error"
+                  "error": "Input validation error",
+                  "error_type": "validation"
                 }
               }
             }
@@ -369,7 +371,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Request failed during generation"
+                  "error": "Request failed during generation",
+                  "error_type": "generation"
                 }
               }
             }
@@ -382,7 +385,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Model is overloaded"
+                  "error": "Model is overloaded",
+                  "error_type": "overloaded"
                 }
               }
             }
@@ -395,7 +399,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Incomplete generation"
+                  "error": "Incomplete generation",
+                  "error_type": "incomplete_generation"
                 }
               }
             }
