@@ -10,7 +10,7 @@ from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 if SYSTEM == "ipex":
     from .ipex import QuantLinear
-elif SYSTEM == "cuda":
+elif SYSTEM in {"cuda", "rocm"}:
     from .cuda import QuantLinear
 
 
