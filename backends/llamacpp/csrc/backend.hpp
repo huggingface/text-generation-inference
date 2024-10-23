@@ -17,7 +17,6 @@ namespace huggingface::tgi::backends::llama {
         MODEL_FILE_DOESNT_EXIST = 1
     };
 
-
     class TgiLlamaCppBackend {
         using TokenId = llama_token;
 

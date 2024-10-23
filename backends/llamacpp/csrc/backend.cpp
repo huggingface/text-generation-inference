@@ -15,10 +15,10 @@
 #include "backend.hpp"
 
 namespace huggingface::tgi::backends::llama {
-
     std::expected<std::unique_ptr<TgiLlamaCppBackend>, TgiLlamaCppBackendError>
     CreateLlamaCppBackend(const std::filesystem::path& modelPath) {
         SPDLOG_DEBUG(FMT_STRING("Loading model from {}"), modelPath);
+
         llama_backend_init();
         llama_numa_init(ggml_numa_strategy::GGML_NUMA_STRATEGY_NUMACTL);
 
