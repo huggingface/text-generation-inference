@@ -7,6 +7,10 @@ use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
     kserve_model_metadata, kserve_model_metadata_ready,
 };
+use crate::sagemaker::{
+    sagemaker_compatibility, SagemakerRequest, SagemakerResponse, SagemakerStreamResponse,
+    __path_sagemaker_compatibility,
+};
 use crate::validation::ValidationError;
 use crate::vertex::vertex_compatibility;
 use crate::ChatTokenizeResponse;
@@ -83,7 +87,7 @@ example = json ! ({"error": "Incomplete generation"})),
 )
 )]
 #[instrument(skip(infer, req))]
-async fn compat_generate(
+pub(crate) async fn compat_generate(
     Extension(default_return_full_text): Extension<bool>,
     infer: Extension<Infer>,
     compute_type: Extension<ComputeType>,
@@ -678,7 +682,7 @@ time_per_token,
 seed,
 )
 )]
-async fn completions(
+pub(crate) async fn completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
@@ -1202,7 +1206,7 @@ time_per_token,
 seed,
 )
 )]
-async fn chat_completions(
+pub(crate) async fn chat_completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
@@ -1513,11 +1517,13 @@ completions,
 tokenize,
 metrics,
 openai_get_model_info,
+sagemaker_compatibility,
 ),
 components(
 schemas(
 Info,
 CompatGenerateRequest,
+SagemakerRequest,
 GenerateRequest,
 GrammarType,
 ChatRequest,
@@ -1540,6 +1546,8 @@ ChatCompletionTopLogprob,
 ChatCompletion,
 CompletionRequest,
 CompletionComplete,
+SagemakerResponse,
+SagemakerStreamResponse,
 Chunk,
 Completion,
 CompletionFinal,
@@ -1607,7 +1615,6 @@ pub async fn run(
     ngrok: bool,
     _ngrok_authtoken: Option<String>,
     _ngrok_edge: Option<String>,
-    messages_api_enabled: bool,
     disable_grammar_support: bool,
     max_client_batch_size: usize,
     usage_stats_level: usage_stats::UsageStatsLevel,
@@ -1836,7 +1843,6 @@ pub async fn run(
                 // max_batch_size,
                 revision.clone(),
                 validation_workers,
-                messages_api_enabled,
                 disable_grammar_support,
                 max_client_batch_size,
                 usage_stats_level,
@@ -1878,7 +1884,6 @@ pub async fn run(
         ngrok,
         _ngrok_authtoken,
         _ngrok_edge,
-        messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
         model_info,
@@ -1938,7 +1943,6 @@ async fn start(
     ngrok: bool,
     _ngrok_authtoken: Option<String>,
     _ngrok_edge: Option<String>,
-    messages_api_enabled: bool,
     disable_grammar_support: bool,
     max_client_batch_size: usize,
     model_info: HubModelInfo,
@@ -2253,6 +2257,7 @@ async fn start(
         .route("/v1/chat/completions", post(chat_completions))
         .route("/v1/completions", post(completions))
         .route("/vertex", post(vertex_compatibility))
+        .route("/invocations", post(sagemaker_compatibility))
         .route("/tokenize", post(tokenize));
 
     if let Some(api_key) = api_key {
@@ -2288,13 +2293,6 @@ async fn start(
         .route("/metrics", get(metrics))
         .route("/v1/models", get(openai_get_model_info));
 
-    // Conditional AWS Sagemaker route
-    let aws_sagemaker_route = if messages_api_enabled {
-        Router::new().route("/invocations", post(chat_completions)) // Use 'chat_completions' for OAI_ENABLED
-    } else {
-        Router::new().route("/invocations", post(compat_generate)) // Use 'compat_generate' otherwise
-    };
-
     let compute_type =
         ComputeType(std::env::var("COMPUTE_TYPE").unwrap_or("gpu+optimized".to_string()));
 
@@ -2302,8 +2300,7 @@ async fn start(
     let mut app = Router::new()
         .merge(swagger_ui)
         .merge(base_routes)
-        .merge(info_routes)
-        .merge(aws_sagemaker_route);
+        .merge(info_routes);
 
     #[cfg(feature = "google")]
     {
