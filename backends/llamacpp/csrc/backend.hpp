@@ -10,7 +10,7 @@
 #include <memory>
 #include <llama.h>
 
-#define LLAMA_SUCCESS 0
+#define LLAMA_SUCCESS(x) x == 0
 
 namespace huggingface::tgi::backends::llama {
     enum TgiLlamaCppBackendError {

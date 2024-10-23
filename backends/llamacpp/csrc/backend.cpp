@@ -123,7 +123,7 @@ namespace huggingface::tgi::backends::llama {
 #else
             const auto status = llama_decode(ctx, batch);
 #endif
-            if (status == LLAMA_SUCCESS) {
+            if (LLAMA_SUCCESS(status)) {
                 // Sample the new token
                 auto new_token_id = llama_sampler_sample(*sampler, ctx, -1);
                 generated.emplace_back(new_token_id);
@@ -133,7 +133,6 @@ namespace huggingface::tgi::backends::llama {
                 batch = llama_batch_get_one(&new_token_id, 1);
             }
         }
-        generated.shrink_to_fit();
         return generated;
     }
 }
