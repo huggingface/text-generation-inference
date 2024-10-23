@@ -7,7 +7,7 @@ This example provide a simple way of usage of `tgi-gaudi` with continuous batchi
 ### Install
 
 ```
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 ### Setup TGI server

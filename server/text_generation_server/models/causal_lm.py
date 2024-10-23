@@ -665,7 +665,7 @@ class CausalLM(Model):
             model = self.get_deepspeed_model(
                 model_id, dtype, revision
             )
-            model = self.prepare_model_for_quantization(model)
+            model = hq_env.prepare_model_for_quantization(model)
         else:
             get_repo_root(model_id)
 
@@ -684,12 +684,15 @@ class CausalLM(Model):
                 trust_remote_code=trust_remote_code,
                 **model_kwargs
             )
-            model = self.prepare_model_for_quantization(model)
+            model = hq_env.prepare_model_for_quantization(model)
             model = model.eval().to(device)
 
         self.enable_hpu_graph = os.getenv("ENABLE_HPU_GRAPH", "true").lower() == "true" and LAZY_MODE == 1
         self.limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "false").lower() == "true"
-        model = remove_kv_cache_from_output(model)
+
+        if model.config.model_type not in ["gpt_bigcode"]: # gpt_bigcode/starcoderbase-3b skips remove_kv_cache_from_output()
+            model = remove_kv_cache_from_output(model)
+
         if self.enable_hpu_graph:
             from habana_frameworks.torch.hpu import wrap_in_hpu_graph
             model = wrap_in_hpu_graph(model, disable_tensor_cache=True)
@@ -700,7 +703,7 @@ class CausalLM(Model):
                     "TORCH COMPILE", f'Torch compiling of model')
                 model.model = torch.compile(model.model, backend="hpu_backend", options={"keep_input_mutations": True})
 
-        model = self.setup_quantization(model)
+        model = hq_env.setup_quantization(model)
 
         if model.config.model_type not in MODELS_OPTIMIZED_WITH_STATIC_SHAPES:
             raise ValueError(f"Model type {model.config.model_type} is not supported!")
@@ -727,10 +730,13 @@ class CausalLM(Model):
             "return_dict": True,
         }
 
-        if model.config.model_type in ["llama", "mistral", "starcoder2", "qwen2"]:
-            
-            if model.config.model_type in ["llama", "mistral", "qwen2"]:
+
+        if model.config.model_type in ["llama", "mistral", "starcoder2", "qwen2", "falcon", "gemma"]:
+
+            if model.config.model_type not in ["falcon"]:
                 self.kwargs["attn_softmax_bf16"] = True
+
+            if model.config.model_type not in ["gemma"]:
                 self.kwargs["trim_logits"] = True
 
             if os.getenv("USE_FLASH_ATTENTION", "false").lower() == "true":
@@ -832,29 +838,6 @@ class CausalLM(Model):
             'type': rope_scaling, 'factor': float(rope_factor)
         }
 
-    def setup_quantization(self, model):
-        if hq_env.is_quantization_enabled:
-            htorch.core.quantization._mark_params_as_const(model)
-            htorch.core.quantization._check_params_as_const(model)
-            htorch.core.hpu_initialize(model)
-        return model
-
-    def prepare_model_for_quantization(self, model):
-        if hq_env.is_quantization_enabled:
-            if model.config.model_type == "llama":
-                self.patch_scoped_linear_all_reduce(model)
-            model = hq_env.prepare_model_for_quantization(model)
-        return model
-
-    def patch_scoped_linear_all_reduce(self, model):
-        from deepspeed.module_inject.layers import LinearAllreduce
-        from optimum.habana.transformers.models.modeling_all_models import ScopedLinearAllReduce
-        for name, module in model.named_children():
-            if type(module) is LinearAllreduce:
-                SL = ScopedLinearAllReduce(mod=module)
-                setattr(model, name, SL)
-            self.patch_scoped_linear_all_reduce(module)
-
     @property
     def batch_type(self) -> Type[CausalLMBatch]:
         return CausalLMBatch
@@ -903,7 +886,7 @@ class CausalLM(Model):
 
         kwargs.update(self.kwargs)
 
-        if past_key_values is not None:
+        if past_key_values is not None and self.model.config.model_type not in ["gpt_bigcode"]:
             return self.model.forward(**kwargs)
         else:
             outputs = self.model.forward(**kwargs)
@@ -988,7 +971,7 @@ class CausalLM(Model):
                 else:
                     batch.position_ids += 1
                 # Update past key values
-                if prefill:
+                if prefill or self.model.config.model_type in ["gpt_bigcode"]:
                     batch.past_key_values = past
 
         htorch.core.mark_step()
@@ -1032,7 +1015,7 @@ class CausalLM(Model):
         else:
             token_idx = torch.tensor(batch.attention_mask.shape[-1] - batch.right_padding).to(self.device)
             input_ids = torch.index_select(batch.input_ids, 1, token_idx - 1)
-            batch.logits = self.forward(
+            logits = self.forward(
                 input_ids,
                 batch.attention_mask,
                 batch.position_ids,
@@ -1040,6 +1023,10 @@ class CausalLM(Model):
                 batch.past_key_values,
                 bypass_hpu_graph=prefill and self.limit_hpu_graph if self.enable_hpu_graph else None,
             )
+            if self.model.config.model_type in ["gpt_bigcode"]:
+                batch.logits, batch.past = logits
+            else:
+                batch.logits = logits
 
         htorch.core.mark_step()
 
