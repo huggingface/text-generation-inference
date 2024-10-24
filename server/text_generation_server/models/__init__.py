@@ -410,12 +410,6 @@ def get_model(
             else:
                 # These quantizers only work with float16 params.
                 dtype = torch.float16
-        elif quantize == "fp8":
-            from text_generation_server.layers.fp8 import FBGEMM_DYN_AVAILABLE
-
-            if FBGEMM_DYN_AVAILABLE:
-                # fbgemm kernels are fp8xfp8->bf16
-                dtype = torch.bfloat16
         else:
             # Keep it as default for now and let
             # every model resolve their own default dtype.
