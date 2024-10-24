@@ -11,27 +11,27 @@
       },
       {
         "id": 3923,
-        "logprob": -5.6328125,
+        "logprob": -6.1875,
         "text": "What"
       },
       {
         "id": 374,
-        "logprob": -1.2265625,
+        "logprob": -0.93359375,
         "text": " is"
       },
       {
         "id": 5655,
-        "logprob": -9.1015625,
+        "logprob": -9.875,
         "text": " deep"
       },
       {
         "id": 6975,
-        "logprob": -1.8085938,
+        "logprob": -1.1796875,
         "text": " learning"
       },
       {
         "id": 30,
-        "logprob": -1.0439453,
+        "logprob": -1.75,
         "text": "?"
       }
     ],
@@ -39,66 +39,66 @@
     "tokens": [
       {
         "id": 18682,
-        "logprob": -2.1992188,
+        "logprob": -1.109375,
         "special": false,
         "text": " Deep"
       },
       {
         "id": 6975,
-        "logprob": -0.079956055,
+        "logprob": -0.005432129,
         "special": false,
         "text": " learning"
       },
       {
         "id": 374,
-        "logprob": -0.2763672,
+        "logprob": -0.028808594,
         "special": false,
         "text": " is"
       },
       {
         "id": 264,
-        "logprob": -0.37548828,
+        "logprob": -0.013671875,
         "special": false,
         "text": " a"
       },
       {
         "id": 27084,
-        "logprob": -1.4628906,
+        "logprob": -0.69921875,
         "special": false,
         "text": " subset"
       },
       {
         "id": 315,
-        "logprob": -0.02885437,
+        "logprob": -0.0005874634,
         "special": false,
         "text": " of"
       },
       {
         "id": 5780,
-        "logprob": -0.2565918,
+        "logprob": -0.026855469,
         "special": false,
         "text": " machine"
       },
       {
         "id": 6975,
-        "logprob": -0.0063438416,
+        "logprob": -0.00020885468,
         "special": false,
         "text": " learning"
       },
       {
         "id": 430,
-        "logprob": -1.3056641,
+        "logprob": -0.17773438,
         "special": false,
         "text": " that"
       },
       {
-        "id": 374,
-        "logprob": -1.6035156,
+        "id": 18065,
+        "logprob": -0.703125,
         "special": false,
-        "text": " is"
+        "text": " involves"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": " Deep learning is a subset of machine learning that is"
+  "generated_text": " Deep learning is a subset of machine learning that involves"
 }

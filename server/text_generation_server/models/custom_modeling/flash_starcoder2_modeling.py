@@ -38,6 +38,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
     FastRMSNorm,
@@ -188,6 +189,7 @@ class Starcoder2Attention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         self.o_proj = TensorParallelRowLinear.load(
             config,
@@ -231,7 +233,12 @@ class Starcoder2Attention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        kv_cache.store(key=kv_to_cache[:, 0], value=kv_to_cache[:, 1], slots=slots)
+        kv_cache.store(
+            key=kv_to_cache[:, 0],
+            value=kv_to_cache[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
@@ -241,6 +248,7 @@ class Starcoder2Attention(torch.nn.Module):
                 key=kv_to_cache[:, 0],
                 value=kv_to_cache[:, 1],
                 kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
                 seqlen=seqlen,
                 block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
@@ -256,6 +264,7 @@ class Starcoder2Attention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
