@@ -6,6 +6,7 @@ authors.workspace = true
 homepage.workspace = true
 
 [dependencies]
+async-trait = "0.1"
 clap = { version = "4.5.19", features = ["derive"] }
 cxx = "1.0"
 hf-hub = { workspace = true }
@@ -18,6 +19,11 @@ thiserror = "1.0.64"
 tokio = "1.40.0"
 tokio-stream = "0.1.16"
 tokenizers = { workspace = true }
+tracing = "0.1"
+tracing-opentelemetry = "0.27.0"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+utoipa = { version = "5.1.2", features = ["axum_extras"] }
+log = "0.4.22"
 
 [build-dependencies]
 cmake = "0.1"

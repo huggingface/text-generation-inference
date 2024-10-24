@@ -14,33 +14,35 @@
 
 #include "backend.hpp"
 
-namespace huggingface::tgi::backends::llama {
-    std::expected<std::unique_ptr<TgiLlamaCppBackend>, TgiLlamaCppBackendError>
-    CreateLlamaCppBackend(const std::filesystem::path& modelPath) {
+namespace huggingface::tgi::backends::llamacpp {
+    [[nodiscard]]
+    std::expected<std::pair<llama_model *, llama_context *>, TgiLlamaCppBackendError>
+    TgiLlamaCppBackend::FromGGUF(const std::filesystem::path &modelPath) noexcept {
         SPDLOG_DEBUG(FMT_STRING("Loading model from {}"), modelPath);
 
         llama_backend_init();
         llama_numa_init(ggml_numa_strategy::GGML_NUMA_STRATEGY_NUMACTL);
 
         // Load the model
-        if(!exists(modelPath)) {
+        if (!exists(modelPath)) {
             return std::unexpected(TgiLlamaCppBackendError::MODEL_FILE_DOESNT_EXIST);
         }
 
         auto params = llama_model_default_params();
-        auto* model = llama_load_model_from_file(modelPath.c_str(), params);
-        auto* context = llama_new_context_with_model(model, {
-            .n_batch = 1,
-            .n_threads = 16,
-            .attention_type = llama_attention_type::LLAMA_ATTENTION_TYPE_CAUSAL,
-            .flash_attn = false,
+        auto *model = llama_load_model_from_file(modelPath.c_str(), params);
+        auto *context = llama_new_context_with_model(model, {
+                .n_batch = 1,
+                .n_threads = 16,
+                .attention_type = llama_attention_type::LLAMA_ATTENTION_TYPE_CAUSAL,
+                .flash_attn = false,
         });
 
-        return std::make_unique<huggingface::tgi::backends::llama::TgiLlamaCppBackend>(model, context);
+        return std::make_pair(model, context);
     }
 
-    huggingface::tgi::backends::llama::TgiLlamaCppBackend::TgiLlamaCppBackend(llama_model *const model, llama_context *const ctx)
-        : model(model), ctx(ctx) {
+    huggingface::tgi::backends::llamacpp::TgiLlamaCppBackend::TgiLlamaCppBackend(llama_model *const model,
+                                                                                 llama_context *const ctx)
+            : model(model), ctx(ctx) {
 #ifndef NDEBUG
         char modelName[256];
         llama_model_meta_val_str(llama_get_model(ctx), "general.name", modelName, sizeof(modelName));
@@ -48,13 +50,13 @@ namespace huggingface::tgi::backends::llama {
 #endif
     }
 
-    huggingface::tgi::backends::llama::TgiLlamaCppBackend::~TgiLlamaCppBackend() {
+    huggingface::tgi::backends::llamacpp::TgiLlamaCppBackend::~TgiLlamaCppBackend() {
         if (ctx) {
             SPDLOG_DEBUG("Freeing llama.cpp context");
             llama_free(ctx);
         }
 
-        if(model) {
+        if (model) {
             SPDLOG_DEBUG("Freeing llama.cpp model");
             llama_free_model(model);
         }
@@ -63,7 +65,8 @@ namespace huggingface::tgi::backends::llama {
     std::vector<TgiLlamaCppBackend::TokenId> TgiLlamaCppBackend::Tokenize(const std::string &text) const {
         std::vector<TgiLlamaCppBackend::TokenId> tokens(llama_n_seq_max(ctx));
 
-        if(auto nTokens = llama_tokenize(model, text.c_str(), text.length(), tokens.data(), tokens.capacity(), true, true); nTokens < 0){
+        if (auto nTokens = llama_tokenize(model, text.c_str(), text.length(), tokens.data(), tokens.capacity(), true,
+                                          true); nTokens < 0) {
             tokens.resize(-nTokens);
             llama_tokenize(model, text.c_str(), text.length(), tokens.data(), tokens.capacity(), true, true);
         } else {
@@ -75,14 +78,15 @@ namespace huggingface::tgi::backends::llama {
     }
 
     std::unique_ptr<llama_sampler *> TgiLlamaCppBackend::GetSamplerFromArgs(
-            const uint32_t topK, const float_t topP, const float_t frequencyPenalty, const float_t repetitionPenalty, const uint64_t seed) {
+            const uint32_t topK, const float_t topP, const float_t frequencyPenalty, const float_t repetitionPenalty,
+            const uint64_t seed) {
         auto *sampler = llama_sampler_chain_init({.no_perf = false});
 
         // Penalties
         llama_sampler_chain_add(sampler, llama_sampler_init_penalties(
                 llama_n_vocab(model),
                 llama_token_eos(model),
-                llama_token_nl (model),
+                llama_token_nl(model),
                 0.0f,
                 repetitionPenalty,
                 frequencyPenalty,
@@ -92,15 +96,16 @@ namespace huggingface::tgi::backends::llama {
         ));
         llama_sampler_chain_add(sampler, llama_sampler_init_top_k(static_cast<int32_t>(topK)));
 
-        if(0 < topP && topP < 1) {
+        if (0 < topP && topP < 1) {
             llama_sampler_chain_add(sampler, llama_sampler_init_top_p(topP, 1));
         }
 
         llama_sampler_chain_add(sampler, llama_sampler_init_dist(seed));
-        return std::make_unique<llama_sampler*>(sampler);
+        return std::make_unique<llama_sampler *>(sampler);
     }
 
-    std::expected<std::vector<TgiLlamaCppBackend::TokenId>, TgiLlamaCppBackendError> huggingface::tgi::backends::llama::TgiLlamaCppBackend::Generate(
+    std::expected<std::vector<TgiLlamaCppBackend::TokenId>, TgiLlamaCppBackendError>
+    huggingface::tgi::backends::llamacpp::TgiLlamaCppBackend::Generate(
             std::span<const TokenId> tokens,
             const uint32_t topK,
             const float_t topP,
@@ -108,7 +113,7 @@ namespace huggingface::tgi::backends::llama {
             const float_t repetitionPenalty,
             const uint32_t maxNewTokens,
             const uint64_t seed
-        ) {
+    ) {
         SPDLOG_DEBUG(FMT_STRING("Received {:d} tokens to schedule"), tokens.size());
 
         // Allocate generation result
@@ -120,7 +125,7 @@ namespace huggingface::tgi::backends::llama {
         auto sampler = GetSamplerFromArgs(topK, topP, frequencyPenalty, repetitionPenalty, seed);
 
         // Decode
-        for(auto [generating, nDecoded] = std::pair{true, 0uz}; generating && nDecoded < maxNewTokens; ++nDecoded) {
+        for (auto [generating, nDecoded] = std::pair{true, 0uz}; generating && nDecoded < maxNewTokens; ++nDecoded) {
 #ifndef NDEBUG
             const auto start = std::chrono::steady_clock::now();
             const auto status = llama_decode(ctx, batch);

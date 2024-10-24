@@ -10,6 +10,8 @@
 #include <spdlog/spdlog.h>
 #include "../csrc/backend.hpp"
 
+using namespace huggingface::tgi::backends::llamacpp;
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         fmt::print("No model folder provider");
@@ -21,7 +23,7 @@ int main(int argc, char** argv) {
     const auto prompt = "My name is Morgan";
 
     const auto modelPath = absolute(std::filesystem::path(argv[1]));
-    if (auto maybeBackend = huggingface::tgi::backends::llama::CreateLlamaCppBackend(modelPath); maybeBackend.has_value()) {
+    if (auto maybeBackend = CreateLlamaCppBackend(modelPath); maybeBackend.has_value()) {
         // Retrieve the backend
         const auto& backend = *maybeBackend;
 
@@ -38,7 +40,7 @@ int main(int argc, char** argv) {
 
     } else {
         switch (maybeBackend.error()) {
-            case huggingface::tgi::backends::llama::TgiLlamaCppBackendError::MODEL_FILE_DOESNT_EXIST:
+            case TgiLlamaCppBackendError::MODEL_FILE_DOESNT_EXIST:
                 fmt::print(fmt::emphasis::bold | fg(fmt::color::red), "Specified file {} doesnt exist", modelPath);
                 return maybeBackend.error();
         }

@@ -2733,6 +2733,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opentelemetry"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "570074cc999d1a58184080966e5bd3bf3a9a4af650c3b05047c2621e7405cd17"
+dependencies = [
+ "futures-core",
+ "futures-sink",
+ "js-sys",
+ "once_cell",
+ "pin-project-lite",
+ "thiserror",
+]
+
+[[package]]
 name = "opentelemetry-otlp"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2844,6 +2858,24 @@ dependencies = [
  "glob",
  "once_cell",
  "opentelemetry 0.24.0",
+ "percent-encoding",
+ "rand",
+ "thiserror",
+]
+
+[[package]]
+name = "opentelemetry_sdk"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2c627d9f4c9cdc1f21a29ee4bfbd6028fcb8bcf2a857b43f3abdf72c9c862f3"
+dependencies = [
+ "async-trait",
+ "futures-channel",
+ "futures-executor",
+ "futures-util",
+ "glob",
+ "once_cell",
+ "opentelemetry 0.26.0",
  "percent-encoding",
  "rand",
  "thiserror",
@@ -4187,12 +4219,14 @@ dependencies = [
 name = "text-generation-backend-llamacpp"
 version = "2.4.1-dev0"
 dependencies = [
+ "async-trait",
  "clap 4.5.20",
  "cmake",
  "cxx",
  "cxx-build",
  "hf-hub",
  "image",
+ "log",
  "metrics",
  "metrics-exporter-prometheus",
  "pkg-config",
@@ -4202,6 +4236,10 @@ dependencies = [
  "tokenizers",
  "tokio",
  "tokio-stream",
+ "tracing",
+ "tracing-opentelemetry 0.27.0",
+ "tracing-subscriber",
+ "utoipa 5.1.2",
 ]
 
 [[package]]
@@ -4330,7 +4368,7 @@ dependencies = [
  "tracing-opentelemetry 0.21.0",
  "tracing-subscriber",
  "ureq",
- "utoipa",
+ "utoipa 4.2.3",
  "utoipa-swagger-ui",
  "uuid",
  "vergen",
@@ -4381,7 +4419,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry 0.21.0",
  "tracing-subscriber",
- "utoipa",
+ "utoipa 4.2.3",
  "utoipa-swagger-ui",
 ]
 
@@ -4432,7 +4470,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry 0.21.0",
  "tracing-subscriber",
- "utoipa",
+ "utoipa 4.2.3",
  "utoipa-swagger-ui",
 ]
 
@@ -4947,6 +4985,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-opentelemetry"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc58af5d3f6c5811462cabb3289aec0093f7338e367e5a33d28c0433b3c7360b"
+dependencies = [
+ "js-sys",
+ "once_cell",
+ "opentelemetry 0.26.0",
+ "opentelemetry_sdk 0.26.0",
+ "smallvec",
+ "tracing",
+ "tracing-core",
+ "tracing-log 0.2.0",
+ "tracing-subscriber",
+ "web-time 1.1.0",
+]
+
+[[package]]
 name = "tracing-opentelemetry-instrumentation-sdk"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5136,7 +5192,19 @@ dependencies = [
  "indexmap 2.6.0",
  "serde",
  "serde_json",
- "utoipa-gen",
+ "utoipa-gen 4.3.0",
+]
+
+[[package]]
+name = "utoipa"
+version = "5.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e12e84f0ff45b6818029cd0f67280e453c80132c1b9897df407ecc20b9f7cfd"
+dependencies = [
+ "indexmap 2.5.0",
+ "serde",
+ "serde_json",
+ "utoipa-gen 5.1.2",
 ]
 
 [[package]]
@@ -5153,6 +5221,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "utoipa-gen"
+version = "5.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0dfc694d3a3118d2b9e80d68be83bf1aab7988510916934db83da61c14e7e6b2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "regex",
+ "syn 2.0.79",
+]
+
+[[package]]
 name = "utoipa-swagger-ui"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5164,7 +5244,7 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
- "utoipa",
+ "utoipa 4.2.3",
  "zip",
 ]
 

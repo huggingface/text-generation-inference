@@ -9,12 +9,14 @@
 #include <filesystem>
 #include <memory>
 #include <span>
+#include <vector>
+
 #include <llama.h>
 
 #define LLAMA_SUCCESS(x) x == 0
 
-namespace huggingface::tgi::backends::llama {
-    enum TgiLlamaCppBackendError: uint8_t {
+namespace huggingface::tgi::backends::llamacpp {
+    enum TgiLlamaCppBackendError : uint8_t {
         MODEL_FILE_DOESNT_EXIST = 1
     };
 
@@ -22,8 +24,8 @@ namespace huggingface::tgi::backends::llama {
         using TokenId = llama_token;
 
     private:
-        llama_model* model;
-        llama_context* ctx;
+        llama_model *model;
+        llama_context *ctx;
 
         /**
          *
@@ -35,7 +37,15 @@ namespace huggingface::tgi::backends::llama {
                 uint32_t topK, float_t topP, float_t frequencyPenalty, float_t repetitionPenalty, uint64_t seed);
 
     public:
+        /**
+         *
+         * @return
+         */
+        static std::expected<std::pair<llama_model *, llama_context *>, TgiLlamaCppBackendError>
+        FromGGUF(const std::filesystem::path &) noexcept;
+
         TgiLlamaCppBackend(llama_model *model, llama_context *ctx);
+
         ~TgiLlamaCppBackend();
 
         /**
@@ -44,7 +54,7 @@ namespace huggingface::tgi::backends::llama {
          * @return
          */
         [[nodiscard("Tokens will be freed after this call if not assigned to an lvalue")]]
-        std::vector<TgiLlamaCppBackend::TokenId> Tokenize(const std::string& text) const;
+        std::vector<TgiLlamaCppBackend::TokenId> Tokenize(const std::string &text) const;
 
         /**
          *
@@ -71,7 +81,7 @@ namespace huggingface::tgi::backends::llama {
 
     [[nodiscard("Create backend will be freed after this call if not assigned to an lvalue")]]
     std::expected<std::unique_ptr<TgiLlamaCppBackend>, TgiLlamaCppBackendError>
-    CreateLlamaCppBackend(const std::filesystem::path& root);
+    CreateLlamaCppBackend(const std::filesystem::path &root);
 }
 
 #endif //TGI_LLAMA_CPP_BACKEND_BACKEND_HPP

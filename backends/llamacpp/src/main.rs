@@ -1,7 +1,8 @@
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+use text_generation_backend_llamacpp::backend::{LlamaCppBackend, LlamaCppBackendError};
 use text_generation_router::{server, usage_stats};
 use thiserror::Error;
-use text_generation_router::server::ApiDoc;
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -38,6 +39,8 @@ struct Args {
     port: u16,
     #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
     master_shard_uds_path: String,
+    #[clap(long, env, help = "Path to GGUF model file(s) to load")]
+    gguf_path: PathBuf,
     #[clap(default_value = "bigscience/bloom", long, env)]
     tokenizer_name: String,
     #[clap(long, env)]
@@ -98,6 +101,7 @@ async fn main() -> Result<(), RouterError> {
         hostname,
         port,
         master_shard_uds_path,
+        gguf_path,
         tokenizer_name,
         tokenizer_config_path,
         revision,
@@ -116,13 +120,13 @@ async fn main() -> Result<(), RouterError> {
         usage_stats,
     } = args;
 
-    if let Some(Commands::PrintSchema) = command {
-        use utoipa::OpenApi;
-        let api_doc = ApiDoc::openapi();
-        let api_doc = serde_json::to_string_pretty(&api_doc).unwrap();
-        println!("{}", api_doc);
-        std::process::exit(0);
-    };
+    // if let Some(Commands::PrintSchema) = command {
+    //     use utoipa::OpenApi;
+    //     let api_doc = ApiDoc::openapi();
+    //     let api_doc = serde_json::to_string_pretty(&api_doc).unwrap();
+    //     println!("{}", api_doc);
+    //     std::process::exit(0);
+    // };
     text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
 
     // Validate args
@@ -158,7 +162,7 @@ async fn main() -> Result<(), RouterError> {
         }
     }
 
-    let backend = LlamaCppBackend::new();
+    let backend = LlamaCppBackend::new(gguf_path)?;
 
     // Run server
     server::run(
@@ -185,7 +189,7 @@ async fn main() -> Result<(), RouterError> {
         max_client_batch_size,
         usage_stats,
     )
-        .await?;
+    .await?;
     Ok(())
 }
 
@@ -194,7 +198,7 @@ enum RouterError {
     #[error("Argument validation error: {0}")]
     ArgumentValidation(String),
     #[error("Backend failed: {0}")]
-    Backend(#[from] V3Error),
+    Backend(#[from] LlamaCppBackendError),
     #[error("WebServer error: {0}")]
     WebServer(#[from] server::WebServerError),
     #[error("Tokio runtime failed to start: {0}")]

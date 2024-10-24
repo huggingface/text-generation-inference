@@ -1,6 +1,6 @@
 pub mod backend;
 
-#[cxx::bridge(namespace = "huggingface::tgi::backends::llama")]
+#[cxx::bridge(namespace = "huggingface::tgi::backends::llamacpp::impl")]
 mod ffi {
     unsafe extern "C++" {
         include!("backends/llamacpp/csrc/ffi.hpp");
@@ -9,8 +9,8 @@ mod ffi {
         type LlamaCppBackendImpl;
 
         #[rust_name = "create_llamacpp_backend"]
-        fn CreateLlamaCppBackend(
-            engine_folder: &str,
-        ) -> UniquePtr<LlamaCppBackendImpl>;
+        fn CreateLlamaCppBackendImpl(
+            modelPath: &str,
+        ) -> Result<UniquePtr<LlamaCppBackendImpl>>;
     }
 }
