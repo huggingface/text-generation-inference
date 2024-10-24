@@ -488,7 +488,7 @@ struct Args {
     /// `1511` max_new_tokens.
     /// The larger this value, the larger amount each request will be in your RAM
     /// and the less effective batching can be.
-    /// Default to min(max_position_embeddings, 4096)
+    /// Default to min(max_allocatable, max_position_embeddings)
     #[clap(long, env)]
     max_total_tokens: Option<usize>,
 
