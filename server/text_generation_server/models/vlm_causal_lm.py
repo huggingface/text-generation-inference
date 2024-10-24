@@ -67,6 +67,8 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
 
     elif config.model_type == "paligemma":
         return "<image>" * config.text_config.num_image_tokens
+    elif config.model_type == "qwen2_vl":
+        return "<image>"
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -137,6 +139,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
     pixel_values: Optional[List[torch.Tensor]]
     pixel_attention_mask: Optional[List[torch.Tensor]]
     image_sizes: Optional[List[Tuple[int, int]]]
+    image_grid_thw: Optional[torch.Tensor]
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
@@ -145,6 +148,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         batch.pixel_values = None
         batch.pixel_attention_mask = None
         batch.image_sizes = None
+        batch.image_grid_thw = None
         return batch
 
     @tracer.start_as_current_span("filter")
@@ -153,6 +157,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         batch.pixel_values = None
         batch.pixel_attention_mask = None
         batch.image_sizes = None
+        batch.image_grid_thw = None
         return batch
 
     @classmethod
@@ -178,6 +183,10 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
         if images:
+            # TODO: REMOVE (this is for debugging purposes)
+            images = images[0][0].resize(
+                (images[0][0].width * 2, images[0][0].height * 2)
+            )
             image_inputs = processor.image_processor(images, return_tensors="pt")
         else:
             image_inputs = None
@@ -237,10 +246,15 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 batch.image_sizes = image_inputs["image_sizes"].to(device=device)
             else:
                 batch.image_sizes = None
+            if "image_grid_thw" in image_inputs:
+                batch.image_grid_thw = image_inputs["image_grid_thw"].to(device=device)
+            else:
+                batch.image_grid_thw = None
         else:
             batch.pixel_values = None
             batch.pixel_attention_mask = None
             batch.image_sizes = None
+            batch.image_grid_thw = None
         return batch
 
 
@@ -381,8 +395,9 @@ class VlmCausalLM(FlashCausalLM):
                     max_k=batch.max_current_length,
                 )
                 logits, speculative_logits = self.model.forward(
-                    input_ids=input_ids,
-                    position_ids=position_ids,
+                    # TODO: remove the unsqueeze(0)
+                    input_ids=input_ids.unsqueeze(0),
+                    position_ids=position_ids.unsqueeze(0),
                     cu_seqlen_prefill=cu_seqlen_prefill,
                     kv_cache=kv_cache,
                     block_tables=block_tables,
@@ -394,6 +409,7 @@ class VlmCausalLM(FlashCausalLM):
                     pixel_values=batch.pixel_values,
                     pixel_attention_mask=batch.pixel_attention_mask,
                     image_sizes=batch.image_sizes,
+                    image_grid_thw=batch.image_grid_thw,
                 )
                 if batch.prefill_cache_indices is not None:
                     batch.prefill_cache_indices = None
@@ -403,6 +419,8 @@ class VlmCausalLM(FlashCausalLM):
                     batch.pixel_attention_mask = None
                 if batch.image_sizes is not None:
                     batch.image_sizes = None
+                if batch.image_grid_thw is not None:
+                    batch.image_grid_thw = None
                 return logits, speculative_logits
 
         # Copy inputs to the static inputs of the cuda graph

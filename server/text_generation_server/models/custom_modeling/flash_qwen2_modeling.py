@@ -49,6 +49,13 @@ def _load_gqa(config, prefix: str, weights):
     )
 
 
+def rotate_half(x):
+    """Rotates half the hidden dims of the input."""
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
+
+
 class Qwen2Attention(torch.nn.Module):
     def __init__(
         self,
@@ -61,6 +68,7 @@ class Qwen2Attention(torch.nn.Module):
             config.sliding_window if config.sliding_window is not None else -1
         )
         self.num_heads = config.num_attention_heads
+        self.mrope_section = config.rope_scaling.get("mrope_section", None)
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
 
@@ -122,7 +130,28 @@ class Qwen2Attention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
 
-        self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
+        # TODO: correctly handle the multimodal case
+        if False:
+            self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
+        else:
+            # multimodal rotary
+            unsqueeze_dim = 1
+            mrope_section = self.mrope_section * 2
+            cos = torch.cat(
+                [m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))],
+                dim=-1,
+            ).unsqueeze(unsqueeze_dim)
+            sin = torch.cat(
+                [m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))],
+                dim=-1,
+            ).unsqueeze(unsqueeze_dim)
+
+            _query = query.transpose(0, 1).unsqueeze(0)
+            _key = torch.select(kv, dim=1, index=0).transpose(0, 1).unsqueeze(0)
+            q_embed = (_query * cos) + (rotate_half(_query) * sin)
+            k_embed = (_key * cos) + (rotate_half(_key) * sin)
+            query = q_embed.squeeze(0).transpose(0, 1)
+            kv[:, 0] = k_embed.squeeze(0).transpose(0, 1)
 
         if prefill_cache_indices is not None:
             kv_to_cache = kv[prefill_cache_indices]
@@ -306,12 +335,20 @@ class Qwen2Model(torch.nn.Module):
         max_s: int,
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        inputs_embeds: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        hidden_states = self.embed_tokens(input_ids)
+
+        # if inputs_embeds are supplied from an external model (vision model) then avoid embedding input_ids
+        if inputs_embeds is not None:
+            hidden_states = inputs_embeds.squeeze(0)
+        else:
+            hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
+        # TODO: fix how N-D position_ids are handled
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin_hack(
             position_ids, true_max_s, hidden_states.dtype
         )
 
