@@ -11,6 +11,13 @@ set(LLAMA_CPP_TARGET_CUDA_ARCHS "75-real;80-real;86-real;89-real;90-real" CACHE 
 option(LLAMA_CPP_BUILD_OFFLINE_RUNNER "Flag to build the standalone c++ backend runner")
 option(LLAMA_CPP_BUILD_CUDA "Flag to build CUDA enabled inference through llama.cpp")
 
+if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang" AND ${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    message(STATUS "Targeting libc++")
+    set(CMAKE_CXX_FLAGS -stdlib=libc++ ${CMAKE_CXX_FLAGS})
+else()
+    message(STATUS "Not using libc++ ${CMAKE_CXX_COMPILER_ID} ${CMAKE_SYSTEM_NAME}")
+endif()
+
 # Add dependencies
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)

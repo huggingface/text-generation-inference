@@ -8,6 +8,7 @@
 #include <expected>
 #include <filesystem>
 #include <memory>
+#include <span>
 #include <llama.h>
 
 #define LLAMA_SUCCESS(x) x == 0

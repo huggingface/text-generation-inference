@@ -59,18 +59,20 @@ fn build_ffi_layer(deps_folder: &PathBuf) {
     CFG.include_prefix = "backends/llamacpp";
     cxx_build::bridge("src/lib.rs")
         .static_flag(true)
+        .std("c++23")
         .include(deps_folder.join("fmt-src").join("include"))
         .include(deps_folder.join("spdlog-src").join("include"))
         .include(deps_folder.join("llama-src").join("common"))
         .include(deps_folder.join("llama-src").join("ggml").join("include"))
         .include(deps_folder.join("llama-src").join("include"))
-        .file("csrc/backend.cpp")
-        .std("c++23")
+        .include("csrc/backend.hpp")
+        .file("csrc/ffi.cpp")
         .compile(CMAKE_LLAMA_CPP_TARGET);
 
     println!("cargo:rerun-if-changed=CMakeLists.txt");
     println!("cargo:rerun-if-changed=csrc/backend.hpp");
     println!("cargo:rerun-if-changed=csrc/backend.cpp");
+    println!("cargo:rerun-if-changed=csrc/ffi.hpp");
 }
 
 fn main() {
