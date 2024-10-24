@@ -12,32 +12,32 @@
         },
         {
           "id": 338,
-          "logprob": -0.7133789,
+          "logprob": -0.6201172,
           "text": "is"
         },
         {
           "id": 16030,
-          "logprob": -13.9296875,
+          "logprob": -13.6484375,
           "text": "gradient"
         },
         {
           "id": 26815,
-          "logprob": -0.048919678,
+          "logprob": -0.003894806,
           "text": "descent"
         },
         {
           "id": 29973,
-          "logprob": -3.0078125,
+          "logprob": -2.6386719,
           "text": "?"
         },
         {
           "id": 13,
-          "logprob": -2.8105469,
+          "logprob": -6.46875,
           "text": "\n"
         },
         {
           "id": 13,
-          "logprob": -0.84521484,
+          "logprob": -6.6875,
           "text": "\n"
         }
       ],
@@ -45,68 +45,68 @@
       "tokens": [
         {
           "id": 25584,
-          "logprob": -0.017028809,
+          "logprob": -0.008979797,
           "special": false,
           "text": "Grad"
         },
         {
           "id": 993,
-          "logprob": -0.0028476715,
+          "logprob": -8.34465e-07,
           "special": false,
           "text": "ient"
         },
         {
           "id": 26815,
-          "logprob": -0.023971558,
+          "logprob": -0.00097084045,
           "special": false,
           "text": " descent"
         },
         {
           "id": 338,
-          "logprob": -2.0384789e-05,
+          "logprob": -0.0003838539,
           "special": false,
           "text": " is"
         },
         {
-          "id": 263,
-          "logprob": -0.5229492,
+          "id": 385,
+          "logprob": -0.23840332,
           "special": false,
-          "text": " a"
-        },
-        {
-          "id": 937,
-          "logprob": -0.17602539,
-          "special": false,
-          "text": " first"
-        },
-        {
-          "id": 29899,
-          "logprob": 0.0,
-          "special": false,
-          "text": "-"
-        },
-        {
-          "id": 2098,
-          "logprob": -0.000116467476,
-          "special": false,
-          "text": "order"
+          "text": " an"
         },
         {
           "id": 13883,
-          "logprob": -0.47436523,
+          "logprob": -0.010406494,
           "special": false,
           "text": " optimization"
         },
         {
           "id": 5687,
-          "logprob": -0.00027871132,
+          "logprob": -0.0002501011,
           "special": false,
           "text": " algorithm"
+        },
+        {
+          "id": 15574,
+          "logprob": -0.6582031,
+          "special": false,
+          "text": " commonly"
+        },
+        {
+          "id": 1304,
+          "logprob": -0.00092840195,
+          "special": false,
+          "text": " used"
+        },
+        {
+          "id": 297,
+          "logprob": -0.18933105,
+          "special": false,
+          "text": " in"
         }
       ],
       "top_tokens": null
     },
-    "generated_text": "Gradient descent is a first-order optimization algorithm"
+    "generated_text": "Gradient descent is an optimization algorithm commonly used in"
   },
   {
     "details": {
@@ -121,32 +121,32 @@
         },
         {
           "id": 338,
-          "logprob": -0.7128906,
+          "logprob": -0.6113281,
           "text": "is"
         },
         {
           "id": 16030,
-          "logprob": -13.9375,
+          "logprob": -13.6640625,
           "text": "gradient"
         },
         {
           "id": 26815,
-          "logprob": -0.05053711,
+          "logprob": -0.003929138,
           "text": "descent"
         },
         {
           "id": 29973,
-          "logprob": -3.0058594,
+          "logprob": -2.625,
           "text": "?"
         },
         {
           "id": 13,
-          "logprob": -2.8242188,
+          "logprob": -6.484375,
           "text": "\n"
         },
         {
           "id": 13,
-          "logprob": -0.84521484,
+          "logprob": -6.6875,
           "text": "\n"
         }
       ],
@@ -154,68 +154,68 @@
       "tokens": [
         {
           "id": 25584,
-          "logprob": -0.018859863,
+          "logprob": -0.009017944,
           "special": false,
           "text": "Grad"
         },
         {
           "id": 993,
-          "logprob": -0.002822876,
+          "logprob": -9.536743e-07,
           "special": false,
           "text": "ient"
         },
         {
           "id": 26815,
-          "logprob": -0.023254395,
+          "logprob": -0.00097084045,
           "special": false,
           "text": " descent"
         },
         {
           "id": 338,
-          "logprob": -2.0384789e-05,
+          "logprob": -0.0003838539,
           "special": false,
           "text": " is"
         },
         {
-          "id": 263,
-          "logprob": -0.5229492,
+          "id": 385,
+          "logprob": -0.24499512,
           "special": false,
-          "text": " a"
-        },
-        {
-          "id": 937,
-          "logprob": -0.17126465,
-          "special": false,
-          "text": " first"
-        },
-        {
-          "id": 29899,
-          "logprob": 0.0,
-          "special": false,
-          "text": "-"
-        },
-        {
-          "id": 2098,
-          "logprob": -0.0001155138,
-          "special": false,
-          "text": "order"
+          "text": " an"
         },
         {
           "id": 13883,
-          "logprob": -0.47436523,
+          "logprob": -0.010406494,
           "special": false,
           "text": " optimization"
         },
         {
           "id": 5687,
-          "logprob": -0.00027036667,
+          "logprob": -0.0002501011,
           "special": false,
           "text": " algorithm"
+        },
+        {
+          "id": 15574,
+          "logprob": -0.6435547,
+          "special": false,
+          "text": " commonly"
+        },
+        {
+          "id": 1304,
+          "logprob": -0.0009279251,
+          "special": false,
+          "text": " used"
+        },
+        {
+          "id": 297,
+          "logprob": -0.18933105,
+          "special": false,
+          "text": " in"
         }
       ],
       "top_tokens": null
     },
-    "generated_text": "Gradient descent is a first-order optimization algorithm"
+    "generated_text": "Gradient descent is an optimization algorithm commonly used in"
   },
   {
     "details": {
@@ -230,32 +230,32 @@
         },
         {
           "id": 338,
-          "logprob": -0.71484375,
+          "logprob": -0.609375,
           "text": "is"
         },
         {
           "id": 16030,
-          "logprob": -13.9375,
+          "logprob": -13.671875,
           "text": "gradient"
         },
         {
           "id": 26815,
-          "logprob": -0.049346924,
+          "logprob": -0.0040016174,
           "text": "descent"
         },
         {
           "id": 29973,
-          "logprob": -3.0078125,
+          "logprob": -2.6230469,
           "text": "?"
         },
         {
           "id": 13,
-          "logprob": -2.8242188,
+          "logprob": -6.453125,
           "text": "\n"
         },
         {
           "id": 13,
-          "logprob": -0.86328125,
+          "logprob": -6.6875,
           "text": "\n"
         }
       ],
@@ -263,68 +263,68 @@
       "tokens": [
         {
           "id": 25584,
-          "logprob": -0.017196655,
+          "logprob": -0.008956909,
           "special": false,
           "text": "Grad"
         },
         {
           "id": 993,
-          "logprob": -0.0028438568,
+          "logprob": -8.34465e-07,
           "special": false,
           "text": "ient"
         },
         {
           "id": 26815,
-          "logprob": -0.023254395,
+          "logprob": -0.0009407997,
           "special": false,
           "text": " descent"
         },
         {
           "id": 338,
-          "logprob": -2.026558e-05,
+          "logprob": -0.0003721714,
           "special": false,
           "text": " is"
         },
         {
-          "id": 263,
-          "logprob": -0.5229492,
+          "id": 385,
+          "logprob": -0.24499512,
           "special": false,
-          "text": " a"
-        },
-        {
-          "id": 937,
-          "logprob": -0.17602539,
-          "special": false,
-          "text": " first"
-        },
-        {
-          "id": 29899,
-          "logprob": 0.0,
-          "special": false,
-          "text": "-"
-        },
-        {
-          "id": 2098,
-          "logprob": -0.00011622906,
-          "special": false,
-          "text": "order"
+          "text": " an"
         },
         {
           "id": 13883,
-          "logprob": -0.48608398,
+          "logprob": -0.010406494,
           "special": false,
           "text": " optimization"
         },
         {
           "id": 5687,
-          "logprob": -0.00027894974,
+          "logprob": -0.0002501011,
           "special": false,
           "text": " algorithm"
+        },
+        {
+          "id": 15574,
+          "logprob": -0.6435547,
+          "special": false,
+          "text": " commonly"
+        },
+        {
+          "id": 1304,
+          "logprob": -0.00092601776,
+          "special": false,
+          "text": " used"
+        },
+        {
+          "id": 297,
+          "logprob": -0.19177246,
+          "special": false,
+          "text": " in"
         }
       ],
       "top_tokens": null
     },
-    "generated_text": "Gradient descent is a first-order optimization algorithm"
+    "generated_text": "Gradient descent is an optimization algorithm commonly used in"
   },
   {
     "details": {
@@ -339,32 +339,32 @@
         },
         {
           "id": 338,
-          "logprob": -0.7192383,
+          "logprob": -0.609375,
           "text": "is"
         },
         {
           "id": 16030,
-          "logprob": -13.9375,
+          "logprob": -13.6640625,
           "text": "gradient"
         },
         {
           "id": 26815,
-          "logprob": -0.050445557,
+          "logprob": -0.0038967133,
           "text": "descent"
         },
         {
           "id": 29973,
-          "logprob": -3.0078125,
+          "logprob": -2.6347656,
           "text": "?"
         },
         {
           "id": 13,
-          "logprob": -2.8242188,
+          "logprob": -6.453125,
           "text": "\n"
         },
         {
           "id": 13,
-          "logprob": -0.8276367,
+          "logprob": -6.6875,
           "text": "\n"
         }
       ],
@@ -372,67 +372,67 @@
       "tokens": [
         {
           "id": 25584,
-          "logprob": -0.01727295,
+          "logprob": -0.008979797,
           "special": false,
           "text": "Grad"
         },
         {
           "id": 993,
-          "logprob": -0.0027542114,
+          "logprob": -9.536743e-07,
           "special": false,
           "text": "ient"
         },
         {
           "id": 26815,
-          "logprob": -0.023254395,
+          "logprob": -0.0009407997,
           "special": false,
           "text": " descent"
         },
         {
           "id": 338,
-          "logprob": -2.0384789e-05,
+          "logprob": -0.00038409233,
           "special": false,
           "text": " is"
         },
         {
-          "id": 263,
-          "logprob": -0.5229492,
+          "id": 385,
+          "logprob": -0.24499512,
           "special": false,
-          "text": " a"
-        },
-        {
-          "id": 937,
-          "logprob": -0.17126465,
-          "special": false,
-          "text": " first"
-        },
-        {
-          "id": 29899,
-          "logprob": 0.0,
-          "special": false,
-          "text": "-"
-        },
-        {
-          "id": 2098,
-          "logprob": -0.00011301041,
-          "special": false,
-          "text": "order"
+          "text": " an"
         },
         {
           "id": 13883,
-          "logprob": -0.48608398,
+          "logprob": -0.010414124,
           "special": false,
           "text": " optimization"
         },
         {
           "id": 5687,
-          "logprob": -0.00027894974,
+          "logprob": -0.00024354458,
           "special": false,
           "text": " algorithm"
+        },
+        {
+          "id": 15574,
+          "logprob": -0.6435547,
+          "special": false,
+          "text": " commonly"
+        },
+        {
+          "id": 1304,
+          "logprob": -0.0009279251,
+          "special": false,
+          "text": " used"
+        },
+        {
+          "id": 297,
+          "logprob": -0.19470215,
+          "special": false,
+          "text": " in"
         }
       ],
       "top_tokens": null
     },
-    "generated_text": "Gradient descent is a first-order optimization algorithm"
+    "generated_text": "Gradient descent is an optimization algorithm commonly used in"
   }
 ]
