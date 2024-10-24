@@ -348,6 +348,10 @@ class Qwen2Model(torch.nn.Module):
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
         # TODO: fix how N-D position_ids are handled
+
+        if position_ids.dim() == 2:
+            position_ids = position_ids.unsqueeze(0)
+
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin_hack(
             position_ids, true_max_s, hidden_states.dtype
         )
