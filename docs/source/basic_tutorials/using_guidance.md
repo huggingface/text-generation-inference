@@ -315,8 +315,6 @@ print(chat.choices[0].message.tool_calls)
 
 TGI exposes an OpenAI-compatible API, which means you can use OpenAI's client libraries to interact with TGI's Messages API and Tool functions.
 
-However there are some minor differences in the API, for example `tool_choice="auto"` will ALWAYS choose the tool for you. This is different from OpenAI's API where `tool_choice="auto"` will choose a tool if the model thinks it's necessary.
-
 ```python
 from openai import OpenAI
 
@@ -362,3 +360,61 @@ print(called)
 #     },
 # }
 ```
+
+### Tool Choice Configuration
+
+When configuring how the model interacts with tools during a chat completion, there are several options for determining if or how a tool should be called. These options are controlled by the `tool_choice` parameter, which specifies the behavior of the model in relation to tool usage. The following modes are supported:
+
+1. **`auto`**:
+
+   - The model decides whether to call a tool or generate a response message based on the user's input.
+   - If tools are provided, this is the default mode.
+   - Example usage:
+     ```python
+     tool_choice="auto"
+     ```
+
+2. **`none`**:
+
+   - The model will never call any tools and will only generate a response message.
+   - If no tools are provided, this is the default mode.
+   - Example usage:
+     ```python
+     tool_choice="none"
+     ```
+
+3. **`required`**:
+
+   - The model must call one or more tools and will not generate a response message on its own.
+   - Example usage:
+     ```python
+     tool_choice="required"
+     ```
+
+4. **Specific Tool Call by Function Name**:
+   - You can force the model to call a specific tool either by specifying the tool function directly or by using an object definition.
+   - Two ways to do this:
+     1. Provide the function name as a string:
+        ```python
+        tool_choice="get_current_weather"
+        ```
+     2. Use the function object format:
+        ```python
+        tool_choice={
+          "type": "function",
+          "function": {
+              "name": "get_current_weather"
+          }
+        }
+        ```
+
+These options allow flexibility when integrating tools with the chat completions endpoint. You can configure the model to either rely on tools automatically or force it to follow a predefined behavior, based on the needs of the task at hand.
+
+---
+
+| **Tool Choice Option**                | **Description**                                                                                                                 | **When to Use**                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `auto`                                | The model decides whether to call a tool or generate a message. This is the default if tools are provided.                      | Use when you want the model to decide when a tool is necessary.                        |
+| `none`                                | The model generates a message without calling any tools. This is the default if no tools are provided.                          | Use when you do not want the model to call any tools.                                  |
+| `required`                            | The model must call one or more tools and will not generate a message on its own.                                               | Use when a tool call is mandatory, and you do not want a regular message generated.    |
+| Specific Tool Call (`name` or object) | Force the model to call a specific tool either by specifying its name (`tool_choice="get_current_weather"`) or using an object. | Use when you want to restrict the model to calling a particular tool for the response. |
