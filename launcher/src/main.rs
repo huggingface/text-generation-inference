@@ -1509,6 +1509,10 @@ fn spawn_webserver(
         router_args.push(revision.to_string())
     }
 
+    if args.trust_remote_code {
+        router_args.push("--trust-remote-code".to_string());
+    }
+
     if args.json_output {
         router_args.push("--json-output".to_string());
     }

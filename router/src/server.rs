@@ -1609,6 +1609,7 @@ pub async fn run(
     tokenizer_name: String,
     tokenizer_config_path: Option<String>,
     revision: Option<String>,
+    trust_remote_code: bool,
     hostname: String,
     port: u16,
     cors_allow_origin: Option<Vec<String>>,
@@ -1768,10 +1769,13 @@ pub async fn run(
             let auto = transformers.getattr("AutoTokenizer")?;
             let from_pretrained = auto.getattr("from_pretrained")?;
             let args = (tokenizer_name.to_string(),);
-            let kwargs = [(
-                "revision",
-                revision.clone().unwrap_or_else(|| "main".to_string()),
-            )]
+            let kwargs = [
+                (
+                    "revision",
+                    (revision.clone().unwrap_or_else(|| "main".to_string())).into_py(py),
+                ),
+                ("trust_remote_code", trust_remote_code.into_py(py)),
+            ]
             .into_py_dict_bound(py);
             let tokenizer = from_pretrained.call(args, Some(&kwargs))?;
             let save = tokenizer.getattr("save_pretrained")?;
