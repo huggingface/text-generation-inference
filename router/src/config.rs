@@ -139,9 +139,38 @@ impl Paligemma {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Qwen2VlVisionConfig {
+    pub(crate) depth: usize,
+    pub(crate) embed_dim: usize,
+    pub(crate) mlp_ratio: usize,
+    pub(crate) num_heads: usize,
+    pub(crate) in_chans: usize,
+    pub(crate) hidden_size: usize,
+    pub(crate) patch_size: usize,
+    pub(crate) spatial_merge_size: usize,
+    pub(crate) spatial_patch_size: usize,
+    pub(crate) temporal_patch_size: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Qwen2Vl {
+    pub(crate) vision_config: Qwen2VlVisionConfig,
+}
+
+impl Qwen2Vl {
+    pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
+        // TODO: calculate number of features
+        6000 / 4
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
 pub enum Config {
+    Qwen2Vl(Qwen2Vl),
     LlavaNext(LlavaNext),
     ClipVisionModel(ClipVisionModel),
     Mistral,

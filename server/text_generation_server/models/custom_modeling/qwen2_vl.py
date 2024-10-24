@@ -34,6 +34,7 @@ from text_generation_server.layers.layernorm import (
 )
 from text_generation_server.layers import (
     TensorParallelColumnLinear,
+    TensorParallelRowLinear,
     FastLinear,
 )
 from text_generation_server.layers.attention import (
@@ -352,6 +353,7 @@ class Qwen2VisionModel(nn.Module):
 class Qwen2VLForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
+        self.config = config
         config.vision_config.quantize = None
         config.vision_config.speculator = config.speculator
         self.hidden_size = config.hidden_size
@@ -364,6 +366,10 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             prefix="visual", config=config.vision_config, weights=weights
         )
         self.text_model = Qwen2Model(prefix=None, config=config, weights=weights)
+        self.lm_head = FastLinear.load(
+            prefix="lm_head", weights=weights, config=config, bias=False
+        )
+        self.device = weights.device
 
     def forward(
         self,
@@ -386,10 +392,10 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         cross_attention_states: Optional[torch.Tensor] = None,
         image_indices=None,
     ):
-
-        # make an attention_mask that is the same size as the input_ids
-        attention_mask = torch.ones_like(input_ids, dtype=torch.bool)
-
+        # make an attention_mask that is (batch_size, sequence_length)
+        attention_mask = torch.ones_like(
+            input_ids, dtype=torch.bool, device=input_ids.device
+        )
         inputs_embeds = self.text_model.embed_tokens(input_ids)
 
         # apply the visual model to the pixel values if they are provided
@@ -525,7 +531,6 @@ class Qwen2VLForConditionalGeneration(nn.Module):
                 mrope_position_deltas, device=input_ids.device
             ).unsqueeze(1)
 
-        # TODO: adjust model to accept 2D position_ids
         outputs = self.text_model(
             input_ids=input_ids,
             position_ids=position_ids,
@@ -541,4 +546,5 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             attention_mask=attention_mask,
         )
 
-        return outputs, None
+        logits = self.lm_head(outputs)
+        return logits, None

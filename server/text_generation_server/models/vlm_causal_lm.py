@@ -68,7 +68,9 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
     elif config.model_type == "paligemma":
         return "<image>" * config.text_config.num_image_tokens
     elif config.model_type == "qwen2_vl":
-        return "<image>"
+        num_pads = image_input.pixel_values.shape[0] // 4
+        padding = "<|image_pad|>" * num_pads
+        return f"<|vision_start|>{padding}<|vision_end|>"
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -183,10 +185,11 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
         if images:
-            # TODO: REMOVE (this is for debugging purposes)
-            images = images[0][0].resize(
-                (images[0][0].width * 2, images[0][0].height * 2)
-            )
+            if images[0][0].width <= 20:
+                # TODO: provide a better way to handle the issue of the prefill image being too small
+                images = images[0][0].resize(
+                    (images[0][0].width * 2, images[0][0].height * 2)
+                )
             image_inputs = processor.image_processor(images, return_tensors="pt")
         else:
             image_inputs = None
