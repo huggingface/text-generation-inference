@@ -8,7 +8,6 @@
   eetq,
   einops,
   exllamav2,
-  fbgemm-gpu,
   flashinfer,
   flash-attn,
   flash-attn-layer-norm,
@@ -77,7 +76,6 @@ buildPythonPackage {
     causal-conv1d
     einops
     exllamav2
-    fbgemm-gpu
     flashinfer
     flash-attn
     flash-attn-layer-norm

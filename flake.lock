@@ -978,16 +978,16 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1729531056,
-        "narHash": "sha256-dW9IOA31+j3VS19WAWAmkJW2YCzeVZGqd6HpIJfODtI=",
+        "lastModified": 1729761651,
+        "narHash": "sha256-GYykQ9Fxji2EuXCGcPn0dx8Qx8VQBJTkRdcCytp4A/k=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "a84a90281a17b15762873845c947e5c78f5a8dd1",
+        "rev": "f7e3c4fa67d70590ed9ee47feeab645bd9ba81b1",
         "type": "github"
       },
       "original": {
         "owner": "huggingface",
-        "ref": "marlin-kernels-0.3.0",
+        "ref": "marlin-kernels-0.3.1",
         "repo": "text-generation-inference-nix",
         "type": "github"
       }

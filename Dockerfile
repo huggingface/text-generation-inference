@@ -161,15 +161,6 @@ COPY server/custom_kernels/ .
 # Build specific version of transformers
 RUN python setup.py build
 
-# Build FBGEMM CUDA kernels
-FROM kernel-builder AS fbgemm-builder
-
-WORKDIR /usr/src
-
-COPY server/Makefile-fbgemm Makefile
-
-RUN make build-fbgemm
-
 # Build vllm CUDA kernels
 FROM kernel-builder AS vllm-builder
 
@@ -239,8 +230,6 @@ COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86
 COPY --from=eetq-kernels-builder /usr/src/eetq/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
 # Copy build artifacts from lorax punica kernels builder
 COPY --from=lorax-punica-builder /usr/src/lorax-punica/server/punica_kernels/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
-# Copy build artifacts from fbgemm builder
-COPY --from=fbgemm-builder /usr/src/fbgemm/fbgemm_gpu/_skbuild/linux-x86_64-3.11/cmake-install /opt/conda/lib/python3.11/site-packages
 # Copy build artifacts from vllm builder
 COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
 # Copy build artifacts from mamba builder
