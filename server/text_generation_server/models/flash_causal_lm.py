@@ -1412,7 +1412,7 @@ class FlashCausalLM(Model):
 
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
-            _, batch, _ = self.generate_token(batch)
+            _, _batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
                 f"Not enough memory to handle {batch.to_pb().current_tokens} prefill tokens. "
@@ -1442,14 +1442,14 @@ class FlashCausalLM(Model):
                 max_total_tokens = num_blocks * BLOCK_SIZE
 
             else:
-                max_total_tokens = sum(len(input_ids) for input_ids in batch.input_ids)
+                max_total_tokens = sum(batch.cache_lengths)
                 max_input_tokens = (
                     max_total_tokens - 1
                     if max_input_tokens is None
                     else max_input_tokens
                 )
 
-        del batch
+        del _batch, batch
         self.kv_cache = []
         empty_cache()
 
