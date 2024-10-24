@@ -119,15 +119,19 @@ impl ShardedClient {
                 ))
             })
             .collect();
-        // Take the minimum value
         let results = join_all(futures)
             .await
             .into_iter()
             .collect::<Result<Vec<(Option<u32>, u32, u32)>>>()?;
 
-        let first = results.first().expect("Expect at least 1 warmup result");
-        assert!(results.iter().all(|&item| item == *first));
-        Ok(*first)
+        // Take the minimum value
+        // Different shards hold different parts of vocab, might yield
+        // different available block size.
+        let min = results
+            .iter()
+            .min()
+            .expect("Expect at least 1 warmup result");
+        Ok(*min)
     }
 
     /// Generate one token for each request in the given batch
