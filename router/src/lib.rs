@@ -14,10 +14,91 @@ mod vertex;
 
 use crate::infer::{Infer, InferError};
 use crate::server::prepare_chat_input;
+use pyo3::prelude::*;
+use pyo3::types::IntoPyDict;
 use serde::{Deserialize, Serialize};
+use tokenizers::Encoding;
 use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
+
+#[derive(Clone)]
+pub enum Tokenizer {
+    Python {
+        tokenizer_name: String,
+        revision: Option<String>,
+    },
+    Rust(tokenizers::Tokenizer),
+}
+
+pub struct PyTokenizer<'a>(pyo3::Bound<'a, pyo3::PyAny>);
+
+impl<'a> PyTokenizer<'a> {
+    fn from_py(
+        py: Python<'a>,
+        tokenizer_name: String,
+        revision: Option<String>,
+    ) -> PyResult<PyTokenizer<'a>> {
+        let transformers = py.import_bound("transformers")?;
+        let auto = transformers.getattr("AutoTokenizer")?;
+        let from_pretrained = auto.getattr("from_pretrained")?;
+        let args = (tokenizer_name,);
+        let kwargs = if let Some(rev) = &revision {
+            [("revision", rev.to_string())].into_py_dict_bound(py)
+        } else {
+            pyo3::types::PyDict::new_bound(py)
+        };
+        let tokenizer = from_pretrained.call(args, Some(&kwargs))?;
+        tracing::info!("Loaded a python tokenizer");
+        Ok(PyTokenizer(tokenizer))
+    }
+}
+
+trait TokenizerTrait {
+    fn encode_trait(
+        &self,
+        query: String,
+        add_special_tokens: bool,
+    ) -> Result<tokenizers::Encoding, Box<dyn std::error::Error + Send + Sync>>;
+}
+
+impl TokenizerTrait for tokenizers::Tokenizer {
+    fn encode_trait(
+        &self,
+        query: String,
+        add_special_tokens: bool,
+    ) -> Result<tokenizers::Encoding, Box<dyn std::error::Error + Send + Sync>> {
+        self.encode(query, add_special_tokens)
+    }
+}
+
+impl<'a> TokenizerTrait for PyTokenizer<'a> {
+    fn encode_trait(
+        &self,
+        query: String,
+        add_special_tokens: bool,
+    ) -> Result<tokenizers::Encoding, Box<dyn std::error::Error + Send + Sync>> {
+        let py = self.0.py();
+        let kwargs = [
+            ("text", query.into_py(py)),
+            ("add_special_tokens", add_special_tokens.into_py(py)),
+        ]
+        .into_py_dict_bound(py);
+        let encode = self.0.getattr("encode")?;
+        let input_ids: Vec<u32> = encode.call((), Some(&kwargs))?.extract()?;
+        Ok(Encoding::new(
+            input_ids,
+            vec![],                           // type ids
+            vec![],                           // tokens (strings)
+            vec![],                           // words
+            vec![],                           // offsets
+            vec![],                           // special_tokens_mask
+            vec![],                           // attention_mask
+            vec![],                           // overflowing
+            std::collections::HashMap::new(), //sequence_ranges
+        ))
+    }
+}
 
 /// Hub type
 #[derive(Clone, Debug, Deserialize)]
@@ -1341,13 +1422,12 @@ impl Default for ModelsInfo {
 mod tests {
     use super::*;
     use serde_json::json;
-    use tokenizers::Tokenizer;
 
-    pub(crate) async fn get_tokenizer() -> Tokenizer {
+    pub(crate) fn get_tokenizer() -> Tokenizer {
         let api = hf_hub::api::sync::Api::new().unwrap();
         let repo = api.model("gpt2".to_string());
         let filename = repo.get("tokenizer.json").unwrap();
-        Tokenizer::from_file(filename).unwrap()
+        Tokenizer::Rust(tokenizers::Tokenizer::from_file(filename).unwrap())
     }
 
     #[test]
