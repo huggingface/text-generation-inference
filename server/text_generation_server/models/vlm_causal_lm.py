@@ -23,6 +23,75 @@ tracer = trace.get_tracer(__name__)
 IDEFICS2_FAKE_TOKEN = "<fake_token_around_image>"
 IDEFICS2_IMAGE_TOKEN = "<image>"
 
+IDEFICS3_IMAGE_TOKEN = "<image>"
+IDEFICS3_FAKE_IMAGE_TOKEN = "<fake_token_around_image>"
+IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
+
+
+def _prompt_split_image(
+    image_seq_len,
+    image_rows,
+    image_cols,
+    fake_token_around_image,
+    image_token,
+    global_img_token,
+):
+    """Prompt with expanded image tokens for when the image is split into patches."""
+    text_split_images = ""
+    for n_h in range(image_rows):
+        for n_w in range(image_cols):
+            text_split_images += (
+                f"{fake_token_around_image}"
+                + f"<row_{n_h + 1}_col_{n_w + 1}>"
+                + f"{image_token}" * image_seq_len
+            )
+        text_split_images += "\n"
+
+    text_split_images += (
+        f"\n{fake_token_around_image}"
+        + f"{global_img_token}"
+        + f"{image_token}" * image_seq_len
+        + f"{fake_token_around_image}"
+    )
+    return text_split_images
+
+
+def _prompt_single_image(
+    image_seq_len, fake_token_around_image, image_token, global_img_token
+):
+    """Prompt with expanded image tokens for a single image."""
+    return (
+        f"{fake_token_around_image}"
+        + f"{global_img_token}"
+        + f"{image_token}" * image_seq_len
+        + f"{fake_token_around_image}"
+    )
+
+
+def get_image_prompt_string(
+    image_rows,
+    image_cols,
+    image_seq_len,
+    fake_token_around_image,
+    image_token,
+    global_img_token,
+):
+    if image_rows == 0 and image_cols == 0:
+        return _prompt_single_image(
+            image_seq_len,
+            fake_token_around_image=fake_token_around_image,
+            image_token=image_token,
+            global_img_token=global_img_token,
+        )
+    return _prompt_split_image(
+        image_seq_len,
+        image_rows,
+        image_cols,
+        fake_token_around_image,
+        image_token,
+        global_img_token,
+    )
+
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     """
@@ -54,6 +123,24 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         if processor.image_processor.do_image_splitting:
             image_str *= 5
         return image_str
+    if config.model_type == "idefics3":
+        # TODO: implement this in a more general way
+        n_rows = image_input["rows"][0][image_id]
+        n_cols = image_input["cols"][0][image_id]
+
+        # TODO: avoid using hardcoded values
+        image_seq_len = 169  # default value
+        # image_seq_len = int(((image_size // patch_size) ** 2) / (scale_factor**2))
+
+        image_str = get_image_prompt_string(
+            n_rows,
+            n_cols,
+            image_seq_len,
+            image_token=IDEFICS3_IMAGE_TOKEN,
+            fake_token_around_image=IDEFICS3_FAKE_IMAGE_TOKEN,
+            global_img_token=IDEFICS3_GLOBAL_IMG_TOKEN,
+        )
+        return image_str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
@@ -73,6 +160,10 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
 
 def image_text_replacement_fixup(config, text: str) -> str:
     if config.model_type == "idefics2":
+        return text.replace(
+            f"{IDEFICS2_FAKE_TOKEN}{IDEFICS2_FAKE_TOKEN}", IDEFICS2_FAKE_TOKEN
+        )
+    if config.model_type == "idefics3":
         return text.replace(
             f"{IDEFICS2_FAKE_TOKEN}{IDEFICS2_FAKE_TOKEN}", IDEFICS2_FAKE_TOKEN
         )
@@ -178,7 +269,9 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
         if images:
-            image_inputs = processor.image_processor(images, return_tensors="pt")
+            image_inputs = processor.image_processor(
+                images, return_tensors="pt", return_row_col_info=True
+            )
         else:
             image_inputs = None
 
@@ -192,9 +285,10 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 if chunk_type == "text":
                     full_text += chunk.text
                 elif chunk_type == "image":
-                    full_text += image_text_replacement(
+                    replacement_text = image_text_replacement(
                         processor, image_inputs, config, image_id
                     )
+                    full_text += replacement_text
                     image_id += 1
 
             full_text = image_text_replacement_fixup(config, full_text)
@@ -264,9 +358,10 @@ class VlmCausalLM(FlashCausalLM):
             model_id,
             revision=revision,
             trust_remote_code=trust_remote_code,
-            **processor_kwargs,
+            # **processor_kwargs,
         )
         self.batch_class = batch_class
+        # import ipdb; ipdb.set_trace()
         super().__init__(
             model_id=model_id,
             revision=revision,

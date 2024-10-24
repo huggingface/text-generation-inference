@@ -1,0 +1,73 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 578,
+        "logprob": -0.2475586,
+        "special": false,
+        "text": " The"
+      },
+      {
+        "id": 2217,
+        "logprob": -0.017303467,
+        "special": false,
+        "text": " image"
+      },
+      {
+        "id": 62991,
+        "logprob": -0.7368164,
+        "special": false,
+        "text": " depicts"
+      },
+      {
+        "id": 279,
+        "logprob": -0.39990234,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 89675,
+        "logprob": -0.34350586,
+        "special": false,
+        "text": " Statue"
+      },
+      {
+        "id": 315,
+        "logprob": -0.0002901554,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 32492,
+        "logprob": -0.0009598732,
+        "special": false,
+        "text": " Liberty"
+      },
+      {
+        "id": 11,
+        "logprob": -0.2355957,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 264,
+        "logprob": -0.66503906,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 97937,
+        "logprob": -0.9199219,
+        "special": false,
+        "text": " colossal"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": " The image depicts the Statue of Liberty, a colossal"
+}
