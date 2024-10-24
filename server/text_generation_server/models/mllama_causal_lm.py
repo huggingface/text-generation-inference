@@ -14,11 +14,9 @@ from transformers import (
 
 from text_generation_server.models.vlm_causal_lm import VlmCausalLMBatch, VlmCausalLM
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.flash_causal_lm import (
-    block_tables_to_ragged,
-)
 from text_generation_server.models.globals import PREFIX_CACHING, ATTENTION
 from text_generation_server.layers.attention import Seqlen
+from text_generation_server.models.metadata_kernels import block_tables_to_ragged
 
 
 tracer = trace.get_tracer(__name__)
@@ -283,6 +281,9 @@ class MllamaCausalLM(VlmCausalLM):
                     block_tables=block_tables,
                     input_lengths=batch.input_lengths,
                     cache_lengths=batch.cache_lengths,
+                    input_lengths_tensor=batch.input_lengths_tensor,
+                    cache_lengths_tensor=batch.cache_lengths_tensor,
+                    max_current_length=batch.max_current_length,
                 )
             with self._forward_context(
                 block_tables=block_tables,
@@ -338,6 +339,9 @@ class MllamaCausalLM(VlmCausalLM):
                 block_tables=block_tables,
                 input_lengths=batch.input_lengths,
                 cache_lengths=batch.cache_lengths,
+                input_lengths_tensor=batch.input_lengths_tensor,
+                cache_lengths_tensor=batch.cache_lengths_tensor,
+                max_current_length=batch.max_current_length,
             )
             cuda_graph["block_tables"][: block_tables.shape[0]] = block_tables
         else:
