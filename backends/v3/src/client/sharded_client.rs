@@ -102,11 +102,11 @@ impl ShardedClient {
     #[instrument(skip(self))]
     pub async fn warmup(
         &mut self,
-        max_input_length: u32,
+        max_input_length: Option<u32>,
         max_prefill_tokens: u32,
-        max_total_tokens: u32,
+        max_total_tokens: Option<u32>,
         max_batch_size: Option<usize>,
-    ) -> Result<Option<u32>> {
+    ) -> Result<(Option<u32>, u32, u32)> {
         let futures: Vec<_> = self
             .clients
             .iter_mut()
@@ -119,12 +119,19 @@ impl ShardedClient {
                 ))
             })
             .collect();
-        // Take the minimum value
         let results = join_all(futures)
             .await
             .into_iter()
-            .collect::<Result<Vec<Option<u32>>>>()?;
-        Ok(results.into_iter().flatten().min())
+            .collect::<Result<Vec<(Option<u32>, u32, u32)>>>()?;
+
+        // Take the minimum value
+        // Different shards hold different parts of vocab, might yield
+        // different available block size.
+        let min = results
+            .iter()
+            .min()
+            .expect("Expect at least 1 warmup result");
+        Ok(*min)
     }
 
     /// Generate one token for each request in the given batch

@@ -26,7 +26,7 @@
       },
       {
         "id": 259,
-        "logprob": -0.46948242,
+        "logprob": -0.47070312,
         "special": false,
         "text": " "
       },
@@ -38,7 +38,7 @@
       },
       {
         "id": 35622,
-        "logprob": -0.79589844,
+        "logprob": -0.796875,
         "special": false,
         "text": " cloud"
       },
@@ -75,5 +75,5 @@
     ],
     "top_tokens": null
   },
-  "generated_text": "Why is the sky blue?blue sky, clouds and clouds"
+  "generated_text": "Why is the sky blue?blue sky , clouds and clouds"
 }

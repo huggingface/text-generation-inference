@@ -128,9 +128,17 @@ class Model(ABC):
     ) -> Tuple[List[Generation], Optional[B], Tuple[int, int]]:
         raise NotImplementedError
 
-    def warmup(self, batch: B) -> Optional[int]:
+    def warmup(
+        self, batch: B, max_input_tokens: Optional[int], max_total_tokens: Optional[int]
+    ) -> Tuple[Optional[int], int, int]:
         self.generate_token(batch)
-        return None
+        total = sum(len(i) for i in batch.input_ids)
+        if max_total_tokens is None:
+            max_total_tokens = total
+
+        if max_input_tokens is None:
+            max_input_tokens = max_total_tokens - 1
+        return None, max_input_tokens, max_total_tokens
 
     def decode_token(
         self,
