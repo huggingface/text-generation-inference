@@ -295,7 +295,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         None,
         true,
         max_client_batch_size,
-        UsageStatsLevel::Off,
+        usage_stats,
     )
     .await?;
     Ok(())
