@@ -1,4 +1,5 @@
 import torch
+from text_generation_server.layers.attention.kv_cache import KVCache, KVScales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import (
     ATTENTION,
@@ -7,44 +8,22 @@ from text_generation_server.models.globals import (
 from text_generation_server.layers.attention import Seqlen
 from typing import Optional
 
+
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
 _PARTITION_SIZE = 512
 
-try:
-    from vllm._C import cache_ops
-except Exception as e:
-    raise ImportError(
-        f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
-    )
-
-
-def reshape_and_cache(
-    key: torch.Tensor,
-    value: torch.Tensor,
-    key_cache: torch.Tensor,
-    value_cache: torch.Tensor,
-    slots: torch.Tensor,
-):
-    if ATTENTION in {"flashdecoding", "flashinfer"}:
-        shape = key_cache.shape
-        key_cache.view(-1, shape[-2], shape[-1])[slots] = key
-        value_cache.view(-1, shape[-2], shape[-1])[slots] = value
-    else:
-        cache_ops.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
-        )
-
 
 def paged_attention(
     query: torch.Tensor,
-    key_cache: torch.Tensor,
-    value_cache: torch.Tensor,
+    kv_cache: KVCache,
     kv_head_mapping: torch.Tensor,
     softmax_scale: float,
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
+    *,
+    kv_scales: KVScales,
     softcap: Optional[float] = None,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
@@ -70,6 +49,8 @@ def paged_attention(
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
 
+    can_scale = kv_cache.can_scale(kv_scales)
+
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
     # V1 to avoid the overhead of reduction. Also, if the number of
@@ -79,10 +60,13 @@ def paged_attention(
         from text_generation_server.layers.attention.flashinfer import decode_state
 
         return decode_state.get().forward(
+            # TODO: remove `contiguous` call once https://github.com/flashinfer-ai/flashinfer/pull/553 is merged.
             query.contiguous(),
-            paged_kv_cache=(key_cache, value_cache),
+            paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
+            k_scale=kv_scales.key_scale_cpu if can_scale else 1.0,
+            v_scale=kv_scales.value_scale_cpu if can_scale else 1.0,
         )
     elif ATTENTION == "flashdecoding":
         max_q = 1
@@ -98,8 +82,8 @@ def paged_attention(
             softcap = 0.0
         out = flash_attn_2_cuda.varlen_fwd(
             query,
-            key_cache,
-            value_cache,
+            kv_cache.key,
+            kv_cache.value,
             None,
             seqlen.cu_seqlen_q,
             seqlen.cu_seqlen_k,
@@ -123,7 +107,7 @@ def paged_attention(
     else:
         if softcap is not None:
             raise RuntimeError("Paged attention doesn't support softcapping")
-        input_lengths = seqlen.input_lengths
+        input_lengths = seqlen.input_lengths + seqlen.cache_lengths
         from vllm._C import ops
 
         out = torch.empty_like(query)
@@ -135,8 +119,8 @@ def paged_attention(
             ops.paged_attention_v1(
                 out,
                 query,
-                key_cache,
-                value_cache,
+                kv_cache.key,
+                kv_cache.value,
                 kv_head_mapping,
                 softmax_scale,
                 block_tables,
@@ -168,8 +152,8 @@ def paged_attention(
                 max_logits,
                 tmp_output,
                 query,
-                key_cache,
-                value_cache,
+                kv_cache.key,
+                kv_cache.value,
                 kv_head_mapping,
                 softmax_scale,
                 block_tables,
@@ -216,60 +200,69 @@ except ImportError:
             ) from e
 
 
+if ATTENTION == "flashdecoding" and not V2:
+    raise ValueError("Flash decoding requires Flash Attention V2")
+
 SUPPORTS_WINDOWING = V2
 
-if ATTENTION == "flashinfer":
 
-    def attention(
-        q: torch.Tensor,
-        key_cache: torch.Tensor,
-        value_cache: torch.Tensor,
-        seqlen: Seqlen,
-        block_tables: torch.Tensor,
-        softmax_scale,
-        window_size_left=-1,
-        causal=True,
-        softcap=0.0,
-    ):
+def attention(
+    *,
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    kv_cache: KVCache,
+    kv_scales: KVScales,
+    seqlen: Seqlen,
+    block_tables: torch.Tensor,
+    softmax_scale: float,
+    window_size_left: int = -1,
+    causal: bool = True,
+    softcap: Optional[float] = None,
+):
+    can_scale = kv_cache.can_scale(kv_scales)
+
+    if ATTENTION == "flashinfer":
         from text_generation_server.layers.attention.flashinfer import (
             prefill_with_paged_kv_state,
         )
 
+        if softcap is None:
+            softcap = 0.0
+
         return prefill_with_paged_kv_state.get().forward(
-            q.contiguous(),
+            # TODO: remove `contiguous` call once https://github.com/flashinfer-ai/flashinfer/pull/553 is merged.
+            query.contiguous(),
             causal=causal,
-            paged_kv_cache=(key_cache, value_cache),
+            paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
             window_left=window_size_left,
+            k_scale=kv_scales.key_scale_cpu if can_scale else 1.0,
+            v_scale=kv_scales.value_scale_cpu if can_scale else 1.0,
         )
 
-elif V2:
-
-    def attention(
-        q,
-        key_cache: torch.Tensor,
-        value_cache: torch.Tensor,
-        seqlen: Seqlen,
-        block_tables: torch.Tensor,
-        softmax_scale,
-        window_size_left=-1,
-        causal=True,
-        softcap=0.0,
-    ):
-        out = torch.empty_like(q)
+    # If we are using flashdecoding or paged, we always use flash-attn for
+    # the prefill. We have to branch on whether we use flash-attn v1 or v2.
+    elif V2:
+        out = torch.empty_like(query)
         if window_size_left <= 0 and window_size_left != -1:
             raise ValueError("`window_size_left` must be > 0 or -1")
+
+        if softcap is None:
+            softcap = 0.0
+
         return flash_attn_2_cuda.varlen_fwd(
-            q,
-            key_cache,
-            value_cache,
+            query,
+            # flashdecoding: pass the KV caches, paged: pass the KV.
+            kv_cache.key if ATTENTION == "flashdecoding" else key,
+            kv_cache.value if ATTENTION == "flashdecoding" else value,
             out,
             seqlen.cu_seqlen_q,
             seqlen.cu_seqlen_k,
             None,
             None,
-            block_tables,
+            block_tables if ATTENTION == "flashdecoding" else None,
             None,
             seqlen.max_q,
             seqlen.max_k,
@@ -284,57 +277,45 @@ elif V2:
             None,
         )[0]
 
-else:
-
-    def attention(
-        q: torch.Tensor,
-        k: torch.Tensor,
-        v: torch.Tensor,
-        seqlen: Seqlen,
-        block_tables: torch.Tensor,
-        softmax_scale: float,
-        window_size_left: int = -1,
-        causal: bool = True,
-        softcap=None,
-    ):
+    else:
         if window_size_left != -1:
             raise NotImplementedError(
                 "window_size_left is only available with flash attn v2"
             )
         if softcap is not None:
-            raise NotImplementedError("softcap is only available with flash attn v2")
+            raise NotImplementedError("softcap is not available in flash attn v1")
 
         # Flash attention v1 requires q, k and v to have the same number of heads
-        if k.shape[1] != q.shape[1]:
+        if key.shape[1] != query.shape[1]:
             # MQA expand
-            if k.shape[1] == 1:
-                k = k.expand(-1, q.shape[1], -1)
+            if key.shape[1] == 1:
+                key = key.expand(-1, query.shape[1], -1)
             # Grouped attention reshape
             else:
-                original_shape = k.shape
-                k = (
-                    k.unsqueeze(2)
-                    .expand(-1, -1, q.shape[1] // k.shape[1], -1)
+                original_shape = key.shape
+                key = (
+                    key.unsqueeze(2)
+                    .expand(-1, -1, query.shape[1] // key.shape[1], -1)
                     .reshape(original_shape[0], -1, original_shape[2])
                 )
-        if v.shape[1] != q.shape[1]:
+        if value.shape[1] != query.shape[1]:
             # MQA expand
-            if v.shape[1] == 1:
-                v = v.expand(-1, q.shape[1], -1)
+            if value.shape[1] == 1:
+                value = value.expand(-1, query.shape[1], -1)
             # Grouped attention reshape
             else:
-                original_shape = v.shape
-                v = (
-                    v.unsqueeze(2)
-                    .expand(-1, -1, q.shape[1] // v.shape[1], -1)
+                original_shape = value.shape
+                value = (
+                    value.unsqueeze(2)
+                    .expand(-1, -1, query.shape[1] // value.shape[1], -1)
                     .reshape(original_shape[0], -1, original_shape[2])
                 )
 
-        out = torch.empty_like(q)
+        out = torch.empty_like(query)
         flash_attn_cuda.fwd(
-            q,
-            k,
-            v,
+            query,
+            key,
+            value,
             out,
             seqlen.cu_seqlen_q,
             seqlen.cu_seqlen_q,
@@ -351,15 +332,8 @@ else:
         return out
 
 
-# Prefill in the cache with every kind of attention, unless we
-# have a configuration that requires flash-attention v1, which
-# does not support block tables.
-PREFILL_IN_KV_CACHE = ATTENTION != "paged" or V2
-
 __all__ = [
-    "PREFILL_IN_KV_CACHE",
     "SUPPORTS_WINDOWING",
     "attention",
     "paged_attention",
-    "reshape_and_cache",
 ]

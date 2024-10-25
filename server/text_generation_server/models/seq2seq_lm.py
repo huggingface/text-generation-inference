@@ -80,6 +80,7 @@ class Seq2SeqLMBatch(Batch):
             request_ids=[r.id for r in self.requests],
             size=len(self),
             max_tokens=self.max_tokens,
+            current_tokens=len(self.decoder_input_ids),
         )
 
     @classmethod
@@ -649,11 +650,7 @@ class Seq2SeqLM(Model):
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map=(
-                "auto"
-                if device_count > 1
-                else None
-            ),
+            device_map=("auto" if device_count > 1 else None),
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )

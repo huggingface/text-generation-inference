@@ -18,7 +18,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -138,6 +138,7 @@ class FlashPhiAttention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         # in llama the dense layer is called "o_proj" and has bias=False
         self.dense = TensorParallelRowLinear.load(
@@ -187,29 +188,36 @@ class FlashPhiAttention(torch.nn.Module):
         )
 
         # Reshape key and value and cache
-        kv_cache.store(key=kv[:, 0], value=kv[:, 1], slots=slots)
+        kv_cache.store(
+            key=kv[:, 0],
+            value=kv[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             attn_output = attention(
-                query,
-                kv_cache.key if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache.value if PREFILL_IN_KV_CACHE else kv[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, 0],
+                value=kv[:, 1],
+                kv_scales=self.kv_scales,
+                kv_cache=kv_cache,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache.key,
-                kv_cache.value,
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))

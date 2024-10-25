@@ -5,8 +5,17 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional, TypeVar, Type, Dict
 from collections import defaultdict
 from transformers import PreTrainedTokenizerBase
+from loguru import logger
 
+from text_generation_server.models.globals import (
+    ATTENTION,
+    PREFIX_CACHING,
+    BLOCK_SIZE,
+    PREFILL_CHUNKING,
+)
 from text_generation_server.models.types import Batch, Generation
+from text_generation_server.utils.log import log_master
+from text_generation_server.utils.prefill_chunking import set_support_chunking
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.pb.generate_pb2 import InfoResponse
 from text_generation_server.adapters.weights import LayerAdapterWeights
@@ -31,6 +40,7 @@ class Model(ABC):
         sliding_window: Optional[int] = None,
         speculate: Optional[int] = None,
         adapter_id: str = BASE_MODEL_ADAPTER_ID,
+        support_chunking: bool = False,
     ):
         self.model_id = model_id
         self.model = model.eval()
@@ -60,6 +70,29 @@ class Model(ABC):
             speculate = get_speculate()
         self.speculate = speculate
 
+        support_chunking = support_chunking and PREFILL_CHUNKING
+
+        if speculate != 0 and support_chunking:
+            log_master(
+                logger.warning,
+                "Prefill chunking does not support speculation yet. "
+                "Prefill chunking will be turned off",
+            )
+            support_chunking = False
+        if ATTENTION not in ["flashinfer", "flashdecoding"] and support_chunking:
+            log_master(
+                logger.warning,
+                "Prefill chunking is only supported with `flashinfer` or `flashdecoding` attention types.",
+            )
+            support_chunking = False
+
+        log_master(
+            logger.info, f"Using experimental prefill chunking = {support_chunking}"
+        )
+
+        self.support_chunking = support_chunking
+        set_support_chunking(support_chunking)
+
         self.has_position_ids = (
             inspect.signature(model.forward).parameters.get("position_ids", None)
             is not None
@@ -78,6 +111,10 @@ class Model(ABC):
             device_type=self.device.type,
             window_size=self.sliding_window,
             speculate=self.speculate,
+            support_chunking=self.support_chunking,
+            use_prefix_caching=PREFIX_CACHING,
+            attention_impl=ATTENTION,
+            block_size=BLOCK_SIZE,
         )
 
     @property

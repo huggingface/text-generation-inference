@@ -8,6 +8,7 @@ pub mod validation;
 mod kserve;
 pub mod logging;
 
+mod sagemaker;
 pub mod usage_stats;
 mod vertex;
 
@@ -17,45 +18,6 @@ use serde::{Deserialize, Serialize};
 use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
-
-#[derive(PartialEq)]
-pub enum Attention {
-    Paged,
-    FlashDecoding,
-    FlashInfer,
-}
-
-impl Attention {
-    pub fn block_size(&self) -> u32 {
-        match self {
-            Attention::FlashDecoding => 256,
-            Attention::FlashInfer => 1,
-            Attention::Paged => 16,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct ParseError;
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Cannot parse attention value")
-    }
-}
-impl std::error::Error for ParseError {}
-
-impl std::str::FromStr for Attention {
-    type Err = ParseError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "paged" => Ok(Attention::Paged),
-            "flashdecoding" => Ok(Attention::FlashDecoding),
-            "flashinfer" => Ok(Attention::FlashInfer),
-            _ => Err(ParseError),
-        }
-    }
-}
 
 /// Hub type
 #[derive(Clone, Debug, Deserialize)]

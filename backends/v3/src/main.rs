@@ -44,6 +44,8 @@ struct Args {
     tokenizer_config_path: Option<String>,
     #[clap(long, env)]
     revision: Option<String>,
+    #[clap(long, env, value_enum)]
+    trust_remote_code: bool,
     #[clap(default_value = "2", long, env)]
     validation_workers: usize,
     #[clap(long, env)]
@@ -62,8 +64,6 @@ struct Args {
     ngrok_authtoken: Option<String>,
     #[clap(long, env)]
     ngrok_edge: Option<String>,
-    #[clap(long, env, default_value_t = false)]
-    messages_api_enabled: bool,
     #[clap(long, env, default_value_t = false)]
     disable_grammar_support: bool,
     #[clap(default_value = "4", long, env)]
@@ -101,6 +101,7 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_name,
         tokenizer_config_path,
         revision,
+        trust_remote_code,
         validation_workers,
         api_key,
         json_output,
@@ -110,7 +111,6 @@ async fn main() -> Result<(), RouterError> {
         ngrok,
         ngrok_authtoken,
         ngrok_edge,
-        messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
         usage_stats,
@@ -131,25 +131,12 @@ async fn main() -> Result<(), RouterError> {
             "`max_input_tokens` must be < `max_total_tokens`".to_string(),
         ));
     }
-    if max_input_tokens as u32 > max_batch_prefill_tokens {
-        return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {max_batch_prefill_tokens} and {max_input_tokens}")));
-    }
 
     if validation_workers == 0 {
         return Err(RouterError::ArgumentValidation(
             "`validation_workers` must be > 0".to_string(),
         ));
     }
-
-    if let Some(ref max_batch_total_tokens) = max_batch_total_tokens {
-        if max_batch_prefill_tokens > *max_batch_total_tokens {
-            return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {max_batch_prefill_tokens} and {max_batch_total_tokens}")));
-        }
-        if max_total_tokens as u32 > *max_batch_total_tokens {
-            return Err(RouterError::ArgumentValidation(format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_batch_total_tokens}")));
-        }
-    }
-
     if let Some(max_batch_size) = max_batch_size {
         if max_batch_size == 0 {
             return Err(RouterError::ArgumentValidation(
@@ -158,7 +145,7 @@ async fn main() -> Result<(), RouterError> {
         }
     }
 
-    let (backend, _backend_info) = connect_backend(
+    let (backend, backend_info) = connect_backend(
         max_input_tokens,
         max_total_tokens,
         master_shard_uds_path,
@@ -169,6 +156,19 @@ async fn main() -> Result<(), RouterError> {
         max_batch_size,
     )
     .await?;
+
+    // Validate remaining args now that the backend is known
+    let support_chunking = backend_info.support_chunking;
+    let max_batch_total_tokens = backend_info.max_batch_total_tokens;
+    if max_input_tokens as u32 > max_batch_prefill_tokens && !support_chunking {
+        return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {max_batch_prefill_tokens} and {max_input_tokens}")));
+    }
+    if max_batch_prefill_tokens > max_batch_total_tokens {
+        return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {max_batch_prefill_tokens} and {max_batch_total_tokens}")));
+    }
+    if max_total_tokens as u32 > max_batch_total_tokens {
+        return Err(RouterError::ArgumentValidation(format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_batch_total_tokens}")));
+    }
 
     // Run server
     server::run(
@@ -184,13 +184,13 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_name,
         tokenizer_config_path,
         revision,
+        trust_remote_code,
         hostname,
         port,
         cors_allow_origin,
         ngrok,
         ngrok_authtoken,
         ngrok_edge,
-        messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
         usage_stats,

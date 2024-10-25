@@ -7,6 +7,7 @@ from typing import List, Tuple, Union
 import torch
 
 
+# FIXME: this should be optimized
 def find_segments(
     adapter_indices: Union[torch.Tensor, List[int]]
 ) -> Tuple[List[int], List[int]]:

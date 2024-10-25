@@ -195,6 +195,11 @@ class ModelType(enum.Enum):
         "name": "Phi 3",
         "url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
     }
+    GRANITE = {
+        "type": "granite",
+        "name": "Granite",
+        "url": "https://huggingface.co/ibm-granite/granite-3.0-8b-instruct",
+    }
     GEMMA = {
         "type": "gemma",
         "name": "Gemma",
@@ -357,17 +362,32 @@ def get_model(
     compression_config = config_dict.get("compression_config", None)
     if quantization_config is not None and quantize is None:
         method = quantization_config.get("quant_method", None)
+        config_groups = quantization_config.get("config_groups", None)
         if method in {"gptq", "awq", "exl2"}:
             log_master(logger.info, f"Auto selecting quantization method {method}")
             quantize = method
-        elif method == "fbgemm_fp8":
+        elif method == "fbgemm_fp8" or method == "fp8":
             log_master(logger.info, "Auto selecting quantization method fp8")
             quantize = "fp8"
+        elif config_groups is not None:
+            # TODO: at some point we should probably fully parse the compression
+            # configuration to know which parameters are compressed.
+            for _, group in config_groups.items():
+                weights_config = group.get("weights")
+                if weights_config is not None:
+                    if (
+                        weights_config["type"] == "float"
+                        and weights_config["num_bits"] == 8
+                    ):
+                        log_master(
+                            logger.info, "Auto selecting quantization method fp8"
+                        )
+                        quantize = "fp8"
+                        break
         else:
             log_master(logger.warning, f"Unknown quantization method {method}")
     elif compression_config is not None:
-        # TODO: at some point we should probably fully parse the compression
-        # configuration to know which parameters are compressed.
+        # `compression_config` renamed to `quantization_config`; support retained for backward compatibility.
         config_groups = compression_config.get("config_groups")
         if config_groups is not None:
             for _, group in config_groups.items():
@@ -385,8 +405,11 @@ def get_model(
 
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
-            # These quantizers only work with float16 params.
-            dtype = torch.float16
+            if SYSTEM == "ipex" and not hasattr(torch, "xpu"):
+                dtype = torch.bfloat16
+            else:
+                # These quantizers only work with float16 params.
+                dtype = torch.float16
         elif quantize == "fp8":
             from text_generation_server.layers.fp8 import FBGEMM_DYN_AVAILABLE
 
@@ -406,6 +429,8 @@ def get_model(
 
     if kv_cache_dtype is None:
         kv_cache_dtype = dtype
+    elif kv_cache_dtype == "fp8_e4m3fn":
+        kv_cache_dtype = torch.float8_e4m3fn
     elif kv_cache_dtype == "fp8_e5m2":
         kv_cache_dtype = torch.float8_e5m2
     else:
@@ -842,7 +867,12 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    elif model_type == LLAMA or model_type == BAICHUAN or model_type == PHI3:
+    elif (
+        model_type == LLAMA
+        or model_type == BAICHUAN
+        or model_type == PHI3
+        or model_type == GRANITE
+    ):
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
@@ -856,7 +886,9 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
             )
         elif sharded:
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Llama"))
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format(f"Sharded {model_type}")
+            )
         else:
             return CausalLM.fallback(
                 model_id,

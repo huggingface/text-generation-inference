@@ -1,14 +1,17 @@
-from io import BytesIO
-from PIL import Image
 import torch
+
+import numpy as np
+
 from typing import Iterable, Optional, Tuple, List, Dict
 from text_generation_server.pb.generate_pb2 import Request
-
+from io import BytesIO
+from PIL import Image
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import (
     PreTrainedTokenizerBase,
 )
+
 from text_generation_server.models.vlm_causal_lm import VlmCausalLMBatch, VlmCausalLM
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.flash_causal_lm import (
@@ -167,6 +170,13 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         batch.all_input_ids_tensor = batch.all_input_ids_tensor.clamp(
             max=config.text_config.vocab_size - 1
         )
+        if isinstance(batch.input_ids, list):
+            if len(batch) > 1:
+                input_ids = np.concatenate(batch.input_ids, dtype=np.int64)
+            else:
+                input_ids = batch.input_ids[0]
+            batch.input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
+
         batch.input_ids = batch.input_ids.clamp(max=config.text_config.vocab_size - 1)
 
         if image_inputs is not None:
@@ -190,7 +200,7 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
 class MllamaCausalLM(VlmCausalLM):
     def forward(
         self,
-        batch: VlmCausalLMBatch,
+        batch: MllamaCausalLMBatch,
         adapter_data: Optional[Dict[str, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # Model Forward
@@ -202,7 +212,7 @@ class MllamaCausalLM(VlmCausalLM):
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
-            max_s = batch.max_seqlen
+            max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
             speculative_ids = batch.speculative_ids
@@ -221,8 +231,8 @@ class MllamaCausalLM(VlmCausalLM):
             input_lengths = (
                 input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int
             ).view(-1)
-            prefix_lens_tensor = (
-                batch.prefix_lens_tensor.unsqueeze(-1).expand(B, new_length)
+            cache_lengths_tensor = (
+                batch.cache_lengths_tensor.unsqueeze(-1).expand(B, new_length)
             ).reshape(-1)
 
             # Add Copy the block tables for all members
@@ -244,8 +254,8 @@ class MllamaCausalLM(VlmCausalLM):
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
-            prefix_lens_tensor = batch.prefix_lens_tensor
-            max_s = batch.max_seqlen
+            cache_lengths_tensor = batch.cache_lengths_tensor
+            max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
         if cu_seqlen_prefill is None and self.max_past() is not None:
@@ -254,7 +264,6 @@ class MllamaCausalLM(VlmCausalLM):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
 
-        bs = input_ids.shape[0]
         # Try to find an associated cuda graph
         bs = input_ids.shape[0]
         sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
@@ -269,26 +278,24 @@ class MllamaCausalLM(VlmCausalLM):
             # Only run cuda graphs when there's no images.
             or batch.cross_attention_states is not None
         ):
-            input_lengths = input_lengths + prefix_lens_tensor
             if PREFIX_CACHING:
                 block_tables = block_tables_to_ragged(
                     block_tables=block_tables,
                     input_lengths=batch.input_lengths,
-                    prefix_lens=batch.prefix_lens,
+                    cache_lengths=batch.cache_lengths,
                 )
             with self._forward_context(
                 block_tables=block_tables,
                 cu_seqlen_prefill=cu_seqlen_prefill,
                 input_lengths_tensor=input_lengths,
-                prefix_lens_tensor=prefix_lens_tensor,
+                cache_lengths_tensor=cache_lengths_tensor,
             ):
-                max_k = (input_lengths + prefix_lens_tensor).max().item()
                 seqlen = Seqlen(
                     input_lengths=input_lengths,
-                    prefix_lengths=prefix_lens_tensor,
+                    cache_lengths=cache_lengths_tensor,
                     cu_seqlen_q=cu_seqlen_prefill,
-                    max_q=max_s,
-                    max_k=max_k,
+                    max_q=batch.max_input_length,
+                    max_k=batch.max_current_length,
                 )
 
                 if batch.pixel_values is not None:
@@ -330,22 +337,34 @@ class MllamaCausalLM(VlmCausalLM):
             block_tables = block_tables_to_ragged(
                 block_tables=block_tables,
                 input_lengths=batch.input_lengths,
-                prefix_lens=batch.prefix_lens,
+                cache_lengths=batch.cache_lengths,
             )
             cuda_graph["block_tables"][: block_tables.shape[0]] = block_tables
         else:
             cuda_graph["block_tables"][
                 : block_tables.shape[0], : block_tables.shape[1]
             ] = block_tables
+
+        # XXX: This is working only because block 0 is reserved for the healthcheck
+        # so it doesn't matter if we override it with bogus values.
         cuda_graph["slots"].fill_(0)
         cuda_graph["slots"][: slots.shape[0]] = slots
         cuda_graph["input_lengths"].zero_()
-        cuda_graph["input_lengths"][: input_lengths.shape[0]] = (
-            input_lengths + prefix_lens_tensor
-        )
+        cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
+        cuda_graph["cache_lengths"].zero_()
+        cuda_graph["cache_lengths"][
+            : cache_lengths_tensor.shape[0]
+        ] = cache_lengths_tensor
 
-        # Replay the graph
-        cuda_graph["graph"].replay()
+        with self._forward_context(
+            block_tables=cuda_graph["block_tables"],
+            cu_seqlen_prefill=None,
+            input_lengths_tensor=cuda_graph["input_lengths"],
+            cache_lengths_tensor=cuda_graph["cache_lengths"],
+            state=cuda_graph["state"],
+        ):
+            # Replay the graph
+            cuda_graph["graph"].replay()
 
         # Slice output to the correct shape
         speculative_logits = (

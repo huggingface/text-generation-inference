@@ -68,7 +68,7 @@ fn get_config(
 
 fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
     let compute_capability = gpu::get_cuda_capability();
-    let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
+    let mut prefix_caching: Option<String> = std::env::var("PREFIX_CACHING").ok();
     let mut attention: Option<String> = std::env::var("ATTENTION").ok();
     if let Some(config) = config {
         if prefix_caching.is_none() {
@@ -94,7 +94,7 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                     prefix_caching = Some("0".to_string());
                 }
                 match config.model_type.as_deref() {
-                    Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
+                    Some("falcon") | Some("deepseek_v2") => {
                         // Required because gemma2 needs bfloat16 which is not supported by
                         // flashinfer ?
                         if attention.is_none() {
@@ -123,6 +123,10 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
                 }
             }
         }
+    }
+    if attention == Some("paged".to_string()) && prefix_caching.is_none() {
+        tracing::info!("Disabling prefix caching on paged attention");
+        prefix_caching = Some("0".to_string());
     }
 
     let attention = attention.unwrap_or("flashinfer".to_string());
@@ -303,6 +307,9 @@ impl std::fmt::Display for Dtype {
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum KVCacheDtype {
+    #[clap(name = "fp8_e4m3fn")]
+    Fp8e4m3fn,
+
     #[clap(name = "fp8_e5m2")]
     Fp8e5m2,
 }
@@ -310,6 +317,9 @@ enum KVCacheDtype {
 impl std::fmt::Display for KVCacheDtype {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            KVCacheDtype::Fp8e4m3fn => {
+                write!(f, "fp8_e4m3fn")
+            }
             KVCacheDtype::Fp8e5m2 => {
                 write!(f, "fp8_e5m2")
             }
@@ -420,7 +430,7 @@ struct Args {
 
     /// Specify the dtype for the key-value cache. When this option is not provided,
     /// the dtype of the model is used (typically `float16` or `bfloat16`). Currently
-    /// the only supported value is `fp8_e5m2` on CUDA.
+    /// the only supported value are `fp8_e4m3fn` and `fp8_e5m2` on CUDA.
     #[clap(long, env, value_enum)]
     kv_cache_dtype: Option<KVCacheDtype>,
 
@@ -1094,6 +1104,8 @@ fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
                         }
                     }
                 }
+            } else {
+                break;
             }
         }
     }
@@ -1497,6 +1509,10 @@ fn spawn_webserver(
         router_args.push(revision.to_string())
     }
 
+    if args.trust_remote_code {
+        router_args.push("--trust-remote-code".to_string());
+    }
+
     if args.json_output {
         router_args.push("--json-output".to_string());
     }
@@ -1678,7 +1694,7 @@ fn main() -> Result<(), LauncherError> {
     };
     let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
     tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
-    std::env::set_var("USE_PREFIX_CACHING", prefix_caching);
+    std::env::set_var("PREFIX_CACHING", prefix_caching);
     std::env::set_var("ATTENTION", attention);
 
     let max_input_tokens = {
@@ -1728,12 +1744,6 @@ fn main() -> Result<(), LauncherError> {
         return Err(LauncherError::ArgumentValidation(
             "`max_input_tokens must be < `max_total_tokens`".to_string(),
         ));
-    }
-    if max_input_tokens as u32 > max_batch_prefill_tokens {
-        return Err(LauncherError::ArgumentValidation(format!(
-            "`max_batch_prefill_tokens` must be >= `max_input_tokens`. Given: {} and {}",
-            max_batch_prefill_tokens, max_input_tokens
-        )));
     }
 
     if matches!(args.quantize, Some(Quantization::Bitsandbytes)) {
@@ -1788,12 +1798,6 @@ fn main() -> Result<(), LauncherError> {
     }
 
     if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
-        if max_batch_prefill_tokens > *max_batch_total_tokens {
-            return Err(LauncherError::ArgumentValidation(format!(
-                "`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",
-                max_batch_prefill_tokens, max_batch_total_tokens
-            )));
-        }
         if max_total_tokens as u32 > *max_batch_total_tokens {
             return Err(LauncherError::ArgumentValidation(format!(
                 "`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {} and {}",

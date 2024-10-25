@@ -76,6 +76,7 @@ class CausalLMBatch(Batch):
             request_ids=[r.id for r in self.requests],
             size=len(self),
             max_tokens=self.max_tokens,
+            current_tokens=len(self.input_ids),
         )
 
     @classmethod
@@ -619,18 +620,11 @@ class CausalLM(Model):
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map=(
-                "auto"
-                if device_count > 1
-                else None
-            ),
+            device_map=("auto" if device_count > 1 else None),
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
         )
-        if (
-            device_count == 1
-            and quantize != "bitsandbytes"
-        ):
+        if device_count == 1 and quantize != "bitsandbytes":
             model = model.to(device)
 
         if tokenizer.pad_token_id is None:

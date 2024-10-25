@@ -5,6 +5,7 @@
 #ifndef TGI_TRTLLM_BACKEND_H
 #define TGI_TRTLLM_BACKEND_H
 
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <span>
@@ -19,9 +20,20 @@
 using json = nlohmann::json;
 namespace tle = tensorrt_llm::executor;
 
+
+#define CAST_SIZETYPE(x) static_cast<tle::SizeType32>(x)
+
 namespace huggingface::tgi::backends {
     using RequestId = tle::IdType;
     using TokenId = tle::TokenIdType;
+
+    const static auto OUTPUT_CONFIG = tle::OutputConfig(true, false, false, true, false);
+    constexpr auto FMT_NOT_ENOUGH_GPUS = FMT_STRING(
+            "Not enough GPUs to allocate requested model (detected: {:d}, required: {:d})");
+    constexpr auto FMT_EXECUTOR_STATS = FMT_STRING(
+            "Submitting inference [{}] to the executor ({:d} already in-flight)");
+    constexpr auto FMT_SAMPLING_CONFIG = FMT_STRING(
+            "Sampling: topK={:d}, topP={:.1f}, temperature={:.1f}, repetition_penalty={:.1f}, frequency_penalty={:.1f}, seed={:d}");
 
     /**
      * Initialize all the components required by TRTLLM.
@@ -30,12 +42,26 @@ namespace huggingface::tgi::backends {
     void InitializeBackend();
 
     /**
+     * Initialize logging mechanism
+     */
+    void InitializeLogging();
+
+
+    /**
      *
      * @param config TensorRT-LLM configuration object
      * @param workerPath Path to the "executorWorker" provided by TensorRT-LLM when using orchestrator mode
      * @return
      */
     tle::ExecutorConfig GetExecutorConfig(const json &config, const std::string &workerPath);
+
+    /**
+     *
+     * @param worldSize
+     * @param workerPath
+     * @return
+     */
+    tle::ParallelConfig GetParallelConfig(size_t worldSize, std::string workerPath) noexcept;
 
     /**
      * Get the sampling configuration from the parameters provided by TGI
@@ -54,7 +80,15 @@ namespace huggingface::tgi::backends {
             float_t repetition_penalty,
             float_t frequency_penalty,
             uint64_t seed
-    );
+    ) noexcept;
+
+    /**
+     * Attempt to retrieve the
+     * @param generationConfigPath
+     * @return
+     */
+    std::optional<std::list<std::vector<TokenId>>>
+    GetStopWordsFromConfig(const std::filesystem::path &generationConfigPath) noexcept;
 
     /**
      *
@@ -64,17 +98,15 @@ namespace huggingface::tgi::backends {
         const json config;
         tle::Executor executor;
 
+        /** Frequently accessed variables cached here **/
+        uint32_t maxNumTokens;
+        std::list<std::vector<TokenId>> stopWords;
+
     public:
         explicit TensorRtLlmBackend(
                 const std::filesystem::path &engineFolder,
                 const std::filesystem::path &executorWorker
         );
-
-        /**
-         * Indicate if the backend is ready to accept incoming request
-         * @return true if ready, false otherwise
-         */
-        [[nodiscard]] bool IsReady() const;
 
         /**
          * Query the executor for the number of token available for pulling
@@ -88,32 +120,23 @@ namespace huggingface::tgi::backends {
          * @param topK
          * @param topP
          * @param temperature
-         * @param repetition_penalty
-         * @param frequency_penalty
+         * @param repetitionPenalty
+         * @param frequencyPenalty
          * @param seed
          * @return Request id related to this generation for reference
          */
         [[nodiscard]] RequestId Submit(
                 const std::vector<TokenId> &tokens,
+                uint32_t maxNewTokens,
                 int32_t topK,
                 float_t topP,
                 float_t temperature,
-                float_t repetition_penalty,
-                float_t frequency_penalty,
+                float_t repetitionPenalty,
+                float_t frequencyPenalty,
                 uint64_t seed
         );
 
-        /**
-         *
-         * @param requestId The request id to poll the generation results
-         * @return
-         */
-        std::vector<tle::Response> Poll(RequestId requestId);
-
-        /**
-         * Stop the underlying executor
-         */
-        void Shutdown();
+        [[nodiscard]] std::vector<tle::Response> PullNewTokens();
     };
 }
 

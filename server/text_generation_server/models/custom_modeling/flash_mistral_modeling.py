@@ -26,6 +26,7 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -40,7 +41,6 @@ from text_generation_server.layers import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -159,6 +159,7 @@ class MistralAttention(torch.nn.Module):
             ],
             process_group=weights.process_group,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         o_proj = TensorParallelRowLinear.load(
             config,
@@ -209,31 +210,38 @@ class MistralAttention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        kv_cache.store(key=kv_to_cache[:, 0], value=kv_to_cache[:, 1], slots=slots)
+        kv_cache.store(
+            key=kv_to_cache[:, 0],
+            value=kv_to_cache[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache.key if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
-                kv_cache.value if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv_to_cache[:, 0],
+                value=kv_to_cache[:, 1],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
                 window_size_left=self.max_past,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache.key,
-                kv_cache.value,
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.o_proj(

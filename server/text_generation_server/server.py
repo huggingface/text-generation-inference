@@ -15,6 +15,7 @@ from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model_with_lora_adapters
 from text_generation_server.utils.adapter import AdapterInfo
+from text_generation_server.utils.prefill_chunking import set_max_prefill_tokens
 
 try:
     from text_generation_server.models.pali_gemma import PaliGemmaBatch
@@ -46,9 +47,12 @@ class SignalHandler:
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
+    def set_keep_processing(self, value: bool):
+        self.KEEP_PROCESSING = value
+
     def exit_gracefully(self, signum, frame):
         print(f"Exiting gracefully: Signal {signum}")
-        self.KEEP_PROCESSING = False
+        self.set_keep_processing(False)
 
 
 class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
@@ -96,6 +100,8 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
+        set_max_prefill_tokens(request.max_prefill_tokens)
+
         if self.quantize in {"exl2", "gptq"}:
             try:
                 # When using GPTQ, Exllama kernels need some global kernels
@@ -150,6 +156,18 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 request.batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
 
+        concat_ns = None
+        if self.model.support_chunking:
+            if request.HasField("cached_batch"):
+                cached_batch = self.cache.pop(request.cached_batch.id)
+                if cached_batch is None:
+                    raise ValueError(
+                        f"Batch ID {request.cached_batch.id} not found in cache."
+                    )
+                start_concat = time.time_ns()
+                batch = self.model.batch_type.concatenate([cached_batch, batch])
+                concat_ns = time.time_ns() - start_concat
+
         generations, next_batch, timings = self.model.generate_token(batch)
         self.cache.set(next_batch)
 
@@ -159,6 +177,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             forward_ns=timings[0],
             decode_ns=timings[1],
             total_ns=time.time_ns() - start,
+            concat_ns=concat_ns,
         )
 
     async def Decode(self, request, context):
@@ -252,10 +271,12 @@ def serve(
             logger.exception("Error when initializing model")
             raise
 
+        signal_handler = SignalHandler()
+
         set_adapter_to_index(adapter_to_index)
         server = aio.server(
             interceptors=[
-                ExceptionInterceptor(),
+                ExceptionInterceptor(lambda: signal_handler.set_keep_processing(False)),
                 UDSOpenTelemetryAioServerInterceptor(),
             ],
             options=[
@@ -276,7 +297,6 @@ def serve(
         await server.start()
 
         logger.info("Server started at {}".format(local_url))
-        signal_handler = SignalHandler()
         while signal_handler.KEEP_PROCESSING:
             await asyncio.sleep(0.5)
 

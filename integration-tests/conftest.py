@@ -9,13 +9,16 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Dict, List, Optional
-
 import docker
 import pytest
+import base64
+
+from pathlib import Path
+from typing import Dict, List, Optional
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
 from syrupy.extensions.json import JSONSnapshotExtension
+
 from text_generation import AsyncClient
 from text_generation.types import (
     BestOfSequence,
@@ -403,6 +406,7 @@ def launcher(event_loop):
         print(" ".join(args), file=sys.stderr)
 
         env["LOG_LEVEL"] = "info,text_generation_router=debug"
+        env["PREFILL_CHUNKING"] = "1"
 
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
@@ -501,6 +505,7 @@ def launcher(event_loop):
 
         env = {
             "LOG_LEVEL": "info,text_generation_router=debug",
+            "PREFILL_CHUNKING": "1",
         }
         if not use_flash_attention:
             env["USE_FLASH_ATTENTION"] = "false"
@@ -642,3 +647,22 @@ def generate_multi():
         return responses
 
     return generate_load_inner
+
+
+# TODO fix the server parsser to count inline image tokens correctly
+@pytest.fixture
+def chicken():
+    path = Path(__file__).parent / "images" / "chicken_on_money.png"
+
+    with open(path, "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read())
+    return f"data:image/png;base64,{encoded_string.decode('utf-8')}"
+
+
+@pytest.fixture
+def cow_beach():
+    path = Path(__file__).parent / "images" / "cow_beach.png"
+
+    with open(path, "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read())
+    return f"data:image/png;base64,{encoded_string.decode('utf-8')}"
