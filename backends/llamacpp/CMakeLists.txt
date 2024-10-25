@@ -45,12 +45,15 @@ fetchcontent_makeavailable(llama)
 add_library(tgi_llamacpp_backend_impl STATIC csrc/backend.hpp csrc/backend.cpp)
 target_compile_features(tgi_llamacpp_backend_impl PRIVATE cxx_std_11)
 target_link_libraries(tgi_llamacpp_backend_impl PUBLIC fmt::fmt spdlog::spdlog llama common)
-
 install(TARGETS tgi_llamacpp_backend_impl spdlog llama common)
+
+if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+    target_compile_definitions(tgi_llamacpp_backend_impl PRIVATE TGI_LLAMACPP_BACKEND_DEBUG=1)
+endif ()
 
 if (${LLAMA_CPP_BUILD_OFFLINE_RUNNER})
     message(STATUS "Building llama.cpp offline runner")
-    add_executable(tgi_llama_cppoffline_runner offline/main.cpp)
+    add_executable(tgi_llamacpp_offline_runner offline/main.cpp)
 
     target_link_libraries(tgi_llamacpp_offline_runner PUBLIC tgi_llama_cpp_backend_impl llama common)
 endif ()
