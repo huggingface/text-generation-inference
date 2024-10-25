@@ -44,6 +44,8 @@ struct Args {
     tokenizer_config_path: Option<String>,
     #[clap(long, env)]
     revision: Option<String>,
+    #[clap(long, env, value_enum)]
+    trust_remote_code: bool,
     #[clap(default_value = "2", long, env)]
     validation_workers: usize,
     #[clap(long, env)]
@@ -99,6 +101,7 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_name,
         tokenizer_config_path,
         revision,
+        trust_remote_code,
         validation_workers,
         api_key,
         json_output,
@@ -181,6 +184,7 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_name,
         tokenizer_config_path,
         revision,
+        trust_remote_code,
         hostname,
         port,
         cors_allow_origin,
