@@ -44,6 +44,8 @@ struct Args {
     tokenizer_config_path: Option<String>,
     #[clap(long, env)]
     revision: Option<String>,
+    #[clap(long, env, value_enum)]
+    trust_remote_code: bool,
     #[clap(default_value = "2", long, env)]
     validation_workers: usize,
     #[clap(long, env)]
@@ -62,8 +64,6 @@ struct Args {
     ngrok_authtoken: Option<String>,
     #[clap(long, env)]
     ngrok_edge: Option<String>,
-    #[clap(long, env, default_value_t = false)]
-    messages_api_enabled: bool,
     #[clap(long, env, default_value_t = false)]
     disable_grammar_support: bool,
     #[clap(default_value = "4", long, env)]
@@ -101,6 +101,7 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_name,
         tokenizer_config_path,
         revision,
+        trust_remote_code,
         validation_workers,
         api_key,
         json_output,
@@ -110,7 +111,6 @@ async fn main() -> Result<(), RouterError> {
         ngrok,
         ngrok_authtoken,
         ngrok_edge,
-        messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
         usage_stats,
@@ -184,13 +184,13 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_name,
         tokenizer_config_path,
         revision,
+        trust_remote_code,
         hostname,
         port,
         cors_allow_origin,
         ngrok,
         ngrok_authtoken,
         ngrok_edge,
-        messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
         usage_stats,

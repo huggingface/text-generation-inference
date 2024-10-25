@@ -150,6 +150,7 @@ pub enum Config {
     Idefics2(Idefics2),
     Ssm,
     GptBigcode,
+    Granite,
     Santacoder,
     Bloom,
     Mpt,

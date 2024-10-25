@@ -11,7 +11,7 @@ from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 if SYSTEM == "ipex":
     from .ipex import QuantLinear
 elif SYSTEM in {"cuda", "rocm"}:
-    from .cuda import QuantLinear
+    from .triton import QuantLinear
 
 
 @dataclass

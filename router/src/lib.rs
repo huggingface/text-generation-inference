@@ -8,6 +8,7 @@ pub mod validation;
 mod kserve;
 pub mod logging;
 
+mod sagemaker;
 pub mod usage_stats;
 mod vertex;
 

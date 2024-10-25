@@ -141,9 +141,7 @@ TGI can be deployed on various cloud providers for scalable and robust text gene
 
 ## Amazon SageMaker
 
-To enable the Messages API in Amazon SageMaker you need to set the environment variable `MESSAGES_API_ENABLED=true`.
-
-This will modify the `/invocations` route to accept Messages dictonaries consisting out of role and content. See the example below on how to deploy Llama with the new Messages API.
+Amazon Sagemaker natively supports the message API:
 
 ```python
 import json
@@ -161,12 +159,11 @@ except ValueError:
 hub = {
  'HF_MODEL_ID':'HuggingFaceH4/zephyr-7b-beta',
  'SM_NUM_GPUS': json.dumps(1),
- 'MESSAGES_API_ENABLED': True
 }
 
 # create Hugging Face Model Class
 huggingface_model = HuggingFaceModel(
- image_uri=get_huggingface_llm_image_uri("huggingface",version="1.4.0"),
+ image_uri=get_huggingface_llm_image_uri("huggingface",version="2.3.2"),
  env=hub,
  role=role,
 )

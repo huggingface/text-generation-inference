@@ -26,7 +26,6 @@ As of release 2.1.2 this is an example of the data collected:
   "max_top_n_tokens": 5,
   "max_total_tokens": 2048,
   "max_waiting_tokens": 20,
-  "messages_api_enabled": false,
   "model_config": {
     "model_type": "Bloom"
   },

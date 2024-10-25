@@ -27,7 +27,10 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 
-from text_generation_server.layers.attention import KVCache
+from text_generation_server.layers.attention import (
+    KVCache,
+    get_kv_scales,
+)
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
@@ -156,7 +159,10 @@ class FlashLlamaAttention(torch.nn.Module):
             device=weights.device,
         )
 
-        self.softmax_scale = self.head_size**-0.5
+        # `config.attention_multiplier` is used in Granite
+        self.softmax_scale = getattr(
+            config, "attention_multiplier", self.head_size**-0.5
+        )
 
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
@@ -176,11 +182,13 @@ class FlashLlamaAttention(torch.nn.Module):
         self.query_key_value = load_attention(config, prefix, weights, index)
         self.index = index
 
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
+
         o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
             weights=weights,
-            bias=False,
+            bias=getattr(config, "attention_bias", False),
         )
 
         self.o_proj = TensorParallelAdapterRowLinear.load(
@@ -221,7 +229,12 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        kv_cache.store(key=kv[:, 0], value=kv[:, 1], slots=slots)
+        kv_cache.store(
+            key=kv[:, 0],
+            value=kv[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
@@ -230,6 +243,7 @@ class FlashLlamaAttention(torch.nn.Module):
                 query=query,
                 key=kv[:, 0],
                 value=kv[:, 1],
+                kv_scales=self.kv_scales,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
                 block_tables=block_tables,
@@ -245,6 +259,7 @@ class FlashLlamaAttention(torch.nn.Module):
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.o_proj(
@@ -436,6 +451,11 @@ class FlashLlamaLayer(nn.Module):
                 eps=config.rms_norm_eps,
             )
 
+        # Used in Granite
+        # This could eventually be baked into the weights like we do for the embeddings/lm_head
+        # but this would mean modifying the lora code
+        self.residual_multiplier = getattr(config, "residual_multiplier", None)
+
     def forward(
         self,
         hidden_states,
@@ -466,13 +486,16 @@ class FlashLlamaLayer(nn.Module):
             max_s,
             adapter_data,
         )
+        if self.residual_multiplier is not None:
+            attn_output *= self.residual_multiplier
 
-        # faster post attention rms norm
         normed_attn_res_output, attn_res = self.post_attention_layernorm(
             attn_output, res
         )
 
         mlp_output = self.dense(normed_attn_res_output, adapter_data)
+        if self.residual_multiplier is not None:
+            mlp_output *= self.residual_multiplier
 
         return mlp_output, attn_res
 
@@ -624,12 +647,27 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         else:
             suffix = "lm_head"
 
+        # Used in Granite
+        embedding_multiplier = getattr(config, "embedding_multiplier", None)
+        if embedding_multiplier is not None:
+            self.embed_tokens.weight.data *= embedding_multiplier
+
         with no_fp8(weights):
             self.lm_head = SpeculativeHead.load(
                 config,
                 prefix=suffix if not prefix else f"{prefix}.{suffix}",
                 weights=weights,
             )
+
+        # Used in Granite
+        self.logits_scaling = getattr(config, "logits_scaling", None)
+        if self.logits_scaling is not None and self.lm_head.head is not None:
+            try:
+                # Scale the weights directly
+                self.lm_head.head.linear.weight.data /= self.logits_scaling
+                self.logits_scaled = True
+            except Exception:
+                self.logits_scaled = False
 
     def forward(
         self,
@@ -664,4 +702,11 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits, speculative_logits = self.lm_head(hidden_states)
+
+        # Used in Granite
+        if self.logits_scaling is not None and not self.logits_scaled:
+            logits /= self.logits_scaling
+            if speculative_logits is not None:
+                speculative_logits /= self.logits_scaling
+
         return logits, speculative_logits

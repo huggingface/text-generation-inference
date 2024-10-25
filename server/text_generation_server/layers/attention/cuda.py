@@ -1,5 +1,5 @@
 import torch
-from text_generation_server.layers.attention.kv_cache import KVCache
+from text_generation_server.layers.attention.kv_cache import KVCache, KVScales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models.globals import (
     ATTENTION,
@@ -7,6 +7,7 @@ from text_generation_server.models.globals import (
 )
 from text_generation_server.layers.attention import Seqlen
 from typing import Optional
+
 
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
@@ -21,6 +22,8 @@ def paged_attention(
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
+    *,
+    kv_scales: KVScales,
     softcap: Optional[float] = None,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
@@ -46,6 +49,8 @@ def paged_attention(
     num_seqs, num_heads, head_size = query.shape
     max_num_partitions = (max_s + _PARTITION_SIZE - 1) // _PARTITION_SIZE
 
+    can_scale = kv_cache.can_scale(kv_scales)
+
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
     # V1 to avoid the overhead of reduction. Also, if the number of
@@ -55,10 +60,13 @@ def paged_attention(
         from text_generation_server.layers.attention.flashinfer import decode_state
 
         return decode_state.get().forward(
+            # TODO: remove `contiguous` call once https://github.com/flashinfer-ai/flashinfer/pull/553 is merged.
             query.contiguous(),
             paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
+            k_scale=kv_scales.key_scale_cpu if can_scale else 1.0,
+            v_scale=kv_scales.value_scale_cpu if can_scale else 1.0,
         )
     elif ATTENTION == "flashdecoding":
         max_q = 1
@@ -204,6 +212,7 @@ def attention(
     key: torch.Tensor,
     value: torch.Tensor,
     kv_cache: KVCache,
+    kv_scales: KVScales,
     seqlen: Seqlen,
     block_tables: torch.Tensor,
     softmax_scale: float,
@@ -211,6 +220,8 @@ def attention(
     causal: bool = True,
     softcap: Optional[float] = None,
 ):
+    can_scale = kv_cache.can_scale(kv_scales)
+
     if ATTENTION == "flashinfer":
         from text_generation_server.layers.attention.flashinfer import (
             prefill_with_paged_kv_state,
@@ -220,12 +231,15 @@ def attention(
             softcap = 0.0
 
         return prefill_with_paged_kv_state.get().forward(
+            # TODO: remove `contiguous` call once https://github.com/flashinfer-ai/flashinfer/pull/553 is merged.
             query.contiguous(),
             causal=causal,
             paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
             window_left=window_size_left,
+            k_scale=kv_scales.key_scale_cpu if can_scale else 1.0,
+            v_scale=kv_scales.value_scale_cpu if can_scale else 1.0,
         )
 
     # If we are using flashdecoding or paged, we always use flash-attn for

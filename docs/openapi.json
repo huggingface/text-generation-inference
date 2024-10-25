@@ -316,6 +316,98 @@
         }
       }
     },
+    "/invocations": {
+      "post": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Generate tokens from Sagemaker request",
+        "operationId": "sagemaker_compatibility",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SagemakerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Generated Chat Completion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SagemakerResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/SagemakerStreamResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Input validation error",
+                  "error_type": "validation"
+                }
+              }
+            }
+          },
+          "424": {
+            "description": "Generation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Request failed during generation",
+                  "error_type": "generation"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Model is overloaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Model is overloaded",
+                  "error_type": "overloaded"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Incomplete generation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "Incomplete generation",
+                  "error_type": "incomplete_generation"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/metrics": {
       "get": {
         "tags": [
@@ -1864,6 +1956,45 @@
         "items": {
           "type": "string"
         }
+      },
+      "SagemakerRequest": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CompatGenerateRequest"
+          },
+          {
+            "$ref": "#/components/schemas/ChatRequest"
+          },
+          {
+            "$ref": "#/components/schemas/CompletionRequest"
+          }
+        ]
+      },
+      "SagemakerResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/GenerateResponse"
+          },
+          {
+            "$ref": "#/components/schemas/ChatCompletion"
+          },
+          {
+            "$ref": "#/components/schemas/CompletionFinal"
+          }
+        ]
+      },
+      "SagemakerStreamResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/StreamResponse"
+          },
+          {
+            "$ref": "#/components/schemas/ChatCompletionChunk"
+          },
+          {
+            "$ref": "#/components/schemas/Chunk"
+          }
+        ]
       },
       "SimpleToken": {
         "type": "object",
