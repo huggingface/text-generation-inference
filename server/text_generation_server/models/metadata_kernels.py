@@ -3,20 +3,28 @@ import triton
 
 import triton.language as tl
 
-from typing import List
+from loguru import logger
+from typing import List, Optional
 from torch.utils._triton import has_triton as has_triton_torch
 
 from text_generation_server.utils.import_utils import (
     SYSTEM,
 )
+from text_generation_server.utils.log import log_master
+
+_HAS_TRITON: Optional[bool] = None
 
 
 def has_triton():
-    # FIXME: it seems that has_triton_torch is bugged on RocM
-    #        For now, only accept cuda
-    if SYSTEM == "cuda":
-        return has_triton_torch()
-    return False
+    global _HAS_TRITON
+    if _HAS_TRITON is None:
+        # FIXME: it seems that has_triton_torch is bugged on RocM
+        #        For now, only accept cuda
+        _HAS_TRITON = has_triton_torch() if SYSTEM == "cuda" else False
+        if _HAS_TRITON:
+            log_master(logger.info, "Using optimized Triton indexing kernels.")
+
+    return _HAS_TRITON
 
 
 def block_tables_to_padded(
@@ -131,6 +139,53 @@ def prepare_position_slot_ids(
     triton_prepare_position_slot_ids[grid](
         cache_lengths, cu_seqlen, cu_slots, position_ids, slot_indices, BLOCK_SIZE=256
     )
+
+
+def slots_filtering(
+    max_slots: int,
+    slots: torch.Tensor,
+    filtered_slots: torch.Tensor,
+    cu_slots: torch.Tensor,
+    slots_start: torch.Tensor,
+):
+    def grid(meta):
+        return (
+            triton.cdiv(max_slots, meta["BLOCK_SIZE"]),
+            len(slots_start),
+        )
+
+    triton_slots_filtering[grid](
+        slots, filtered_slots, slots_start, cu_slots, BLOCK_SIZE=256
+    )
+
+
+@triton.jit
+def triton_slots_filtering(
+    # Inputs
+    slots_ptr,
+    filtered_slots_ptr,
+    slots_start_ptr,
+    cu_slots_ptr,
+    # Const values
+    BLOCK_SIZE: "tl.constexpr",
+):
+    # Position in block_tables_ragged.numel() / BLOCK_SIZE
+    pid = tl.program_id(axis=0)
+    # Position in batch
+    bid = tl.program_id(axis=1)
+
+    block_start = pid * BLOCK_SIZE
+    block_arange = block_start + tl.arange(0, BLOCK_SIZE)
+
+    filter_start = tl.load(slots_start_ptr + bid)
+
+    slot_start = tl.load(cu_slots_ptr + bid)
+    slot_end = tl.load(cu_slots_ptr + bid + 1)
+
+    mask = (slot_start + block_arange) < slot_end
+
+    slots = tl.load(slots_ptr + filter_start + block_arange, mask=mask)
+    tl.store(filtered_slots_ptr + slot_start + block_arange, slots, mask=mask)
 
 
 @triton.jit

@@ -77,6 +77,7 @@ from text_generation_server.models.metadata_kernels import (
     block_tables_to_ragged,
     block_tables_to_padded,
     prepare_position_slot_ids,
+    slots_filtering,
 )
 
 tracer = trace.get_tracer(__name__)
@@ -500,10 +501,11 @@ class FlashCausalLMBatch(Batch):
         # Used to index into tensors
         indices = []
 
-        # slots to keep after filtering
-        slot_filtering_indices = torch.zeros(
-            self.slots.shape[0], dtype=torch.bool, device=device
-        )
+        if not has_triton():
+            # slots to keep after filtering
+            slot_filtering_indices = torch.zeros(
+                self.slots.shape[0], dtype=torch.bool, device=device
+            )
 
         # Create on CPU to only move to GPU once instead of at every copy
         slot_indices = torch.empty(len(request_ids), dtype=torch.int64)
@@ -531,6 +533,7 @@ class FlashCausalLMBatch(Batch):
 
         num_blocks = 0
         max_blocks = 0
+        max_slots = 0
         cumulative_slot_tokens = 0
 
         for i, request_id in enumerate(request_ids):
@@ -578,8 +581,9 @@ class FlashCausalLMBatch(Batch):
             end_slot = self.cu_slots[idx + 1]
             slot_length = end_slot - start_slot
 
-            # Set slice
-            slot_filtering_indices[start_slot:end_slot] = True
+            if not has_triton():
+                # Set slice
+                slot_filtering_indices[start_slot:end_slot] = True
 
             cu_slots.append(cumulative_slot_tokens + slot_length)
 
@@ -593,6 +597,7 @@ class FlashCausalLMBatch(Batch):
 
             cumulative_slot_tokens += slot_length
             max_blocks = max(max_blocks, len(request_block_table))
+            max_slots = max(max_slots, slot_length)
 
         all_input_ids_tensor = self.all_input_ids_tensor[indices]
         block_tables_tensor = self.block_tables_tensor[indices]
@@ -603,8 +608,17 @@ class FlashCausalLMBatch(Batch):
         )
         prompt_lengths_tensor = self.prompt_lengths_tensor[indices]
 
-        slots = self.slots[slot_filtering_indices]
         cu_slots = torch.tensor(cu_slots, dtype=torch.int64)
+
+        if not has_triton():
+            slots = self.slots[slot_filtering_indices]
+        else:
+            slots = self.slots.new_empty(cumulative_slot_tokens)
+            gpu_cu_slots = cu_slots.to(device)
+            slots_indexing_start = self.cu_slots.to(device)[indices]
+            slots_filtering(
+                max_slots, self.slots, slots, gpu_cu_slots, slots_indexing_start
+            )
 
         if self.prefilling:
             # These values will be set by `FlashCausalLMBatch.prepare_for_prefill`
