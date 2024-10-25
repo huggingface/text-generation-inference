@@ -42,7 +42,7 @@ namespace huggingface::tgi::backends::llamacpp {
          * @return
          */
         static std::expected<std::pair<llama_model *, llama_context *>, TgiLlamaCppBackendError>
-        FromGGUF(const std::filesystem::path &) noexcept;
+        FromGGUF(const std::filesystem::path &, uint16_t) noexcept;
 
         TgiLlamaCppBackend(llama_model *model, llama_context *ctx);
 

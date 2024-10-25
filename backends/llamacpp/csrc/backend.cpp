@@ -17,11 +17,15 @@
 namespace huggingface::tgi::backends::llamacpp {
     [[nodiscard]]
     std::expected<std::pair<llama_model *, llama_context *>, TgiLlamaCppBackendError>
-    TgiLlamaCppBackend::FromGGUF(const std::filesystem::path &modelPath) noexcept {
+    TgiLlamaCppBackend::FromGGUF(const std::filesystem::path &modelPath, const uint16_t nThreads) noexcept {
         SPDLOG_DEBUG(FMT_STRING("Loading model from {}"), modelPath);
 
         llama_backend_init();
         llama_numa_init(ggml_numa_strategy::GGML_NUMA_STRATEGY_NUMACTL);
+
+#ifdef TGI_LLAMACPP_BACKEND_DEBUG
+        llama_print_system_info();
+#endif
 
         // Load the model
         if (!exists(modelPath)) {
@@ -32,7 +36,7 @@ namespace huggingface::tgi::backends::llamacpp {
         auto *model = llama_load_model_from_file(modelPath.c_str(), params);
         auto *context = llama_new_context_with_model(model, {
                 .n_batch = 1,
-                .n_threads = 16,
+                .n_threads = nThreads,
                 .attention_type = llama_attention_type::LLAMA_ATTENTION_TYPE_CAUSAL,
                 .flash_attn = false,
         });
@@ -43,7 +47,7 @@ namespace huggingface::tgi::backends::llamacpp {
     huggingface::tgi::backends::llamacpp::TgiLlamaCppBackend::TgiLlamaCppBackend(llama_model *const model,
                                                                                  llama_context *const ctx)
             : model(model), ctx(ctx) {
-#ifndef NDEBUG
+#ifdef TGI_LLAMACPP_BACKEND_DEBUG
         char modelName[256];
         llama_model_meta_val_str(llama_get_model(ctx), "general.name", modelName, sizeof(modelName));
         SPDLOG_DEBUG(FMT_STRING("Created llama.cpp backend for model: '{}'"), std::string_view(modelName));
@@ -126,7 +130,7 @@ namespace huggingface::tgi::backends::llamacpp {
 
         // Decode
         for (auto [generating, nDecoded] = std::pair{true, 0uz}; generating && nDecoded < maxNewTokens; ++nDecoded) {
-#ifndef NDEBUG
+#ifdef TGI_LLAMACPP_BACKEND_DEBUG
             const auto start = std::chrono::steady_clock::now();
             const auto status = llama_decode(ctx, batch);
             const auto end = std::chrono::steady_clock::now();

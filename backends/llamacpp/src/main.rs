@@ -23,24 +23,25 @@ struct Args {
     max_input_tokens: usize,
     #[clap(default_value = "2048", long, env)]
     max_total_tokens: usize,
-    #[clap(default_value = "1.2", long, env)]
-    waiting_served_ratio: f32,
     #[clap(default_value = "4096", long, env)]
     max_batch_prefill_tokens: u32,
     #[clap(long, env)]
     max_batch_total_tokens: Option<u32>,
-    #[clap(default_value = "20", long, env)]
-    max_waiting_tokens: usize,
     #[clap(long, env)]
     max_batch_size: Option<usize>,
     #[clap(default_value = "0.0.0.0", long, env)]
     hostname: String,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
-    #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
-    master_shard_uds_path: String,
     #[clap(long, env, help = "Path to GGUF model file(s) to load")]
     gguf_path: PathBuf,
+    #[clap(
+        long,
+        env,
+        default_value = "1",
+        help = "Number of CPU threads allocated to one llama.cpp model"
+    )]
+    cores_per_instance: u16,
     #[clap(default_value = "bigscience/bloom", long, env)]
     tokenizer_name: String,
     #[clap(long, env)]
@@ -93,15 +94,13 @@ async fn main() -> Result<(), RouterError> {
         max_top_n_tokens,
         max_input_tokens,
         max_total_tokens,
-        waiting_served_ratio,
         max_batch_prefill_tokens,
         max_batch_total_tokens,
-        max_waiting_tokens,
         max_batch_size,
         hostname,
         port,
-        master_shard_uds_path,
         gguf_path,
+        cores_per_instance,
         tokenizer_name,
         tokenizer_config_path,
         revision,
@@ -162,7 +161,7 @@ async fn main() -> Result<(), RouterError> {
         }
     }
 
-    let backend = LlamaCppBackend::new(gguf_path)?;
+    let backend = LlamaCppBackend::new(gguf_path, cores_per_instance)?;
 
     // Run server
     server::run(

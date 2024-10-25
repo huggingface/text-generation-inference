@@ -11,6 +11,7 @@ mod ffi {
         #[rust_name = "create_llamacpp_backend"]
         fn CreateLlamaCppBackendImpl(
             modelPath: &str,
+            n_threads: u16,
         ) -> Result<UniquePtr<LlamaCppBackendImpl>>;
     }
 }

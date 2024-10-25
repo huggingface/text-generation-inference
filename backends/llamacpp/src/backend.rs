@@ -24,7 +24,10 @@ pub enum LlamaCppBackendError {
 pub struct LlamaCppBackend {}
 
 impl LlamaCppBackend {
-    pub fn new<P: AsRef<Path> + Send>(model_path: P) -> Result<Self, LlamaCppBackendError> {
+    pub fn new<P: AsRef<Path> + Send>(
+        model_path: P,
+        n_threads: u16,
+    ) -> Result<Self, LlamaCppBackendError> {
         let path = Arc::new(model_path.as_ref());
         if !path.exists() {
             return Err(LlamaCppBackendError::ModelFileDoesntExist(
@@ -32,12 +35,13 @@ impl LlamaCppBackend {
             ));
         }
 
-        let mut backend = create_llamacpp_backend(path.to_str().unwrap()).map_err(|err| {
-            LlamaCppBackendError::ModelInitializationFailed(
-                path.to_path_buf(),
-                err.what().to_string(),
-            )
-        })?;
+        let mut backend =
+            create_llamacpp_backend(path.to_str().unwrap(), n_threads).map_err(|err| {
+                LlamaCppBackendError::ModelInitializationFailed(
+                    path.to_path_buf(),
+                    err.what().to_string(),
+                )
+            })?;
 
         info!(
             "Successfully initialized llama.cpp backend from {}",

@@ -34,9 +34,9 @@ namespace huggingface::tgi::backends::llamacpp::impl {
         LlamaCppBackendImpl(llama_model *model, llama_context *context) : _inner(model, context) {}
     };
 
-    std::unique_ptr<LlamaCppBackendImpl> CreateLlamaCppBackendImpl(rust::Str modelPath) {
+    std::unique_ptr<LlamaCppBackendImpl> CreateLlamaCppBackendImpl(rust::Str modelPath, uint16_t nThreads) {
         const auto cxxPath = std::string_view(modelPath);
-        if (auto maybe = TgiLlamaCppBackend::FromGGUF(std::filesystem::path(cxxPath)); maybe.has_value()) {
+        if (auto maybe = TgiLlamaCppBackend::FromGGUF(std::filesystem::path(cxxPath), nThreads); maybe.has_value()) {
             auto [model, context] = *maybe;
             return std::make_unique<LlamaCppBackendImpl>(model, context);
         } else {
