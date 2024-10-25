@@ -202,6 +202,4 @@ jobs:
           export EXTRA_PYTEST="${{ needs.build-and-push.outputs.extra_pytest }}"
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
-          # pull image to avoid timeout on some tests.
-          docker pull $DOCKER_IMAGE
           pytest -s -vv integration-tests ${PYTEST_FLAGS} ${EXTRA_PYTEST}
