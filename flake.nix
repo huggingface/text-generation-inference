@@ -5,7 +5,7 @@
       inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
     };
     nix-filter.url = "github:numtide/nix-filter";
-    tgi-nix.url = "github:huggingface/text-generation-inference-nix";
+    tgi-nix.url = "github:huggingface/text-generation-inference-nix/marlin-kernels-0.3.0";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
@@ -136,6 +136,11 @@
           };
 
           impure = callPackage ./nix/impure-shell.nix { inherit server; };
+
+          impureWithCuda = callPackage ./nix/impure-shell.nix {
+            inherit server;
+            withCuda = true;
+          };
 
           impure-flash-attn-v1 = callPackage ./nix/impure-shell.nix {
             server = server.override { flash-attn = python3.pkgs.flash-attn-v1; };

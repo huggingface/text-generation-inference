@@ -1,6 +1,6 @@
 import intel_extension_for_pytorch as ipex
 import torch
-from text_generation_server.layers.attention.kv_cache import KVCache
+from text_generation_server.layers.attention.kv_cache import KVCache, KVScales
 from text_generation_server.models.flash_causal_lm import BLOCK_SIZE
 from text_generation_server.layers.attention import Seqlen
 from typing import Optional
@@ -14,6 +14,7 @@ def attention(
     key: torch.Tensor,
     value: torch.Tensor,
     kv_cache: KVCache,
+    kv_scales: KVScales,
     seqlen: Seqlen,
     block_tables: torch.Tensor,
     softmax_scale: float,
@@ -55,6 +56,8 @@ def paged_attention(
     block_tables: torch.Tensor,
     seqlen: Seqlen,
     max_s: int,
+    *,
+    kv_scales: KVScales,
     softcap: Optional[float] = None,
 ):
     if softcap is not None:

@@ -98,7 +98,7 @@ curl 127.0.0.1:8080/generate_stream \
 You can also use [TGI's Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) to obtain Open AI Chat Completion API compatible responses.
 
 ```bash
-curl localhost:3000/v1/chat/completions \
+curl localhost:8080/v1/chat/completions \
     -X POST \
     -d '{
   "model": "tgi",

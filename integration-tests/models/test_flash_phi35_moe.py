@@ -25,7 +25,7 @@ async def test_flash_phi35_moe(flash_phi35_moe, response_snapshot):
     assert response.details.generated_tokens == 10
     assert (
         response.generated_text
-        == "Gradient descent is a first-order optimization algorithm"
+        == "Gradient descent is an optimization algorithm commonly used in"
     )
     assert response == response_snapshot
 
@@ -33,7 +33,7 @@ async def test_flash_phi35_moe(flash_phi35_moe, response_snapshot):
 @pytest.mark.asyncio
 async def test_flash_phi35_moe_all_params(flash_phi35_moe, response_snapshot):
     response = await flash_phi35_moe.generate(
-        "What is gradient descent?\n\n",
+        "What is gradient descent?\n",
         max_new_tokens=10,
         repetition_penalty=1.2,
         return_full_text=True,
@@ -51,7 +51,7 @@ async def test_flash_phi35_moe_all_params(flash_phi35_moe, response_snapshot):
     assert response.details.generated_tokens == 10
     assert (
         response.generated_text
-        == "What is gradient descent?\n\nHello! It seems you're addressing a"
+        == "What is gradient descent?\nGradient Descent (GD) is an"
     )
     assert response == response_snapshot
 
@@ -66,7 +66,7 @@ async def test_flash_phi35_moe_load(flash_phi35_moe, generate_load, response_sna
     assert responses[0].details.generated_tokens == 10
     assert (
         responses[0].generated_text
-        == "Gradient descent is a first-order optimization algorithm"
+        == "Gradient descent is an optimization algorithm commonly used in"
     )
     assert all(
         [r.generated_text == responses[0].generated_text for r in responses]

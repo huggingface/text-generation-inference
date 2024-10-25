@@ -1104,6 +1104,8 @@ fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
                         }
                     }
                 }
+            } else {
+                break;
             }
         }
     }
@@ -1505,6 +1507,10 @@ fn spawn_webserver(
     if let Some(ref revision) = args.revision {
         router_args.push("--revision".to_string());
         router_args.push(revision.to_string())
+    }
+
+    if args.trust_remote_code {
+        router_args.push("--trust-remote-code".to_string());
     }
 
     if args.json_output {
