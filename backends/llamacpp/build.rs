@@ -41,7 +41,12 @@ fn build_backend(
         .define("LLAMA_CPP_TARGET_CUDA_ARCHS", cuda_archs)
         .build();
 
-    let lib_path = install_path.join("lib64");
+    // On some x64 and ARM mainly the lib install destination is "lib" and not "lib64"
+    let lib_path = if install_path.join("lib64").exists() {
+        install_path.join("lib64")
+    } else {
+        install_path.join("lib")
+    };
     println!("cargo:rustc-link-search=native={}", lib_path.display());
 
     let deps_folder = out_dir.join("build").join("_deps");
@@ -55,14 +60,12 @@ fn build_ffi_layer(deps_folder: &Path, install_prefix: &Path) {
         .static_flag(true)
         .std("c++23")
         .include(deps_folder.join("spdlog-src").join("include")) // Why spdlog doesnt install headers?
-        // .include(deps_folder.join("fmt-src").join("include")) // Why spdlog doesnt install headers?
-        // .include(deps_folder.join("llama-src").join("include")) // Why spdlog doesnt install headers?
-        .include(deps_folder.join("llama-src").join("ggml").join("include")) // Why spdlog doesnt install headers?
-        .include(deps_folder.join("llama-src").join("common").join("include")) // Why spdlog doesnt install headers?
+        .include(deps_folder.join("llama-src").join("ggml").join("include")) // Why ggml doesnt install headers?
+        .include(deps_folder.join("llama-src").join("common").join("include")) // Why common doesnt install headers?
         .include(install_prefix.join("include"))
         .include("csrc")
         .file("csrc/ffi.hpp")
-        .compile(CMAKE_LLAMA_CPP_FFI_TARGET);
+        .compile(CMAKE_LLAMA_CPP_FFI_TARGET); // Make sure this target is not the same as cmake above
 }
 
 fn main() {
@@ -94,8 +97,15 @@ fn main() {
 
     // Linkage info
     println!("cargo:rustc-link-search=native={}", out_dir.display());
-    println!("cargo:rustc-link-lib=static=fmtd");
-    println!("cargo:rustc-link-lib=static=spdlogd");
+
+    if is_debug {
+        println!("cargo:rustc-link-lib=static=fmtd");
+        println!("cargo:rustc-link-lib=static=spdlogd");
+    } else {
+        println!("cargo:rustc-link-lib=static=fmt");
+        println!("cargo:rustc-link-lib=static=spdlog");
+    }
+
     println!("cargo:rustc-link-lib=static=common");
     println!("cargo:rustc-link-lib=dylib=ggml");
     println!("cargo:rustc-link-lib=dylib=llama");
