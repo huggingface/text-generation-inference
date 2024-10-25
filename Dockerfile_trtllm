@@ -43,7 +43,7 @@ RUN wget "https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILE
     mkdir /usr/src/mpi && \
     tar -xf "/opt/src/$OMPI_TARBALL_FILENAME" -C /usr/src/mpi --strip-components=1 && \
     cd /usr/src/mpi && \
-    ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda && \
+    ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda --with-slurm && \
     make -j all && \
     make install && \
     rm -rf "/opt/src/$OMPI_TARBALL_FILENAME"
@@ -84,12 +84,13 @@ RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$
     CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --release
 
 FROM nvidia/cuda:12.6.1-cudnn-runtime-ubuntu22.04 AS runtime
-RUN apt update && apt install -y python3 && \
-    rm -rf /var/lib/{apt,dpkg,cache,log}/
+RUN apt update && apt install -y python3-minimal python3-dev python3-pip && \
+    rm -rf /var/lib/{apt,dpkg,cache,log}/ && \
+    python3 -m pip install transformers tokenizers
 
 WORKDIR /usr/local/tgi/bin
 
-ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
+ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/mpi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
 ENV TOKENIZERS_PARALLELISM=false
 ENV OMPI_MCA_plm_rsh_agent=""
 

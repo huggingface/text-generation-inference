@@ -23,9 +23,9 @@ namespace huggingface::hardware::cuda {
         int32_t major;
         int32_t minor;
 
-        [[nodiscard]] constexpr bool isPostAmpere() const { return major >= AMPERE_SM_MAJOR; }
+        [[nodiscard]] constexpr bool IsPostAmpere() const { return major >= AMPERE_SM_MAJOR; }
 
-        [[nodiscard]] constexpr bool isPostHopper() const { return major >= HOPPER_SM_MAJOR; }
+        [[nodiscard]] constexpr bool IsPostHopper() const { return major >= HOPPER_SM_MAJOR; }
     };
 
     CudaComputeCapabilities GetCudaComputeCapabilities() {
