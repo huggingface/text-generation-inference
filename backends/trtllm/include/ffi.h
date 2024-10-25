@@ -5,19 +5,30 @@
 #ifndef TGI_TRTLLM_BACKEND_FFI_H
 #define TGI_TRTLLM_BACKEND_FFI_H
 
+#include <cmath>
 #include <cstddef>
+#include <memory>
 #include "backend.h"
 
 namespace huggingface::tgi::backends {
     class TensorRtLlmBackendImpl;
 }
 
+// Template to support returning error from TllmException back to Rust in a Result<>
+#include <tensorrt_llm/common/tllmException.h>
+
+namespace rust::behavior {
+    template<typename Try, typename Fail>
+    static void trycatch(Try &&func, Fail &&fail) noexcept try {
+        func();
+    } catch (tensorrt_llm::common::TllmException &e) {
+        fail(e.what());
+    }
+}
+
 #include "backends/trtllm/src/lib.rs.h"
 
-
 namespace huggingface::tgi::backends {
-
-//    struct GenerationContext;
 
     class TensorRtLlmBackendImpl : public TensorRtLlmBackend {
     public:
@@ -30,13 +41,8 @@ namespace huggingface::tgi::backends {
 
         /***
          *
-         * @return
-         */
-        bool IsReady() const;
-
-        /***
-         *
          * @param tokens
+         * @param maxNewTokens
          * @param topK
          * @param topP
          * @param temperature
@@ -47,21 +53,15 @@ namespace huggingface::tgi::backends {
          */
         [[nodiscard("returned request id should be used to refer to the request's generation result later on")]]
         uint64_t
-        Submit(rust::Slice<const uint32_t> tokens, int32_t topK, float_t topP, float_t temperature,
+        Submit(rust::Slice<const uint32_t> tokens, uint32_t maxNewTokens,
+               int32_t topK, float_t topP, float_t temperature,
                float_t repetition_penalty, float_t frequency_penalty, uint64_t seed);
 
         /***
          *
-         * @param requestId
-         * @param ctx
-         * @param callback
          * @return
          */
-        size_t StreamTokens(
-                const RequestId requestId,
-                huggingface::tgi::backends::GenerationContext *ctx,
-                rust::Fn<void(huggingface::tgi::backends::GenerationContext *,
-                              huggingface::tgi::backends::GenerationStep)> callback);
+        std::unique_ptr<std::vector<GenerationStep>> PullTokens();
     };
 
     /***
