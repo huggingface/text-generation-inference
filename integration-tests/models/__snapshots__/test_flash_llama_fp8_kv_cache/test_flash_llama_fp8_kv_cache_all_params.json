@@ -16,17 +16,17 @@
       },
       {
         "id": 5655,
-        "logprob": -11.75,
+        "logprob": -11.8359375,
         "text": " deep"
       },
       {
         "id": 6975,
-        "logprob": -2.0625,
+        "logprob": -2.0703125,
         "text": " learning"
       },
       {
         "id": 30,
-        "logprob": -6.0,
+        "logprob": -5.9765625,
         "text": "?"
       }
     ],
@@ -40,25 +40,25 @@
       },
       {
         "id": 34564,
-        "logprob": -0.11279297,
+        "logprob": -0.12512207,
         "special": false,
         "text": "Deep"
       },
       {
         "id": 6975,
-        "logprob": -0.16015625,
+        "logprob": 0.0,
         "special": false,
         "text": " learning"
       },
       {
         "id": 320,
-        "logprob": -0.25195312,
+        "logprob": -0.23840332,
         "special": false,
         "text": " ("
       },
       {
         "id": 16931,
-        "logprob": -1.703125,
+        "logprob": -2.0175781,
         "special": false,
         "text": "DL"
       },
@@ -70,7 +70,7 @@
       },
       {
         "id": 374,
-        "logprob": -1.140625,
+        "logprob": -0.8613281,
         "special": false,
         "text": " is"
       },
@@ -82,7 +82,7 @@
       },
       {
         "id": 1207,
-        "logprob": -1.3125,
+        "logprob": -1.2451172,
         "special": false,
         "text": " sub"
       },
