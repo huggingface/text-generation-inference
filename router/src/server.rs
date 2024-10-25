@@ -2541,7 +2541,6 @@ pub struct APIError {
 #[derive(serde::Serialize)]
 pub struct ErrorEvent {
     error: APIError,
-    error_type: String,
 }
 
 impl ErrorEvent {
@@ -2551,7 +2550,6 @@ impl ErrorEvent {
                 message: err.to_string(),
                 http_status_code,
             },
-            error_type: err.error_type().to_string(),
         }
     }
 }
