@@ -2,7 +2,6 @@
 // Created by mfuntowicz on 10/3/24.
 //
 
-#include <string_view>
 #include <fmt/color.h>
 #include <fmt/format.h>
 #include <fmt/std.h>
@@ -12,7 +11,7 @@
 
 using namespace huggingface::tgi::backends::llamacpp;
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     if (argc < 2) {
         fmt::print("No model folder provider");
         return 1;
@@ -23,15 +22,16 @@ int main(int argc, char** argv) {
     const auto prompt = "My name is Morgan";
 
     const auto modelPath = absolute(std::filesystem::path(argv[1]));
-    if (auto maybeBackend = CreateLlamaCppBackend(modelPath); maybeBackend.has_value()) {
+    if (auto maybeBackend = TgiLlamaCppBackend::FromGGUF(modelPath); maybeBackend.has_value()) {
         // Retrieve the backend
-        const auto& backend = *maybeBackend;
+        auto [model, context] = *maybeBackend;
+        auto backend = TgiLlamaCppBackend(model, context);
 
         // Generate
-        const auto promptTokens = backend->Tokenize(prompt);
-        const auto out = backend->Generate(promptTokens, 30, 1.0, 2.0, 0.0, 32);
+        const auto promptTokens = backend.Tokenize(prompt);
+        const auto out = backend.Generate(promptTokens, 30, 1.0, 2.0, 0.0, 32);
 
-        if(out.has_value())
+        if (out.has_value())
             fmt::print(FMT_STRING("Generated: {}"), *out);
         else {
             const auto err = out.error();
