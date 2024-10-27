@@ -25,7 +25,6 @@ from text_generation_server.utils.adapter import AdapterInfo
 
 try:
     from text_generation_server.models.pali_gemma import PaliGemmaBatch
-    from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
     from text_generation_server.models.vlm_causal_lm import (
         VlmCausalLMBatch,
     )
@@ -35,7 +34,6 @@ try:
         PaliGemmaBatch,
         VlmCausalLMBatch,
         IdeficsCausalLMBatch,
-        MllamaCausalLMBatch,
     }
 except (ImportError, NotImplementedError):
     # These imports can fail on CPU/Non flash.

@@ -117,10 +117,6 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
         from loguru import logger
-
-        logger.info(
-            f"Found {num_features} features in image of resolution {height}x{width}",
-        )
         return "<image>" * num_features
 
     elif config.model_type == "paligemma":
@@ -373,9 +369,9 @@ class VlmCausalLMBatch(CausalLMBatch):
                     (image_inputs["pixel_attention_mask"], dummy_attention), dim=0
                 )
             if "image_sizes" in image_inputs:
-                dummy_shape = list(image_inputs['image_sizes'].shape)
-                dummy_shape[0] = missing_inputs
-                dummy_sizes = torch.randint(dummy_shape)
+                dummy_shape = list(list(image_inputs['image_sizes'])[0])
+                dummy_shape = missing_inputs*[dummy_shape]
+                dummy_sizes = torch.IntTensor(dummy_shape)
                 new_image_inputs["image_sizes"] = torch.cat(
                     (image_inputs["image_sizes"], dummy_sizes), dim=0
                 )

@@ -17,14 +17,14 @@ from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.bloom import BLOOM
 from text_generation_server.models.starcoder import StarCoder
 from text_generation_server.models.vlm_causal_lm import VlmCausalLM
-from text_generation_server.models.mllama_causal_lm import MllamaCausalLM
+#from text_generation_server.models.mllama_causal_lm import MllamaCausalLM
 from text_generation_server.models.custom_modeling.llava_next import (
     LlavaNextForConditionalGeneration,
 )
-from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
-from text_generation_server.models.custom_modeling.mllama import (
-    MllamaForConditionalGeneration,
-)
+# from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
+# from text_generation_server.models.custom_modeling.mllama import (
+#     MllamaForConditionalGeneration,
+# )
 from text_generation_server.utils.adapter import (
     AdapterParameters,
     build_layer_weight_lookup,
@@ -194,20 +194,6 @@ def get_model(
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
-        )
-
-    if model_type == "mllama":
-        return MllamaCausalLM(
-            model_id=model_id,
-            model_class=MllamaForConditionalGeneration,
-            batch_class=MllamaCausalLMBatch,
-            revision=revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            default_dtype=torch.bfloat16,
-            trust_remote_code=trust_remote_code,
-            lora_adapter_ids=lora_adapter_ids,
         )
 
     if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:

@@ -156,7 +156,6 @@ pub(crate) async fn batching_task(
                 .await;
             let mut waiting_tokens = 1;
 
-            tracing::error!("Enter cached batch loop");
             // We loop until we do not receive any cached batch from the inference server (== until
             // all requests have met their stopping criteria)
             while let Some(batch) = cached_batch {

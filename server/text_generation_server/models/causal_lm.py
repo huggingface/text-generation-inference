@@ -1215,7 +1215,7 @@ class CausalLM(Model):
         max_decode_batch_size = math.floor(MAX_BATCH_TOTAL_TOKENS / MAX_TOTAL_TOKENS)
         self.limit_hpu_graph = True
         try:
-            for batch_size in range(max_decode_batch_size, BATCH_BUCKET_SIZE, -BATCH_BUCKET_SIZE):
+            for batch_size in range(max_decode_batch_size, 0, -BATCH_BUCKET_SIZE):
                 batches= []
                 iters = math.floor(batch_size/max_prefill_batch_size)
                 DECODE_WARMUP_BATCH_SIZE_LIST.append(batch_size)

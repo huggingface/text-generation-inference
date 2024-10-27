@@ -27,6 +27,8 @@ impl BackendV2 {
     pub(crate) fn new(
         client: ShardedClient,
         waiting_served_ratio: f32,
+        max_input_tokens: u32,
+        max_total_tokens: u32,
         max_batch_prefill_tokens: u32,
         max_batch_total_tokens: u32,
         max_waiting_tokens: usize,
@@ -48,7 +50,16 @@ impl BackendV2 {
         } else {
             16
         };
-        let queue = Queue::new(requires_padding, block_size, window_size, speculate);
+
+        let queue = Queue::new(
+            requires_padding,
+            block_size,
+            window_size,
+            speculate,
+            max_input_tokens,
+            max_total_tokens,
+        );
+
         let batching_task_notifier = Arc::new(Notify::new());
 
         // Spawn batching background task that contains all the inference logic

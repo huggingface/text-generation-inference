@@ -13,7 +13,6 @@ COPY benchmark benchmark
 COPY router router
 COPY backends backends
 COPY launcher launcher
-
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
@@ -43,6 +42,10 @@ RUN cargo build --profile release-opt
 
 # Text Generation Inference base image
 FROM vault.habana.ai/gaudi-docker/1.17.0/ubuntu22.04/habanalabs/pytorch-installer-2.3.1:latest as base
+
+ENV ATTENTION=default
+ENV PREFIX_CACHING=0
+ENV PREFILL_CHUNKING=0
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \

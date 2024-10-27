@@ -23,6 +23,7 @@ pub enum Attention {
     Paged,
     FlashDecoding,
     FlashInfer,
+    Default,
 }
 
 impl Attention {
@@ -31,6 +32,7 @@ impl Attention {
             Attention::FlashDecoding => 256,
             Attention::FlashInfer => 1,
             Attention::Paged => 16,
+            Attention::Default => 16,
         }
     }
 }
@@ -52,6 +54,7 @@ impl std::str::FromStr for Attention {
             "paged" => Ok(Attention::Paged),
             "flashdecoding" => Ok(Attention::FlashDecoding),
             "flashinfer" => Ok(Attention::FlashInfer),
+            "default" => Ok(Attention::Default),
             _ => Err(ParseError),
         }
     }
