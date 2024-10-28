@@ -22,9 +22,9 @@ from torch import nn
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "ipex":
-    import intel_extension_for_pytorch as ipex
+    pass
 else:
-    import flash_attn_2_cuda
+    pass
 
 from transformers.activations import ACT2FN
 import torch.nn.functional as F
@@ -358,7 +358,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         self.video_token_id = config.video_token_id
         self.spatial_merge_size = config.vision_config.spatial_merge_size
         self.embed_tokens = TensorParallelEmbedding(
-            prefix=f"model.embed_tokens", weights=weights
+            prefix="model.embed_tokens", weights=weights
         )
         self.visual = Qwen2VisionModel(
             prefix="visual", config=config.vision_config, weights=weights
