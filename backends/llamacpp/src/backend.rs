@@ -1,12 +1,13 @@
 use crate::ffi::{create_llamacpp_backend, LlamaCppBackendImpl};
 use async_trait::async_trait;
-use cxx::UniquePtr;
+use cxx::{Exception, UniquePtr};
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::thread::spawn;
 use text_generation_router::infer::{Backend, InferError, InferStreamResponse};
 use text_generation_router::validation::ValidGenerateRequest;
 use thiserror::Error;
-use tokio::task::spawn_blocking;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::info;
 
@@ -48,12 +49,27 @@ impl LlamaCppBackend {
             path.display()
         );
 
-        spawn_blocking(move || scheduler_loop(backend));
+        let j = spawn(|| scheduler_loop(backend));
+        j.join().ok();
         Ok(Self {})
     }
 }
 
-async fn scheduler_loop(mut backend: UniquePtr<LlamaCppBackendImpl>) {}
+fn scheduler_loop(mut backend: UniquePtr<LlamaCppBackendImpl>) {
+    println!("Scheduler loop");
+    let tokens = [128000i32, 5159, 836, 374, 23809];
+    let mut generated = vec![0i32; 128];
+    match backend
+        .pin_mut()
+        .generate(&tokens, &mut generated, 40, 32, 1.0, 1.0, 1.0, 1.0, 2014)
+    {
+        Ok(n_tokens) => {
+            generated.truncate(n_tokens);
+            println!("Generated {} tokens -> {:?}", n_tokens, generated);
+        }
+        Err(err) => println!("Error: {}", err),
+    }
+}
 
 #[async_trait]
 impl Backend for LlamaCppBackend {
