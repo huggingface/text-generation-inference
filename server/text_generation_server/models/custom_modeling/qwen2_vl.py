@@ -209,9 +209,7 @@ class Qwen2VLVisionBlock(nn.Module):
 class Qwen2VLPatchMerger(nn.Module):
     def __init__(self, *, prefix, config, weights):
         super().__init__()
-        context_dim = 2560
-        spatial_merge_size: int = 2
-        self.hidden_size = 5120  # context_dim * (spatial_merge_size**2)
+        self.hidden_size = config.embed_dim * (config.spatial_merge_size**2)
         self.patch_merger_ln_q = FastLayerNorm.load(
             prefix=f"{prefix}.ln_q",
             weights=weights,
