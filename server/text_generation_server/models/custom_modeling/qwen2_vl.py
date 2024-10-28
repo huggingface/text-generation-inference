@@ -29,10 +29,7 @@ else:
 from transformers.activations import ACT2FN
 import torch.nn.functional as F
 
-from text_generation_server.layers.layernorm import (
-    FastLayerNorm,
-    FastRMSNorm
-)
+from text_generation_server.layers.layernorm import FastLayerNorm, FastRMSNorm
 from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
