@@ -4187,6 +4187,7 @@ dependencies = [
  "hf-hub",
  "log",
  "pkg-config",
+ "pyo3",
  "text-generation-router",
  "thiserror",
  "tokenizers",

@@ -13,6 +13,7 @@ cxx = "1.0"
 hashbrown = "0.14"
 hf-hub = { workspace = true }
 log = { version = "0.4", features = [] }
+pyo3 = { workspace = true }
 text-generation-router = { path = "../../router" }
 tokenizers = { workspace = true }
 tokio = { version = "1.39", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
