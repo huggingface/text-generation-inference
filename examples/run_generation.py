@@ -14,7 +14,7 @@ from tgi_client import TgiClient
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--server_address", type=str, default="http://localhost:8080", help="Address of the TGI server"
+        "--server_address", type=str, default="http://localhost:8083", help="Address of the TGI server"
     )
     parser.add_argument(
         "--model_id", type=str, default="meta-llama/Llama-2-7b-chat-hf", help="Model id used in TGI server"
@@ -51,7 +51,7 @@ def read_dataset(
     )
     if len(dataset) > total_sample_count:
         dataset = dataset.select(range(total_sample_count))
-    dataset = dataset.shuffle()
+    dataset = dataset.shuffle(seed=42)
     return [sample["prompt"] for sample in dataset]
 
 
