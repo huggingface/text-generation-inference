@@ -25,18 +25,18 @@ async def test_flash_qwen2_vl_simple(flash_qwen2, response_snapshot):
         max_tokens=100,
         seed=42,
         messages=[
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png"
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png"
+                        },
                     },
-                },
-                {"type": "text", "text": "Describe this image."},
-            ],
-        },
+                    {"type": "text", "text": "Describe this image."},
+                ],
+            },
         ],
     )
 
