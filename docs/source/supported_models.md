@@ -24,6 +24,7 @@ Text Generation Inference enables serving optimized models. The following sectio
 - [Falcon](https://huggingface.co/tiiuae/falcon-7b-instruct)
 - [StarCoder 2](https://huggingface.co/bigcode/starcoder2-15b-instruct-v0.1)
 - [Qwen 2](https://huggingface.co/collections/Qwen/qwen2-6659360b33528ced941e557f)
+- [Qwen 2 VL](https://huggingface.co/collections/Qwen/qwen2-vl-66cee7455501d7126940800d)
 - [Opt](https://huggingface.co/facebook/opt-6.7b)
 - [T5](https://huggingface.co/google/flan-t5-xxl)
 - [Galactica](https://huggingface.co/facebook/galactica-120b)
