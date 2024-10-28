@@ -86,6 +86,10 @@ tracer = trace.get_tracer(__name__)
 SLIDING_WINDOW: Optional[int] = None
 
 
+def small_power_of_2(n: int):
+    return 1 << ((n - 1).bit_length() - 1)
+
+
 def set_sliding_window(sliding_window: int):
     global SLIDING_WINDOW
     SLIDING_WINDOW = sliding_window
@@ -1495,10 +1499,21 @@ class FlashCausalLM(Model):
                 self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
         torch.cuda.synchronize()
 
-    def warmup(self, batch: FlashCausalLMBatch):
+    def warmup(
+        self,
+        batch: FlashCausalLMBatch,
+        max_input_tokens: Optional[int],
+        max_total_tokens: Optional[int],
+    ):
         # The warmup batch is the biggest batch we could ever receive
         self.kv_cache = []
         empty_cache()
+
+        # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
+        # Calculate the number of blocks that can be allocated with the free memory
+        dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
+        cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
+        total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
         try:
             self.init_kv_cache(
@@ -1511,10 +1526,11 @@ class FlashCausalLM(Model):
             )
             max_bt = batch.max_blocks
             max_s = max_bt * BLOCK_SIZE
+            batch_num_blocks = batch.num_blocks
 
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
-            _, batch, _ = self.generate_token(batch)
+            _, _batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
                 f"Not enough memory to handle {batch.to_pb().current_tokens} prefill tokens. "
@@ -1523,14 +1539,7 @@ class FlashCausalLM(Model):
 
         synchronize(self.device)
 
-        # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
-        # Calculate the number of blocks that can be allocated with the free memory
-        dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
-        cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
-        total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
-
         free_memory = get_free_memory(self.device, MEMORY_FRACTION)
-        batch_num_blocks = batch.num_blocks if batch is not None else 0
 
         num_blocks = (
             # Leave 5% for some wiggle room
@@ -1540,8 +1549,27 @@ class FlashCausalLM(Model):
         )
 
         log_master(logger.info, f"KV-cache blocks: {num_blocks}, size: {BLOCK_SIZE}")
+        if max_total_tokens is None:
+            if get_support_chunking():
+                model_max_length = self.tokenizer.model_max_length
+                max_input_tokens = (
+                    min((num_blocks * BLOCK_SIZE - 1), model_max_length)
+                    if max_input_tokens is None
+                    else max_input_tokens
+                )
+                max_total_tokens = num_blocks * BLOCK_SIZE
 
-        del batch
+            else:
+                max_total_tokens = sum(batch.cache_lengths)
+                max_input_tokens = (
+                    max_total_tokens - 1
+                    if max_input_tokens is None
+                    else max_input_tokens
+                )
+
+        del _batch, batch
+        self.kv_cache = []
+        empty_cache()
 
         self.init_kv_cache(
             num_blocks,
@@ -1623,7 +1651,9 @@ class FlashCausalLM(Model):
                 logger.info, f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS})."
             )
 
-        return int(num_blocks * BLOCK_SIZE)
+        assert max_input_tokens is not None
+        assert max_total_tokens is not None
+        return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
 
     def tunableop_warmup(self, seqlen: int):
         input_ids = torch.zeros(seqlen, dtype=torch.int64, device=self.device)
