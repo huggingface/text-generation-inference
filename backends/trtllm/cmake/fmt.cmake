@@ -1,6 +1,6 @@
 FetchContent_Declare(
         fmt
-        GIT_REPOSITORY https://github.com/fmtlib/fmt
-        GIT_TAG 11.0.1
+        DOWNLOAD_EXTRACT_TIMESTAMP
+        URL https://github.com/fmtlib/fmt/archive/refs/tags/11.0.2.tar.gz
 )
 FetchContent_MakeAvailable(fmt)

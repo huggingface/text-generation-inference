@@ -1,7 +1,8 @@
-import torch
-
 from dataclasses import dataclass
-from typing import Optional, Tuple, Union, List
+import os
+from typing import Optional, Tuple, Type, Union, List
+
+import torch
 from loguru import logger
 
 from text_generation_server.utils.import_utils import SYSTEM
@@ -11,20 +12,7 @@ from text_generation_server.utils.weights import (
     UnquantizedWeight,
     Weights,
 )
-from text_generation_server.utils.log import log_master, log_once
-import importlib.util
-
-
-FBGEMM_MM_AVAILABLE = False
-FBGEMM_DYN_AVAILABLE = False
-
-
-def is_fbgemm_gpu_available():
-    try:
-        return importlib.util.find_spec("fbgemm_gpu.experimental.gen_ai") is not None
-    except ModuleNotFoundError:
-        return False
-
+from text_generation_server.utils.log import log_once
 
 try:
     import marlin_kernels
@@ -32,23 +20,26 @@ except ImportError:
     marlin_kernels = None
 
 
-if is_fbgemm_gpu_available():
-    if SYSTEM == "cuda":
-        major, _ = torch.cuda.get_device_capability()
-        FBGEMM_MM_AVAILABLE = major == 9
-        FBGEMM_DYN_AVAILABLE = major >= 8
+if SYSTEM == "cuda" and marlin_kernels is not None:
+    major, minor = torch.cuda.get_device_capability()
+    CUTLASS_FP8_AVAILABLE = marlin_kernels.cutlass_scaled_mm_supports_fp8(
+        major * 10 + minor
+    )
 else:
-    log_master(logger.warning, "FBGEMM fp8 kernels are not installed.")
+    CUTLASS_FP8_AVAILABLE = False
 
 
-def get_fp8_linear() -> torch.nn.Module:
+def get_fp8_linear() -> Type[torch.nn.Module]:
     """
     Return an FP8 linear `Module` that is compatible with the current system.
     """
 
     if SYSTEM == "cuda":
+
         major, _ = torch.cuda.get_device_capability()
-        if major == 8:
+        if major == 8 and os.getenv("USE_CUTLASS_W8A8", "0") != "1":
+            # NOTE: Capability 8.9 is supported by cutlass kernels, but FP8-Marlin
+            #       gives better decoding throughput on L4 and L40.
             from text_generation_server.layers.marlin import GPTQMarlinFP8Linear
 
             return GPTQMarlinFP8Linear
@@ -94,12 +85,6 @@ def fp8_quantize(
     argument, it must also be a reciprocal (so that scales from an FP8 checkpoint can
     be used without modification).
     """
-    if FBGEMM_DYN_AVAILABLE and not scalar and not scale:
-        qweight, scale = torch.ops.fbgemm.quantize_fp8_per_row(
-            weight, bs=None, scale_ub=scale_upper_bound, output_dtype=qdtype
-        )
-        return qweight, scale
-
     if marlin_kernels is not None:
         shape = weight.shape
         qweight, scale = marlin_kernels.scaled_fp8_quant(
@@ -107,11 +92,12 @@ def fp8_quantize(
             dtype=qdtype,
             scale=scale,
             scale_ub=scale_upper_bound,
+            # TODO: don't do this when we have to use the Torch kernel.
+            use_per_token_if_dynamic=not scalar,
         )
 
         return qweight.reshape(shape), scale
 
-    # weight, scale = quant_weights(weight, torch.int8, False)
     finfo = torch.finfo(qdtype)
 
     if scale is None:
@@ -327,8 +313,8 @@ class Fp8Linear(torch.nn.Module):
         scale_upper_bound: Optional[float] = None,
     ) -> None:
         super().__init__()
-        if FBGEMM_MM_AVAILABLE:
-            log_once(logger.info, "Using FBGEMM fp8 optimized kernels")
+        if CUTLASS_FP8_AVAILABLE:
+            log_once(logger.info, "Using cutlass w8a8 kernels")
         if SYSTEM == "rocm" and qweight.dtype == torch.float8_e4m3fn:
             qweight, scale, _ = normalize_e4m3fn_to_e4m3fnuz(
                 weight=qweight, weight_scale=scale
@@ -339,13 +325,9 @@ class Fp8Linear(torch.nn.Module):
         self.scale = scale.float()
         self.input_scale = input_scale.float() if input_scale is not None else None
 
-        if FBGEMM_MM_AVAILABLE:
-            self.scale_upper_bound = (
-                torch.tensor(
-                    [scale_upper_bound], dtype=torch.float32, device=qweight.device
-                )
-                if scale_upper_bound is not None
-                else None
+        if CUTLASS_FP8_AVAILABLE and scale_upper_bound is not None:
+            self.scale_upper_bound = torch.tensor(
+                scale_upper_bound, dtype=torch.float32, device=qweight.device
             )
         else:
             self.scale_upper_bound = scale_upper_bound
@@ -354,7 +336,7 @@ class Fp8Linear(torch.nn.Module):
 
     @classmethod
     def from_unquant(cls, weight, bias, dtype):
-        qweight, scale = fp8_quantize(weight, scalar=not FBGEMM_MM_AVAILABLE)
+        qweight, scale = fp8_quantize(weight, scalar=not CUTLASS_FP8_AVAILABLE)
         return cls(
             qweight=qweight,
             scale=scale,
@@ -376,9 +358,6 @@ class Fp8Linear(torch.nn.Module):
         input_scale = kwargs.get("input_scale", None)
         scale_upper_bound = kwargs.get("scale_upper_bound", None)
 
-        if FBGEMM_DYN_AVAILABLE:
-            # fbgemm needs float32 scales.
-            scale = scale.float()
         return cls(
             qweight=weight,
             scale=scale,
@@ -397,20 +376,14 @@ class Fp8Linear(torch.nn.Module):
         return cls._device_identity_cache[device]
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if FBGEMM_MM_AVAILABLE:
+        if CUTLASS_FP8_AVAILABLE:
+            # cutlass FP8 supports per-token scales, so get non-scalar scales.
             qinput, scale = fp8_quantize(
-                input, scale_upper_bound=self.scale_upper_bound
+                input, scale_upper_bound=self.scale_upper_bound, scalar=False
             )
-
-            y = torch.ops.fbgemm.f8f8bf16_rowwise(
-                qinput,
-                self.qweight,
-                scale,
-                self.scale,
-                use_fast_accum=True,
-                bias=self.bias,
+            return marlin_kernels.cutlass_scaled_mm(
+                qinput, self.qweight.t(), scale, self.scale, input.dtype, self.bias
             )
-            return y.to(self.dtype)
 
         qinput, scale = fp8_quantize(
             input,

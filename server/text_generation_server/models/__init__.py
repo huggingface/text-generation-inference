@@ -226,7 +226,7 @@ class ModelType(enum.Enum):
         "url": "https://huggingface.co/databricks/dbrx-instruct",
     }
     MAMBA = {
-        "type": "ssm",
+        "type": "mamba",
         "name": "Mamba",
         "url": "https://huggingface.co/state-spaces/mamba-2.8b-slimpj",
     }
@@ -410,12 +410,6 @@ def get_model(
             else:
                 # These quantizers only work with float16 params.
                 dtype = torch.float16
-        elif quantize == "fp8":
-            from text_generation_server.layers.fp8 import FBGEMM_DYN_AVAILABLE
-
-            if FBGEMM_DYN_AVAILABLE:
-                # fbgemm kernels are fp8xfp8->bf16
-                dtype = torch.bfloat16
         else:
             # Keep it as default for now and let
             # every model resolve their own default dtype.
@@ -623,6 +617,10 @@ def get_model(
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+        )
+    elif model_type == "ssm":
+        raise RuntimeError(
+            "`ssm` models have been deprecated in favor of `mamba` models, which follow standard HF formats. Check out a list here: https://huggingface.co/models?search=mamba%20-hf"
         )
 
     if model_id.startswith("facebook/galactica"):

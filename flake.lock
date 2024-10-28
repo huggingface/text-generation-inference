@@ -853,11 +853,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1727836133,
-        "narHash": "sha256-JE0zciM5IGWvK8J/pE2VldNBf7oyMH5WrU8tZArefbg=",
+        "lastModified": 1729045942,
+        "narHash": "sha256-HjmK0x5Zm2TK2vFpC7XBM2e3EDNVnAIuEoU2FkeN8xw=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "02321540b0c8000b36889b1b974d1fec585b25a4",
+        "rev": "9de3cea452d2401d6f93c06ad985178a4e11d1fc",
         "type": "github"
       },
       "original": {
@@ -978,16 +978,16 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1729531056,
-        "narHash": "sha256-dW9IOA31+j3VS19WAWAmkJW2YCzeVZGqd6HpIJfODtI=",
+        "lastModified": 1729761651,
+        "narHash": "sha256-GYykQ9Fxji2EuXCGcPn0dx8Qx8VQBJTkRdcCytp4A/k=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "a84a90281a17b15762873845c947e5c78f5a8dd1",
+        "rev": "f7e3c4fa67d70590ed9ee47feeab645bd9ba81b1",
         "type": "github"
       },
       "original": {
         "owner": "huggingface",
-        "ref": "marlin-kernels-0.3.0",
+        "ref": "marlin-kernels-0.3.1",
         "repo": "text-generation-inference-nix",
         "type": "github"
       }

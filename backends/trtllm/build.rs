@@ -6,7 +6,7 @@ use std::path::{absolute, PathBuf};
 
 const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 2] = ["spdlog", "fmt"];
 const CUDA_ARCH_LIST: Option<&str> = option_env!("CUDA_ARCH_LIST");
-const CUDA_REQUIRED_VERSION: &str = "12.5";
+const CUDA_REQUIRED_VERSION: &str = "12.6";
 const MPI_REQUIRED_VERSION: &str = "4.1";
 const INSTALL_PREFIX: Option<&str> = option_env!("CMAKE_INSTALL_PREFIX");
 const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
@@ -36,7 +36,7 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
     // Build the backend implementation through CMake
     let install_path = INSTALL_PREFIX.unwrap_or("/usr/local/tgi");
     let tensorrt_path = TENSORRT_ROOT_DIR.unwrap_or("/usr/local/tensorrt");
-    let cuda_arch_list = CUDA_ARCH_LIST.unwrap_or("90-real"); // Hopper by default
+    let cuda_arch_list = CUDA_ARCH_LIST.unwrap_or("75-real;80-real;86-real;89-real;90-real");
 
     let mut install_path = PathBuf::from(install_path);
     if !install_path.is_absolute() {
@@ -81,7 +81,12 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
     (PathBuf::from(install_path), deps_folder)
 }
 
-fn build_ffi_layer(deps_folder: &PathBuf) {
+fn build_ffi_layer(deps_folder: &PathBuf, is_debug: bool) {
+    let ndebug = match is_debug {
+        true => "1",
+        false => "0",
+    };
+
     CFG.include_prefix = "backends/trtllm";
     cxx_build::bridge("src/lib.rs")
         .static_flag(true)
@@ -93,9 +98,14 @@ fn build_ffi_layer(deps_folder: &PathBuf) {
         .include("/usr/local/tensorrt/include")
         .file("src/ffi.cpp")
         .std("c++20")
+        .define("NDEBUG", ndebug)
         .compile("tgi_trtllm_backend");
 
     println!("cargo:rerun-if-changed=CMakeLists.txt");
+    println!("cargo:rerun-if-changed=cmake/trtllm.cmake");
+    println!("cargo:rerun-if-changed=cmake/json.cmake");
+    println!("cargo:rerun-if-changed=cmake/fmt.cmake");
+    println!("cargo:rerun-if-changed=cmake/spdlog.cmake");
     println!("cargo:rerun-if-changed=include/backend.h");
     println!("cargo:rerun-if-changed=lib/backend.cpp");
     println!("cargo:rerun-if-changed=include/ffi.h");
@@ -115,7 +125,7 @@ fn main() {
     let (_backend_path, deps_folder) = build_backend(is_debug, opt_level, &out_dir);
 
     // Build the FFI layer calling the backend above
-    build_ffi_layer(&deps_folder);
+    build_ffi_layer(&deps_folder, is_debug);
 
     // Emit linkage search path
     probe!("ompi", MPI_REQUIRED_VERSION);

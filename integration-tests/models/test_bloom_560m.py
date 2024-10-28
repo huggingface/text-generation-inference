@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def bloom_560_handle(launcher):
-    with launcher("bigscience/bloom-560m") as handle:
+    with launcher("bigscience/bloom-560m", num_shard=1) as handle:
         yield handle
 
 

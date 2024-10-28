@@ -163,7 +163,7 @@ hub = {
 
 # create Hugging Face Model Class
 huggingface_model = HuggingFaceModel(
- image_uri=get_huggingface_llm_image_uri("huggingface",version="2.3.2"),
+ image_uri=get_huggingface_llm_image_uri("huggingface",version="2.4.0"),
  env=hub,
  role=role,
 )
