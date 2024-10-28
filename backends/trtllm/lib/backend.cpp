@@ -52,7 +52,7 @@ huggingface::tgi::backends::GetParallelConfig(const size_t worldSize, const std:
     if (worldSize > 1) {
         SPDLOG_INFO("Detected sharded engine deployment, using orchestrator mode");
         mode = tle::CommunicationMode::kORCHESTRATOR;
-        orchestratorConfig = std::make_optional<tle::OrchestratorConfig>(true, workerPath, nullptr, true);
+        orchestratorConfig = std::make_optional<tle::OrchestratorConfig>(true, workerPath);
     } else {
         SPDLOG_INFO("Detected single engine deployment, using leader mode");
     }
