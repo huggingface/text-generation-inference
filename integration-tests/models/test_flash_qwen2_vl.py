@@ -3,13 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_qwen2_vl_handle(launcher):
-    with launcher(
-        "Qwen/Qwen2-VL-7B-Instruct",
-        max_batch_prefill_tokens=2000,
-        max_input_length=2000,
-        max_total_tokens=2001,
-        cuda_graphs=[0],
-    ) as handle:
+    with launcher("Qwen/Qwen2-VL-7B-Instruct") as handle:
         yield handle
 
 

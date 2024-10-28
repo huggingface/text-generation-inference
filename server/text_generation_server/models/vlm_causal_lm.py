@@ -398,9 +398,8 @@ class VlmCausalLM(FlashCausalLM):
                     max_k=batch.max_current_length,
                 )
                 logits, speculative_logits = self.model.forward(
-                    # TODO: remove the unsqueeze(0)
-                    input_ids=input_ids.unsqueeze(0),
-                    position_ids=position_ids.unsqueeze(0),
+                    input_ids=input_ids,
+                    position_ids=position_ids,
                     cu_seqlen_prefill=cu_seqlen_prefill,
                     kv_cache=kv_cache,
                     block_tables=block_tables,

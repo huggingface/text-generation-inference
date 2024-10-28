@@ -490,7 +490,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
                 image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
                 inputs_embeds[input_ids == self.image_token_id] = image_embeds
 
-        position_ids = self.get_position_ids(input_ids, image_grid_thw)
+        position_ids = self.get_position_ids(input_ids.unsqueeze(0), image_grid_thw)
         hidden_states = self.text_model(
             inputs_embeds=inputs_embeds.squeeze(0),
             position_ids=position_ids,

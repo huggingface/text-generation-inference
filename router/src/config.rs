@@ -160,9 +160,11 @@ pub struct Qwen2Vl {
 }
 
 impl Qwen2Vl {
-    pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
-        // TODO: calculate number of features
-        6000 / 4
+    pub fn get_number_of_features(&self, height: usize, width: usize) -> usize {
+        let num_pixels = height * width;
+        let num_image_tokens = num_pixels / self.vision_config.patch_size.pow(2);
+        let start_and_end_tokens = 2;
+        num_image_tokens + start_and_end_tokens
     }
 }
 
