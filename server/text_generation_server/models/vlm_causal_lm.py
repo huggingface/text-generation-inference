@@ -177,6 +177,14 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     pass
                 elif chunk_type == "image":
                     image = Image.open(BytesIO(chunk.image.data))
+                    # qwen2_vl expects images to be greater than 20 pixels, this is for warmup since the
+                    # default warmup image is 20x20
+                    if config.model_type == "qwen2_vl":
+                        if image.width <= 20:
+                            w = image.width * 2
+                            h = image.height * 2
+                            image = image.resize((w, h))
+
                     if config.model_type == "llava_next":
                         images.append(image)
                     else:
@@ -185,11 +193,6 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
         if images:
-            if images[0][0].width <= 20:
-                # TODO: provide a better way to handle the issue of the prefill image being too small
-                images = images[0][0].resize(
-                    (images[0][0].width * 2, images[0][0].height * 2)
-                )
             image_inputs = processor.image_processor(images, return_tensors="pt")
         else:
             image_inputs = None
