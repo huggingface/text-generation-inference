@@ -750,6 +750,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
         # Unused here
         image_sizes: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
     ):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         if pixel_values is not None:

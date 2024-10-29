@@ -360,7 +360,7 @@ class VlmCausalLM(FlashCausalLM):
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
-        if self.model.get_position_ids:
+        if hasattr(self.model, "get_position_ids"):
             if position_ids.shape[0] != 1:
                 position_ids = self.model.get_position_ids(
                     input_ids.unsqueeze(0), batch.image_grid_thw
