@@ -28,10 +28,10 @@ namespace huggingface::tgi::backends::llamacpp::impl {
 
     class LlamaCppBackendImpl {
     private:
-        TgiLlamaCppBackend _inner;
+        BackendBase _inner;
 
     public:
-        LlamaCppBackendImpl(llama_model *model, llama_context *context) : _inner(model, context) {}
+        LlamaCppBackendImpl(llama_model *model) : _inner(model) {}
     };
 
     std::unique_ptr<LlamaCppBackendImpl> CreateLlamaCppBackendImpl(rust::Str modelPath, uint16_t nThreads) {
