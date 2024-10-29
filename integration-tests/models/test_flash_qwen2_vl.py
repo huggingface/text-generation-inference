@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_qwen2_vl_handle(launcher):
-    with launcher("Qwen/Qwen2-VL-7B-Instruct") as handle:
+    with launcher("Qwen/Qwen2-VL-7B-Instruct", cuda_graphs=[0]) as handle:
         yield handle
 
 
@@ -36,13 +36,7 @@ async def test_flash_qwen2_vl_simple(flash_qwen2, response_snapshot):
 
     assert (
         response.choices[0].message.content
-        == "The image shows a rabbit with a is on floating in outer a a in outer and seems a as an in the be an astronaut suit a a a have crew the front ag a suit the chalet"
+        == "The image depicts an anthropomorphic rabbit, wearing a futuristic spacesuit, in an extraterrestrial environment. The setting appears to be a red planet resembling Mars, with rugged terrain and rocky formations in the background. The moon is visible in the distant sky, adding to the lunar landscape."
     )
-
-    # # TODO: return reference response
-    # assert (
-    #     response.choices[0].message.content
-    #     == "The image depicts an astronaut with a rabbit's head standing on a rocky, reddish terrain. The astronaut is wearing a space suit with various buttons and"
-    # )
 
     assert response == response_snapshot

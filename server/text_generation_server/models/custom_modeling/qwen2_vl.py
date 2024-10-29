@@ -409,7 +409,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
                         .item()
                     )
                     # TODO: revisit above to get all next_image_pos in one go to avoid copying in the loop
-                    time_steps, height, width = image_grid_thw[image_index]
+                    time_steps, height, width = image_grid_thw[image_index].clone()
                     height //= self.spatial_merge_size
                     width //= self.spatial_merge_size
 
@@ -487,12 +487,13 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         # apply the visual model to the pixel values if they are provided
         if pixel_values is not None and len(pixel_values) > 0:
             if pixel_values is not None:
-                image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
+                image_embeds = self.visual(
+                    pixel_values, grid_thw=image_grid_thw
+                ).squeeze(0)
                 inputs_embeds[input_ids == self.image_token_id] = image_embeds
 
-        position_ids = self.get_position_ids(input_ids.unsqueeze(0), image_grid_thw)
         hidden_states = self.text_model(
-            inputs_embeds=inputs_embeds.squeeze(0),
+            inputs_embeds=inputs_embeds,
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=kv_cache,
