@@ -99,19 +99,26 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 
 The following table contains models and configurations we have validated on Gaudi2.
 
-| Model                 | BF16 | FP8 | Single Card | Multi-Cards |
-|-----------------------|------|-----|-------------|-------------|
-| Llama2-7B             | ✔    | ✔   | ✔           | ✔           |
-| Llama2-70B            | ✔    | ✔   |             | ✔           |
-| Llama3-8B             | ✔    | ✔   | ✔           | ✔           |
-| Llama3-70B            | ✔    | ✔   |             | ✔           |
-| Llama3.1-8B           | ✔    | ✔   | ✔           | ✔           |
-| Llama3.1-70B          | ✔    | ✔   |             | ✔           |
-| CodeLlama-13B         | ✔    | ✔   | ✔           |             |
-| Mixtral-8x7B          | ✔    | ✔   | ✔           | ✔           |
-| Mistral-7B            | ✔    | ✔   | ✔           | ✔           |
-| Llava-v1.6-Mistral-7B | ✔    | ✔   | ✔           | ✔           |
 
+|  Model                 |  BF16        |             |  FP8         |             |
+| ---------------------- | ------------ | ----------- | ------------ | ----------- |
+|                        |  Single Card |  Multi-Card |  Single Card |  Multi-Card |
+|  Llama2-7B             |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Llama2-70B            |              |  ✔          |              |  ✔          |
+|  Llama3-8B             |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Llama3-70B            |              |  ✔          |              |  ✔          |
+|  Llama3.1-8B           |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Llama3.1-70B          |              |  ✔          |              |  ✔          |
+|  CodeLlama-13B         |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Mixtral-8x7B          |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Mistral-7B            |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Falcon-180B           |              |  ✔          |              |  ✔          |
+|  Qwen2-72B             |              |  ✔          |              |  ✔          |
+|  Starcoder2-3b         |  ✔           |  ✔          |  ✔           |             |
+|  Starcoder2-15b        |  ✔           |  ✔          |  ✔           |             |
+|  Starcoder             |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Gemma-7b              |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Llava-v1.6-Mistral-7B |  ✔           |  ✔          |  ✔           |  ✔          |
 
 ## Running TGI with BF16 Precision
 
