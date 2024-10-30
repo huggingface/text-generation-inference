@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_qwen2_vl_handle(launcher):
-    with launcher("Qwen/Qwen2-VL-7B-Instruct", cuda_graphs=[0]) as handle:
+    with launcher("Qwen/Qwen2-VL-7B-Instruct") as handle:
         yield handle
 
 

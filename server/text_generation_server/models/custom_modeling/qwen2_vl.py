@@ -377,9 +377,12 @@ class Qwen2VLForConditionalGeneration(nn.Module):
     def get_position_ids(
         self,
         batch_input_ids: torch.Tensor,
-        image_grid_thw: Optional[torch.LongTensor],
+        image_grid_thw: Optional[torch.LongTensor] = None,
         # video_grid_thw is not implemented yet as we do not accept video inputs at the moment
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if batch_input_ids.dim() == 1:
+            batch_input_ids = batch_input_ids.unsqueeze(0)
+
         position_ids = torch.ones(
             3,
             batch_input_ids.shape[0],
