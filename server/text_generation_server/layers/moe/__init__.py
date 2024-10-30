@@ -29,6 +29,8 @@ if SYSTEM == "rocm":
     from vllm.model_executor.layers.fused_moe import fused_topk
 elif SYSTEM != "ipex":
     from moe_kernels.fused_moe import fused_topk, grouped_topk
+else:
+    from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
 
 
 # NOTE: we are using a protocol here, because multiple inherance is not nice.
@@ -140,6 +142,10 @@ class DenseMoELayer(nn.Module):
             )
             for i in range(self.n_experts)
         ]
+        if SYSTEM == "ipex":
+            self.ipex_fused_moe = GatedMLPMOE(
+                W13=self.gate_proj, W2=self.down_proj, W3=self.up_proj, use_prepack=True
+            )
 
         self.process_group = weights.process_group
 
@@ -151,6 +157,17 @@ class DenseMoELayer(nn.Module):
         # optional reshape
         input_shape = x.shape
         x = x.view(-1, input_shape[-1])
+
+        if SYSTEM == "ipex":
+            return self.ipex_fused_moe(
+                hidden_states=x,
+                router_logits=gating_output,
+                top_k=self.topk,
+                renormalize=self.renormalize,
+                use_grouped_topk=self.n_expert_group is not None,
+                num_expert_group=self.n_expert_group,
+                topk_group=self.topk_group,
+            )
 
         if self.n_expert_group is not None and self.topk_group is not None:
             topk_weights, topk_ids = grouped_topk(

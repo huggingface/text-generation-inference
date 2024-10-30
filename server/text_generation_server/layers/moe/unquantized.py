@@ -10,6 +10,8 @@ if SYSTEM == "rocm":
     from vllm.model_executor.layers.fused_moe import fused_moe
 elif SYSTEM != "ipex":
     from moe_kernels.fused_moe import fused_moe
+else:
+    from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
 
 
 class UnquantizedSparseMoELayer(nn.Module):
@@ -52,6 +54,10 @@ class UnquantizedSparseMoELayer(nn.Module):
             name=down_proj_name,
             weights=weights,
         )
+        if SYSTEM == "ipex":
+            self.ipex_fused_moe = GatedMLPMOE(
+                W13=self.gate_up_proj, W2=self.down_proj, use_prepack=True
+            )
 
     def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
         if SYSTEM == "rocm":
@@ -63,6 +69,16 @@ class UnquantizedSparseMoELayer(nn.Module):
                 self.topk,
                 renormalize=self.renormalize,
                 inplace=True,
+            )
+        elif SYSTEM == "ipex":
+            return self.ipex_fused_moe(
+                hidden_states=x,
+                router_logits=gating_output,
+                top_k=self.topk,
+                renormalize=self.renormalize,
+                use_grouped_topk=self.n_expert_group is not None,
+                num_expert_group=self.n_expert_group,
+                topk_group=self.topk_group,
             )
 
         return fused_moe(
