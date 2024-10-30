@@ -55,7 +55,7 @@ if (${LLAMA_CPP_BUILD_OFFLINE_RUNNER})
     message(STATUS "Building llama.cpp offline runner")
     add_executable(tgi_llamacpp_offline_runner offline/main.cpp)
 
-    target_link_libraries(tgi_llamacpp_offline_runner PUBLIC tgi_llama_cpp_backend_impl llama common)
+    target_link_libraries(tgi_llamacpp_offline_runner PUBLIC tgi_llamacpp_backend_impl llama common spdlog::spdlog fmt::fmt)
 endif ()
 
 

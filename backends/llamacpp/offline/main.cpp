@@ -22,27 +22,19 @@ int main(int argc, char **argv) {
     const auto prompt = "My name is Morgan";
 
     const auto modelPath = absolute(std::filesystem::path(argv[1]));
-    if (auto maybeBackend = TgiLlamaCppBackend::FromGGUF(modelPath); maybeBackend.has_value()) {
-        // Retrieve the backend
-        auto [model, context] = *maybeBackend;
-        auto backend = TgiLlamaCppBackend(model, context);
+    const auto params = llama_model_default_params();
+    auto *model = llama_load_model_from_file(modelPath.c_str(), params);
 
-        // Generate
-        const auto promptTokens = backend.Tokenize(prompt);
-        const auto out = backend.Generate(promptTokens, 30, 1.0, 2.0, 0.0, 32);
+    auto backend = single_worker_backend_t(model, {});
 
-        if (out.has_value())
-            fmt::print(FMT_STRING("Generated: {}"), *out);
-        else {
-            const auto err = out.error();
-            fmt::print(fmt::emphasis::bold | fg(fmt::color::red), "Got an error: {:d}", static_cast<uint8_t>(err));
-        }
+    // generate
+    const auto promptTokens = {128000, 9906, 856, 836, 374, 23809, 128001};
+    const auto out = backend.generate(promptTokens, {.max_new_tokens = 32}, {.top_k = 40});
 
-    } else {
-        switch (maybeBackend.error()) {
-            case TgiLlamaCppBackendError::MODEL_FILE_DOESNT_EXIST:
-                fmt::print(fmt::emphasis::bold | fg(fmt::color::red), "Specified file {} doesnt exist", modelPath);
-                return maybeBackend.error();
-        }
+    if (out.has_value())
+        fmt::print(FMT_STRING("Generated: {}"), *out);
+    else {
+        const auto err = out.error();
+        fmt::print(fmt::emphasis::bold | fg(fmt::color::red), "Got an error: {:d}", static_cast<uint8_t>(err));
     }
 }
