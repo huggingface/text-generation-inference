@@ -8,25 +8,42 @@
 #include <cmath>
 #include <expected>
 #include <filesystem>
+#include <functional>
 #include <queue>
 #include <memory>
+#include <optional>
 #include <span>
+#include <stop_token>
 #include <vector>
 
 #include <llama.h>
+#include <thread>
 
 #define LLAMA_SUCCESS(x) x == 0
 
 namespace huggingface::tgi::backends::llamacpp {
-    enum BackendError : uint8_t {
+
+    static constexpr auto llama_context_deleter = [](llama_context *pContext) { llama_free(pContext); };
+    typedef std::unique_ptr<llama_context, decltype(llama_context_deleter)> llama_context_smart_ptr;
+
+    typedef std::function<void(llama_token, bool)> llama_decode_callback;
+    static constexpr auto llama_void_callback = [](llama_token token_id, bool is_eos) {};
+
+    /**
+     *
+     */
+    enum backend_error_t : uint8_t {
         MODEL_FILE_DOESNT_EXIST = 1
     };
 
-    struct SamplingParams {
-        uint32_t topK = std::numeric_limits<decltype(topK)>::max();
-        float_t topP = 1.0f;
-        float_t frequencyPenalty = 0.0f;
-        float_t repetitionPenalty = 0.0f;
+    /**
+     *
+     */
+    struct sampling_params_t {
+        uint32_t top_k = std::numeric_limits<decltype(top_k)>::max();
+        float_t top_p = 1.0f;
+        float_t frequency_penalty = 0.0f;
+        float_t repetition_penalty = 0.0f;
         uint64_t seed = 2014;
 
         /**
@@ -34,38 +51,72 @@ namespace huggingface::tgi::backends::llamacpp {
          * @param Pointer to the model data
          * @return
          */
-        std::unique_ptr<llama_sampler> IntoLlamaSampler(const llama_model *) const;
+        std::unique_ptr<llama_sampler> into_llama_sampler(const llama_model *pModel) const;
     };
 
-    class Worker {
+    /**
+     *
+     */
+    struct generation_params_t {
+        uint32_t max_new_tokens = std::numeric_limits<uint32_t>::max();
+    };
+
+    struct generation_context_t {
+        generation_params_t generation_params;
+        sampling_params_t sampling_params;
+        std::span<const llama_token> input_tokens;
+        std::span<llama_token> generated_tokens;
+    };
+
+    /**
+     *
+     */
+    class worker_t {
+    private:
+        const std::shared_ptr<llama_model> mModel_;
+        const llama_context_params mParams_;
+
+    public:
+        /**
+         *
+         * @param model
+         * @param params
+         */
+        worker_t(std::shared_ptr<llama_model> model, const llama_context_params &params);
+
+        /**
+         *
+         * @param context
+         * @param generation_context
+         * @param callback
+         */
+        size_t
+        generate(llama_context *, const generation_context_t &, const std::optional<llama_decode_callback> &) const;
+
+        /**
+         *
+         */
+        void loop(std::stop_source &driver, std::queue<generation_context_t> &backlog) const;
+    };
+
+
+    class backend_base_t {
+
     protected:
-        constexpr static auto llama_context_deleter = [](llama_context *pContext) { llama_free(pContext); };
-
-    public:
-        using model_ptr_type = std::shared_ptr<llama_model>;
-        using context_params_type = llama_context_params;
-        using token_id_type = llama_token;
-
-    private:
-        const model_ptr_type mModel_;
-        context_params_type mParams_;
-
-    public:
-        Worker(std::shared_ptr<llama_model> pModel, const llama_context_params &params);
-
-        void Loop(std::atomic_flag &, std::atomic_uint8_t &, std::queue<SamplingParams> &) const;
-    };
-
-
-    class BackendBase {
-
-    private:
         std::shared_ptr<llama_model> mModel_;
 
     public:
-        explicit BackendBase(llama_model *model);
 
-        ~BackendBase();
+        /**
+         *
+         * @param model
+         */
+        explicit backend_base_t(llama_model *model);
+
+        /**
+         * Destructor
+         */
+        ~backend_base_t();
 
         /**
          *
@@ -76,12 +127,13 @@ namespace huggingface::tgi::backends::llamacpp {
          * @return
          */
         [[nodiscard("Generated tokens will be freed after this call if not assigned to an lvalue")]]
-        std::expected<std::vector<llama_token>, BackendError> Generate(
-                std::span<const llama_token> tokens,
-                std::span<llama_token> out,
-                const SamplingParams &params,
-                uint32_t maxNewTokens = std::numeric_limits<uint32_t>::max() - 1
-        );
+        virtual std::expected<size_t, backend_error_t> generate(
+                std::span<const llama_token> input_tokens,
+                std::span<llama_token> generated_tokens,
+                const generation_params_t &generation_params,
+                const sampling_params_t &sampling_params,
+                const std::optional<llama_decode_callback> &callback
+        ) = 0;
 
         /**
          *
@@ -91,11 +143,45 @@ namespace huggingface::tgi::backends::llamacpp {
          * @return
          */
         [[nodiscard("Generated tokens will be freed after this call if not assigned to an lvalue")]]
-        std::expected<std::vector<llama_token>, BackendError> Generate(
+        std::expected<std::vector<llama_token>, backend_error_t> generate(
                 std::span<const llama_token> tokens,
-                const SamplingParams &params,
-                uint32_t maxNewTokens = std::numeric_limits<uint32_t>::max() - 1
+                const generation_params_t &generation_params,
+                const sampling_params_t &sampling_params,
+                const std::optional<llama_decode_callback> &callback = std::nullopt
         );
+    };
+
+
+    class single_worker_backend_t : backend_base_t {
+    private:
+        constexpr const static auto llama_context_factory = [](llama_model *pModel) -> llama_context_smart_ptr {
+            auto llParams = llama_context_default_params();
+            llParams.flash_attn = true;
+            llParams.n_batch = 1;
+            llParams.no_perf = true;
+            llParams.attention_type = llama_attention_type::LLAMA_ATTENTION_TYPE_CAUSAL;
+
+            return {llama_new_context_with_model(pModel, llParams), llama_context_deleter};
+        };
+
+        llama_context_smart_ptr mContext_;
+        worker_t mWorker_;
+
+    public:
+        explicit single_worker_backend_t(llama_model *pModel, const std::optional<llama_context_params> &);
+
+        using backend_base_t::generate;
+
+        std::expected<size_t, backend_error_t>
+        generate(
+                std::span<const llama_token> tokens,
+                std::span<llama_token> out,
+                const generation_params_t &generation_params,
+                const sampling_params_t &sampling_params,
+                const std::optional<llama_decode_callback> &callback
+        ) override;
+
+
     };
 }
 
