@@ -1430,7 +1430,11 @@ class FlashCausalLM(Model):
         else:
             state = None
 
-        if self.model.config.model_type == "qwen2_vl":
+        if (
+            hasattr(self.model, "config")
+            and hasattr(self.model.config, "model_type")
+            and self.model.config.model_type == "qwen2_vl"
+        ):
             if position_ids.dim() == 1:
                 position_ids = self.model.get_position_ids(input_ids)
 
