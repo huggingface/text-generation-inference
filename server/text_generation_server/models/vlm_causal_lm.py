@@ -67,6 +67,10 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
 
     elif config.model_type == "paligemma":
         return "<image>" * config.text_config.num_image_tokens
+    elif config.model_type == "qwen2_vl":
+        num_pads = image_input.pixel_values.shape[0] // 4
+        padding = "<|image_pad|>" * num_pads
+        return f"<|vision_start|>{padding}<|vision_end|>"
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -137,6 +141,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
     pixel_values: Optional[List[torch.Tensor]]
     pixel_attention_mask: Optional[List[torch.Tensor]]
     image_sizes: Optional[List[Tuple[int, int]]]
+    image_grid_thw: Optional[torch.Tensor]
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
@@ -145,6 +150,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         batch.pixel_values = None
         batch.pixel_attention_mask = None
         batch.image_sizes = None
+        batch.image_grid_thw = None
         return batch
 
     @tracer.start_as_current_span("filter")
@@ -153,6 +159,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         batch.pixel_values = None
         batch.pixel_attention_mask = None
         batch.image_sizes = None
+        batch.image_grid_thw = None
         return batch
 
     @classmethod
@@ -170,6 +177,14 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     pass
                 elif chunk_type == "image":
                     image = Image.open(BytesIO(chunk.image.data))
+                    # qwen2_vl expects images to be greater than 20 pixels, this is for warmup since the
+                    # default warmup image is 20x20
+                    if config.model_type == "qwen2_vl":
+                        if image.width <= 20:
+                            w = image.width * 2
+                            h = image.height * 2
+                            image = image.resize((w, h))
+
                     if config.model_type == "llava_next":
                         images.append(image)
                     else:
@@ -237,10 +252,15 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 batch.image_sizes = image_inputs["image_sizes"].to(device=device)
             else:
                 batch.image_sizes = None
+            if "image_grid_thw" in image_inputs:
+                batch.image_grid_thw = image_inputs["image_grid_thw"].to(device=device)
+            else:
+                batch.image_grid_thw = None
         else:
             batch.pixel_values = None
             batch.pixel_attention_mask = None
             batch.image_sizes = None
+            batch.image_grid_thw = None
         return batch
 
 
@@ -343,6 +363,16 @@ class VlmCausalLM(FlashCausalLM):
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
+        if hasattr(self.model, "get_position_ids"):
+            if position_ids.shape[0] != 1:
+                position_ids = self.model.get_position_ids(
+                    input_ids.unsqueeze(0), batch.image_grid_thw
+                )
+                batch.position_ids = position_ids[0, 0, :]
+            else:
+                position_ids = position_ids.repeat(3, 1, 1).clone()
+                batch.position_ids = position_ids[0, 0, :]
+
         if cu_seqlen_prefill is None and self.max_past() is not None:
             # In decode, not prefill, we're actually overwriting the KV-cache
             # in a circular buffer mode.
@@ -394,6 +424,7 @@ class VlmCausalLM(FlashCausalLM):
                     pixel_values=batch.pixel_values,
                     pixel_attention_mask=batch.pixel_attention_mask,
                     image_sizes=batch.image_sizes,
+                    image_grid_thw=batch.image_grid_thw,
                 )
                 if batch.prefill_cache_indices is not None:
                     batch.prefill_cache_indices = None
@@ -403,6 +434,8 @@ class VlmCausalLM(FlashCausalLM):
                     batch.pixel_attention_mask = None
                 if batch.image_sizes is not None:
                     batch.image_sizes = None
+                if batch.image_grid_thw is not None:
+                    batch.image_grid_thw = None
                 return logits, speculative_logits
 
         # Copy inputs to the static inputs of the cuda graph
