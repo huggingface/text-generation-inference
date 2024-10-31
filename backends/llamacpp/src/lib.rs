@@ -16,11 +16,13 @@ impl Default for SamplingParams {
 
 #[cxx::bridge(namespace = "huggingface::tgi::backends::llamacpp")]
 mod ffi {
+    #[derive(Debug, Copy, Clone)]
     struct GenerationParams {
         max_new_tokens: u32,
         ignore_eos_token: bool,
     }
 
+    #[derive(Debug, Copy, Clone)]
     struct SamplingParams {
         top_k: u32,
         top_p: f32,
