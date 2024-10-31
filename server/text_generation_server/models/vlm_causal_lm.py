@@ -364,7 +364,7 @@ class VlmCausalLM(FlashCausalLM):
             lm_head_indices = batch.prefill_head_indices
 
         if self.model.config.model_type == "qwen2_vl":
-            if position_ids.dim() == 1:
+            if position_ids.dim() == 1 and batch.prefilling:
                 position_ids = self.model.get_position_ids(
                     input_ids, batch.image_grid_thw
                 )

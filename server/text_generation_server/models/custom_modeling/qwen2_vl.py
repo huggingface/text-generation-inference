@@ -518,5 +518,5 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         hidden_states, _ = self.norm(hidden_states)
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
-        logits = self.lm_head(hidden_states)
-        return logits, None
+        logits, speculative_logits = self.lm_head(hidden_states)
+        return logits, speculative_logits
