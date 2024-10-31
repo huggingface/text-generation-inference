@@ -161,7 +161,7 @@ async fn main() -> Result<(), RouterError> {
         }
     }
 
-    let backend = LlamaCppBackend::new(gguf_path, cores_per_instance)?;
+    let backend = LlamaCppBackend::new(gguf_path)?;
 
     // Run server
     server::run(

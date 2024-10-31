@@ -21,7 +21,7 @@ namespace huggingface::tgi::backends::llamacpp {
             batch.token[i] = input_tokens[i];
             batch.pos[i] = i;
             batch.n_seq_id[i] = 1;
-            batch.seq_id[i] = 0;
+            batch.seq_id[i] = nullptr;
             batch.logits[i] = false;
             ++batch.n_tokens;
         }
@@ -84,13 +84,12 @@ namespace huggingface::tgi::backends::llamacpp {
             const generation_context_t &generation_context,
             const std::optional<llama_decode_callback> &callback) const {
         // Store information about context and generation size
-        auto prompt_length = std::ssize(generation_context.input_tokens);
         auto max_new_tokens = generation_context.generation_params.max_new_tokens;
 
         // Convert sampling params to what llama.cpp is looking for
         auto sampler = generation_context.sampling_params.into_llama_sampler(mModel_.get());
 
-        // Setup the prompt
+        // Set up the prompt
         auto copy = std::vector(generation_context.input_tokens.begin(), generation_context.input_tokens.end());
         auto batch = llama_batch_get_one(copy.data(), copy.size());
 
@@ -167,5 +166,16 @@ namespace huggingface::tgi::backends::llamacpp {
             const std::optional<llama_decode_callback> &callback
     ) {
         return mWorker_.generate(mContext_.get(), {generation_params, sampling_params, tokens, out}, callback);
+    }
+
+    std::expected<size_t, backend_error_t>
+    multi_worker_backend_t::generate(
+            std::span<const llama_token>,
+            std::span<llama_token>,
+            const generation_params_t &generation_params,
+            const sampling_params_t &sampling_params,
+            const std::optional<llama_decode_callback> &callback) {
+        SPDLOG_ERROR("Not implemented yet");
+        return 0uz;
     }
 }

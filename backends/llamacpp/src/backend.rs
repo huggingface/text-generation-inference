@@ -1,7 +1,8 @@
-use crate::ffi::{create_llamacpp_backend, LlamaCppBackendImpl};
+use crate::ffi::{
+    create_single_worker_backend, GenerationParams, LlamaCppBackendImpl, SamplingParams,
+};
 use async_trait::async_trait;
 use cxx::{Exception, UniquePtr};
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread::spawn;
@@ -25,10 +26,7 @@ pub enum LlamaCppBackendError {
 pub struct LlamaCppBackend {}
 
 impl LlamaCppBackend {
-    pub fn new<P: AsRef<Path> + Send>(
-        model_path: P,
-        n_threads: u16,
-    ) -> Result<Self, LlamaCppBackendError> {
+    pub fn new<P: AsRef<Path> + Send>(model_path: P) -> Result<Self, LlamaCppBackendError> {
         let path = Arc::new(model_path.as_ref());
         if !path.exists() {
             return Err(LlamaCppBackendError::ModelFileDoesntExist(
@@ -36,13 +34,12 @@ impl LlamaCppBackend {
             ));
         }
 
-        let mut backend =
-            create_llamacpp_backend(path.to_str().unwrap(), n_threads).map_err(|err| {
-                LlamaCppBackendError::ModelInitializationFailed(
-                    path.to_path_buf(),
-                    err.what().to_string(),
-                )
-            })?;
+        let mut backend = create_single_worker_backend(path.to_str().unwrap()).map_err(|err| {
+            LlamaCppBackendError::ModelInitializationFailed(
+                path.to_path_buf(),
+                err.what().to_string(),
+            )
+        })?;
 
         info!(
             "Successfully initialized llama.cpp backend from {}",
@@ -57,12 +54,20 @@ impl LlamaCppBackend {
 
 fn scheduler_loop(mut backend: UniquePtr<LlamaCppBackendImpl>) {
     println!("Scheduler loop");
-    let tokens = [128000i32, 5159, 836, 374, 23809];
-    let mut generated = vec![0i32; 128];
-    match backend
-        .pin_mut()
-        .generate(&tokens, &mut generated, 40, 32, 1.0, 1.0, 1.0, 1.0, 2014)
-    {
+    let tokens = [128000u32, 5159, 836, 374, 23809];
+    let mut generated = vec![0u32; 16];
+    let generation_params = GenerationParams {
+        max_new_tokens: generated.len() as u32,
+    };
+    let sampling_params = SamplingParams::default();
+
+    match backend.pin_mut().generate(
+        &tokens,
+        &mut generated,
+        &generation_params,
+        &sampling_params,
+        |new_token_id: u32, is_eos: bool| println!("Generated {new_token_id} (is_eos: {is_eos})"),
+    ) {
         Ok(n_tokens) => {
             generated.truncate(n_tokens);
             println!("Generated {} tokens -> {:?}", n_tokens, generated);

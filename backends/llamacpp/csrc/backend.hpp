@@ -180,8 +180,20 @@ namespace huggingface::tgi::backends::llamacpp {
                 const sampling_params_t &sampling_params,
                 const std::optional<llama_decode_callback> &callback
         ) override;
+    };
 
+    class multi_worker_backend_t : backend_base_t {
+    private:
+        llama_context_smart_ptr mContext_;
 
+    public:
+        std::expected<size_t, backend_error_t> generate(
+                std::span<const llama_token>,
+                std::span<llama_token>,
+                const generation_params_t &generation_params,
+                const sampling_params_t &sampling_params,
+                const std::optional<llama_decode_callback> &callback
+        ) override;
     };
 }
 
