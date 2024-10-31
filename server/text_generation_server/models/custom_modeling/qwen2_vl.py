@@ -34,7 +34,6 @@ from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
     TensorParallelEmbedding,
-    FastLinear,
     SpeculativeHead,
 )
 from text_generation_server.layers.attention import (

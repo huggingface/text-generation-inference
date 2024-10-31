@@ -67,14 +67,10 @@ async def test_flash_qwen2_vl_simple_streaming(flash_qwen2, response_snapshot):
     count = 0
     generated = ""
     last_response = None
-    try:
-        async for response in responses:
-            count += 1
-            generated += response.choices[0].delta.content
-            last_response = response
-    except Exception as e:
-        # handle when the client library raises an exception when it cant parse "[DONE]" as JSON
-        pass
+    async for response in responses:
+        count += 1
+        generated += response.choices[0].delta.content
+        last_response = response
 
     assert (
         generated
