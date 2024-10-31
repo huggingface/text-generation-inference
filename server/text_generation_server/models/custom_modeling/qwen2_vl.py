@@ -516,7 +516,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             prefill_cache_indices=prefill_cache_indices,
         )
         hidden_states, _ = self.norm(hidden_states)
-        print("lm_head_indices", lm_head_indices)
-        logits, speculative_logits = self.lm_head(hidden_states)
-        # import ipdb; ipdb.set_trace()
-        return logits, speculative_logits
+        if lm_head_indices is not None:
+            hidden_states = hidden_states[lm_head_indices]
+        logits = self.lm_head(hidden_states)
+        return logits, None
