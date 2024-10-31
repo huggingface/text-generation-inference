@@ -27,7 +27,7 @@ namespace huggingface::tgi::backends::llamacpp {
     typedef std::unique_ptr<llama_context, decltype(llama_context_deleter)> llama_context_smart_ptr;
 
     typedef std::function<void(llama_token, bool)> llama_decode_callback;
-    static constexpr auto llama_void_callback = [](llama_token token_id, bool is_eos) {};
+    static constexpr auto llama_void_callback = [](llama_token, bool) {};
 
     /**
      *
@@ -59,6 +59,7 @@ namespace huggingface::tgi::backends::llamacpp {
      */
     struct generation_params_t {
         uint32_t max_new_tokens = std::numeric_limits<uint32_t>::max();
+        bool ignore_eos_token = false;
     };
 
     struct generation_context_t {

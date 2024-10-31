@@ -18,6 +18,7 @@ impl Default for SamplingParams {
 mod ffi {
     struct GenerationParams {
         max_new_tokens: u32,
+        ignore_eos_token: bool,
     }
 
     struct SamplingParams {

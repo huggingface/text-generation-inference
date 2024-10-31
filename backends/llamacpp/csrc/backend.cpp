@@ -113,8 +113,10 @@ namespace huggingface::tgi::backends::llamacpp {
                 auto new_token_id = llama_sampler_sample(sampler.get(), context, -1);
                 auto is_eos = llama_token_is_eog(mModel_.get(), new_token_id);
 
-                generation_context.generated_tokens[n_decoded_tokens] = new_token_id;
-                generating = !is_eos;
+                if (!generation_context.generation_params.ignore_eos_token) {
+                    generation_context.generated_tokens[n_decoded_tokens] = new_token_id;
+                    generating = !is_eos;
+                }
 
                 // Bubble up the generated token if a callback is provided
                 std::invoke(std::forward<const llama_decode_callback>(callback_), new_token_id, is_eos);
