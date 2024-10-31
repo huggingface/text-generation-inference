@@ -51,7 +51,7 @@ mod ffi {
             generated: &mut [u32],
             generation_params: &GenerationParams,
             sampling_params: &SamplingParams,
-            callback: fn(u32, bool),
+            callback: fn(u32, f32, bool),
         ) -> Result<usize>;
     }
 }

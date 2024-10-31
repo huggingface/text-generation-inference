@@ -111,6 +111,7 @@ namespace huggingface::tgi::backends::llamacpp {
             if (LLAMA_SUCCESS(status)) {
                 // Sample the new token
                 auto new_token_id = llama_sampler_sample(sampler.get(), context, -1);
+                auto new_token_logits = 0.0f; // TODO: return logit
                 auto is_eos = llama_token_is_eog(mModel_.get(), new_token_id);
 
                 if (!generation_context.generation_params.ignore_eos_token) {
@@ -119,7 +120,8 @@ namespace huggingface::tgi::backends::llamacpp {
                 }
 
                 // Bubble up the generated token if a callback is provided
-                std::invoke(std::forward<const llama_decode_callback>(callback_), new_token_id, is_eos);
+                std::invoke(
+                        std::forward<const llama_decode_callback>(callback_), new_token_id, new_token_logits, is_eos);
 
                 batch = llama_batch_get_one(&new_token_id, 1);
             }

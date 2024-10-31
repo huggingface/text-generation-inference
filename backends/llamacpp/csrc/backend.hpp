@@ -26,8 +26,8 @@ namespace huggingface::tgi::backends::llamacpp {
     static constexpr auto llama_context_deleter = [](llama_context *pContext) { llama_free(pContext); };
     typedef std::unique_ptr<llama_context, decltype(llama_context_deleter)> llama_context_smart_ptr;
 
-    typedef std::function<void(llama_token, bool)> llama_decode_callback;
-    static constexpr auto llama_void_callback = [](llama_token, bool) {};
+    typedef std::function<void(llama_token, float_t, bool)> llama_decode_callback;
+    static constexpr auto llama_void_callback = [](llama_token, float_t, bool) {};
 
     /**
      *

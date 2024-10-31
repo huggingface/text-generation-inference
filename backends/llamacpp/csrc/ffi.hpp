@@ -66,7 +66,7 @@ namespace huggingface::tgi::backends::llamacpp {
                 rust::Slice <uint32_t> generated_tokens,
                 const generation_params_t &generation_params,
                 const sampling_params_t &sampling_params,
-                rust::Fn<void(uint32_t, bool)> callback
+                rust::Fn<void(uint32_t, float_t, bool)> callback
         ) {
             // Define the visitor lambda function which requires the has_emplace_generate constraint on T
             static auto inner_fw = [=, &generation_params, &sampling_params]<has_emplace_generate T>(T &&backend)
