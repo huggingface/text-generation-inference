@@ -31,13 +31,18 @@ def get_args():
     parser.add_argument(
         "--max_concurrent_requests", type=int, default=256, help="Max number of concurrent requests"
     )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for datasets"
+    )
+
     return parser.parse_args()
 
 
 def read_dataset(
     max_input_length: int,
     total_sample_count: int,
-    model_id: str
+    model_id: str,
+    seed: int,
 ) -> List[str]:
     """
     Loads public dataset from HF: https://huggingface.co/datasets/DIBT/10k_prompts_ranked
@@ -51,7 +56,7 @@ def read_dataset(
     )
     if len(dataset) > total_sample_count:
         dataset = dataset.select(range(total_sample_count))
-    dataset = dataset.shuffle()
+    dataset = dataset.shuffle(seed=seed)
     return [sample["prompt"] for sample in dataset]
 
 
@@ -71,7 +76,7 @@ def is_tgi_available(
 def main():
     args = get_args()
     dataset = read_dataset(
-        args.max_input_length, args.total_sample_count, args.model_id
+        args.max_input_length, args.total_sample_count, args.model_id, args.seed
     )
 
     if not is_tgi_available(args.server_address):
