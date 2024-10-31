@@ -18,9 +18,7 @@ int main(int argc, char **argv) {
     }
 
     spdlog::set_level(spdlog::level::debug);
-
-    const auto prompt = "My name is Morgan";
-
+    
     const auto modelPath = absolute(std::filesystem::path(argv[1]));
     const auto params = llama_model_default_params();
     auto *model = llama_load_model_from_file(modelPath.c_str(), params);
@@ -28,7 +26,7 @@ int main(int argc, char **argv) {
     auto backend = single_worker_backend_t(model, {});
 
     // generate
-    const auto promptTokens = {128000, 9906, 856, 836, 374, 23809, 128001};
+    const auto promptTokens = {128000, 5159, 836, 374, 23809, 11};
     const auto out = backend.generate(promptTokens, {.max_new_tokens = 32}, {.top_k = 40});
 
     if (out.has_value())
