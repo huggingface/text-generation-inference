@@ -20,6 +20,7 @@ limitations under the License.
 
 - [Text Generation Inference on Habana Gaudi](#text-generation-inference-on-habana-gaudi)
   - [Table of contents](#table-of-contents)
+  - [Tested Models and Configurations](#tested-models-and-configurations)
   - [Running TGI on Gaudi](#running-tgi-on-gaudi)
     - [TGI-Gaudi Benchmark](#tgi-gaudi-benchmark)
       - [Static Batching Benchmark](#static-batching-benchmark)
@@ -32,16 +33,38 @@ limitations under the License.
     - [Llama3.1-70B 8 cards](#llama31-70b-8-cards)
     - [Llava-v1.6-Mistral-7B on 1 card](#llava-v16-mistral-7b-on-1-card)
   - [Running TGI with FP8 Precision](#running-tgi-with-fp8-precision)
-    - [Llama2-7B on 1 Card](#llama2-7b-on-1-card-1)
-    - [Llama2-70B on 8 Cards](#llama2-70b-on-8-cards-1)
-    - [Llama3.1-8B on 1 Card](#llama31-8b-on-1-card-1)
-    - [Llama3.1-70B on 8 cards](#llama31-70b-on-8-cards)
-    - [Llava-v1.6-Mistral-7B on 1 Card](#llava-v16-mistral-7b-on-1-card-1)
-    - [Llava-v1.6-Mistral-7B on 8 Cards](#llava-v16-mistral-7b-on-8-cards)
+  - [TGI-Gaudi Benchmark](#tgi-gaudi-benchmark)
   - [Adjusting TGI Parameters](#adjusting-tgi-parameters)
   - [Environment Variables](#environment-variables)
   - [Profiler](#profiler)
   - [License](#license)
+
+
+## Tested Models and Configurations
+
+The following table contains models and configurations we have validated on Gaudi2.
+
+
+|  Model                 |  BF16        |             |  FP8         |             |
+| ---------------------- | ------------ | ----------- | ------------ | ----------- |
+|                        |  Single Card |  Multi-Card |  Single Card |  Multi-Card |
+|  Llama2-7B             |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Llama2-70B            |              |  ✔          |              |  ✔          |
+|  Llama3-8B             |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Llama3-70B            |              |  ✔          |              |  ✔          |
+|  Llama3.1-8B           |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Llama3.1-70B          |              |  ✔          |              |  ✔          |
+|  CodeLlama-13B         |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Mixtral-8x7B          |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Mistral-7B            |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Falcon-180B           |              |  ✔          |              |  ✔          |
+|  Qwen2-72B             |              |  ✔          |              |  ✔          |
+|  Starcoder2-3b         |  ✔           |  ✔          |  ✔           |             |
+|  Starcoder2-15b        |  ✔           |  ✔          |  ✔           |             |
+|  Starcoder             |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Gemma-7b              |  ✔           |  ✔          |  ✔           |  ✔          |
+|  Llava-v1.6-Mistral-7B |  ✔           |  ✔          |  ✔           |  ✔          |
+
 
 ## Running TGI on Gaudi
 
@@ -49,7 +72,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 
 1. Pull the official Docker image with:
    ```bash
-   docker pull ghcr.io/huggingface/tgi-gaudi:2.3.1
+   docker pull ghcr.io/huggingface/tgi-gaudi:2.0.6
    ```
 > [!NOTE]
 > Alternatively, you can build the Docker image using the `Dockerfile` located in this folder with:
@@ -70,7 +93,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
    -e OMPI_MCA_btl_vader_single_copy_mechanism=none -e HF_TOKEN=$hf_token \
    -e ENABLE_HPU_GRAPH=true -e LIMIT_HPU_GRAPH=true -e USE_FLASH_ATTENTION=true \
    -e FLASH_ATTENTION_RECOMPUTE=true --cap-add=sys_nice --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 --model-id $model --max-input-tokens 1024 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 --model-id $model --max-input-tokens 1024 \
    --max-total-tokens 2048
    ```
 
@@ -84,7 +107,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
     -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none \
     -e  HF_TOKEN=$hf_token -e ENABLE_HPU_GRAPH=true -e LIMIT_HPU_GRAPH=true \
     -e USE_FLASH_ATTENTION=true -e FLASH_ATTENTION_RECOMPUTE=true --cap-add=sys_nice \
-    --ipc=host ghcr.io/huggingface/tgi-gaudi:2.3.1 --model-id $model --sharded true \
+    --ipc=host ghcr.io/huggingface/tgi-gaudi:2.0.6 --model-id $model --sharded true \
     --num-shard 8 --max-input-tokens 1024 --max-total-tokens 2048
    ```
 3. Wait for the TGI-Gaudi server to come online. You will see something like so:
@@ -97,36 +120,6 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
      -H 'Content-Type: application/json'
    ```
 4. Please note that the model warmup can take several minutes, especially for FP8 inference. To minimize this time in consecutive runs, please refer to [Disk Caching Eviction Policy](https://docs.habana.ai/en/latest/PyTorch/Model_Optimization_PyTorch/Optimization_in_PyTorch_Models.html#disk-caching-eviction-policy).
-
-### TGI-Gaudi Benchmark
-
-#### Static Batching Benchmark
- To run static batching benchmark, please refer to [TGI's benchmark tool](https://github.com/huggingface/text-generation-inference/tree/main/benchmark).
-
-   To run it on the same machine, you can do the following:
-   * `docker exec -it <docker name> bash` , pick the docker started from step 2 using docker ps
-   * `text-generation-benchmark -t <model-id>` , pass the model-id from docker run command
-   * after the completion of tests, hit ctrl+c to see the performance data summary.
-
-#### Continuous Batching Benchmark
- To run continuous batching benchmark, please refer to [README in examples folder](https://github.com/huggingface/tgi-gaudi/blob/habana-main/examples/README.md).
-
-### Tested Models and Configurations
-
-The following table contains models and configurations we have validated on Gaudi2.
-
-| Model                 | BF16 | FP8 | Single Card | Multi-Cards |
-|-----------------------|------|-----|-------------|-------------|
-| Llama2-7B             | ✔    | ✔   | ✔           | ✔           |
-| Llama2-70B            | ✔    | ✔   |             | ✔           |
-| Llama3-8B             | ✔    | ✔   | ✔           | ✔           |
-| Llama3-70B            | ✔    | ✔   |             | ✔           |
-| Llama3.1-8B           | ✔    | ✔   | ✔           | ✔           |
-| Llama3.1-70B          | ✔    | ✔   |             | ✔           |
-| CodeLlama-13B         | ✔    | ✔   | ✔           |             |
-| Mixtral-8x7B          | ✔    | ✔   | ✔           | ✔           |
-| Mistral-7B            | ✔    | ✔   | ✔           | ✔           |
-| Llava-v1.6-Mistral-7B | ✔    | ✔   | ✔           | ✔           |
 
 
 ## Running TGI with BF16 Precision
@@ -157,7 +150,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --max-input-length 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-total-tokens 65536 \
@@ -189,7 +182,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-length 1024 --max-total-tokens 2048 \
@@ -221,7 +214,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --max-input-length 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-total-tokens 65536 \
@@ -253,7 +246,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-length 1024 --max-total-tokens 2048 \
@@ -285,7 +278,7 @@ docker run -p 8080:80 \
     -e BATCH_BUCKET_SIZE=1 \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-total-tokens 32768
@@ -336,7 +329,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --max-input-length 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-total-tokens 65536 \
@@ -371,7 +364,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-length 1024 --max-total-tokens 2048 \
@@ -407,7 +400,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --max-input-length 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-total-tokens 65536 \
@@ -442,7 +435,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-length 1024 --max-total-tokens 2048 \
@@ -475,7 +468,7 @@ docker run -p 8080:80 \
     -e BATCH_BUCKET_SIZE=1 \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-total-tokens 32768
@@ -506,12 +499,27 @@ docker run -p 8080:80 \
     -e BATCH_BUCKET_SIZE=1 \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
+   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-total-tokens 32768
 ```
+
+## TGI-Gaudi Benchmark
+
+### Static Batching Benchmark
+ To run static batching benchmark, please refer to [TGI's benchmark tool](https://github.com/huggingface/text-generation-inference/tree/main/benchmark).
+
+   To run it on the same machine, you can do the following:
+   * `docker exec -it <docker name> bash` , pick the docker started from step 2 using docker ps
+   * `text-generation-benchmark -t <model-id>` , pass the model-id from docker run command
+   * after the completion of tests, hit ctrl+c to see the performance data summary.
+> Note: This benchmark runs the model with bs=[1, 2, 4, 8, 16, 32], sequence_length=10 and decode_length=8 by default. if you want to run other configs, please check text-generation-benchmark -h and change the parameters.
+
+### Continuous Batching Benchmark
+ To run continuous batching benchmark, please refer to [README in examples folder](https://github.com/huggingface/tgi-gaudi/blob/habana-main/examples/README.md).
+
 
 ## Adjusting TGI Parameters
 
