@@ -1430,6 +1430,14 @@ class FlashCausalLM(Model):
         else:
             state = None
 
+        if (
+            hasattr(self.model, "config")
+            and hasattr(self.model.config, "model_type")
+            and self.model.config.model_type == "qwen2_vl"
+        ):
+            if position_ids.dim() == 1:
+                position_ids = self.model.get_position_ids(input_ids)
+
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs] = {
             "input_ids": input_ids,
@@ -1806,7 +1814,7 @@ class FlashCausalLM(Model):
         # Copy inputs to the static inputs of the cuda graph
         # Static inputs are potentially padded
         cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
-        cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
+        cuda_graph["position_ids"][: position_ids.shape[-1]] = position_ids
         if ATTENTION == "flashinfer":
             block_tables = block_tables_to_ragged(
                 block_tables=block_tables,
@@ -1981,7 +1989,7 @@ class FlashCausalLM(Model):
         # instantly become of shape [BATCH_SIZE]
         if prefill and finished_prefilling:
             indices = batch.cu_seqlen_prefill[1:] - 1
-            batch.position_ids = batch.position_ids[indices]
+            batch.position_ids = batch.position_ids[(..., indices)]
             batch.slot_indices = batch.slot_indices[indices]
             batch.adapter_meta.adapter_indices = batch.adapter_meta.adapter_indices[
                 indices

@@ -363,15 +363,12 @@ class VlmCausalLM(FlashCausalLM):
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
-        if hasattr(self.model, "get_position_ids"):
-            if position_ids.shape[0] != 1:
+        if self.model.config.model_type == "qwen2_vl":
+            if position_ids.dim() == 1 and batch.prefilling:
                 position_ids = self.model.get_position_ids(
-                    input_ids.unsqueeze(0), batch.image_grid_thw
+                    input_ids, batch.image_grid_thw
                 )
-                batch.position_ids = position_ids[0, 0, :]
-            else:
-                position_ids = position_ids.repeat(3, 1, 1).clone()
-                batch.position_ids = position_ids[0, 0, :]
+                batch.position_ids = position_ids
 
         if cu_seqlen_prefill is None and self.max_past() is not None:
             # In decode, not prefill, we're actually overwriting the KV-cache
