@@ -472,7 +472,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             position_ids = (
                 torch.arange(batch_input_ids.shape[1], device=batch_input_ids.device)
                 .view(1, 1, -1)
-                .expand(3, batch_input_ids.shape[0], -1)
+                .repeat(3, batch_input_ids.shape[0], 1)
             )
         return position_ids
 
