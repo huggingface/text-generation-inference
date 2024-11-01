@@ -1265,8 +1265,8 @@ class CausalLM(Model):
 
         #Prefill and decode warmup
         try:
-            for batch_size in range(PREFILL_BATCH_BUCKET_SIZE, max_prefill_batch_size, PREFILL_BATCH_BUCKET_SIZE):
-                DECODE_WARMUP_BATCH_SIZE_LIST.append(batch_size)
+            for batch_size in range(PREFILL_BATCH_BUCKET_SIZE, max_prefill_batch_size + 1, PREFILL_BATCH_BUCKET_SIZE):
+                PREFILL_WARMUP_BATCH_SIZE_LIST.append(batch_size)
                 for seq_len in PREFILL_WARMUP_SEQLEN_LIST :
                     batch = self.generate_warmup_batch(request, seq_len - 1, batch_size)
                     _, prefill_batch, _ = self.generate_token([batch], is_warmup)
