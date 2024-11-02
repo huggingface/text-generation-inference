@@ -105,7 +105,7 @@ namespace huggingface::tgi::backends::llamacpp {
             const auto latency = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
             SPDLOG_DEBUG(FMT_STRING("Successfully decoded {:d} token(s) in {}"), batch.n_tokens, latency);
 #else
-            const auto status = llama_decode(ctx, batch);
+            const auto status = llama_decode(context, batch);
 #endif
             batch.n_tokens = 0;
             if (LLAMA_SUCCESS(status)) {
