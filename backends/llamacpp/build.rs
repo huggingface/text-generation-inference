@@ -102,8 +102,8 @@ fn main() {
         println!("cargo:rustc-link-lib=static=fmtd");
         println!("cargo:rustc-link-lib=static=spdlogd");
     } else {
-        println!("cargo:rustc-link-lib=static=fmt");
-        println!("cargo:rustc-link-lib=static=spdlog");
+        println!("cargo:rustc-link-lib=fmt");
+        println!("cargo:rustc-link-lib=spdlog");
     }
 
     println!("cargo:rustc-link-lib=static=common");
