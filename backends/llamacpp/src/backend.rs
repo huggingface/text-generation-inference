@@ -5,7 +5,7 @@ use crate::OpaqueStream;
 use async_trait::async_trait;
 use cxx::UniquePtr;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel, Receiver, SendError, Sender};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
@@ -15,7 +15,6 @@ use text_generation_router::validation::{
 use text_generation_router::{FinishReason, Token};
 use thiserror::Error;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
-use tokio::sync::TryAcquireError;
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, error, info};
@@ -127,7 +126,7 @@ fn llama_generate_callback(
 
 unsafe fn scheduler_loop(
     mut backend: UniquePtr<LlamaCppBackendImpl>,
-    mut backlog: Receiver<InferContext>,
+    backlog: Receiver<InferContext>,
 ) {
     loop {
         if let Ok(mut ctx) = backlog.recv() {
