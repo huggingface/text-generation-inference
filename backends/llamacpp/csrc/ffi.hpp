@@ -21,6 +21,7 @@ namespace huggingface::tgi::backends::llamacpp {
 
 
 #include "backends/llamacpp/src/lib.rs.h"
+#include "rust/cxx.h"
 
 
 namespace huggingface::tgi::backends::llamacpp {
@@ -61,16 +62,21 @@ namespace huggingface::tgi::backends::llamacpp {
 
         explicit llama_cpp_backend_impl_t(multi_worker_backend_t &&backend) : mInner_(std::move(backend)) {}
 
-        size_t generate(
+        size_t stream(
                 rust::Slice<const uint32_t> input_tokens,
                 rust::Slice <uint32_t> generated_tokens,
-                const generation_params_t &generation_params,
+                const generation_params_t generation_params,
                 const sampling_params_t &sampling_params,
-                rust::Fn<void(uint32_t, float_t, bool)> callback
+                OpaqueStream *stream,
+                rust::Fn<void(OpaqueStream *, uint32_t, float_t, bool)> callback
         ) {
             // Define the visitor lambda function which requires the has_emplace_generate constraint on T
-            static auto inner_fw = [=, &generation_params, &sampling_params]<has_emplace_generate T>(T &&backend)
+            static auto inner_fw = [=, &sampling_params, &stream, &callback]<has_emplace_generate T>(T &&backend)
                     -> std::expected<size_t, backend_error_t> {
+
+                auto context_forwarding_callback = [=, &stream](uint32_t new_token_id, float_t logits, bool is_eos){
+                    callback(stream, new_token_id, logits, is_eos);
+                };
 
                 // Ask the compiler to create view over Rust slice transmuting from uint32_t* to int32_t*
                 auto input_tokens_v =
@@ -79,7 +85,12 @@ namespace huggingface::tgi::backends::llamacpp {
                         std::span(reinterpret_cast<llama_token *>(generated_tokens.data()), generated_tokens.size());
 
                 return backend.generate(
-                        input_tokens_v, generated_tokens_v, generation_params, sampling_params, callback);
+                        input_tokens_v,
+                        generated_tokens_v,
+                        generation_params,
+                        sampling_params,
+                        context_forwarding_callback
+                );
             };
 
             if (const auto result = std::visit(inner_fw, mInner_); result.has_value()) {

@@ -1,22 +1,26 @@
 use crate::ffi::{
     create_single_worker_backend, GenerationParams, LlamaCppBackendImpl, SamplingParams,
 };
+use crate::OpaqueStream;
 use async_trait::async_trait;
 use cxx::UniquePtr;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, SendError, Sender};
 use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
-use text_generation_router::infer::{Backend, InferError, InferStreamResponse};
+use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::{
     ValidGenerateRequest, ValidParameters, ValidStoppingParameters,
 };
-use text_generation_router::Token;
+use text_generation_router::{FinishReason, Token};
 use thiserror::Error;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::TryAcquireError;
+use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{error, info};
+
+type BoxedOpaqueStream = Box<OpaqueStream>;
 
 unsafe impl Send for LlamaCppBackendImpl {}
 
@@ -86,7 +90,7 @@ impl LlamaCppBackend {
         );
 
         let (submitter, receiver) = channel();
-        let handle = spawn(|| scheduler_loop(backend, receiver));
+        let handle = unsafe { spawn(|| scheduler_loop(backend, receiver)) };
         Ok(Self {
             backlog: submitter,
             scheduler_handle: handle,
@@ -94,47 +98,59 @@ impl LlamaCppBackend {
     }
 }
 
-fn scheduler_loop(
+fn llama_generate_callback(
+    channel: *mut OpaqueStream,
+    new_token_id: u32,
+    new_token_logit: f32,
+    is_eos: bool,
+) {
+    let response = InferStreamResponse::Intermediate {
+        token: Token {
+            id: new_token_id,
+            text: "".to_string(),
+            logprob: new_token_logit,
+            special: false,
+        },
+        top_tokens: vec![],
+    };
+    println!("Generated token: {new_token_id} -> logits={new_token_logit}, is_eos={is_eos}");
+
+    unsafe {
+        if let Err(ref err) = (*channel).0.send(Ok(response)) {
+            error!(
+                "Failed to send back token to the client: {}",
+                err.to_string()
+            );
+        }
+    }
+}
+
+unsafe fn scheduler_loop(
     mut backend: UniquePtr<LlamaCppBackendImpl>,
     mut backlog: Receiver<InferContext>,
 ) {
     loop {
-        println!("Looping");
         if let Ok(mut ctx) = backlog.recv() {
-            println!("{ctx:?}, {}", &ctx.generated_tokens.capacity());
-            match backend.pin_mut().generate(
+            let stream = BoxedOpaqueStream::new(OpaqueStream(ctx.stream));
+            let stream_ptr = Box::into_raw(stream);
+            let result = backend.pin_mut().stream(
                 &ctx.input_tokens,
                 &mut ctx.generated_tokens,
-                &ctx.generation_params,
+                ctx.generation_params,
                 &ctx.sampling_params,
-                |new_token_id: u32, new_token_logit: f32, is_eos: bool| {
-                    let response = InferStreamResponse::Intermediate {
-                        token: Token {
-                            id: new_token_id,
-                            text: "".to_string(),
-                            logprob: new_token_logit,
-                            special: false,
-                        },
-                        top_tokens: vec![],
-                    };
-                    println!("Generated token: {response:?}");
-                    // let _ = tokio::spawn(async {
-                    //     match ctx.stream.send(Ok(response)) {
-                    //         Ok(_) => {}
-                    //         Err(ref err) => {
-                    //             error!(
-                    //                 "Failed to send back token to the client: {}",
-                    //                 err.to_string()
-                    //             );
-                    //         }
-                    //     }
-                    // });
-                },
-            ) {
+                stream_ptr,
+                llama_generate_callback,
+            );
+
+            // Make sure we re-keep track of the OpaqueStream box
+            let _ = Box::from_raw(stream_ptr);
+
+            match result {
                 Ok(n_tokens) => {
                     unsafe {
                         ctx.generated_tokens.set_len(n_tokens);
                     }
+
                     println!(
                         "Generated {} tokens -> {:?}",
                         n_tokens, &ctx.generated_tokens

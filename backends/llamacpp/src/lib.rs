@@ -1,4 +1,6 @@
 use crate::ffi::SamplingParams;
+use text_generation_router::infer::{InferError, InferStreamResponse};
+use tokio::sync::mpsc::UnboundedSender;
 
 pub mod backend;
 
@@ -13,6 +15,8 @@ impl Default for SamplingParams {
         }
     }
 }
+
+struct OpaqueStream(UnboundedSender<Result<InferStreamResponse, InferError>>);
 
 #[cxx::bridge(namespace = "huggingface::tgi::backends::llamacpp")]
 mod ffi {
@@ -31,6 +35,10 @@ mod ffi {
         seed: u64,
     }
 
+    extern "Rust" {
+        type OpaqueStream;
+    }
+
     unsafe extern "C++" {
         include!("backends/llamacpp/csrc/ffi.hpp");
 
@@ -47,13 +55,22 @@ mod ffi {
         #[rust_name = "create_single_worker_backend"]
         fn create_single_worker_backend(modelPath: &str) -> Result<UniquePtr<LlamaCppBackendImpl>>;
 
-        fn generate(
+        // fn generate(
+        //     self: Pin<&mut LlamaCppBackendImpl>,
+        //     tokens: &[u32],
+        //     generated: &mut [u32],
+        //     generation_params: GenerationParams,
+        //     sampling_params: &SamplingParams,
+        // ) -> Result<usize>;
+
+        unsafe fn stream(
             self: Pin<&mut LlamaCppBackendImpl>,
             tokens: &[u32],
             generated: &mut [u32],
-            generation_params: &GenerationParams,
+            generation_params: GenerationParams,
             sampling_params: &SamplingParams,
-            callback: fn(u32, f32, bool),
+            stream: *mut OpaqueStream,
+            callback: unsafe fn(*mut OpaqueStream, u32, f32, bool),
         ) -> Result<usize>;
     }
 }
