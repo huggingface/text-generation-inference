@@ -22,7 +22,7 @@ tokenizers = { workspace = true }
 tracing = "0.1"
 tracing-opentelemetry = "0.27.0"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
-utoipa = { version = "5.1.2", features = ["axum_extras"] }
+utoipa = { version = "4.2.3", features = ["axum_extras"] }
 log = "0.4.22"
 
 [build-dependencies]

@@ -4239,7 +4239,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry 0.27.0",
  "tracing-subscriber",
- "utoipa 5.1.2",
+ "utoipa",
 ]
 
 [[package]]
@@ -4368,7 +4368,7 @@ dependencies = [
  "tracing-opentelemetry 0.21.0",
  "tracing-subscriber",
  "ureq",
- "utoipa 4.2.3",
+ "utoipa",
  "utoipa-swagger-ui",
  "uuid",
  "vergen",
@@ -4419,7 +4419,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry 0.21.0",
  "tracing-subscriber",
- "utoipa 4.2.3",
+ "utoipa",
  "utoipa-swagger-ui",
 ]
 
@@ -4470,7 +4470,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry 0.21.0",
  "tracing-subscriber",
- "utoipa 4.2.3",
+ "utoipa",
  "utoipa-swagger-ui",
 ]
 
@@ -5192,19 +5192,7 @@ dependencies = [
  "indexmap 2.6.0",
  "serde",
  "serde_json",
- "utoipa-gen 4.3.0",
-]
-
-[[package]]
-name = "utoipa"
-version = "5.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e12e84f0ff45b6818029cd0f67280e453c80132c1b9897df407ecc20b9f7cfd"
-dependencies = [
- "indexmap 2.5.0",
- "serde",
- "serde_json",
- "utoipa-gen 5.1.2",
+ "utoipa-gen",
 ]
 
 [[package]]
@@ -5221,18 +5209,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "utoipa-gen"
-version = "5.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0dfc694d3a3118d2b9e80d68be83bf1aab7988510916934db83da61c14e7e6b2"
-dependencies = [
- "proc-macro2",
- "quote",
- "regex",
- "syn 2.0.79",
-]
-
-[[package]]
 name = "utoipa-swagger-ui"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5244,7 +5220,7 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
- "utoipa 4.2.3",
+ "utoipa",
  "zip",
 ]
 

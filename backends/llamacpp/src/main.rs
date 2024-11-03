@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use text_generation_backend_llamacpp::backend::{LlamaCppBackend, LlamaCppBackendError};
+use text_generation_router::server::ApiDoc;
 use text_generation_router::{server, usage_stats};
 use thiserror::Error;
 
@@ -35,13 +36,8 @@ struct Args {
     port: u16,
     #[clap(long, env, help = "Path to GGUF model file(s) to load")]
     gguf_path: PathBuf,
-    #[clap(
-        long,
-        env,
-        default_value = "1",
-        help = "Number of CPU threads allocated to one llama.cpp model"
-    )]
-    cores_per_instance: u16,
+    #[clap(long, env, default_value = "1", help = "Number of model instance(s)")]
+    num_model_instance: u16,
     #[clap(default_value = "bigscience/bloom", long, env)]
     tokenizer_name: String,
     #[clap(long, env)]
@@ -66,8 +62,6 @@ struct Args {
     ngrok_authtoken: Option<String>,
     #[clap(long, env)]
     ngrok_edge: Option<String>,
-    #[clap(long, env, default_value_t = false)]
-    messages_api_enabled: bool,
     #[clap(long, env, default_value_t = false)]
     disable_grammar_support: bool,
     #[clap(default_value = "4", long, env)]
@@ -100,7 +94,7 @@ async fn main() -> Result<(), RouterError> {
         hostname,
         port,
         gguf_path,
-        cores_per_instance,
+        num_model_instance,
         tokenizer_name,
         tokenizer_config_path,
         revision,
@@ -113,19 +107,17 @@ async fn main() -> Result<(), RouterError> {
         ngrok,
         ngrok_authtoken,
         ngrok_edge,
-        messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
         usage_stats,
     } = args;
 
-    // if let Some(Commands::PrintSchema) = command {
-    //     use utoipa::OpenApi;
-    //     let api_doc = ApiDoc::openapi();
-    //     let api_doc = serde_json::to_string_pretty(&api_doc).unwrap();
-    //     println!("{}", api_doc);
-    //     std::process::exit(0);
-    // };
+    if let Some(Commands::PrintSchema) = command {
+        use utoipa::OpenApi;
+        let api_doc = ApiDoc::openapi().to_pretty_json().unwrap();
+        println!("{}", api_doc);
+        std::process::exit(0);
+    };
     text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
 
     // Validate args
@@ -144,11 +136,11 @@ async fn main() -> Result<(), RouterError> {
         ));
     }
 
-    if let Some(ref max_batch_total_tokens) = max_batch_total_tokens {
-        if max_batch_prefill_tokens > *max_batch_total_tokens {
+    if let Some(max_batch_total_tokens) = max_batch_total_tokens {
+        if max_batch_prefill_tokens > max_batch_total_tokens {
             return Err(RouterError::ArgumentValidation(format!("`max_batch_prefill_tokens` must be <= `max_batch_total_tokens`. Given: {max_batch_prefill_tokens} and {max_batch_total_tokens}")));
         }
-        if max_total_tokens as u32 > *max_batch_total_tokens {
+        if max_total_tokens as u32 > max_batch_total_tokens {
             return Err(RouterError::ArgumentValidation(format!("`max_total_tokens` must be <= `max_batch_total_tokens`. Given: {max_total_tokens} and {max_batch_total_tokens}")));
         }
     }
@@ -177,13 +169,13 @@ async fn main() -> Result<(), RouterError> {
         tokenizer_name,
         tokenizer_config_path,
         revision,
+        false,
         hostname,
         port,
         cors_allow_origin,
         ngrok,
         ngrok_authtoken,
         ngrok_edge,
-        messages_api_enabled,
         disable_grammar_support,
         max_client_batch_size,
         usage_stats,
