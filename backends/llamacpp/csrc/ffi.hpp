@@ -71,7 +71,7 @@ namespace huggingface::tgi::backends::llamacpp {
                 rust::Fn<void(OpaqueStream *, uint32_t, float_t, bool)> callback
         ) {
             // Define the visitor lambda function which requires the has_emplace_generate constraint on T
-            static auto inner_fw = [=, &sampling_params, &stream, &callback]<has_emplace_generate T>(T &&backend)
+            auto inner_fw = [=, &sampling_params, &stream, &callback]<has_emplace_generate T>(T &&backend)
                     -> std::expected<size_t, backend_error_t> {
 
                 auto context_forwarding_callback = [=, &stream](uint32_t new_token_id, float_t logits, bool is_eos){
