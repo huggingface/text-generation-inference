@@ -29,7 +29,7 @@ namespace huggingface::tgi::backends::llamacpp {
         batch.logits[batch.n_tokens] = true;
     }
 
-    std::unique_ptr<llama_sampler> sampling_params_t::into_llama_sampler(const llama_model *model) const {
+    llama_sampler_ptr sampling_params_t::into_llama_sampler(const llama_model *model) const {
         auto *pSampler = llama_sampler_chain_init({.no_perf = false});
 
         // Penalties
@@ -51,7 +51,7 @@ namespace huggingface::tgi::backends::llamacpp {
         }
 
         llama_sampler_chain_add(pSampler, llama_sampler_init_dist(seed));
-        return std::unique_ptr<llama_sampler>(pSampler);
+        return llama_sampler_ptr(pSampler, llama_sampler_deleter);
     }
 
     worker_t::worker_t(std::shared_ptr<llama_model> model, const llama_context_params &params)
