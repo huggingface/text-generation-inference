@@ -29,8 +29,8 @@ namespace huggingface::tgi::backends::llamacpp {
     static constexpr auto llama_sampler_deleter = [](llama_sampler *pSampler) { llama_sampler_free(pSampler); };
     typedef std::unique_ptr<llama_sampler, decltype(llama_sampler_deleter)> llama_sampler_ptr;
 
-    typedef std::function<void(llama_token, float_t, bool)> llama_decode_callback;
-    static constexpr auto llama_void_callback = [](llama_token, float_t, bool) {};
+    typedef std::function<void(llama_token, float_t, bool, size_t)> llama_decode_callback;
+    static constexpr auto llama_void_callback = [](llama_token, float_t, bool, size_t) {};
 
     /**
      *

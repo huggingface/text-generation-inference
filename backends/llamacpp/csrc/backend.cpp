@@ -120,8 +120,8 @@ namespace huggingface::tgi::backends::llamacpp {
                 }
 
                 // Bubble up the generated token if a callback is provided
-                std::invoke(
-                        std::forward<const llama_decode_callback>(callback_), new_token_id, new_token_logits, is_eos);
+                std::invoke(std::forward<const llama_decode_callback>(callback_),
+                            new_token_id, new_token_logits, is_eos, n_decoded_tokens);
 
                 batch = llama_batch_get_one(&new_token_id, 1);
             }

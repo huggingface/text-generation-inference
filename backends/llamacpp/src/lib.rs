@@ -70,7 +70,7 @@ mod ffi {
             generation_params: GenerationParams,
             sampling_params: &SamplingParams,
             stream: *mut OpaqueStream,
-            callback: unsafe fn(*mut OpaqueStream, u32, f32, bool),
+            callback: unsafe fn(*mut OpaqueStream, u32, f32, bool, usize),
         ) -> Result<usize>;
     }
 }

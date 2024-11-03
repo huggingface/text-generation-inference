@@ -102,6 +102,7 @@ fn llama_generate_callback(
     new_token_id: u32,
     new_token_logit: f32,
     is_eos: bool,
+    n_generated_tokens: usize,
 ) {
     let response = InferStreamResponse::Intermediate {
         token: Token {
@@ -112,7 +113,7 @@ fn llama_generate_callback(
         },
         top_tokens: vec![],
     };
-    debug!("Generated token: {new_token_id} -> logits={new_token_logit}, is_eos={is_eos}");
+    info!("Generated token: {new_token_id} -> logits={new_token_logit}, is_eos={is_eos} ({n_generated_tokens})");
 
     unsafe {
         if let Err(ref err) = (*channel).0.send(Ok(response)) {
