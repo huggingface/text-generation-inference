@@ -121,11 +121,12 @@ namespace huggingface::tgi::backends::llamacpp {
                 generating = !(has_reach_max_tokens | has_reach_eog);
 
                 // Bubble up the generated token if a callback is provided
-                std::invoke(std::forward<const llama_decode_callback>(callback_),
-                            new_token_id,
-                            new_token_logits,
-                            !generating,
-                            n_decoded_tokens + 1);
+                const auto should_stop = std::invoke(std::forward<const llama_decode_callback>(callback_),
+                                                     new_token_id,
+                                                     new_token_logits,
+                                                     !generating,
+                                                     n_decoded_tokens + 1);
+                generating ^= should_stop;
 
                 batch = llama_batch_get_one(&new_token_id, 1);
             }
@@ -148,11 +149,12 @@ namespace huggingface::tgi::backends::llamacpp {
         // TODO: Should we provide a way to change this value?
         auto generated = std::vector<llama_token>(2 << 8);
         auto inner_callback = [&](uint32_t new_token_id, float_t new_token_logit, bool is_eos,
-                                  size_t num_generated_tokens) {
+                                  size_t num_generated_tokens) -> bool {
             generated.emplace_back(new_token_id);
 
             if (callback.has_value())
-                (*callback)(new_token_id, new_token_logit, is_eos, num_generated_tokens);
+                return (*callback)(new_token_id, new_token_logit, is_eos, num_generated_tokens);
+            return true;
         };
 
         auto nTokensGenerated = stream(tokens, generation_params, sampling_params, inner_callback);

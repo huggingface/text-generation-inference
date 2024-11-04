@@ -13,11 +13,10 @@ use text_generation_router::validation::{
 };
 use text_generation_router::{FinishReason, Token};
 use thiserror::Error;
-use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 type InferResult = Result<InferStreamResponse, InferError>;
 
@@ -45,7 +44,7 @@ impl From<&ValidStoppingParameters> for GenerationParams {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-struct GenerationContext {
+pub(crate) struct GenerationContext {
     pub(crate) input_tokens: Arc<Vec<u32>>,
     pub(crate) generated_tokens: Vec<u32>,
     pub(crate) generation_params: GenerationParams,
@@ -108,7 +107,7 @@ fn llama_generate_callback(
     new_token_logit: f32,
     is_final: bool,
     n_generated_tokens: usize,
-) {
+) -> bool {
     info!("Generated token: {new_token_id} -> logits={new_token_logit}, is_final={is_final} ({n_generated_tokens})");
 
     // Decode token
@@ -151,10 +150,14 @@ fn llama_generate_callback(
     };
 
     // Send back to the client
-    if let Err(ref err) = ctx.stream.send(Ok(response)) {
+    if let Err(ref _err) = ctx.stream.send(Ok(response)) {
         error!("Failed to send back the response to the client, cancelling request");
         // TODO: cancel the request
+        return true; // should_stop
     }
+
+    // should_stop
+    false
 }
 
 unsafe fn scheduler_loop(

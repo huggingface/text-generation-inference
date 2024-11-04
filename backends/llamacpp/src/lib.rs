@@ -58,7 +58,7 @@ mod ffi {
             generation_params: GenerationParams,
             sampling_params: &SamplingParams,
             stream: *mut InferContext,
-            callback: unsafe fn(*mut InferContext, u32, f32, bool, usize),
+            callback: unsafe fn(*mut InferContext, u32, f32, bool, usize) -> bool,
         ) -> Result<usize>;
     }
 }
