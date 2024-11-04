@@ -17,7 +17,7 @@ use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 type InferResult = Result<InferStreamResponse, InferError>;
 
@@ -113,7 +113,7 @@ fn llama_generate_callback(
     is_final: bool,
     n_generated_tokens: usize,
 ) -> bool {
-    info!("Generated token: {new_token_id} -> logits={new_token_logit}, is_final={is_final} ({n_generated_tokens})");
+    debug!("Generated token: {new_token_id} -> logits={new_token_logit}, is_final={is_final} ({n_generated_tokens})");
 
     let ctx = unsafe { &mut *ctx };
 
