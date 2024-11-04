@@ -181,12 +181,16 @@ async fn openai_get_model_info(info: Extension<Info>) -> Json<ModelsInfo> {
     })
 }
 
+/// Template and tokenize ChatRequest
 #[utoipa::path(
     post,
     tag = "Text Generation Inference",
     path = "/chat_tokenize",
     request_body = ChatRequest,
-    responses((status = 200, description = "Templated and tokenized ChatRequest", body = ChatTokenizeResponse))
+    responses(
+    (status = 200, description = "Templated and tokenized ChatRequest", body = ChatTokenizeResponse),
+    (status = 404, description = "Failed to tokenize ChatRequest", body = ErrorResponse),
+    )
 )]
 async fn get_chat_tokenize(
     Extension(infer): Extension<Infer>,
@@ -1501,6 +1505,7 @@ tokenize,
 metrics,
 openai_get_model_info,
 sagemaker_compatibility,
+get_chat_tokenize,
 ),
 components(
 schemas(
@@ -1558,6 +1563,7 @@ Function,
 FunctionDefinition,
 ToolChoice,
 ModelInfo,
+ChatTokenizeResponse,
 )
 ),
 tags(
