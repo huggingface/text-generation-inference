@@ -89,6 +89,8 @@ class PositionRotaryEmbedding(nn.Module):
 
             if rope_type == "linear":
                 pass
+            elif rope_type == "default":
+                pass
             elif rope_type == "dynamic":
                 scaling_factor = rope_scaling["factor"]
                 return DynamicPositionRotaryEmbedding(

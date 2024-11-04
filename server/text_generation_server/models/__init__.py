@@ -146,6 +146,9 @@ try:
     from text_generation_server.models.custom_modeling.idefics2 import (
         Idefics2ForConditionalGeneration,
     )
+    from text_generation_server.models.custom_modeling.qwen2_vl import (
+        Qwen2VLForConditionalGeneration,
+    )
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
     log_master(logger.warning, f"Could not import Flash Attention enabled models: {e}")
@@ -274,6 +277,11 @@ class ModelType(enum.Enum):
         "type": "qwen2",
         "name": "Qwen 2",
         "url": "https://huggingface.co/collections/Qwen/qwen2-6659360b33528ced941e557f",
+    }
+    QWEN2_VL = {
+        "type": "qwen2_vl",
+        "name": "Qwen 2 VL",
+        "url": "https://huggingface.co/collections/Qwen/qwen2-vl-66cee7455501d7126940800d",
     }
     OPT = {
         "type": "opt",
@@ -1193,6 +1201,18 @@ def get_model(
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+    if model_type == QWEN2_VL:
+        return VlmCausalLM(
+            model_id=model_id,
+            model_class=Qwen2VLForConditionalGeneration,
+            revision=revision,
+            quantize=quantize,
+            speculator=speculator,
+            dtype=dtype,
+            kv_cache_dtype=kv_cache_dtype,
+            trust_remote_code=trust_remote_code,
+            lora_adapter_ids=lora_adapter_ids,
+        )
     if model_type == MLLAMA:
         if FLASH_ATTENTION:
             return MllamaCausalLM(

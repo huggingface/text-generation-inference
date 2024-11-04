@@ -61,6 +61,11 @@ class Qwen2Attention(torch.nn.Module):
             config.sliding_window if config.sliding_window is not None else -1
         )
         self.num_heads = config.num_attention_heads
+        self.mrope_section = (
+            config.rope_scaling.get("mrope_section", None)
+            if config.rope_scaling is not None
+            else None
+        )
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
 
@@ -121,6 +126,17 @@ class Qwen2Attention(torch.nn.Module):
         )
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
+
+        if self.mrope_section is not None:
+            # if mrope_section is set, we need to split the cos and sin into 3 parts and concatenate them in a specific order
+            cos = torch.cat(
+                [m[i % 3] for i, m in enumerate(cos.split(self.mrope_section, dim=-1))],
+                dim=-1,
+            )
+            sin = torch.cat(
+                [m[i % 3] for i, m in enumerate(sin.split(self.mrope_section, dim=-1))],
+                dim=-1,
+            )
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
@@ -270,9 +286,6 @@ class Qwen2Model(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
-        self.embed_tokens = TensorParallelEmbedding(
-            prefix=f"{prefix}.embed_tokens", weights=weights
-        )
         self.layers = nn.ModuleList(
             [
                 Qwen2Layer(
@@ -296,7 +309,7 @@ class Qwen2Model(torch.nn.Module):
 
     def forward(
         self,
-        input_ids: torch.Tensor,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -307,13 +320,16 @@ class Qwen2Model(torch.nn.Module):
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
-        hidden_states = self.embed_tokens(input_ids)
+        hidden_states = inputs_embeds
 
-        # Get rotary cos and sin for this forward
-        # Avoid to index in each layer
+        # flatten position ids from 2D to 1D
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, true_max_s, hidden_states.dtype
+            position_ids.flatten(), true_max_s, hidden_states.dtype
         )
+        # reshape back to 2D if the position_ids were 2D
+        if position_ids.size(0) != cos.size(0):
+            cos = cos.view(position_ids.size(0), position_ids.size(-1), -1).unsqueeze(2)
+            sin = sin.view(position_ids.size(0), position_ids.size(-1), -1).unsqueeze(2)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -352,6 +368,12 @@ class Qwen2ForCausalLM(torch.nn.Module):
             prefix=f"{prefix}.{suffix}" if prefix else suffix,
             weights=weights,
         )
+
+        self.embed_tokens = TensorParallelEmbedding(
+            prefix=f"{prefix}.embed_tokens" if prefix else "model.embed_tokens",
+            weights=weights,
+        )
+
         self.max_past = config.sliding_window
         self.max_past_tensor = (
             torch.tensor(config.sliding_window, device=weights.device)
@@ -382,8 +404,10 @@ class Qwen2ForCausalLM(torch.nn.Module):
             # kernel requires the true values
             seqlen = seqlen.clamp(max=self.max_past_tensor)
 
+        inputs_embeds = self.embed_tokens(input_ids)
+
         hidden_states = self.model(
-            input_ids,
+            inputs_embeds,
             position_ids,
             cu_seqlen_prefill,
             kv_cache,

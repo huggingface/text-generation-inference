@@ -180,6 +180,7 @@ class LlavaNextForConditionalGeneration(nn.Module):
         pixel_attention_mask=None,
         image_sizes: Optional[torch.LongTensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
     ):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         if pixel_values is not None and len(pixel_values) > 0:
