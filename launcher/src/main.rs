@@ -1687,13 +1687,6 @@ fn main() -> Result<(), LauncherError> {
     let max_position_embeddings = if let Some(config) = &config {
         if let Some(max_position_embeddings) = config.max_position_embeddings {
             if max_position_embeddings > max_default {
-                let max = max_position_embeddings;
-                if args.max_input_tokens.is_none()
-                    && args.max_total_tokens.is_none()
-                    && args.max_batch_prefill_tokens.is_none()
-                {
-                    tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
-                }
                 max_default
             } else {
                 max_position_embeddings

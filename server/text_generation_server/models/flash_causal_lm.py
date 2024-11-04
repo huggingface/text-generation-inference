@@ -1532,8 +1532,6 @@ class FlashCausalLM(Model):
                 self.kv_cache_dtype,
                 self.device,
             )
-            max_bt = batch.max_blocks
-            max_s = max_bt * BLOCK_SIZE
             batch_num_blocks = batch.num_blocks
 
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
@@ -1651,7 +1649,7 @@ class FlashCausalLM(Model):
                 # Warmup cuda graphs
                 for bs in CUDA_GRAPHS:
                     if self.speculate is None or self.speculate + 1 <= bs:
-                        self.cuda_graph_warmup(bs, max_s, max_bt)
+                        self.cuda_graph_warmup(bs, max_total_tokens, max_total_tokens)
             except torch.cuda.OutOfMemoryError:
                 logger.exception("Decode cuda graph warmup failed")
         else:
