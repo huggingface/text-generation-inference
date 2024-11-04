@@ -4,6 +4,7 @@ use text_generation_backend_llamacpp::backend::{LlamaCppBackend, LlamaCppBackend
 use text_generation_router::server::ApiDoc;
 use text_generation_router::{server, usage_stats};
 use thiserror::Error;
+use tokenizers::FromPretrainedParameters;
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -36,9 +37,9 @@ struct Args {
     port: u16,
     #[clap(long, env, help = "Path to GGUF model file(s) to load")]
     gguf_path: PathBuf,
-    #[clap(long, env, default_value = "1", help = "Number of model instance(s)")]
-    num_model_instance: u16,
-    #[clap(default_value = "bigscience/bloom", long, env)]
+    // #[clap(long, env, default_value = "1", help = "Number of model instance(s)")]
+    // num_model_instance: u16,
+    #[clap(long, env, required = true)]
     tokenizer_name: String,
     #[clap(long, env)]
     tokenizer_config_path: Option<String>,
@@ -94,7 +95,7 @@ async fn main() -> Result<(), RouterError> {
         hostname,
         port,
         gguf_path,
-        num_model_instance,
+        // num_model_instance,
         tokenizer_name,
         tokenizer_config_path,
         revision,
@@ -153,7 +154,17 @@ async fn main() -> Result<(), RouterError> {
         }
     }
 
-    let backend = LlamaCppBackend::new(gguf_path)?;
+    let auth_token = std::env::var("HF_TOKEN")
+        .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
+        .ok();
+    let options = FromPretrainedParameters {
+        revision: revision.clone().unwrap_or("main".to_string()),
+        user_agent: Default::default(),
+        auth_token,
+    };
+    let tokenizer = tokenizers::Tokenizer::from_pretrained(tokenizer_name.clone(), Some(options))
+        .expect("Failed to retrieve tokenizer");
+    let backend = LlamaCppBackend::new(gguf_path, tokenizer)?;
 
     // Run server
     server::run(
