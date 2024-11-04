@@ -1,6 +1,5 @@
+use crate::backend::InferContext;
 use crate::ffi::SamplingParams;
-use text_generation_router::infer::{InferError, InferStreamResponse};
-use tokio::sync::mpsc::UnboundedSender;
 
 pub mod backend;
 
@@ -15,8 +14,6 @@ impl Default for SamplingParams {
         }
     }
 }
-
-struct OpaqueStream(UnboundedSender<Result<InferStreamResponse, InferError>>);
 
 #[cxx::bridge(namespace = "huggingface::tgi::backends::llamacpp")]
 mod ffi {
@@ -36,7 +33,7 @@ mod ffi {
     }
 
     extern "Rust" {
-        type OpaqueStream;
+        type InferContext;
     }
 
     unsafe extern "C++" {
@@ -66,11 +63,10 @@ mod ffi {
         unsafe fn stream(
             self: Pin<&mut LlamaCppBackendImpl>,
             tokens: &[u32],
-            generated: &mut [u32],
             generation_params: GenerationParams,
             sampling_params: &SamplingParams,
-            stream: *mut OpaqueStream,
-            callback: unsafe fn(*mut OpaqueStream, u32, f32, bool, usize),
+            stream: *mut InferContext,
+            callback: unsafe fn(*mut InferContext, u32, f32, bool, usize),
         ) -> Result<usize>;
     }
 }

@@ -28,23 +28,20 @@ namespace huggingface::tgi::backends::llamacpp {
 
     // Concept identifying types which have a .generate() -> size_t method to do in-place generation
     template<typename T>
-    concept has_emplace_generate = requires(
+    concept has_stream_method = requires(
             T t,
             std::span<const llama_token> input_tokens,
-            std::span<llama_token> generated_tokens,
             const generation_params_t &generation_params,
             const sampling_params_t &sampling_params,
             llama_decode_callback callback
     ) {
         {
-        t.generate(input_tokens, generated_tokens, generation_params, sampling_params, callback)
+        t.stream(input_tokens, generation_params, sampling_params, callback)
         } -> std::same_as<std::expected<size_t, backend_error_t>>;
     };
 
-    static_assert(has_emplace_generate<single_worker_backend_t>,
-                  "single_worker_backend_t doesn't meet concept is_generate_emplace_capable");
-    static_assert(has_emplace_generate<multi_worker_backend_t>,
-                  "multi_worker_backend_t doesn't meet concept is_generate_emplace_capable");
+    static_assert(has_stream_method<single_worker_backend_t>, "single_worker_backend_t doesn't meet concept has_stream_method");
+    static_assert(has_stream_method<multi_worker_backend_t>, "multi_worker_backend_t doesn't meet concept has_stream_method");
 
     class llama_cpp_backend_exception_t : std::exception {
 
@@ -64,29 +61,25 @@ namespace huggingface::tgi::backends::llamacpp {
 
         size_t stream(
                 rust::Slice<const uint32_t> input_tokens,
-                rust::Slice <uint32_t> generated_tokens,
                 const generation_params_t generation_params,
                 const sampling_params_t &sampling_params,
-                OpaqueStream *stream,
-                rust::Fn<void(OpaqueStream *, uint32_t, float_t, bool, size_t)> callback
+                InferContext *ctx,
+                rust::Fn<void(InferContext *, uint32_t, float_t, bool, size_t)> callback
         ) {
             // Define the visitor lambda function which requires the has_emplace_generate constraint on T
-            auto inner_fw = [=, &sampling_params, &stream, &callback]<has_emplace_generate T>(T &&backend)
+            auto inner_fw = [=, &sampling_params, &ctx, &callback]<has_stream_method T>(T &&backend)
                     -> std::expected<size_t, backend_error_t> {
 
-                auto context_forwarding_callback = [=, &stream](uint32_t new_token_id, float_t logits, bool is_eos, size_t n_generated_tokens){
-                    callback(stream, new_token_id, logits, is_eos, n_generated_tokens);
+                auto context_forwarding_callback = [=, &ctx](uint32_t new_token_id, float_t logits, bool is_eos, size_t n_generated_tokens){
+                    callback(ctx, new_token_id, logits, is_eos, n_generated_tokens);
                 };
 
                 // Ask the compiler to create view over Rust slice transmuting from uint32_t* to int32_t*
                 auto input_tokens_v =
                         std::span(reinterpret_cast<const llama_token *>(input_tokens.data()), input_tokens.size());
-                auto generated_tokens_v =
-                        std::span(reinterpret_cast<llama_token *>(generated_tokens.data()), generated_tokens.size());
 
-                return backend.generate(
+                return backend.stream(
                         input_tokens_v,
-                        generated_tokens_v,
                         generation_params,
                         sampling_params,
                         context_forwarding_callback

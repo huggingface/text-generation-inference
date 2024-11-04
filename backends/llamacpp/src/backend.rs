@@ -1,7 +1,6 @@
 use crate::ffi::{
     create_single_worker_backend, GenerationParams, LlamaCppBackendImpl, SamplingParams,
 };
-use crate::OpaqueStream;
 use async_trait::async_trait;
 use cxx::UniquePtr;
 use std::path::{Path, PathBuf};
@@ -14,12 +13,13 @@ use text_generation_router::validation::{
 };
 use text_generation_router::{FinishReason, Token};
 use thiserror::Error;
+use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, error, info};
 
-type BoxedOpaqueStream = Box<OpaqueStream>;
+type InferResult = Result<InferStreamResponse, InferError>;
 
 unsafe impl Send for LlamaCppBackendImpl {}
 
@@ -45,12 +45,17 @@ impl From<&ValidStoppingParameters> for GenerationParams {
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]
-struct InferContext {
-    pub(crate) stream: UnboundedSender<Result<InferStreamResponse, InferError>>,
+struct GenerationContext {
     pub(crate) input_tokens: Arc<Vec<u32>>,
     pub(crate) generated_tokens: Vec<u32>,
     pub(crate) generation_params: GenerationParams,
     pub(crate) sampling_params: SamplingParams,
+}
+
+pub(crate) struct InferContext {
+    pub(crate) start: Instant,
+    pub(crate) stream: UnboundedSender<InferResult>,
+    pub(crate) generation: GenerationContext,
 }
 
 #[derive(Debug, Error)]
@@ -63,7 +68,7 @@ pub enum LlamaCppBackendError {
 }
 
 pub struct LlamaCppBackend {
-    backlog: Sender<InferContext>,
+    backlog: Sender<(GenerationContext, UnboundedSender<InferResult>)>,
     scheduler_handle: JoinHandle<()>,
 }
 
@@ -98,81 +103,96 @@ impl LlamaCppBackend {
 }
 
 fn llama_generate_callback(
-    channel: *mut OpaqueStream,
+    ctx: *mut InferContext,
     new_token_id: u32,
     new_token_logit: f32,
-    is_eos: bool,
+    is_final: bool,
     n_generated_tokens: usize,
 ) {
-    let response = InferStreamResponse::Intermediate {
-        token: Token {
-            id: new_token_id,
-            text: "".to_string(),
-            logprob: new_token_logit,
-            special: false,
-        },
-        top_tokens: vec![],
-    };
-    info!("Generated token: {new_token_id} -> logits={new_token_logit}, is_eos={is_eos} ({n_generated_tokens})");
+    info!("Generated token: {new_token_id} -> logits={new_token_logit}, is_final={is_final} ({n_generated_tokens})");
 
-    unsafe {
-        if let Err(ref err) = (*channel).0.send(Ok(response)) {
-            error!(
-                "Failed to send back token to the client: {}",
-                err.to_string()
-            );
-        };
+    // Decode token
+    let token = Token {
+        id: new_token_id,
+        text: "".to_string(),
+        logprob: new_token_logit,
+        special: false,
+    };
+
+    let ctx = unsafe { &mut *ctx };
+
+    // Append the new token to the generated ones
+    ctx.generation.generated_tokens.push(new_token_id);
+
+    // Create the streamed response
+    let response = match is_final {
+        false => InferStreamResponse::Intermediate {
+            token,
+            top_tokens: vec![],
+        },
+        true => {
+            // Decode the whole text
+            let text = String::new();
+
+            // Stream end response
+            InferStreamResponse::End {
+                token,
+                top_tokens: vec![],
+                generated_text: GeneratedText {
+                    text,
+                    generated_tokens: n_generated_tokens as u32,
+                    finish_reason: FinishReason::Length,
+                    seed: Some(ctx.generation.sampling_params.seed),
+                },
+                start: ctx.start,
+                queued: ctx.start,
+            }
+        }
+    };
+
+    // Send back to the client
+    if let Err(ref err) = ctx.stream.send(Ok(response)) {
+        error!("Failed to send back the response to the client, cancelling request");
+        // TODO: cancel the request
     }
 }
 
 unsafe fn scheduler_loop(
     mut backend: UniquePtr<LlamaCppBackendImpl>,
-    backlog: Receiver<InferContext>,
+    backlog: Receiver<(GenerationContext, UnboundedSender<InferResult>)>,
 ) {
+    // This loop will mostly decode single token at every step, so no need to rely on parallelism
+    tokenizers::utils::parallelism::set_parallelism(false);
+
     loop {
-        if let Ok(mut ctx) = backlog.recv() {
+        if let Ok((generation, stream)) = backlog.recv() {
             let start = Instant::now();
-            let stream = BoxedOpaqueStream::new(OpaqueStream(ctx.stream));
-            let stream_ptr = Box::into_raw(stream);
-            let result = backend.pin_mut().stream(
-                &ctx.input_tokens,
-                &mut ctx.generated_tokens,
-                ctx.generation_params,
-                &ctx.sampling_params,
-                stream_ptr,
-                llama_generate_callback,
-            );
+            let generation_params = generation.generation_params; // copy
+            let sampling_params = generation.sampling_params; // copy
+            let input_tokens = Arc::clone(&generation.input_tokens);
 
-            // Make sure we re-keep track of the OpaqueStream box
-            let stream = Box::from_raw(stream_ptr);
+            // Creating the whole InferContext and pushing it to the heap
+            {
+                let ctx = Box::new(InferContext {
+                    start,
+                    stream,
+                    generation,
+                });
 
-            match result {
-                Ok(n_tokens) => {
-                    unsafe {
-                        ctx.generated_tokens.set_len(n_tokens);
-                    }
+                let boxed_ctx = Box::into_raw(ctx);
 
-                    let _ = stream.0.send(Ok(InferStreamResponse::End {
-                        token: Token {
-                            id: ctx.generated_tokens[n_tokens - 1],
-                            text: "".to_string(),
-                            logprob: 0.0,
-                            special: false,
-                        },
-                        top_tokens: vec![],
-                        generated_text: GeneratedText {
-                            text: "".to_string(),
-                            generated_tokens: n_tokens as u32,
-                            finish_reason: FinishReason::Length,
-                            seed: Some(ctx.sampling_params.seed),
-                        },
-                        start,
-                        queued: start,
-                    }));
-
-                    debug!("Generated {n_tokens} tokens -> {:?}", ctx.generated_tokens);
+                if let Err(e) = backend.pin_mut().stream(
+                    &input_tokens,
+                    generation_params,
+                    &sampling_params,
+                    boxed_ctx,
+                    llama_generate_callback,
+                ) {
+                    error!("Error while decoding tokens... {}", e.what());
                 }
-                Err(err) => println!("Error: {err}"),
+
+                // Make sure we re-keep track of the OpaqueStream box
+                let _ = Box::from_raw(boxed_ctx);
             }
         } else {
             info!("IPC channel is closed, exiting the scheduler loop");
@@ -186,21 +206,20 @@ impl Backend for LlamaCppBackend {
     fn schedule(
         &self,
         request: ValidGenerateRequest,
-    ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError> {
+    ) -> Result<UnboundedReceiverStream<InferResult>, InferError> {
         if let Some(input_ids) = request.input_ids {
             let (sx, rx) = unbounded_channel();
             let sampling_params = SamplingParams::from(&request.parameters);
             let generation_params = GenerationParams::from(&request.stopping_parameters);
 
-            let ctx = InferContext {
-                stream: sx,
+            let ctx = GenerationContext {
                 input_tokens: Arc::clone(&input_ids),
                 generated_tokens: Vec::with_capacity(generation_params.max_new_tokens as usize),
                 generation_params,
                 sampling_params,
             };
 
-            match self.backlog.send(ctx) {
+            match self.backlog.send((ctx, sx)) {
                 Ok(_) => Ok(UnboundedReceiverStream::new(rx)),
                 Err(_) => Err(InferError::GenerationError(
                     "Failed to sent the request".to_string(),

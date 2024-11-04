@@ -69,7 +69,6 @@ namespace huggingface::tgi::backends::llamacpp {
         generation_params_t generation_params;
         sampling_params_t sampling_params;
         std::span<const llama_token> input_tokens;
-        std::span<llama_token> generated_tokens;
     };
 
     /**
@@ -125,25 +124,9 @@ namespace huggingface::tgi::backends::llamacpp {
         /**
          *
          * @param tokens
-         * @params out
-         * @param params
-         * @param maxNewTokens
-         * @return
-         */
-        [[nodiscard("Generated tokens will be freed after this call if not assigned to an lvalue")]]
-        virtual std::expected<size_t, backend_error_t> generate(
-                std::span<const llama_token> input_tokens,
-                std::span<llama_token> generated_tokens,
-                const generation_params_t &generation_params,
-                const sampling_params_t &sampling_params,
-                const std::optional<llama_decode_callback> &callback
-        ) = 0;
-
-        /**
-         *
-         * @param tokens
-         * @param params
-         * @param maxNewTokens
+         * @param generation_params
+         * @param sampling_params
+         * @param callback
          * @return
          */
         [[nodiscard("Generated tokens will be freed after this call if not assigned to an lvalue")]]
@@ -153,6 +136,22 @@ namespace huggingface::tgi::backends::llamacpp {
                 const sampling_params_t &sampling_params,
                 const std::optional<llama_decode_callback> &callback = std::nullopt
         );
+
+        /**
+         *
+         * @param tokens
+         * @param generation_params
+         * @param sampling_params
+         * @params callback
+         * @return
+         */
+        [[nodiscard("Generated tokens will be freed after this call if not assigned to an lvalue")]]
+        virtual std::expected<size_t, backend_error_t> stream(
+                std::span<const llama_token> tokens,
+                const generation_params_t &generation_params,
+                const sampling_params_t &sampling_params,
+                const llama_decode_callback &callback
+        ) = 0;
     };
 
 
@@ -174,16 +173,11 @@ namespace huggingface::tgi::backends::llamacpp {
     public:
         explicit single_worker_backend_t(llama_model *pModel, const std::optional<llama_context_params> &);
 
-        using backend_base_t::generate;
-
-        std::expected<size_t, backend_error_t>
-        generate(
+        std::expected<size_t, backend_error_t> stream(
                 std::span<const llama_token> tokens,
-                std::span<llama_token> out,
                 const generation_params_t &generation_params,
                 const sampling_params_t &sampling_params,
-                const std::optional<llama_decode_callback> &callback
-        ) override;
+                const llama_decode_callback &callback) override;
     };
 
     class multi_worker_backend_t : backend_base_t {
@@ -191,13 +185,11 @@ namespace huggingface::tgi::backends::llamacpp {
         llama_context_ptr mContext_;
 
     public:
-        std::expected<size_t, backend_error_t> generate(
-                std::span<const llama_token>,
-                std::span<llama_token>,
+        std::expected<size_t, backend_error_t> stream(
+                std::span<const llama_token> tokens,
                 const generation_params_t &generation_params,
                 const sampling_params_t &sampling_params,
-                const std::optional<llama_decode_callback> &callback
-        ) override;
+                const llama_decode_callback &callback) override;
     };
 }
 
