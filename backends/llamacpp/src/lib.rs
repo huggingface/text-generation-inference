@@ -52,14 +52,6 @@ mod ffi {
         #[rust_name = "create_single_worker_backend"]
         fn create_single_worker_backend(modelPath: &str) -> Result<UniquePtr<LlamaCppBackendImpl>>;
 
-        // fn generate(
-        //     self: Pin<&mut LlamaCppBackendImpl>,
-        //     tokens: &[u32],
-        //     generated: &mut [u32],
-        //     generation_params: GenerationParams,
-        //     sampling_params: &SamplingParams,
-        // ) -> Result<usize>;
-
         unsafe fn stream(
             self: Pin<&mut LlamaCppBackendImpl>,
             tokens: &[u32],
