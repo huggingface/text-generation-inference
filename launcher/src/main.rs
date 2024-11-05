@@ -1498,6 +1498,11 @@ struct ComputeType {
 impl ComputeType {
     fn f16_flop(&self) -> Option<u64> {
         let card_flop = match &self.card[..] {
+            // https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/
+            // Specs are unclear https://www.itcreations.com/nvidia-gpu/nvidia-geforce-rtx-4090-gpu
+            "nvidia-4090" => Some(82 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/tesla-t4/
+            "nvidia-t4" => Some(65 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/l4/
             "nvidia-l4" => Some(121 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/products/a10-gpu/
