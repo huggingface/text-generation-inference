@@ -1502,6 +1502,10 @@ impl ComputeType {
             "nvidia-l4" => Some(121 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/products/a10-gpu/
             "nvidia-a10g" => Some(125 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/h100/
+            "nvidia-h100" => Some(1900 * 10u64.pow(12)),
+            // https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf
+            "nvidia-a100" => Some(312 * 10u64.pow(12)),
             card => {
                 tracing::warn!("Unkown compute for card {card}");
                 None
