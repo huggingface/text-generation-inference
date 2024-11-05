@@ -8,6 +8,7 @@
 #include <exception>
 #include <filesystem>
 #include <string_view>
+#include <variant>
 
 #include <spdlog/spdlog.h>
 #include "backend.hpp"
