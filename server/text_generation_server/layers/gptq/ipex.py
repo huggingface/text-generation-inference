@@ -122,5 +122,4 @@ class QuantLinear(nn.Module):
     def forward(self, x):
         out_shape = x.shape[:-1] + (self.outfeatures,)
         out = self.woq_linear(x.reshape(-1, x.shape[-1]))
-        out = out + self.bias if self.bias is not None else out
         return out.reshape(out_shape)

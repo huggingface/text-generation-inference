@@ -101,6 +101,47 @@
         }
       }
     },
+    "/chat_tokenize": {
+      "post": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Template and tokenize ChatRequest",
+        "operationId": "get_chat_tokenize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Templated and tokenized ChatRequest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatTokenizeResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Failed to tokenize ChatRequest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/generate": {
       "post": {
         "tags": [
@@ -1089,6 +1130,21 @@
             "description": "An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the\ntokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.",
             "example": 0.95,
             "nullable": true
+          }
+        }
+      },
+      "ChatTokenizeResponse": {
+        "type": "object",
+        "required": [
+          "tokenize_response",
+          "templated_text"
+        ],
+        "properties": {
+          "templated_text": {
+            "type": "string"
+          },
+          "tokenize_response": {
+            "$ref": "#/components/schemas/TokenizeResponse"
           }
         }
       },

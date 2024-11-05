@@ -55,7 +55,7 @@ def block_tables_to_ragged(
     cache_lengths: List[int],
     input_lengths_tensor: torch.Tensor,
     cache_lengths_tensor: torch.Tensor,
-    max_current_length: int
+    max_current_length: int,
 ) -> torch.Tensor:
     """Convert block table to ragged format compatible with FlashInfer."""
     assert len(input_lengths) == len(cache_lengths)
