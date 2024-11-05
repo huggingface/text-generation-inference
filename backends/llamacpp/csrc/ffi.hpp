@@ -101,8 +101,7 @@ namespace huggingface::tgi::backends::llamacpp {
         params.use_mmap = true;
 
         auto *model = llama_load_model_from_file(cxxPath.c_str(), params);
-        auto backend = single_worker_backend_t(model, std::nullopt);
-        return std::make_unique<llama_cpp_backend_impl_t>(std::move(backend));
+        return std::make_unique<llama_cpp_backend_impl_t>(single_worker_backend_t { model, std::nullopt });
     }
 }
 
