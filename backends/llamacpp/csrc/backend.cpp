@@ -170,7 +170,7 @@ namespace huggingface::tgi::backends::llamacpp {
               mContext_(llama_context_factory(model)),
               mWorker_(mModel_, params.value_or(llama_context_default_params())) {
         llama_numa_init(ggml_numa_strategy::GGML_NUMA_STRATEGY_NUMACTL);
-    }
+    };
 
     std::expected<size_t, backend_error_t>
     single_worker_backend_t::stream(

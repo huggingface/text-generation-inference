@@ -157,10 +157,11 @@ namespace huggingface::tgi::backends::llamacpp {
 
     class single_worker_backend_t : backend_base_t {
     private:
-        constexpr const static auto llama_context_factory = [](llama_model *pModel) -> llama_context_ptr {
+        constexpr static auto llama_context_factory = [](llama_model *pModel) -> llama_context_ptr {
             auto llParams = llama_context_default_params();
             llParams.flash_attn = true;
             llParams.n_batch = 1;
+            llParams.n_threads = 1;
             llParams.no_perf = true;
             llParams.attention_type = llama_attention_type::LLAMA_ATTENTION_TYPE_CAUSAL;
 
@@ -172,6 +173,8 @@ namespace huggingface::tgi::backends::llamacpp {
 
     public:
         explicit single_worker_backend_t(llama_model *pModel, const std::optional<llama_context_params> &);
+
+        using backend_base_t::generate;
 
         std::expected<size_t, backend_error_t> stream(
                 std::span<const llama_token> tokens,
@@ -185,6 +188,8 @@ namespace huggingface::tgi::backends::llamacpp {
         llama_context_ptr mContext_;
 
     public:
+        using backend_base_t::generate;
+
         std::expected<size_t, backend_error_t> stream(
                 std::span<const llama_token> tokens,
                 const generation_params_t &generation_params,

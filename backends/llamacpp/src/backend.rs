@@ -70,7 +70,7 @@ pub enum LlamaCppBackendError {
 
 pub struct LlamaCppBackend {
     backlog: Sender<(GenerationContext, UnboundedSender<InferResult>)>,
-    scheduler_handle: JoinHandle<()>,
+    _scheduler_handle: JoinHandle<()>,
 }
 
 impl LlamaCppBackend {
@@ -101,7 +101,7 @@ impl LlamaCppBackend {
         let handle = unsafe { spawn(|| scheduler_loop(backend, tokenizer, receiver)) };
         Ok(Self {
             backlog: submitter,
-            scheduler_handle: handle,
+            _scheduler_handle: handle,
         })
     }
 }
