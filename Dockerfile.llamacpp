@@ -1,0 +1,51 @@
+# Build dependencies resolver stage
+FROM lukemathwalker/cargo-chef:latest AS chef
+WORKDIR /usr/src/text-generation-inference/
+
+FROM chef AS planner
+COPY Cargo.lock Cargo.lock
+COPY Cargo.toml Cargo.toml
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY backends backends
+COPY benchmark benchmark
+COPY clients clients
+COPY launcher launcher
+COPY router router
+
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
+    clang \
+    cmake \
+    gcc g++ \
+    libc++-dev \
+    libopenmpi-dev \
+    libssl-dev \
+    ninja-build \
+    openssl \
+    python3-dev
+
+
+RUN   update-alternatives --install /usr/bin/cc cc /usr/bin/clang 10 \
+      && update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 10 \
+      && update-alternatives --auto cc \
+      && update-alternatives --auto c++ \
+      && update-alternatives --display cc \
+      && update-alternatives --display c++ \
+      && cc --version \
+      && c++ --version
+
+COPY --from=planner usr/src/text-generation-inference/recipe.json recipe.json
+RUN cargo chef cook --profile release-opt --package text-generation-backend-llamacpp --bin text-generation-backend-llamacpp --recipe-path recipe.json
+
+COPY Cargo.lock Cargo.lock
+COPY Cargo.toml Cargo.toml
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY backends backends
+COPY benchmark benchmark
+COPY launcher launcher
+COPY router router
+
+ENV RUSTFLAGS="-L/usr/lib"
+RUN cargo build --profile release-opt --package text-generation-backend-llamacpp --bin text-generation-backend-llamacpp --frozen
