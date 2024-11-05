@@ -33,7 +33,7 @@ fn compute_optimal(config: Option<&Config>, compute: Option<&ComputeType>) -> Op
     if let (Some(config), Some(compute)) = (config, compute) {
         if let (Some(f16_max_compute), Some(model_compute)) = (compute.f16_flop(), config.flop()) {
             tracing::debug!("MAx compute {f16_max_compute} model compute {model_compute}");
-            let optimal_size = (f16_max_compute / model_compute) as usize;
+            let optimal_size = (f16_max_compute / model_compute / 2) as usize;
             if optimal_size > 100 {
                 // Ignore calculations that's too low
                 // Most likely an error
@@ -1500,6 +1500,8 @@ impl ComputeType {
         let card_flop = match &self.card[..] {
             // https://www.nvidia.com/en-us/data-center/l4/
             "nvidia-l4" => Some(121 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/products/a10-gpu/
+            "nvidia-a10g" => Some(125 * 10u64.pow(12)),
             card => {
                 tracing::warn!("Unkown compute for card {card}");
                 None

@@ -1554,12 +1554,16 @@ class FlashCausalLM(Model):
             )
             batch_num_blocks = batch.num_blocks
 
+            num_tokens = batch.to_pb().current_tokens
+            logger.info(f"BLOCKS {batch.num_blocks}")
+            free_memory = get_free_memory(self.device, MEMORY_FRACTION)
+            logger.info(f"Free memory {free_memory}")
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
             _, _batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
-                f"Not enough memory to handle {batch.to_pb().current_tokens} prefill tokens. "
+                f"Not enough memory to handle {num_tokens} prefill tokens. "
                 f"You need to decrease `--max-batch-prefill-tokens`"
             ) from e
 
@@ -2106,6 +2110,10 @@ class FlashCausalLM(Model):
 
         if prefill and prefill_logprobs:
             # Get prefill logprobs with inplace softmax (avoid copying the `out` tensor (max_batch_prefill_tokens * vocab_size))
+            free_memory = get_free_memory(self.device, MEMORY_FRACTION)
+            logger.info(f"Free memory {free_memory / 1e9}GB")
+            logmemory = out.nelement() * out.element_size()
+            logger.info(f"Log memory {logmemory / 1e9}GB")
             torch.log_softmax(out, -1, out=out)
             prefill_logprobs_tensor = out
             prefill_logprobs = torch.gather(
