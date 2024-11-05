@@ -66,7 +66,7 @@ class KVCache:
         else:
             x = BLOCK_SIZE // element_size
 
-        if ATTENTION in {"flashdecoding", "flashinfer"}:
+        if ATTENTION in {"flashdecoding", "flashinfer"} and SYSTEM != "ipex":
             self.kv_cache = (
                 torch.empty(
                     (num_blocks, BLOCK_SIZE, num_heads, head_size),
@@ -174,7 +174,7 @@ class KVCache:
                     scalar=True,
                 )[0]
 
-        if ATTENTION in {"flashdecoding", "flashinfer"}:
+        if ATTENTION in {"flashdecoding", "flashinfer"} and SYSTEM != "ipex":
             key = key.to(key_cache.dtype)
             value = value.to(value_cache.dtype)
             if key_cache.dtype in {torch.float8_e4m3fn, torch.float8_e5m2}:
