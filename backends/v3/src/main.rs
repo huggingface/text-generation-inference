@@ -70,6 +70,8 @@ struct Args {
     max_client_batch_size: usize,
     #[clap(default_value = "on", long, env)]
     usage_stats: usage_stats::UsageStatsLevel,
+    #[clap(default_value = "2000000", long, env)]
+    payload_limit: usize,
 }
 
 #[derive(Debug, Subcommand)]
@@ -114,6 +116,7 @@ async fn main() -> Result<(), RouterError> {
         disable_grammar_support,
         max_client_batch_size,
         usage_stats,
+        payload_limit,
     } = args;
 
     if let Some(Commands::PrintSchema) = command {
@@ -210,6 +213,7 @@ async fn main() -> Result<(), RouterError> {
         disable_grammar_support,
         max_client_batch_size,
         usage_stats,
+        payload_limit,
     )
     .await?;
     Ok(())

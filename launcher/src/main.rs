@@ -687,6 +687,12 @@ struct Args {
     /// Defaul is on.
     #[clap(default_value = "on", long, env)]
     usage_stats: UsageStatsLevel,
+
+    /// Payload size limit in bytes
+    ///
+    /// Default is 2MB
+    #[clap(default_value = "2000000", long, env)]
+    payload_limit: usize,
 }
 
 #[derive(Debug)]
@@ -1474,6 +1480,8 @@ fn spawn_webserver(
         format!("{}-0", args.shard_uds_path),
         "--tokenizer-name".to_string(),
         args.model_id,
+        "--payload-limit".to_string(),
+        args.payload_limit.to_string(),
     ];
     if let Some(max_input_tokens) = max_input_tokens {
         router_args.extend_from_slice(&[

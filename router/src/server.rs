@@ -31,7 +31,7 @@ use crate::{
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
 use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
-use axum::extract::Extension;
+use axum::extract::{DefaultBodyLimit, Extension};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
@@ -1673,6 +1673,7 @@ pub async fn run(
     disable_grammar_support: bool,
     max_client_batch_size: usize,
     usage_stats_level: usage_stats::UsageStatsLevel,
+    payload_limit: usize,
 ) -> Result<(), WebServerError> {
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
@@ -1926,6 +1927,7 @@ pub async fn run(
         model_info,
         compat_return_full_text,
         allow_origin,
+        payload_limit,
     )
     .await;
 
@@ -1985,6 +1987,7 @@ async fn start(
     model_info: HubModelInfo,
     compat_return_full_text: bool,
     allow_origin: Option<AllowOrigin>,
+    payload_limit: usize,
 ) -> Result<(), WebServerError> {
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
@@ -2382,6 +2385,7 @@ async fn start(
         .layer(Extension(compute_type))
         .layer(Extension(prom_handle.clone()))
         .layer(OtelAxumLayer::default())
+        .layer(DefaultBodyLimit::max(payload_limit))
         .layer(cors_layer);
 
     tracing::info!("Connected");
