@@ -1829,6 +1829,7 @@ pub async fn run(
             Tokenizer::Python {
                 tokenizer_name: tokenizer_name.clone(),
                 revision: revision.clone(),
+                trust_remote_code,
             }
         }
     };

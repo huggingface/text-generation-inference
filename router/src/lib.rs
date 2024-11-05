@@ -27,6 +27,7 @@ pub enum Tokenizer {
     Python {
         tokenizer_name: String,
         revision: Option<String>,
+        trust_remote_code: bool,
     },
     Rust(tokenizers::Tokenizer),
 }
@@ -38,15 +39,20 @@ impl<'a> PyTokenizer<'a> {
         py: Python<'a>,
         tokenizer_name: String,
         revision: Option<String>,
+        trust_remote_code: bool,
     ) -> PyResult<PyTokenizer<'a>> {
         let transformers = py.import_bound("transformers")?;
         let auto = transformers.getattr("AutoTokenizer")?;
         let from_pretrained = auto.getattr("from_pretrained")?;
         let args = (tokenizer_name,);
         let kwargs = if let Some(rev) = &revision {
-            [("revision", rev.to_string())].into_py_dict_bound(py)
+            [
+                ("revision", rev.to_string().into_py(py)),
+                ("trust_remote_code", trust_remote_code.into_py(py)),
+            ]
+            .into_py_dict_bound(py)
         } else {
-            pyo3::types::PyDict::new_bound(py)
+            [("trust_remote_code", trust_remote_code.into_py(py))].into_py_dict_bound(py)
         };
         let tokenizer = from_pretrained.call(args, Some(&kwargs))?;
         tracing::info!("Loaded a python tokenizer");
