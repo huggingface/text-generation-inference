@@ -124,56 +124,59 @@ fn llama_generate_callback(
     let token = match ctx.tokenizer.decode(&[new_token_id], false) {
         Ok(text) => {
             let special = ctx.tokenizer.get_added_vocabulary().is_special_token(&text);
-            Token {
+            Ok(Token {
                 id: new_token_id,
                 text,
                 logprob: new_token_logit,
                 special,
-            }
+            })
         }
-        Err(_) => panic!("Failed to decode token"),
+        Err(ref err) => Err(InferError::GenerationError(err.to_string())),
     };
 
     // Create the streamed response
-    let response = match is_final {
-        false => InferStreamResponse::Intermediate {
-            token,
-            top_tokens: vec![],
-        },
-        true => {
-            // Decode the whole text
-            match ctx
-                .tokenizer
-                .decode(&ctx.generation.generated_tokens, false)
-            {
-                Ok(text) => InferStreamResponse::End {
+    let response = match token {
+        Ok(token) => {
+            match is_final {
+                false => Ok(InferStreamResponse::Intermediate {
                     token,
                     top_tokens: vec![],
-                    generated_text: GeneratedText {
-                        text,
-                        generated_tokens: n_generated_tokens as u32,
-                        finish_reason: FinishReason::Length,
-                        seed: Some(ctx.generation.sampling_params.seed),
-                    },
-                    start: ctx.start,
-                    queued: ctx.start,
-                },
-                Err(_) => panic!("Failed to decode token"),
+                }),
+                true => {
+                    // Decode the whole text
+                    match ctx
+                        .tokenizer
+                        .decode(&ctx.generation.generated_tokens, false)
+                    {
+                        Ok(text) => Ok(InferStreamResponse::End {
+                            token,
+                            top_tokens: vec![],
+                            generated_text: GeneratedText {
+                                text,
+                                generated_tokens: n_generated_tokens as u32,
+                                finish_reason: FinishReason::Length,
+                                seed: Some(ctx.generation.sampling_params.seed),
+                            },
+                            start: ctx.start,
+                            queued: ctx.start,
+                        }),
+                        Err(err) => Err(InferError::GenerationError(err.to_string())),
+                    }
+                }
             }
-
-            // Stream end response
         }
+        Err(err) => Err(err),
     };
 
     // Send back to the client
-    if let Err(ref _err) = ctx.stream.send(Ok(response)) {
+    let should_stop = if let Err(ref _err) = ctx.stream.send(response) {
         error!("Failed to send back the response to the client, cancelling request");
-        // TODO: cancel the request
-        return true; // should_stop
-    }
+        true
+    } else {
+        true
+    };
 
-    // should_stop
-    false
+    should_stop
 }
 
 unsafe fn scheduler_loop(
