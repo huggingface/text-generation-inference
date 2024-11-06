@@ -15,6 +15,7 @@ COPY router router
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
+ENV CMAKE_INSTALL_PREFIX=${CWD}/dist
 RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
     clang \
     cmake \
@@ -26,7 +27,6 @@ RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
     openssl \
     python3-dev
 
-
 RUN   update-alternatives --install /usr/bin/cc cc /usr/bin/clang 10 \
       && update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang 10 \
       && update-alternatives --auto cc \
@@ -36,7 +36,7 @@ RUN   update-alternatives --install /usr/bin/cc cc /usr/bin/clang 10 \
       && cc --version \
       && c++ --version
 
-COPY --from=planner usr/src/text-generation-inference/recipe.json recipe.json
+COPY --from=planner /usr/src/text-generation-inference/recipe.json recipe.json
 RUN cargo chef cook --profile release-opt --package text-generation-backend-llamacpp --bin text-generation-backend-llamacpp --recipe-path recipe.json
 
 COPY Cargo.lock Cargo.lock
@@ -49,3 +49,7 @@ COPY router router
 
 ENV RUSTFLAGS="-L/usr/lib"
 RUN cargo build --profile release-opt --package text-generation-backend-llamacpp --bin text-generation-backend-llamacpp --frozen
+
+FROM ubuntu:24.04
+COPY --from=builder /usr/src/text-generation-inference/target/release-opt/text-generation-backend-llamacpp /usr/src/text-generation-inference/text-generation-launcher
+COPY --from=builder /usr/src/text-generation-inference/dist /usr/
