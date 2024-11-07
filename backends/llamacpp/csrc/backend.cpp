@@ -7,9 +7,7 @@
 
 #include <ggml.h>
 #include <llama.h>
-#include <fmt/chrono.h>
-#include <fmt/format.h>
-#include <fmt/std.h>
+#include <spdlog/fmt/chrono.h>
 #include <spdlog/spdlog.h>
 
 #include "backend.hpp"

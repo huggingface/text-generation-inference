@@ -99,10 +99,10 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", out_dir.display());
 
     if is_debug {
-        println!("cargo:rustc-link-lib=dylib=fmtd");
+        // println!("cargo:rustc-link-lib=dylib=fmtd");
         println!("cargo:rustc-link-lib=dylib=spdlogd");
     } else {
-        println!("cargo:rustc-link-lib=dylib=fmt");
+        // println!("cargo:rustc-link-lib=dylib=fmt");
         println!("cargo:rustc-link-lib=dylib=spdlog");
     }
 

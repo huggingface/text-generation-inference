@@ -19,7 +19,6 @@ else ()
 endif ()
 
 # Add dependencies
-include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 
 if (${LLAMA_CPP_BUILD_CUDA})
