@@ -439,9 +439,11 @@ fn tokenizer_worker(
         Tokenizer::Python {
             tokenizer_name,
             revision,
+            trust_remote_code,
         } => {
             pyo3::Python::with_gil(|py| -> pyo3::PyResult<()> {
-                let tokenizer = PyTokenizer::from_py(py, tokenizer_name, revision)?;
+                let tokenizer =
+                    PyTokenizer::from_py(py, tokenizer_name, revision, trust_remote_code)?;
                 // Loop over requests
                 while let Some(((inputs, add_special_tokens, truncate), response_tx, parent_span)) =
                     receiver.blocking_recv()
