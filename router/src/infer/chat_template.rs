@@ -2,6 +2,7 @@ use crate::infer::InferError;
 use crate::{ChatTemplateInputs, Message, MessageChunk, TextMessage, TokenizerConfigToken, Tool};
 use minijinja::{Environment, ErrorKind, Template};
 use minijinja_contrib::pycompat;
+use std::collections::HashSet;
 
 /// Raise a exception (custom function) used in the chat templates
 pub(crate) fn raise_exception(err_text: String) -> Result<String, minijinja::Error> {
@@ -14,6 +15,7 @@ pub(crate) struct ChatTemplate {
     bos_token: Option<String>,
     eos_token: Option<String>,
     use_default_tool_template: bool,
+    variables: HashSet<String>,
 }
 
 impl ChatTemplate {
@@ -45,14 +47,22 @@ impl ChatTemplate {
             bos_token: bos_token.map(|token| token.as_str().to_string()),
             eos_token: eos_token.map(|token| token.as_str().to_string()),
             use_default_tool_template,
+            variables,
         }
     }
 
     pub(crate) fn apply(
         &self,
+        guideline: Option<&str>,
+        continue_final_message: bool,
         mut messages: Vec<Message>,
         tools_and_prompt: Option<(Vec<Tool>, String)>,
     ) -> Result<String, InferError> {
+        // check if guideline is expected but not provided
+        if self.variables.contains("guideline") && guideline.is_none() {
+            return Err(InferError::MissingTemplateVariable("guideline".to_string()));
+        }
+
         let tools = match tools_and_prompt {
             Some((tools, tool_prompt)) => {
                 // check if the `tools` variable is used in the template
@@ -75,16 +85,35 @@ impl ChatTemplate {
         };
 
         let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
-
-        self.template
+        let final_message_content = messages.last().map(|m| m.content.clone());
+        let mut rendered_template = self
+            .template
             .render(ChatTemplateInputs {
+                guideline,
                 messages,
                 bos_token: self.bos_token.as_deref(),
                 eos_token: self.eos_token.as_deref(),
                 add_generation_prompt: true,
                 tools,
             })
-            .map_err(InferError::TemplateError)
+            .map_err(InferError::TemplateError)?;
+
+        if continue_final_message {
+            // find the last occurrence of the final message in the rendered chat
+            if let Some(final_message) = final_message_content {
+                rendered_template = if let Some(index) = rendered_template.rfind(&final_message) {
+                    // implementation based on feature in transformers pipeline
+                    // https://github.com/huggingface/transformers/blob/1cf17077bf2d4affed31387c0943251a4ba8fab7/src/transformers/pipelines/text_generation.py#L418
+                    rendered_template[..index + final_message.len()]
+                        .trim_end()
+                        .to_string()
+                } else {
+                    rendered_template
+                };
+            }
+        }
+
+        Ok(rendered_template)
     }
 }
 
@@ -746,6 +775,19 @@ mod tests {
                 },
                 target: "You are a friendly chatbot who always responds in the style of a pirateYou are a friendly chatbot who always responds in the style of a pirate### Instruction: Hello, how are you?### Response: I'm doing great. How can I help you today?### Instruction: I'd like to show off how chat templating works!",
             },
+            ChatTemplateTestItem {
+                name: "google/shieldgemma-9b",
+                chat_template: "{{- bos_token }}\n{%- if messages[-1].role == 'user' %}\n    {{- \"You are a policy expert trying to help determine whether a user prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the human question violate the above principle? Your answer must start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- else %}\n    {{- \"You are a policy expert trying to help determine whether an AI response to a prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-2].content }}\n    {{- \"\\n<end_of_turn>\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Chatbot Response: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the Chatbot Response violate the above principle? Your answer must  start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- endif %}\n\n",
+                input: ChatTemplateInputs {
+                    messages: example_chat_with_system.clone(),
+                    add_generation_prompt: false,
+                    bos_token: Some("<s>"),
+                    eos_token: Some("</s>"),
+                    guideline: Some("Do not use offensive language."),
+                    ..Default::default()
+                },
+                target: "<s>You are a policy expert trying to help determine whether a user prompt is in violation of the defined safety policies.\n\n<start_of_turn>\nHuman Question: I'd like to show off how chat templating works!\n<end_of_turn>\n\nOur safety principle is defined in the below:\n\n* Do not use offensive language.\n\n===\n\nDoes the human question violate the above principle? Your answer must start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\n\n",
+            },
         ];
 
         #[allow(unused_variables)] // name is unused
@@ -768,6 +810,48 @@ mod tests {
             let tmpl = env.template_from_str(&chat_template);
             let result = tmpl.unwrap().render(input).unwrap();
             assert_eq!(result, target);
+        }
+    }
+
+    #[test]
+    fn test_chat_template_invalid_with_guideline() {
+        let ct = ChatTemplate::new(
+            "{{- bos_token }}\n{%- if messages[-1].role == 'user' %}\n    {{- \"You are a policy expert trying to help determine whether a user prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the human question violate the above principle? Your answer must start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- else %}\n    {{- \"You are a policy expert trying to help determine whether an AI response to a prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-2].content }}\n    {{- \"\\n<end_of_turn>\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Chatbot Response: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the Chatbot Response violate the above principle? Your answer must  start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- endif %}\n\n".to_string(),
+            Some(TokenizerConfigToken::String("<s>".to_string())),
+            Some(TokenizerConfigToken::String("</s>".to_string())),
+        );
+
+        // convert TextMessage to Message
+        let msgs: Vec<Message> = vec![
+            Message {
+                name: None,
+                role: "user".to_string(),
+                content: MessageContent::SingleText(
+                    "I'd like to show off how chat templating works!".to_string(),
+                ),
+            },
+            Message {
+                name: None,
+                role: "assistant".to_string(),
+                content: MessageContent::SingleText(
+                    "I'm doing great. How can I help you today?".to_string(),
+                ),
+            },
+            Message {
+                name: None,
+                role: "user".to_string(),
+                content: MessageContent::SingleText("Hello, how are you?".to_string()),
+            },
+        ];
+        let continue_final_message = false;
+
+        let result = ct.apply(None, continue_final_message, msgs, None);
+
+        match result {
+            Ok(_) => panic!("Should have failed since no guideline is provided"),
+            Err(e) => {
+                assert_eq!(e.to_string(), "Missing template vatiable: guideline")
+            }
         }
     }
 
@@ -801,9 +885,10 @@ mod tests {
         ];
         let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
         let tools: Vec<Tool> = serde_json::from_str(&tools_string).unwrap();
+        let continue_final_message = false;
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
-        let result = ct.apply(msgs, tools_and_prompt);
+        let result = ct.apply(None, continue_final_message, msgs, tools_and_prompt);
         let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"arguments\":{\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}}}]\nThis default prompt will be used [/INST]".to_string();
         assert_eq!(result.unwrap(), expected);
     }
@@ -835,9 +920,10 @@ mod tests {
         ];
         let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
         let tools: Vec<Tool> = serde_json::from_str(&tools_string).unwrap();
+        let continue_final_message = false;
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
-        let result = ct.apply(msgs, tools_and_prompt);
+        let result = ct.apply(None, continue_final_message, msgs, tools_and_prompt);
         let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n    \"function\": {\n        \"arguments\": {\n            \"properties\": {\n                \"format\": {\n                    \"description\": \"The temperature unit to use. Infer this from the users location.\",\n                    \"enum\": [\n                        \"celsius\",\n                        \"fahrenheit\"\n                    ],\n                    \"type\": \"string\"\n                },\n                \"location\": {\n                    \"description\": \"The city and state, e.g. San Francisco, CA\",\n                    \"type\": \"string\"\n                }\n            },\n            \"required\": [\n                \"location\",\n                \"format\"\n            ],\n            \"type\": \"object\"\n        },\n        \"description\": \"Get the current weather\",\n        \"name\": \"get_current_weather\"\n    },\n    \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
         assert_eq!(result.unwrap(), expected);
     }
