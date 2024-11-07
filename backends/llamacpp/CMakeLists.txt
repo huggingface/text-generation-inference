@@ -33,17 +33,14 @@ endif ()
 # Download llama.cpp repo at the specific version
 fetchcontent_declare(
         llama
-        #    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-        GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-        GIT_TAG b3958
-        GIT_SHALLOW FALSE
+        URL https://github.com/ggerganov/llama.cpp/archive/refs/tags/b4048.tar.gz
 )
 
 fetchcontent_makeavailable(llama)
 
 add_library(tgi_llamacpp_backend_impl STATIC csrc/backend.hpp csrc/backend.cpp)
 target_compile_features(tgi_llamacpp_backend_impl PRIVATE cxx_std_11)
-target_link_libraries(tgi_llamacpp_backend_impl PUBLIC fmt::fmt spdlog::spdlog llama common)
+target_link_libraries(tgi_llamacpp_backend_impl PUBLIC spdlog::spdlog llama common)
 install(TARGETS tgi_llamacpp_backend_impl spdlog llama common)
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
@@ -54,7 +51,7 @@ if (${LLAMA_CPP_BUILD_OFFLINE_RUNNER})
     message(STATUS "Building llama.cpp offline runner")
     add_executable(tgi_llamacpp_offline_runner offline/main.cpp)
 
-    target_link_libraries(tgi_llamacpp_offline_runner PUBLIC tgi_llamacpp_backend_impl llama common spdlog::spdlog fmt::fmt)
+    target_link_libraries(tgi_llamacpp_offline_runner PUBLIC tgi_llamacpp_backend_impl llama common spdlog::spdlog)
 endif ()
 
 
