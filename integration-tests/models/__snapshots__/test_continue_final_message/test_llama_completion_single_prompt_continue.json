@@ -1,0 +1,23 @@
+{
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": ": Thanks for the awesome slides, they were just what we needed to produce the presentation we needed to deliver for our company's budgeting system",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1731082129,
+  "id": "",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "object": "chat.completion",
+  "system_fingerprint": "2.4.1-dev0-native",
+  "usage": {
+    "completion_tokens": 30,
+    "prompt_tokens": 44,
+    "total_tokens": 74
+  }
+}
