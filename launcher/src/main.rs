@@ -212,6 +212,8 @@ enum Quantization {
     ///   <https://hf.co/models?search=awq>.
     /// Should replace GPTQ models wherever possible because of the better latency
     Awq,
+    /// Compressed tensors, which can be a mixture of different quantization methods.
+    CompressedTensors,
     /// 8 bit quantization, doesn't require specific model.
     /// Should be a drop-in replacement to bitsandbytes with much better performance.
     /// Kernels are from <https://github.com/NetEase-FuXi/EETQ.git>
@@ -273,6 +275,9 @@ impl std::fmt::Display for Quantization {
             }
             Quantization::Awq => {
                 write!(f, "awq")
+            }
+            Quantization::CompressedTensors => {
+                write!(f, "compressed-tensors")
             }
             Quantization::Eetq => {
                 write!(f, "eetq")

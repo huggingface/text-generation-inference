@@ -23,7 +23,7 @@ gen-server:
 install-server: gen-server
 	pip install pip --upgrade
 	pip install -r requirements_cuda.txt
-	pip install -e ".[accelerate, quantize, peft, outlines]"
+	pip install -e ".[accelerate, compressed-tensors, quantize, peft, outlines]"
 
 
 install: install-cuda

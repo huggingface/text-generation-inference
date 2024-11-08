@@ -5,6 +5,7 @@
   mypy-protobuf,
   awq-inference-engine,
   causal-conv1d,
+  compressed-tensors,
   eetq,
   einops,
   exllamav2,
@@ -74,6 +75,7 @@ buildPythonPackage {
     awq-inference-engine
     eetq
     causal-conv1d
+    compressed-tensors
     einops
     exllamav2
     flashinfer

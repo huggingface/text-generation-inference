@@ -1,0 +1,418 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 128000,
+          "logprob": null,
+          "text": "<|begin_of_text|>"
+        },
+        {
+          "id": 3923,
+          "logprob": -7.609375,
+          "text": "What"
+        },
+        {
+          "id": 374,
+          "logprob": -0.92529297,
+          "text": " is"
+        },
+        {
+          "id": 5655,
+          "logprob": -10.0,
+          "text": " deep"
+        },
+        {
+          "id": 6975,
+          "logprob": -0.94628906,
+          "text": " learning"
+        },
+        {
+          "id": 30,
+          "logprob": -2.9042969,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 18682,
+          "logprob": -0.8769531,
+          "special": false,
+          "text": " Deep"
+        },
+        {
+          "id": 6975,
+          "logprob": -0.0076942444,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 374,
+          "logprob": -0.25146484,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 264,
+          "logprob": -0.097595215,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 955,
+          "logprob": -0.9248047,
+          "special": false,
+          "text": " type"
+        },
+        {
+          "id": 315,
+          "logprob": -0.00027513504,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 21075,
+          "logprob": -0.5527344,
+          "special": false,
+          "text": " artificial"
+        },
+        {
+          "id": 11478,
+          "logprob": -0.043151855,
+          "special": false,
+          "text": " intelligence"
+        },
+        {
+          "id": 320,
+          "logprob": -0.3840332,
+          "special": false,
+          "text": " ("
+        },
+        {
+          "id": 15836,
+          "logprob": -0.0011043549,
+          "special": false,
+          "text": "AI"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " Deep learning is a type of artificial intelligence (AI"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 128000,
+          "logprob": null,
+          "text": "<|begin_of_text|>"
+        },
+        {
+          "id": 3923,
+          "logprob": -7.6054688,
+          "text": "What"
+        },
+        {
+          "id": 374,
+          "logprob": -0.92089844,
+          "text": " is"
+        },
+        {
+          "id": 5655,
+          "logprob": -10.0,
+          "text": " deep"
+        },
+        {
+          "id": 6975,
+          "logprob": -0.94433594,
+          "text": " learning"
+        },
+        {
+          "id": 30,
+          "logprob": -2.90625,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 18682,
+          "logprob": -0.875,
+          "special": false,
+          "text": " Deep"
+        },
+        {
+          "id": 6975,
+          "logprob": -0.007698059,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 374,
+          "logprob": -0.25268555,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 264,
+          "logprob": -0.09753418,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 955,
+          "logprob": -0.92529297,
+          "special": false,
+          "text": " type"
+        },
+        {
+          "id": 315,
+          "logprob": -0.00027942657,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 21075,
+          "logprob": -0.5527344,
+          "special": false,
+          "text": " artificial"
+        },
+        {
+          "id": 11478,
+          "logprob": -0.042541504,
+          "special": false,
+          "text": " intelligence"
+        },
+        {
+          "id": 320,
+          "logprob": -0.3840332,
+          "special": false,
+          "text": " ("
+        },
+        {
+          "id": 15836,
+          "logprob": -0.0011053085,
+          "special": false,
+          "text": "AI"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " Deep learning is a type of artificial intelligence (AI"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 128000,
+          "logprob": null,
+          "text": "<|begin_of_text|>"
+        },
+        {
+          "id": 3923,
+          "logprob": -7.6054688,
+          "text": "What"
+        },
+        {
+          "id": 374,
+          "logprob": -0.92089844,
+          "text": " is"
+        },
+        {
+          "id": 5655,
+          "logprob": -10.0,
+          "text": " deep"
+        },
+        {
+          "id": 6975,
+          "logprob": -0.94433594,
+          "text": " learning"
+        },
+        {
+          "id": 30,
+          "logprob": -2.90625,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 18682,
+          "logprob": -0.875,
+          "special": false,
+          "text": " Deep"
+        },
+        {
+          "id": 6975,
+          "logprob": -0.007698059,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 374,
+          "logprob": -0.25268555,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 264,
+          "logprob": -0.09753418,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 955,
+          "logprob": -0.92529297,
+          "special": false,
+          "text": " type"
+        },
+        {
+          "id": 315,
+          "logprob": -0.00027942657,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 21075,
+          "logprob": -0.5527344,
+          "special": false,
+          "text": " artificial"
+        },
+        {
+          "id": 11478,
+          "logprob": -0.042541504,
+          "special": false,
+          "text": " intelligence"
+        },
+        {
+          "id": 320,
+          "logprob": -0.3840332,
+          "special": false,
+          "text": " ("
+        },
+        {
+          "id": 15836,
+          "logprob": -0.0011053085,
+          "special": false,
+          "text": "AI"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " Deep learning is a type of artificial intelligence (AI"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 128000,
+          "logprob": null,
+          "text": "<|begin_of_text|>"
+        },
+        {
+          "id": 3923,
+          "logprob": -7.6054688,
+          "text": "What"
+        },
+        {
+          "id": 374,
+          "logprob": -0.92089844,
+          "text": " is"
+        },
+        {
+          "id": 5655,
+          "logprob": -10.0,
+          "text": " deep"
+        },
+        {
+          "id": 6975,
+          "logprob": -0.94433594,
+          "text": " learning"
+        },
+        {
+          "id": 30,
+          "logprob": -2.90625,
+          "text": "?"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 18682,
+          "logprob": -0.875,
+          "special": false,
+          "text": " Deep"
+        },
+        {
+          "id": 6975,
+          "logprob": -0.007698059,
+          "special": false,
+          "text": " learning"
+        },
+        {
+          "id": 374,
+          "logprob": -0.25268555,
+          "special": false,
+          "text": " is"
+        },
+        {
+          "id": 264,
+          "logprob": -0.09753418,
+          "special": false,
+          "text": " a"
+        },
+        {
+          "id": 955,
+          "logprob": -0.92529297,
+          "special": false,
+          "text": " type"
+        },
+        {
+          "id": 315,
+          "logprob": -0.00027942657,
+          "special": false,
+          "text": " of"
+        },
+        {
+          "id": 21075,
+          "logprob": -0.5527344,
+          "special": false,
+          "text": " artificial"
+        },
+        {
+          "id": 11478,
+          "logprob": -0.042541504,
+          "special": false,
+          "text": " intelligence"
+        },
+        {
+          "id": 320,
+          "logprob": -0.3840332,
+          "special": false,
+          "text": " ("
+        },
+        {
+          "id": 15836,
+          "logprob": -0.0011053085,
+          "special": false,
+          "text": "AI"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " Deep learning is a type of artificial intelligence (AI"
+  }
+]
