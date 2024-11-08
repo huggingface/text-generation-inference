@@ -987,6 +987,12 @@
           "messages"
         ],
         "properties": {
+          "continue_final_message": {
+            "type": "boolean",
+            "description": "Whether to continue the final message in the next request.",
+            "default": "false",
+            "example": true
+          },
           "frequency_penalty": {
             "type": "number",
             "format": "float",
