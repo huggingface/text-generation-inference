@@ -49,43 +49,28 @@ namespace huggingface::tgi::backends::llamacpp {
         }
 
         llama_sampler_chain_add(pSampler, llama_sampler_init_dist(seed));
-        return llama_sampler_ptr(pSampler, llama_sampler_deleter);
+        return {pSampler, llama_sampler_deleter};
     }
 
     worker_t::worker_t(std::shared_ptr<llama_model> model, const llama_context_params &params)
-            : mModel_(model), mParams_(params) {
+            : model_(model), context_(llama_new_context_with_model(model_.get(), params)) {
 
 #ifdef TGI_LLAMACPP_BACKEND_DEBUG
         char modelName[256];
         llama_model_meta_val_str(model.get(), "general.name", modelName, sizeof(modelName));
-        SPDLOG_DEBUG(FMT_STRING("Created llama.cpp backend for model: '{}'"), std::string_view(modelName));
+        SPDLOG_DEBUG(FMT_STRING("Created llama.cpp  backend for model: '{}'"), std::string_view(modelName));
 #endif
     }
 
-    void worker_t::loop(std::stop_source &driver, std::queue<generation_context_t> &backlog) const {
-        auto *context = llama_new_context_with_model(mModel_.get(), mParams_);
-
-        while (!driver.stop_requested()) {
-            const auto generation_context = backlog.front();
-
-            generate(context, generation_context, std::nullopt);
-            backlog.pop();
-
-            SPDLOG_DEBUG("Processed request ({:d} remaining)", backlog.size());
-        }
-
-        llama_free(context);
-    }
-
-    size_t worker_t::generate(
-            llama_context *context,
-            const generation_context_t &generation_context,
-            const std::optional<llama_decode_callback> &callback) const {
+    std::expected<size_t, backend_error_t>
+    worker_t::generate(const generation_context_t &generation_context,
+                       const std::optional<llama_decode_callback> &callback) const {
         // Store information about context and generation size
+        const auto callback_ = callback.value_or(llama_void_callback);
         auto max_new_tokens = generation_context.generation_params.max_new_tokens;
 
         // Convert sampling params to what llama.cpp is looking for
-        auto sampler = generation_context.sampling_params.into_llama_sampler(mModel_.get());
+        auto sampler = generation_context.sampling_params.into_llama_sampler(model_.get());
 
         // Set up the prompt
         auto copy = std::vector(generation_context.input_tokens.begin(), generation_context.input_tokens.end());
@@ -94,11 +79,10 @@ namespace huggingface::tgi::backends::llamacpp {
         // Decode
         auto n_decoded_tokens = 0;
         for (bool generating = true; generating; ++n_decoded_tokens) {
-            const auto callback_ = callback.value_or(llama_void_callback);
 
 #ifdef TGI_LLAMACPP_BACKEND_DEBUG
             const auto start = std::chrono::steady_clock::now();
-            const auto status = llama_decode(context, batch);
+            const auto status = llama_decode(context_.get(), batch);
             const auto end = std::chrono::steady_clock::now();
             const auto latency = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
             SPDLOG_DEBUG(FMT_STRING("Successfully decoded {:d} token(s) in {}"), batch.n_tokens, latency);
@@ -108,8 +92,8 @@ namespace huggingface::tgi::backends::llamacpp {
             batch.n_tokens = 0;
             if (LLAMA_SUCCESS(status)) [[likely]] {
                 // Sample the new token
-                auto new_token_id = llama_sampler_sample(sampler.get(), context, -1);
-                auto is_eog = llama_token_is_eog(mModel_.get(), new_token_id);
+                auto new_token_id = llama_sampler_sample(sampler.get(), context_.get(), -1);
+                auto is_eog = llama_token_is_eog(model_.get(), new_token_id);
                 auto new_token_logits = 0.0f; // TODO: return logit
 
                 // Handle termination cases
@@ -119,11 +103,8 @@ namespace huggingface::tgi::backends::llamacpp {
                 generating = !(has_reach_max_tokens | has_reach_eog);
 
                 // Bubble up the generated token if a callback is provided
-                const auto should_stop = std::invoke(std::forward<const llama_decode_callback>(callback_),
-                                                     new_token_id,
-                                                     new_token_logits,
-                                                     !generating,
-                                                     n_decoded_tokens + 1);
+                const auto should_stop =
+                        std::invoke(callback_, new_token_id, new_token_logits, !generating, n_decoded_tokens + 1);
                 generating ^= should_stop;
 
                 batch = llama_batch_get_one(&new_token_id, 1);
@@ -131,63 +112,5 @@ namespace huggingface::tgi::backends::llamacpp {
         }
 
         return n_decoded_tokens;
-    }
-
-
-    backend_base_t::backend_base_t(llama_model *model) : mModel_(model, llama_free_model) { llama_backend_init(); }
-
-    backend_base_t::~backend_base_t() { llama_backend_free(); }
-
-    std::expected<std::vector<llama_token>, backend_error_t> backend_base_t::generate(
-            std::span<const llama_token> tokens,
-            const generation_params_t &generation_params,
-            const sampling_params_t &sampling_params,
-            const std::optional<llama_decode_callback> &callback
-    ) {
-        // TODO: Should we provide a way to change this value?
-        auto generated = std::vector<llama_token>(2 << 8);
-        auto inner_callback = [&](uint32_t new_token_id, float_t new_token_logit, bool is_eos,
-                                  size_t num_generated_tokens) -> bool {
-            generated.emplace_back(new_token_id);
-
-            if (callback.has_value())
-                return (*callback)(new_token_id, new_token_logit, is_eos, num_generated_tokens);
-            return true;
-        };
-
-        auto nTokensGenerated = stream(tokens, generation_params, sampling_params, inner_callback);
-        return generated;
-    }
-
-
-    /** Single worker_t Backend impl **/
-
-    single_worker_backend_t::single_worker_backend_t(llama_model *model,
-                                                     const std::optional<llama_context_params> &params)
-            : backend_base_t(model),
-              mContext_(llama_context_factory(model)),
-              mWorker_(mModel_, params.value_or(llama_context_default_params())) {
-        llama_numa_init(ggml_numa_strategy::GGML_NUMA_STRATEGY_NUMACTL);
-    };
-
-    std::expected<size_t, backend_error_t>
-    single_worker_backend_t::stream(
-            std::span<const llama_token> tokens,
-            const generation_params_t &generation_params,
-            const sampling_params_t &sampling_params,
-            const llama_decode_callback &callback
-    ) {
-        return mWorker_.generate(mContext_.get(), {generation_params, sampling_params, tokens}, callback);
-    }
-
-    std::expected<size_t, backend_error_t>
-    multi_worker_backend_t::stream(
-            std::span<const llama_token> tokens,
-            const generation_params_t &generation_params,
-            const sampling_params_t &sampling_params,
-            const llama_decode_callback &callback
-    ) {
-        SPDLOG_WARN("Not implemented for multi_worker_t");
-        return 0;
     }
 }

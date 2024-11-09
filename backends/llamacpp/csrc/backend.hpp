@@ -76,8 +76,8 @@ namespace huggingface::tgi::backends::llamacpp {
      */
     class worker_t {
     private:
-        const std::shared_ptr<llama_model> mModel_;
-        const llama_context_params mParams_;
+        std::shared_ptr<llama_model> model_;
+        llama_context_ptr context_;
 
     public:
         /**
@@ -85,7 +85,7 @@ namespace huggingface::tgi::backends::llamacpp {
          * @param model
          * @param params
          */
-        worker_t(std::shared_ptr<llama_model> model, const llama_context_params &params);
+        worker_t(std::shared_ptr<llama_model>, const llama_context_params &);
 
         /**
          *
@@ -93,108 +93,8 @@ namespace huggingface::tgi::backends::llamacpp {
          * @param generation_context
          * @param callback
          */
-        size_t
-        generate(llama_context *, const generation_context_t &, const std::optional<llama_decode_callback> &) const;
-
-        /**
-         *
-         */
-        void loop(std::stop_source &driver, std::queue<generation_context_t> &backlog) const;
-    };
-
-
-    class backend_base_t {
-
-    protected:
-        std::shared_ptr<llama_model> mModel_;
-
-    public:
-
-        /**
-         *
-         * @param model
-         */
-        explicit backend_base_t(llama_model *model);
-
-        /**
-         * Destructor
-         */
-        ~backend_base_t();
-
-        /**
-         *
-         * @param tokens
-         * @param generation_params
-         * @param sampling_params
-         * @param callback
-         * @return
-         */
-        [[nodiscard("Generated tokens will be freed after this call if not assigned to an lvalue")]]
-        std::expected<std::vector<llama_token>, backend_error_t> generate(
-                std::span<const llama_token> tokens,
-                const generation_params_t &generation_params,
-                const sampling_params_t &sampling_params,
-                const std::optional<llama_decode_callback> &callback = std::nullopt
-        );
-
-        /**
-         *
-         * @param tokens
-         * @param generation_params
-         * @param sampling_params
-         * @params callback
-         * @return
-         */
-        [[nodiscard("Generated tokens will be freed after this call if not assigned to an lvalue")]]
-        virtual std::expected<size_t, backend_error_t> stream(
-                std::span<const llama_token> tokens,
-                const generation_params_t &generation_params,
-                const sampling_params_t &sampling_params,
-                const llama_decode_callback &callback
-        ) = 0;
-    };
-
-
-    class single_worker_backend_t : backend_base_t {
-    private:
-        constexpr static auto llama_context_factory = [](llama_model *pModel) -> llama_context_ptr {
-            auto llParams = llama_context_default_params();
-            llParams.flash_attn = true;
-            llParams.n_batch = 1;
-            llParams.n_threads = 1;
-            llParams.no_perf = true;
-            llParams.attention_type = llama_attention_type::LLAMA_ATTENTION_TYPE_CAUSAL;
-
-            return {llama_new_context_with_model(pModel, llParams), llama_context_deleter};
-        };
-
-        llama_context_ptr mContext_;
-        worker_t mWorker_;
-
-    public:
-        explicit single_worker_backend_t(llama_model *pModel, const std::optional<llama_context_params> &);
-
-        using backend_base_t::generate;
-
-        std::expected<size_t, backend_error_t> stream(
-                std::span<const llama_token> tokens,
-                const generation_params_t &generation_params,
-                const sampling_params_t &sampling_params,
-                const llama_decode_callback &callback) override;
-    };
-
-    class multi_worker_backend_t : backend_base_t {
-    private:
-        llama_context_ptr mContext_;
-
-    public:
-        using backend_base_t::generate;
-
-        std::expected<size_t, backend_error_t> stream(
-                std::span<const llama_token> tokens,
-                const generation_params_t &generation_params,
-                const sampling_params_t &sampling_params,
-                const llama_decode_callback &callback) override;
+        [[nodiscard]] std::expected<size_t, backend_error_t>
+        generate(const generation_context_t &, const std::optional<llama_decode_callback> &) const;
     };
 }
 

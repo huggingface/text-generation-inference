@@ -1,8 +1,9 @@
 use crate::ffi::{
-    create_single_worker_backend, GenerationParams, LlamaCppBackendImpl, SamplingParams,
+    create_worker_frontend, GenerationParams, LlamaCppWorkerFrontend, SamplingParams,
 };
 use async_trait::async_trait;
 use cxx::UniquePtr;
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
@@ -21,7 +22,7 @@ use tracing::{debug, error, info};
 
 type InferResult = Result<InferStreamResponse, InferError>;
 
-unsafe impl Send for LlamaCppBackendImpl {}
+unsafe impl Send for LlamaCppWorkerFrontend {}
 
 impl From<&ValidParameters> for SamplingParams {
     fn from(v: &ValidParameters) -> Self {
@@ -68,41 +69,54 @@ pub enum LlamaCppBackendError {
     ModelInitializationFailed(PathBuf, String),
 }
 
-pub struct LlamaCppBackend {
-    backlog: Sender<(GenerationContext, UnboundedSender<InferResult>)>,
-    _scheduler_handle: JoinHandle<()>,
+// pub struct LlamaCppBackend {
+//     backlog: Sender<(GenerationContext, UnboundedSender<InferResult>)>,
+//     _scheduler_handle: JoinHandle<()>,
+// }
+
+struct LlamaCppWorker {
+    sender: Sender<(GenerationContext, UnboundedSender<InferResult>)>,
+    handle: JoinHandle<()>,
+}
+
+pub enum LlamaCppBackend {
+    Single(LlamaCppWorker),
+    // Multi(Vec<LlamaCppWorker>)
 }
 
 impl LlamaCppBackend {
-    pub fn new<P: AsRef<Path> + Send>(
+    fn allocate_worker(
+        path: &Path,
+    ) -> Result<UniquePtr<LlamaCppWorkerFrontend>, LlamaCppBackendError> {
+        create_worker_frontend(&path.display().to_string()).map_err(|ref err| {
+            LlamaCppBackendError::ModelInitializationFailed(path.to_path_buf(), err.to_string())
+        })
+    }
+
+    pub fn new<P: AsRef<Path>>(
         model_path: P,
         tokenizer: Tokenizer,
+        num_cores_per_instance: u16,
     ) -> Result<Self, LlamaCppBackendError> {
-        let path = Arc::new(model_path.as_ref());
+        let shared_path = Arc::new(model_path);
+        let path = shared_path.deref().as_ref();
         if !path.exists() {
             return Err(LlamaCppBackendError::ModelFileDoesntExist(
                 path.display().to_string(),
             ));
         }
 
-        let backend = create_single_worker_backend(path.to_str().unwrap()).map_err(|err| {
-            LlamaCppBackendError::ModelInitializationFailed(
-                path.to_path_buf(),
-                err.what().to_string(),
-            )
-        })?;
+        let worker = match num_cores_per_instance {
+            0 => {
+                let worker = Self::allocate_worker(path)?;
+                let (sender, receiver) = channel();
+                let handle = spawn(|| scheduler_loop(worker, tokenizer, receiver));
+                LlamaCppBackend::Single(LlamaCppWorker { sender, handle })
+            }
+            _ => panic!("No supported yet"),
+        };
 
-        info!(
-            "Successfully initialized llama.cpp backend from {}",
-            path.display()
-        );
-
-        let (submitter, receiver) = channel();
-        let handle = unsafe { spawn(|| scheduler_loop(backend, tokenizer, receiver)) };
-        Ok(Self {
-            backlog: submitter,
-            _scheduler_handle: handle,
-        })
+        Ok(worker)
     }
 }
 
@@ -169,18 +183,16 @@ fn llama_generate_callback(
     };
 
     // Send back to the client
-    let should_stop = if let Err(ref _err) = ctx.stream.send(response) {
+    if let Err(ref _err) = ctx.stream.send(response) {
         error!("Failed to send back the response to the client, cancelling request");
         true
     } else {
-        true
-    };
-
-    should_stop
+        false
+    }
 }
 
-unsafe fn scheduler_loop(
-    mut backend: UniquePtr<LlamaCppBackendImpl>,
+fn scheduler_loop(
+    mut backend: UniquePtr<LlamaCppWorkerFrontend>,
     tokenizer: Tokenizer,
     backlog: Receiver<(GenerationContext, UnboundedSender<InferResult>)>,
 ) {
@@ -204,20 +216,23 @@ unsafe fn scheduler_loop(
                     generation,
                 });
 
-                let boxed_ctx = Box::into_raw(ctx);
+                // We leak the box to avoid it being freed after the first callback call
+                // when going out of scope
+                unsafe {
+                    let boxed_ctx = Box::into_raw(ctx);
+                    if let Err(e) = backend.pin_mut().stream(
+                        &input_tokens,
+                        generation_params,
+                        &sampling_params,
+                        boxed_ctx,
+                        llama_generate_callback,
+                    ) {
+                        error!("Error while decoding tokens... {}", e.what());
+                    }
 
-                if let Err(e) = backend.pin_mut().stream(
-                    &input_tokens,
-                    generation_params,
-                    &sampling_params,
-                    boxed_ctx,
-                    llama_generate_callback,
-                ) {
-                    error!("Error while decoding tokens... {}", e.what());
+                    // Make sure we re-keep track of the OpaqueStream box
+                    let _ = Box::from_raw(boxed_ctx);
                 }
-
-                // Make sure we re-keep track of the OpaqueStream box
-                let _ = Box::from_raw(boxed_ctx);
             }
         } else {
             info!("IPC channel is closed, exiting the scheduler loop");
@@ -244,11 +259,13 @@ impl Backend for LlamaCppBackend {
                 sampling_params,
             };
 
-            match self.backlog.send((ctx, sx)) {
-                Ok(_) => Ok(UnboundedReceiverStream::new(rx)),
-                Err(_) => Err(InferError::GenerationError(
-                    "Failed to sent the request".to_string(),
-                )),
+            match self {
+                LlamaCppBackend::Single(worker) => match worker.sender.send((ctx, sx)) {
+                    Ok(_) => Ok(UnboundedReceiverStream::new(rx)),
+                    Err(_) => Err(InferError::GenerationError(
+                        "Failed to sent the request".to_string(),
+                    )),
+                },
             }
         } else {
             Err(InferError::GenerationError(

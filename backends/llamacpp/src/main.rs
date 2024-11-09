@@ -37,8 +37,8 @@ struct Args {
     port: u16,
     #[clap(long, env, help = "Path to GGUF model file(s) to load")]
     gguf_path: PathBuf,
-    // #[clap(long, env, default_value = "1", help = "Number of model instance(s)")]
-    // num_model_instance: u16,
+    #[clap(long, env, help = "Number of CPU core per instance(s)")]
+    num_cores_per_instance: Option<u16>,
     #[clap(long, env, required = true)]
     tokenizer_name: String,
     #[clap(long, env)]
@@ -95,7 +95,7 @@ async fn main() -> Result<(), RouterError> {
         hostname,
         port,
         gguf_path,
-        // num_model_instance,
+        num_cores_per_instance,
         tokenizer_name,
         tokenizer_config_path,
         revision,
@@ -164,7 +164,7 @@ async fn main() -> Result<(), RouterError> {
     };
     let tokenizer = tokenizers::Tokenizer::from_pretrained(tokenizer_name.clone(), Some(options))
         .expect("Failed to retrieve tokenizer");
-    let backend = LlamaCppBackend::new(gguf_path, tokenizer)?;
+    let backend = LlamaCppBackend::new(gguf_path, tokenizer, num_cores_per_instance.unwrap_or(0))?;
 
     // Run server
     server::run(

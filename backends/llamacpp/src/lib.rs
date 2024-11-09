@@ -46,14 +46,13 @@ mod ffi {
         type SamplingParams;
 
         /// Represent an instance of the llama.cpp backend instance on C++ side
-        #[cxx_name = "llama_cpp_backend_impl_t"]
-        type LlamaCppBackendImpl;
+        #[cxx_name = "llama_cpp_worker_frontend_t"]
+        type LlamaCppWorkerFrontend;
 
-        #[rust_name = "create_single_worker_backend"]
-        fn create_single_worker_backend(modelPath: &str) -> Result<UniquePtr<LlamaCppBackendImpl>>;
+        fn create_worker_frontend(modelPath: &str) -> Result<UniquePtr<LlamaCppWorkerFrontend>>;
 
         unsafe fn stream(
-            self: Pin<&mut LlamaCppBackendImpl>,
+            self: Pin<&mut LlamaCppWorkerFrontend>,
             tokens: &[u32],
             generation_params: GenerationParams,
             sampling_params: &SamplingParams,
