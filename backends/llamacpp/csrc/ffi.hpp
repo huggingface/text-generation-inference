@@ -56,8 +56,8 @@ namespace huggingface::tgi::backends::llamacpp {
             };
 
             // Ask the compiler to create view over Rust slice transmuting from uint32_t* to llama_token*
-            auto input_tokens_v =
-                    std::span(reinterpret_cast<const llama_token *>(input_tokens.data()), input_tokens.size());
+            auto input_tokens_v = std::vector<llama_token>(input_tokens.size());
+            std::memcpy(input_tokens_v.data(), input_tokens.data(), input_tokens.size());
 
             const auto generation_context = generation_context_t {generation_params, sampling_params, input_tokens_v};
             if(const auto result = worker_.generate(generation_context, context_forwarding_callback); result.has_value()) [[likely]] {
