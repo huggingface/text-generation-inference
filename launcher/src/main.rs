@@ -1509,7 +1509,7 @@ impl ComputeType {
             "nvidia-a10g" => Some(125 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/h100/
             // https://www.techpowerup.com/gpu-specs/docs/nvidia-gh100-architecture.pdf
-            "nvidia-h100-80gb-hb3" => Some(900 * 10u64.pow(12)),
+            "nvidia-h100-80gb-hbm3" => Some(900 * 10u64.pow(12)),
             // https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf
             "nvidia-a100" => Some(312 * 10u64.pow(12)),
             card => {
