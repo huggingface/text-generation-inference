@@ -261,7 +261,7 @@ class GPTQMarlinWeight(Weight):
 
     def __post_init__(self):
         assert self.qweight.dtype == torch.int32
-        assert self.scales.dtype == torch.float16
+        assert self.scales.dtype in (torch.float16, torch.bfloat16)
         assert self.g_idx.dtype == torch.int32
         assert self.perm.dtype == torch.int32
 
@@ -300,7 +300,7 @@ def repack_gptq_for_marlin(
         raise RuntimeError(
             f"Repacking GPTQ weights with group size {groupsize} as Marlin is not supported, must be one of: {supported_sizes}"
         )
-    if not (sym or quant_method == "awq"):
+    if not (sym or quant_method == "awq" or quant_method == "compressed-tensors"):
         raise RuntimeError(
             "Repacking GPTQ weights with asymmetric quantization as Marlin is not supported."
         )

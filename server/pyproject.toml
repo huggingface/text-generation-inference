@@ -37,6 +37,7 @@ pillow = "^10.0.0"
 outlines= { version = "^0.0.34", optional = true }
 prometheus-client = "^0.20.0"
 py-cpuinfo = "^9.0.0"
+compressed-tensors = { version = "^0.7.1", optional = true }
 # Remove later, temporary workaround for outlines.
 numpy = "^1.26"
 
@@ -58,6 +59,7 @@ rich = "^13.7.1"
 torch = ["torch"]
 accelerate = ["accelerate"]
 bnb = ["bitsandbytes"]
+compressed-tensors = ["compressed-tensors"]
 marlin = ["marlin-kernels"]
 moe = ["moe-kernels"]
 peft = ["peft"]

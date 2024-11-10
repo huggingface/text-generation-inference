@@ -19,6 +19,7 @@ class Quantization(str, Enum):
     bitsandbytes_fp4 = "bitsandbytes-fp4"
     gptq = "gptq"
     awq = "awq"
+    compressed_tensors = "compressed-tensors"
     eetq = "eetq"
     exl2 = "exl2"
     fp8 = "fp8"
