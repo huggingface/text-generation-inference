@@ -57,6 +57,7 @@ from text_generation_server.models.globals import (
     ATTENTION,
     BLOCK_SIZE,
     CUDA_GRAPHS,
+    REQUEST_LOGPROBS,
     TGI_WIGGLE_ROOM,
     get_adapter_to_index,
 )
@@ -292,6 +293,10 @@ class FlashCausalLMBatch(Batch):
         for i, (r, tokenized_input) in enumerate(
             zip(pb.requests, batch_tokenized_inputs)
         ):
+            ### XXX: This consumes so much memory on long requests
+            ### Deactivating it by default seems like the best course.
+            if not REQUEST_LOGPROBS:
+                r.prefill_logprobs = False
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
 

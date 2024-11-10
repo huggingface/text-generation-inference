@@ -5,6 +5,7 @@ from typing import Dict, Optional
 
 from text_generation_server.utils.log import log_master
 
+REQUEST_LOGPROBS = os.getenv("REQUEST_LOGPROBS", "0").lower() in {"1", "true"}
 ATTENTION = os.environ["ATTENTION"]
 # default_prefix_caching = "1" if ATTENTION in {"flashinfer", "flashdecoding"} else "0"
 PREFIX_CACHING = os.environ["PREFIX_CACHING"].lower() in {
