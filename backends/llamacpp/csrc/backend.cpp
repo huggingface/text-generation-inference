@@ -14,19 +14,6 @@
 
 namespace huggingface::tgi::backends::llamacpp {
 
-    void llama_batch_fill_prompt(llama_batch &batch, std::span<const llama_token> input_tokens) {
-        for (auto i = 0; i < input_tokens.size(); ++i) {
-            batch.token[i] = input_tokens[i];
-            batch.pos[i] = i;
-            batch.n_seq_id[i] = 1;
-            batch.seq_id[i] = nullptr;
-            batch.logits[i] = false;
-            ++batch.n_tokens;
-        }
-
-        batch.logits[batch.n_tokens] = true;
-    }
-
     llama_sampler_ptr sampling_params_t::into_llama_sampler(const llama_model *model) const {
         auto *pSampler = llama_sampler_chain_init({.no_perf = false});
 
