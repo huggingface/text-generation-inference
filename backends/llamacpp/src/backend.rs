@@ -134,23 +134,18 @@ fn llama_generate_callback(
     // Append the new token to the generated ones
     ctx.generation.generated_tokens.push(new_token_id);
 
-    // Decode token
-    let token = match ctx.tokenizer.decode(&[new_token_id], false) {
+    // Generate response
+    let response = match ctx.tokenizer.decode(&[new_token_id], false) {
         Ok(text) => {
             let special = ctx.tokenizer.get_added_vocabulary().is_special_token(&text);
-            Ok(Token {
+            let token = Token {
                 id: new_token_id,
                 text,
                 logprob: new_token_logit,
                 special,
-            })
-        }
-        Err(ref err) => Err(InferError::GenerationError(err.to_string())),
-    };
+            };
 
-    // Create the streamed response
-    let response = match token {
-        Ok(token) => {
+            // Should we generate an ending or intermediate response?
             match is_final {
                 false => Ok(InferStreamResponse::Intermediate {
                     token,
@@ -179,16 +174,14 @@ fn llama_generate_callback(
                 }
             }
         }
-        Err(err) => Err(err),
+        Err(ref err) => Err(InferError::GenerationError(err.to_string())),
     };
 
     // Send back to the client
-    if let Err(ref _err) = ctx.stream.send(response) {
-        error!("Failed to send back the response to the client, cancelling request");
-        true
-    } else {
-        false
-    }
+    let status = ctx.stream.send(response).inspect_err(|err| {
+        error!("Failed to send back the response: {}", err);
+    });
+    status.is_err()
 }
 
 fn scheduler_loop(
