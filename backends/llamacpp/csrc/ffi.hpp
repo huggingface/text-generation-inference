@@ -50,6 +50,8 @@ namespace huggingface::tgi::backends::llamacpp {
                 InferContext *ctx,
                 rust::Fn<bool(InferContext *, uint32_t, float_t, bool, size_t)> callback
         ) {
+            // Wrapper around the provided Rust callback to inject the InferContext when returning from the C++ FFI boundaries
+            // It captures the context (ctx) using reference and will automatically call the Rust callback forwarding the InferContext
             auto context_forwarding_callback =
                     [=, &ctx](uint32_t new_token_id, float_t logits, bool is_eos, size_t n_generated_tokens) -> bool {
                 return callback(ctx, new_token_id, logits, is_eos, n_generated_tokens);
@@ -76,11 +78,18 @@ namespace huggingface::tgi::backends::llamacpp {
     };
 
     std::unique_ptr<llama_cpp_worker_frontend_t> create_worker_frontend(rust::Str modelPath) {
-        const auto cxxPath = std::string(modelPath);
+        // Initialize the numa context from numactl
+        static const bool INITIALIZED_NUMA_CONTEXT_ONCE = [](){
+            llama_numa_init(GGML_NUMA_STRATEGY_NUMACTL);
+            return true;
+        }();
+
+        // Allocate model weights parameters
         auto params = llama_model_default_params();
         params.use_mmap = true;
 
-        auto *model = (llama_load_model_from_file(cxxPath.c_str(), params));
+        // Allocate the model from the Rust provided, string path
+        auto *model = (llama_load_model_from_file(static_cast<std::string>(modelPath).c_str(), params));
         return std::make_unique<llama_cpp_worker_frontend_t>(model);
     }
 }
