@@ -580,6 +580,14 @@ fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), Validatio
     }
 }
 
+fn fetch_video(input: &str) -> Result<String, ValidationError> {
+    if input.starts_with("http://") || input.starts_with("https://") {
+        Ok(input.to_string())
+    } else {
+        Err(ValidationError::InvalidVideoContent(input.to_string()))
+    }
+}
+
 fn image_tokens(
     config: &Config,
     preprocessor_config: Option<&HubPreprocessorConfig>,
@@ -645,6 +653,9 @@ fn prepare_input<T: TokenizerTrait>(
 ) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {
     use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
+    // Add video regex
+    static VIDEO_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"<video>\((https?://[^\)]+)\)").unwrap());
+
     let (tokenizer_query, input_chunks) = match config {
         Some(
             config @ (Idefics | Mllama | Idefics2(_) | Paligemma(_) | LlavaNext(_) | Qwen2Vl(_)),
@@ -652,9 +663,27 @@ fn prepare_input<T: TokenizerTrait>(
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());
             let mut start = 0;
-            for chunk in RE.find_iter(&inputs) {
+
+            // Process videos first
+            for chunk in VIDEO_RE.find_iter(&inputs) {
                 let chunk_start = chunk.start();
                 let chunk_end = chunk.end();
+                if chunk_start != start {
+                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()));
+                    tokenizer_query.push_str(&inputs[start..chunk_start]);
+                }
+                let video_url = &inputs[chunk_start + 8..chunk_end - 1]; // Remove <video>( and )
+                input_chunks.push(Chunk::Video(video_url.to_string()));
+                // For videos, we use the default size as height/width don't matter for the initial processing
+                tokenizer_query.push_str(&image_tokens(config, preprocessor_config, 1, 1));
+                start = chunk_end;
+            }
+
+            // Process remaining content for images
+            let remaining_input = &inputs[start..];
+            for chunk in RE.find_iter(remaining_input) {
+                let chunk_start = chunk.start() + start;
+                let chunk_end = chunk.end() + start;
                 if chunk_start != start {
                     input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()));
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
@@ -664,13 +693,15 @@ fn prepare_input<T: TokenizerTrait>(
                 tokenizer_query.push_str(&image_tokens(config, preprocessor_config, height, width));
                 start = chunk_end;
             }
+
+            // Add any remaining text
             if start != inputs.len() {
                 input_chunks.push(Chunk::Text(inputs[start..].to_string()));
                 tokenizer_query.push_str(&inputs[start..]);
             }
 
+            // Apply any necessary token fixups
             tokenizer_query = image_tokens_fixup(config, tokenizer_query);
-
             (tokenizer_query, input_chunks)
         }
         _ => (inputs.clone(), vec![Chunk::Text(inputs)]),
@@ -700,6 +731,7 @@ pub struct Image {
 pub enum Chunk {
     Text(String),
     Image(Image),
+    Video(String),
 }
 
 /// Convert input chunks to a stringly-typed input for backwards
@@ -717,6 +749,9 @@ impl ChunksToString for Vec<Chunk> {
             Chunk::Image(Image { data, mimetype }) => {
                 let encoded = STANDARD.encode(data);
                 output.push_str(&format!("![](data:{};base64,{})", mimetype, encoded))
+            }
+            Chunk::Video(url) => {
+                output.push_str(&format!("<video>({})", url))
             }
         });
         output
@@ -846,6 +881,8 @@ pub enum ValidationError {
     FailedFetchImage(#[from] reqwest::Error),
     #[error("{0} modality is not supported")]
     UnsupportedModality(&'static str),
+    #[error("invalid video content: {0}")]
+    InvalidVideoContent(String),
 }
 
 #[cfg(test)]
