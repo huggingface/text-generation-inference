@@ -79,6 +79,9 @@ impl ChunksToString for Vec<InputChunk> {
                 let encoded = STANDARD.encode(data);
                 output.push_str(&format!("![](data:{};base64,{})", mimetype, encoded))
             }
+            Some(Chunk::Video(url)) => {
+                output.push_str(&format!("<video>({})", url))
+            }
             // We don't create empty chunks, so this should be unreachable.
             None => unreachable!("Chunks should never be empty"),
         });
