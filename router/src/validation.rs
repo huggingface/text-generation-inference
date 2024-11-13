@@ -580,14 +580,6 @@ fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), Validatio
     }
 }
 
-fn fetch_video(input: &str) -> Result<String, ValidationError> {
-    if input.starts_with("http://") || input.starts_with("https://") {
-        Ok(input.to_string())
-    } else {
-        Err(ValidationError::InvalidVideoContent(input.to_string()))
-    }
-}
-
 fn image_tokens(
     config: &Config,
     preprocessor_config: Option<&HubPreprocessorConfig>,
