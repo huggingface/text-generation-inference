@@ -59,9 +59,6 @@ fn build_ffi_layer(deps_folder: &Path, install_prefix: &Path) {
     cxx_build::bridge("src/lib.rs")
         .static_flag(true)
         .std("c++23")
-        .include(deps_folder.join("spdlog-src").join("include")) // Why spdlog doesnt install headers?
-        .include(deps_folder.join("llama-src").join("ggml").join("include")) // Why ggml doesnt install headers?
-        .include(deps_folder.join("llama-src").join("common").join("include")) // Why common doesnt install headers?
         .include(install_prefix.join("include"))
         .include("csrc")
         .file("csrc/ffi.hpp")
@@ -98,15 +95,8 @@ fn main() {
     // Linkage info
     println!("cargo:rustc-link-search=native={}", out_dir.display());
 
-    if is_debug {
-        // println!("cargo:rustc-link-lib=dylib=fmtd");
-        println!("cargo:rustc-link-lib=dylib=spdlogd");
-    } else {
-        // println!("cargo:rustc-link-lib=dylib=fmt");
-        println!("cargo:rustc-link-lib=dylib=spdlog");
-    }
-
-    println!("cargo:rustc-link-lib=static=common");
+    let spdlog_linkage_target = if is_debug { "spdlogd" } else { "spdlog" };
+    println!("cargo:rustc-link-lib=static={spdlog_linkage_target}");
     println!("cargo:rustc-link-lib=dylib=ggml");
     println!("cargo:rustc-link-lib=dylib=llama");
 
