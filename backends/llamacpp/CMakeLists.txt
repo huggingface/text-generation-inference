@@ -33,7 +33,7 @@ endif ()
 # Download llama.cpp repo at the specific version
 fetchcontent_declare(
         llama
-        URL https://github.com/ggerganov/llama.cpp/archive/refs/tags/b4048.tar.gz
+        URL https://github.com/ggerganov/llama.cpp/archive/refs/tags/b4077.tar.gz
 )
 
 fetchcontent_makeavailable(llama)
