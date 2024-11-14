@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from torch import nn
 
 from text_generation_server.layers.compressed_tensors.w8an_fp import W8ANFpLoader
+from text_generation_server.layers.compressed_tensors.w8a8_int import W8A8IntLoader
 from text_generation_server.layers.compressed_tensors.wna16_int import WNA16Loader
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import (
@@ -151,6 +152,17 @@ class CompressedTensorsLoader(WeightsLoader):
         ):
             # INT W4A16 or W8A16 (GPTQ/AWQ-like).
             return WNA16Loader(weights)
+        elif (
+            format
+            in {
+                CompressionFormat.int_quantized.value,
+                CompressionFormat.naive_quantized.value,
+            }
+            and weights is not None
+            and weights.type == QuantizationType.INT
+            and weights.num_bits == 8
+        ):
+            return W8A8IntLoader(input_args=input_activations, weight_args=weights)
         else:
             raise ValueError(
                 f"Group '{group_name}' has unsupported compressed-tensors configurtion"
