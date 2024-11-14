@@ -1,9 +1,12 @@
+import os
 import torch
+import tempfile
 import requests
 from PIL import Image
 from io import BytesIO
 
 from contextlib import contextmanager
+
 from opentelemetry import trace
 from typing import Iterable, Optional, Tuple, List, Type, Dict
 
