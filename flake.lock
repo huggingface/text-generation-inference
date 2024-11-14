@@ -718,11 +718,11 @@
     },
     "nixpkgs_6": {
       "locked": {
-        "lastModified": 1727675176,
-        "narHash": "sha256-xIjBFMYldWvj+g8ahxMPofsj+OqxvKJN6YylNHQ7gn4=",
+        "lastModified": 1731562571,
+        "narHash": "sha256-9V0C/H6NL2Vk3Y76msqNA8TgwZ6Ge4frOVawTNFJQmM=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "a6d0207fea9212d28cd3d487efe6bc699663b93a",
+        "rev": "19d66fab291f90ce56d0479b128cc7a5271bf666",
         "type": "github"
       },
       "original": {
@@ -978,16 +978,16 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1730795478,
-        "narHash": "sha256-xpkXDKnkhXO4F6Ea3reHmqwXXRzQe2PsxdRQFPCViWs=",
+        "lastModified": 1731601436,
+        "narHash": "sha256-PJmXLyz06XnLG3wB5vRLgeJXoVvpuCx6c70khYv6J1o=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "b7f6c07867d94d6e55f5352573a6b3dad1c88e56",
+        "rev": "9510f57282795d6e0dbbd163d2b77a6b5bb52566",
         "type": "github"
       },
       "original": {
         "owner": "huggingface",
-        "ref": "compressed-tensors-0.7.1",
+        "ref": "nixpkgs-update-20241114",
         "repo": "text-generation-inference-nix",
         "type": "github"
       }
