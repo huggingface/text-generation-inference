@@ -212,6 +212,9 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         processor, image_inputs, config, image_id
                     )
                     image_id += 1
+                elif chunk_type == "video" and config.model_type == "qwen2_vl":
+                    # Based on Qwen2VL's video token format
+                    full_text += f"<video>{chunk.video}</video>"
 
             full_text = image_text_replacement_fixup(config, full_text)
 
