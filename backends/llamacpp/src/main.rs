@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use std::sync::Arc;
 use text_generation_backend_llamacpp::backend::{LlamaCppBackend, LlamaCppBackendError};
 use text_generation_router::server::ApiDoc;
 use text_generation_router::{server, usage_stats};
@@ -162,8 +163,10 @@ async fn main() -> Result<(), RouterError> {
         user_agent: Default::default(),
         auth_token,
     };
-    let tokenizer = tokenizers::Tokenizer::from_pretrained(tokenizer_name.clone(), Some(options))
-        .expect("Failed to retrieve tokenizer");
+    let tokenizer = Arc::new(
+        tokenizers::Tokenizer::from_pretrained(tokenizer_name.clone(), Some(options))
+            .expect("Failed to retrieve tokenizer"),
+    );
     let backend = LlamaCppBackend::new(gguf_path, tokenizer, num_cores_per_instance.unwrap_or(0))?;
 
     // Run server

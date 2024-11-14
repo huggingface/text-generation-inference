@@ -33,7 +33,7 @@ mod ffi {
     }
 
     extern "Rust" {
-        type InferContext;
+        type InferContext<'a>;
     }
 
     unsafe extern "C++" {
