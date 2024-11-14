@@ -190,6 +190,11 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         images.append(image)
                     else:
                         images.append([image])
+                elif chunk_type == "video":
+                    if config.model_type == "qwen2_vl":
+                        # For now, treat video URLs as special tokens
+                        # This will be processed in the text replacement section below
+                        pass
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
