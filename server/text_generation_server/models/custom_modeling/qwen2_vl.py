@@ -16,10 +16,14 @@
 
 from typing import Dict, Optional, Tuple, List
 
+import os
+import tempfile
+import requests
 import torch
 import torch.utils.checkpoint
 from torch import nn
 from text_generation_server.utils.import_utils import SYSTEM
+from contextlib import contextmanager
 from qwen_vl_utils import process_vision_info
 
 
@@ -561,20 +565,31 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         logits, speculative_logits = self.lm_head(hidden_states)
         return logits, speculative_logits
 
-class QwenVideoProcessor:
-    """Utility class to handle video processing specifically for Qwen models"""
-    
-    @staticmethod
-    def prepare_video_inputs(messages: List[Dict]) -> Tuple[Dict, Optional[torch.Tensor]]:
-        """
-        Process messages containing video inputs for Qwen models
-        Returns a tuple of (processed_messages, video_pixels)
-        """
-        # Use Qwen's built-in video processing
-        vision_info = process_vision_info(messages)
+    @contextmanager
+    def temp_video_download(url: str) -> str:
+        """Downloads video to temporary file and cleans it up after use."""
+        temp_dir = os.path.join(tempfile.gettempdir(), "qwen_videos")
+        os.makedirs(temp_dir, exist_ok=True)
+        temp_path = os.path.abspath(os.path.join(temp_dir, os.path.basename(url)))
         
-        if vision_info is not None:
-            _, video_inputs = vision_info
-            return video_inputs[0] if video_inputs else None
-            
-        return None
+        try:
+            with open(temp_path, 'wb') as tmp_file:
+                with requests.get(url, stream=True) as r:
+                    r.raise_for_status()
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            tmp_file.write(chunk)
+            yield temp_path
+        finally:
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+
+    def process_qwen_video(chunk_video: str):
+        """Process video for Qwen2VL model"""
+        vision_info = [{
+            "type": "video",
+            "video": chunk_video,
+            "max_pixels": 360 * 420,
+            "fps": 1.0
+        }]
+        return process_vision_info(vision_info)
