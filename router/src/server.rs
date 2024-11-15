@@ -109,7 +109,7 @@ request_body = CompatGenerateRequest,
 responses(
 (status = 200, description = "Generated Text",
 content(
-("application/json" = GenerateResponse),
+("application/json" = Vec<GenerateResponse>),
 ("text/event-stream" = StreamResponse),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
