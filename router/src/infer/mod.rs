@@ -14,7 +14,6 @@ use chat_template::ChatTemplate;
 use futures::future::try_join_all;
 use futures::Stream;
 use minijinja::ErrorKind;
-use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
@@ -374,25 +373,4 @@ impl InferError {
             InferError::StreamSerializationError(_) => "stream_serialization_error",
         }
     }
-
-    pub(crate) fn into_openai_event(self) -> Event {
-        let message = self.to_string();
-        Event::default().json_data(OpenaiErrorEvent {
-            error: APIError {
-                message,
-                http_status_code: 422,
-            },
-        })
-    }
-}
-
-#[derive(Serialize)]
-pub struct APIError {
-    message: String,
-    http_status_code: usize,
-}
-
-#[derive(Serialize)]
-pub struct OpenaiErrorEvent {
-    error: APIError,
 }
