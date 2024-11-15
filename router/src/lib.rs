@@ -22,6 +22,7 @@ use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum Tokenizer {
     Python {
