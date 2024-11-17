@@ -9,7 +9,7 @@ text-generation-server = 'text_generation_server.cli:app'
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-protobuf = "^4.25.3"
+protobuf = ">=4.25.3,<6"
 grpcio = "^1.51.1"
 grpcio-status = "^1.51.1"
 grpcio-reflection = "^1.51.1"
@@ -35,12 +35,18 @@ torch = { version = "^2.4.0", optional = true }
 scipy = "^1.11.1"
 pillow = "^10.0.0"
 outlines= { version = "^0.1.1", optional = true }
-prometheus-client = "^0.20.0"
+prometheus-client = ">=0.20.0,<0.22"
 py-cpuinfo = "^9.0.0"
 compressed-tensors = { version = "^0.7.1", optional = true }
 # Remove later, temporary workaround for outlines.
 numpy = "^1.26"
 
+attention-kernels = [
+  { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.4-cp39-cp39-linux_x86_64.whl", python = "~3.9", optional = true },
+  { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.4-cp310-cp310-linux_x86_64.whl", python = "~3.10", optional = true },
+  { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.4-cp311-cp311-linux_x86_64.whl", python = "~3.11", optional = true },
+  { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.4-cp312-cp312-linux_x86_64.whl", python = "~3.12", optional = true },
+]
 marlin-kernels = [
   { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.1/marlin_kernels-0.3.1+cu123torch2.4-cp39-cp39-linux_x86_64.whl", python = "~3.9", optional = true },
   { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.1/marlin_kernels-0.3.1+cu123torch2.4-cp310-cp310-linux_x86_64.whl", python = "~3.10", optional = true },
@@ -58,6 +64,7 @@ rich = "^13.7.1"
 [tool.poetry.extras]
 torch = ["torch"]
 accelerate = ["accelerate"]
+attention = ["attention-kernels"]
 bnb = ["bitsandbytes"]
 compressed-tensors = ["compressed-tensors"]
 marlin = ["marlin-kernels"]

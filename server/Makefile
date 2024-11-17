@@ -29,8 +29,8 @@ install-server: gen-server
 install: install-cuda
 	echo "Installed server"
 
-install-cuda: install-server install-flash-attention-v2-cuda install-vllm-cuda install-flash-attention
-	pip install -e ".[bnb,marlin,moe]"
+install-cuda: install-server install-flash-attention-v2-cuda install-flash-attention
+	pip install -e ".[attention,bnb,marlin,moe]"
 	pip install nvidia-nccl-cu12==2.22.3
 
 install-rocm: install-server install-flash-attention-v2-rocm  install-vllm-rocm

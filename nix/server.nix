@@ -3,6 +3,7 @@
   buildPythonPackage,
   poetry-core,
   mypy-protobuf,
+  attention-kernels,
   awq-inference-engine,
   causal-conv1d,
   compressed-tensors,
@@ -27,15 +28,18 @@
   opentelemetry-exporter-otlp,
   opentelemetry-instrumentation-grpc,
   opentelemetry-semantic-conventions,
+  outlines,
   peft,
+  prometheus-client,
   punica-kernels,
+  py-cpuinfo,
+  pydantic,
   safetensors,
   tokenizers,
   torch,
   sentencepiece,
   transformers,
   typer,
-  vllm,
 }:
 
 let
@@ -72,6 +76,7 @@ buildPythonPackage {
   pythonRemoveDeps = [ "scipy" ];
 
   dependencies = [
+    attention-kernels
     awq-inference-engine
     eetq
     causal-conv1d
@@ -95,14 +100,17 @@ buildPythonPackage {
     opentelemetry-exporter-otlp
     opentelemetry-instrumentation-grpc
     opentelemetry-semantic-conventions
+    outlines
     peft
+    prometheus-client
     punica-kernels
+    py-cpuinfo
+    pydantic
     safetensors
     sentencepiece
     tokenizers
     transformers
     typer
-    vllm
   ];
 
   prePatch = ''

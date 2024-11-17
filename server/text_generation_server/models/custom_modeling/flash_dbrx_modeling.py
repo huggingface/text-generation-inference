@@ -23,8 +23,10 @@ from typing import Optional, List, Tuple, Any
 from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
 
-if SYSTEM != "ipex":
+if SYSTEM == "rocm":
     from vllm.model_executor.layers.fused_moe import fused_moe
+elif SYSTEM != "ipex":
+    from moe_kernels.fused_moe import fused_moe
 
 from text_generation_server.layers.attention import (
     paged_attention,

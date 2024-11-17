@@ -161,18 +161,6 @@ COPY server/custom_kernels/ .
 # Build specific version of transformers
 RUN python setup.py build
 
-# Build vllm CUDA kernels
-FROM kernel-builder AS vllm-builder
-
-WORKDIR /usr/src
-
-ENV TORCH_CUDA_ARCH_LIST="7.0 7.5 8.0 8.6 8.9 9.0+PTX"
-
-COPY server/Makefile-vllm Makefile
-
-# Build specific version of vllm
-RUN make build-vllm-cuda
-
 # Build mamba kernels
 FROM kernel-builder AS mamba-builder
 WORKDIR /usr/src
@@ -230,8 +218,6 @@ COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86
 COPY --from=eetq-kernels-builder /usr/src/eetq/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
 # Copy build artifacts from lorax punica kernels builder
 COPY --from=lorax-punica-builder /usr/src/lorax-punica/server/punica_kernels/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
-# Copy build artifacts from vllm builder
-COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
 # Copy build artifacts from mamba builder
 COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-311/ /opt/conda/lib/python3.11/site-packages
 COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-311/ /opt/conda/lib/python3.11/site-packages
@@ -247,7 +233,7 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements_cuda.txt && \
-    pip install ".[bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir && \
+    pip install ".[attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir && \
     pip install nvidia-nccl-cu12==2.22.3
 
 ENV LD_PRELOAD=/opt/conda/lib/python3.11/site-packages/nvidia/nccl/lib/libnccl.so.2

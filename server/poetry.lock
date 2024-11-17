@@ -201,6 +201,74 @@ files = [
 ]
 
 [[package]]
+name = "attention-kernels"
+version = "0.1.1"
+description = "Attention kernels"
+optional = true
+python-versions = ">=3.8"
+files = [
+    {file = "attention_kernels-0.1.1+cu123torch2.4-cp310-cp310-linux_x86_64.whl", hash = "sha256:812851d4ce0f54ca764ff3815a731b15f0cb110115d0aa2d0997cd7794d808bb"},
+]
+
+[package.dependencies]
+torch = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.4-cp310-cp310-linux_x86_64.whl"
+
+[[package]]
+name = "attention-kernels"
+version = "0.1.1"
+description = "Attention kernels"
+optional = true
+python-versions = ">=3.8"
+files = [
+    {file = "attention_kernels-0.1.1+cu123torch2.4-cp311-cp311-linux_x86_64.whl", hash = "sha256:614c402621b11dd1f5741a016b9fd27cb6a68814471f2048bc05206923516268"},
+]
+
+[package.dependencies]
+torch = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.4-cp311-cp311-linux_x86_64.whl"
+
+[[package]]
+name = "attention-kernels"
+version = "0.1.1"
+description = "Attention kernels"
+optional = true
+python-versions = ">=3.8"
+files = [
+    {file = "attention_kernels-0.1.1+cu123torch2.4-cp312-cp312-linux_x86_64.whl", hash = "sha256:6b2ca7c98997431d5f6c4af7553dce6b1bff8dfdec374c97c6ffba71325a02b7"},
+]
+
+[package.dependencies]
+torch = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.4-cp312-cp312-linux_x86_64.whl"
+
+[[package]]
+name = "attention-kernels"
+version = "0.1.1"
+description = "Attention kernels"
+optional = true
+python-versions = ">=3.8"
+files = [
+    {file = "attention_kernels-0.1.1+cu123torch2.4-cp39-cp39-linux_x86_64.whl", hash = "sha256:a56710c5626e461d6f628ae14b74ffc89833578ebd59c3c0c47f5d6f07461fbf"},
+]
+
+[package.dependencies]
+torch = "*"
+
+[package.source]
+type = "url"
+url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.4-cp39-cp39-linux_x86_64.whl"
+
+[[package]]
 name = "attrs"
 version = "24.2.0"
 description = "Classes Without Boilerplate"
@@ -3985,6 +4053,7 @@ type = ["pytest-mypy"]
 
 [extras]
 accelerate = ["accelerate"]
+attention = ["attention-kernels", "attention-kernels", "attention-kernels", "attention-kernels"]
 bnb = ["bitsandbytes"]
 compressed-tensors = ["compressed-tensors"]
 marlin = ["marlin-kernels", "marlin-kernels", "marlin-kernels", "marlin-kernels"]
@@ -3997,4 +4066,4 @@ torch = ["torch"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "5d1295a8becce2f65dc68d64f200acb5832de50fc0c37392f6f87bbc5b15d32a"
+content-hash = "05add88628d836faceae1a26fde4092651a6eca74555ae38ebff879a7895be7e"

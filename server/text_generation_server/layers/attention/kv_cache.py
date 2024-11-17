@@ -200,12 +200,12 @@ def paged_reshape_and_cache(
 ):
     if SYSTEM == "cuda":
         try:
-            from vllm._C import cache_ops
+            import attention_kernels
         except Exception as e:
             raise ImportError(
-                f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
+                f"Could not import attention_kernels. Make sure your installation is correct. Complete error: {e}"
             )
-        cache_ops.reshape_and_cache(
+        attention_kernels.reshape_and_cache(
             key, value, key_cache, value_cache, slots, "auto", 1.0
         )
     elif SYSTEM == "rocm":
