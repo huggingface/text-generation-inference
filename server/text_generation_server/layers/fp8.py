@@ -29,7 +29,7 @@ else:
     CUTLASS_FP8_AVAILABLE = False
 
 
-def get_fp8_linear() -> Type[torch.nn.Module]:
+def get_fp8_linear(force_w8a16: bool = False) -> Type[torch.nn.Module]:
     """
     Return an FP8 linear `Module` that is compatible with the current system.
     """
@@ -37,7 +37,14 @@ def get_fp8_linear() -> Type[torch.nn.Module]:
     if SYSTEM == "cuda":
 
         major, _ = torch.cuda.get_device_capability()
-        if major == 8 and os.getenv("USE_CUTLASS_W8A8", "0") != "1":
+        # Marlin is W8A16, use it when:
+        #
+        # - On capability 8.x where x < 8: W8A8 FP8 GEMM is not supported.
+        # - On capability 8.9: W8A8 FP8 GEMM is supported, but Marlin-FP8 is faster.
+        # - On capability 9.x when force_w8a16: cutlass kernels do not support W8A16.
+        if (major == 8 or (major == 9 and force_w8a16)) and os.getenv(
+            "USE_CUTLASS_W8A8", "0"
+        ) != "1":
             # NOTE: Capability 8.9 is supported by cutlass kernels, but FP8-Marlin
             #       gives better decoding throughput on L4 and L40.
             from text_generation_server.layers.marlin import GPTQMarlinFP8Linear
@@ -283,14 +290,17 @@ class Fp8Weight(Weight):
     weight_scale: Optional[torch.Tensor] = None
     input_scale: Optional[torch.Tensor] = None
     activation_scale_ub: Optional[float] = None
+    force_w8a16: bool = False
 
     def get_linear(self, bias: torch.Tensor):
         if self.weight_scale is None:
-            return get_fp8_linear().from_unquant(self.weight, bias, self.dtype)
+            return get_fp8_linear(force_w8a16=self.force_w8a16).from_unquant(
+                self.weight, bias, self.dtype
+            )
         # This is not checked by the fbgemm kernels, but they require contiguous
         # memory. Can be non-contiguous when we e.g. expand from scalars.
         self.weight_scale = self.weight_scale.contiguous()
-        return get_fp8_linear().from_fp8(
+        return get_fp8_linear(force_w8a16=self.force_w8a16).from_fp8(
             weight=self.weight,
             scale=self.weight_scale,
             dtype=self.dtype,

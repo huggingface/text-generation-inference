@@ -109,7 +109,7 @@ request_body = CompatGenerateRequest,
 responses(
 (status = 200, description = "Generated Text",
 content(
-("application/json" = GenerateResponse),
+("application/json" = Vec<GenerateResponse>),
 ("text/event-stream" = StreamResponse),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
@@ -866,7 +866,7 @@ pub(crate) async fn completions(
 
                                     yield Ok(event);
                                 }
-                                Err(err) => yield Ok(Event::from(err)),
+                                Err(err) => yield Ok(err.into_openai_event()),
                             }
                         }
                     };
@@ -1274,7 +1274,8 @@ pub(crate) async fn chat_completions(
             };
             let mut response_as_tool = using_tools;
             while let Some(result) = response_stream.next().await {
-                if let Ok(stream_token) = result {
+                match result{
+                Ok(stream_token) => {
                     let token_text = &stream_token.token.text.clone();
                     match state {
                         StreamState::Buffering => {
@@ -1367,6 +1368,8 @@ pub(crate) async fn chat_completions(
                             yield Ok::<Event, Infallible>(event);
                         }
                     }
+                }
+                Err(err) => yield Ok(err.into_openai_event())
                 }
             }
             yield Ok::<Event, Infallible>(Event::default().data("[DONE]"));
@@ -1829,6 +1832,7 @@ pub async fn run(
             Tokenizer::Python {
                 tokenizer_name: tokenizer_name.clone(),
                 revision: revision.clone(),
+                trust_remote_code,
             }
         }
     };

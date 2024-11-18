@@ -27,7 +27,20 @@ class _FP8QuantizerConfig:
     activation_scale_ub: float
 
 
-# We should probably do this with Pytantic JSON deserialization,
+def _get_config_json(model_id: str, revision: Optional[str], filename: str):
+    if os.path.exists(
+        os.path.join(
+            model_id,
+        )
+    ):
+        filename = os.path.join(model_id, filename)
+    else:
+        filename = hf_hub_download(model_id, filename=filename, revision=revision)
+    with open(filename, "r") as f:
+        return json.load(f)
+
+
+# We should probably do this with Pydantic JSON deserialization,
 # but for now we'll stay close to the old _set_gptq_params.
 def _get_quantizer_config(model_id, revision):
     bits = 4
@@ -39,12 +52,7 @@ def _get_quantizer_config(model_id, revision):
 
     filename = "config.json"
     try:
-        if os.path.exists(os.path.join(model_id, filename)):
-            filename = os.path.join(model_id, filename)
-        else:
-            filename = hf_hub_download(model_id, filename=filename, revision=revision)
-        with open(filename, "r") as f:
-            data = json.load(f)
+        data = _get_config_json(model_id, revision, filename)
 
         # FP8 config
         if data["quantization_config"]["quant_method"] == "fbgemm_fp8":
@@ -67,14 +75,7 @@ def _get_quantizer_config(model_id, revision):
     except Exception:
         filename = "quantize_config.json"
         try:
-            if os.path.exists(os.path.join(model_id, filename)):
-                filename = os.path.join(model_id, filename)
-            else:
-                filename = hf_hub_download(
-                    model_id, filename=filename, revision=revision
-                )
-            with open(filename, "r") as f:
-                data = json.load(f)
+            data = _get_config_json(model_id, revision, filename)
             bits = data["bits"]
             groupsize = data["group_size"]
 
@@ -90,14 +91,7 @@ def _get_quantizer_config(model_id, revision):
         except Exception:
             filename = "quant_config.json"
             try:
-                if os.path.exists(os.path.join(model_id, filename)):
-                    filename = os.path.join(model_id, filename)
-                else:
-                    filename = hf_hub_download(
-                        model_id, filename=filename, revision=revision
-                    )
-                with open(filename, "r") as f:
-                    data = json.load(f)
+                data = _get_config_json(model_id, revision, filename)
                 bits = data["w_bit"]
                 groupsize = data["q_group_size"]
                 desc_act = data["desc_act"]
@@ -119,6 +113,14 @@ def _get_quantizer_config(model_id, revision):
 def get_loader(
     quantize: Optional[str], model_id: str, revision: Optional[str]
 ) -> WeightsLoader:
+    if quantize == "compressed-tensors":
+        config = _get_config_json(model_id, revision, "config.json")
+        from text_generation_server.layers.compressed_tensors import (
+            CompressedTensorsLoader,
+        )
+
+        return CompressedTensorsLoader(config)
+
     quantizer_config = _get_quantizer_config(model_id, revision)
     if quantize in {"awq", "gptq"}:
         from text_generation_server.layers.gptq import GPTQWeightsLoader

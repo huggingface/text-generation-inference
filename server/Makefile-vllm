@@ -1,14 +1,4 @@
-commit_cuda := d243e9dc7e2c9c2e36a4150ec8e64809cb55c01b
 commit_rocm := 4e0929e6e4fa0a3d09d358715c288020ea9dc247
-build-vllm-cuda:
-	if [ ! -d 'vllm' ]; then \
-		pip install -U ninja packaging --no-cache-dir && \
-		git clone https://github.com/Narsil/vllm.git vllm; \
-	fi
-	cd vllm  && git fetch origin && git checkout $(commit_cuda) && python setup.py build
-
-install-vllm-cuda: build-vllm-cuda
-	cd vllm  && git fetch origin && git checkout $(commit_cuda) && pip install -e .
 
 build-vllm-rocm:
 	if [ ! -d 'vllm' ]; then \

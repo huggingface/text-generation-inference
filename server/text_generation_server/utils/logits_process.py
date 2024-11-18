@@ -5,7 +5,7 @@ from loguru import logger
 from typing import Dict, Union
 from text_generation_server.pb.generate_pb2 import GrammarType
 
-from outlines.fsm.fsm import RegexFSM
+from outlines.fsm.guide import RegexGuide
 from outlines.fsm.json_schema import build_regex_from_schema
 from functools import lru_cache
 from typing import List, Optional, DefaultDict
@@ -482,7 +482,7 @@ class HeterogeneousProcessorWrapper(LogitsProcessor):
 
 class GrammarLogitProcessor(LogitsProcessor):
     fsm_state: DefaultDict[int, int]
-    fsm: RegexFSM
+    fsm: RegexGuide
 
     def __init__(self, tokenizer, device, grammar, grammar_type):
         self.device = device
@@ -498,9 +498,10 @@ class GrammarLogitProcessor(LogitsProcessor):
     ):
         if fsm_grammar_state == -1 or self.fsm is None:
             return logits
-        allowed_tokens = self.fsm.allowed_token_ids(fsm_grammar_state)
+        allowed_tokens = self.fsm.get_next_instruction(fsm_grammar_state).tokens
         mask = torch.full_like(logits, -math.inf)
-        mask[:, allowed_tokens] = 0
+        if allowed_tokens is not None:
+            mask[:, allowed_tokens] = 0
         biased_scores = logits + mask
         return biased_scores
 
@@ -513,7 +514,7 @@ class GrammarLogitProcessor(LogitsProcessor):
     def _advance(next_token_id, fsm_grammar_state, fsm):
         if fsm_grammar_state == -1:
             return fsm_grammar_state
-        return fsm.next_state(fsm_grammar_state, next_token_id)
+        return fsm.get_next_state(fsm_grammar_state, next_token_id)
 
     # TODO: move grammar compilation into the router
     @staticmethod
@@ -530,7 +531,7 @@ class GrammarLogitProcessor(LogitsProcessor):
                 schema = "(.*?)"
         elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
             pass  # schema is already a regex just here for clarity
-        fsm = RegexFSM(schema, tokenizer)
+        fsm = RegexGuide.from_regex(schema, tokenizer)
         logger.debug(f"Compiled FSM in {time.time() - start_time:.2f}s")
         return fsm
 
@@ -588,8 +589,9 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
             fsm = self.fsms[i]
             if fsm_grammar_states[i] == -1 or fsm is None:
                 continue
-            allowed_tokens = fsm.allowed_token_ids(fsm_grammar_states[i])
-            mask[i, allowed_tokens] = 0
+            allowed_tokens = fsm.get_next_instruction(fsm_grammar_states[i]).tokens
+            if allowed_tokens is not None:
+                mask[i, allowed_tokens] = 0
             logits[i] += mask[i]
         return logits
 

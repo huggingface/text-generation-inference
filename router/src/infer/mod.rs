@@ -10,10 +10,12 @@ use crate::{
 };
 use async_stream::stream;
 use async_trait::async_trait;
+use axum::response::sse::Event;
 use chat_template::ChatTemplate;
 use futures::future::try_join_all;
 use futures::Stream;
 use minijinja::ErrorKind;
+use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
@@ -373,4 +375,26 @@ impl InferError {
             InferError::StreamSerializationError(_) => "stream_serialization_error",
         }
     }
+
+    pub(crate) fn into_openai_event(self) -> Event {
+        Event::default()
+            .json_data(OpenaiErrorEvent {
+                error: APIError {
+                    message: self.to_string(),
+                    http_status_code: 422,
+                },
+            })
+            .unwrap()
+    }
+}
+
+#[derive(Serialize)]
+pub struct APIError {
+    message: String,
+    http_status_code: usize,
+}
+
+#[derive(Serialize)]
+pub struct OpenaiErrorEvent {
+    error: APIError,
 }

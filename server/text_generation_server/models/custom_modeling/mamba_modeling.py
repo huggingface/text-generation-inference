@@ -212,7 +212,7 @@ class MambaModel(nn.Module):
         try:
             self.lm_head = SpeculativeHead.load(config, f"{prefix}.embeddings", weights)
         except RuntimeError:
-            self.lm_head = SpeculativeHead.load(config, f"{prefix}.embeddings", weights)
+            self.lm_head = SpeculativeHead.load(config, f"{prefix}.embedding", weights)
         self.config = config
 
     def forward(
