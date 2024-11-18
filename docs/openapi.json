@@ -1922,6 +1922,24 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "video_url",
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "video_url"
+                ]
+              },
+              "video_url": {
+                "$ref": "#/components/schemas/Url"
+              }
+            }
           }
         ],
         "discriminator": {

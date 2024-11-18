@@ -536,6 +536,70 @@ fn format_to_mimetype(format: ImageFormat) -> String {
     .to_string()
 }
 
+pub fn fetch_video(input: &str) -> Result<(Vec<u8>, String, usize, usize, f32), ValidationError> {
+    let (data, mimetype) =
+        if input.starts_with("<video>(http://") || input.starts_with("<video>(https://") {
+            let url = &input["<video>(".len()..input.len() - 1];
+            let data = reqwest::blocking::get(url)?.bytes()?.to_vec();
+            (data, "video/mp4".to_string())
+        } else if input.starts_with("<video>(data:") {
+            let content = &input["<video>(data:".len()..input.len() - 1];
+            let tokens: Vec<_> = content.split(';').collect();
+            if tokens.len() != 2 {
+                return Err(ValidationError::InvalidVideoContent(content.to_string()));
+            }
+            let mimetype = tokens[0];
+            let content = tokens[1];
+            if !content.starts_with("base64,") {
+                return Err(ValidationError::InvalidVideoContent(content.to_string()));
+            }
+            let data = STANDARD.decode(&content["base64,".len()..])?;
+            (data, mimetype.to_string())
+        } else {
+            return Err(ValidationError::InvalidVideoContent(input.to_string()));
+        };
+
+    let mut cursor = Cursor::new(&data);
+    let context = mp4parse::read_mp4(&mut cursor).map_err(|_| ValidationError::MP4Error)?;
+
+    let video_track = context
+        .tracks
+        .iter()
+        .find(|track| track.track_type == mp4parse::TrackType::Video)
+        .ok_or(ValidationError::NoVideoStream)?;
+
+    let video_info = video_track
+        .tkhd
+        .as_ref()
+        .ok_or(ValidationError::NoVideoStream)?;
+    let width = (video_info.width >> 16) as usize;
+    let height = (video_info.height >> 16) as usize;
+
+    // timescale units per second
+    let timescale = video_track.timescale.map(|t| t.0 as f32).unwrap_or(600.0);
+
+    // TODO: revisit if we need duration in seconds
+    let _duration = video_track
+        .duration
+        .map(|d| d.0 as f32 / timescale)
+        .unwrap_or(0.0);
+
+    let time_to_sample = video_track
+        .stts
+        .as_ref()
+        .ok_or(ValidationError::NoVideoStream)?;
+
+    let num_samples = time_to_sample
+        .samples
+        .iter()
+        .map(|entry| entry.sample_count)
+        .sum::<u32>();
+
+    let total_frames = num_samples as f32;
+
+    Ok((data, mimetype, height, width, total_frames))
+}
+
 fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), ValidationError> {
     if input.starts_with("![](http://") || input.starts_with("![](https://") {
         let url = &input["![](".len()..input.len() - 1];
@@ -624,6 +688,31 @@ fn image_tokens(
     }
 }
 
+fn video_tokens(config: &Config, height: usize, width: usize, total_frames: f32) -> String {
+    use Config::*;
+
+    match config {
+        // TOOD: improve to use the config to better estimate the number of tokens
+        Qwen2Vl(_config) => {
+            let video_fps = 30_f32;
+            let fps = 30_f32;
+            let min_frames = 16_f32;
+            let max_frames = 64_f32;
+            // make sure the frames are within the range and are even
+            let nframes = (total_frames / video_fps * fps)
+                .max(min_frames)
+                .min(max_frames);
+            let nframes = (nframes / 2.0).round() as usize * 2;
+            let num_tokens = nframes * height * width / 1541;
+            format!(
+                "<|vision_start|>{:?}<|vision_end|>",
+                "<|video_pad|>".repeat(num_tokens)
+            )
+        }
+        _ => unimplemented!("Video tokens are not supported for this model configuration"),
+    }
+}
+
 fn image_tokens_fixup(config: &Config, text: String) -> String {
     match config {
         Config::Idefics2(_) => {
@@ -646,7 +735,8 @@ fn prepare_input<T: TokenizerTrait>(
     use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     // Add video regex
-    static VIDEO_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"<video>\((https?://[^\)]+)\)").unwrap());
+    static VIDEO_RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"<video>\((https?://[^\)]+)\)").unwrap());
 
     let (tokenizer_query, input_chunks) = match config {
         Some(
@@ -656,7 +746,7 @@ fn prepare_input<T: TokenizerTrait>(
             let mut tokenizer_query = String::with_capacity(inputs.len());
             let mut start = 0;
 
-            // Process videos first
+            // handle video content first
             for chunk in VIDEO_RE.find_iter(&inputs) {
                 let chunk_start = chunk.start();
                 let chunk_end = chunk.end();
@@ -664,14 +754,15 @@ fn prepare_input<T: TokenizerTrait>(
                     input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()));
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
-                let video_url = &inputs[chunk_start + 8..chunk_end - 1]; // Remove <video>( and )
-                input_chunks.push(Chunk::Video(video_url.to_string()));
-                // For videos, we use the default size as height/width don't matter for the initial processing
-                tokenizer_query.push_str(&image_tokens(config, preprocessor_config, 1, 1));
+                let (data, mimetype, height, width, total_frames) =
+                    fetch_video(&inputs[chunk_start..chunk_end])?;
+                input_chunks.push(Chunk::Video(Video { data, mimetype }));
+                let video_tokens = video_tokens(config, height, width, total_frames);
+                tokenizer_query.push_str(&video_tokens);
                 start = chunk_end;
             }
 
-            // Process remaining content for images
+            // clip remaining inputs and process images
             let remaining_input = &inputs[start..];
             for chunk in RE.find_iter(remaining_input) {
                 let chunk_start = chunk.start() + start;
@@ -720,10 +811,16 @@ pub struct Image {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Video {
+    pub data: Vec<u8>,
+    pub mimetype: String,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Chunk {
     Text(String),
     Image(Image),
-    Video(String),
+    Video(Video),
 }
 
 /// Convert input chunks to a stringly-typed input for backwards
@@ -742,8 +839,9 @@ impl ChunksToString for Vec<Chunk> {
                 let encoded = STANDARD.encode(data);
                 output.push_str(&format!("![](data:{};base64,{})", mimetype, encoded))
             }
-            Chunk::Video(url) => {
-                output.push_str(&format!("<video>({})", url))
+            Chunk::Video(Video { data, mimetype }) => {
+                let encoded = STANDARD.encode(data);
+                output.push_str(&format!("<video>(data:{};base64,{})", mimetype, encoded))
             }
         });
         output
@@ -875,6 +973,10 @@ pub enum ValidationError {
     UnsupportedModality(&'static str),
     #[error("invalid video content: {0}")]
     InvalidVideoContent(String),
+    #[error("could not parse MP4 file")]
+    MP4Error,
+    #[error("no video stream found")]
+    NoVideoStream,
 }
 
 #[cfg(test)]
