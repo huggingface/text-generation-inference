@@ -465,6 +465,8 @@ class CausalLMBatch(Batch):
         requests = [CausalLMRequest.from_pb(idx, req, tokenizer) for idx, req in enumerate(pb.requests)]
 
         max_input_length = max(r.data.truncate for r in requests)
+        if max_input_length < PAD_SEQUENCE_TO_MULTIPLE_OF:
+             max_input_length = PAD_SEQUENCE_TO_MULTIPLE_OF
         max_new_tokens = max(r.stopping_criteria.max_new_tokens for r in requests)
 
         # TODO: Add support for sparse batches
