@@ -14,20 +14,12 @@
 # limitations under the License.
 """PyTorch Qwen2 VL model."""
 
-__all__ = ['Qwen2VLForConditionalGeneration', 'process_qwen_video']
-
 from typing import Dict, Optional, Tuple, List
 
-import os
-import tempfile
-import requests
 import torch
 import torch.utils.checkpoint
 from torch import nn
 from text_generation_server.utils.import_utils import SYSTEM
-from contextlib import contextmanager
-from qwen_vl_utils import process_vision_info
-
 
 if SYSTEM == "ipex":
     import intel_extension_for_pytorch as ipex
@@ -444,39 +436,49 @@ class Qwen2VLForConditionalGeneration(nn.Module):
                     input_ids == self.vision_start_token_id
                 ).squeeze(1)
                 vision_tokens = input_ids[vision_start_indices + 1]
-                
-                # Count both image and video tokens
+
+                # only copy the sum of the image and video tokens GPU<->CPU
                 image_count = (vision_tokens == self.image_token_id).sum().item()
                 video_count = (vision_tokens == self.video_token_id).sum().item()
 
                 current_pos = 0
                 for _ in range(image_count + video_count):
-                    # Find next vision token position (either image or video)
+                    # copy the value position of the next image or video token from GPU<->CPU
                     next_vision_pos = (
-                        ((input_ids[current_pos:] == self.image_token_id) | 
-                         (input_ids[current_pos:] == self.video_token_id))
+                        (
+                            (input_ids[current_pos:] == self.image_token_id)
+                            | (input_ids[current_pos:] == self.video_token_id)
+                        )
                         .nonzero()[0]
                         .item()
                     )
 
-                    # Determine if current token is video or image
-                    is_video = input_ids[current_pos + next_vision_pos] == self.video_token_id
-                    grid_thw = video_grid_thw[vision_index] if is_video else image_grid_thw[vision_index]
-                    
+                    # TODO: revisit above to get all next_image_pos in one go to avoid copying in the loop
+                    is_video = (
+                        input_ids[current_pos + next_vision_pos] == self.video_token_id
+                    )
+                    grid_thw = (
+                        video_grid_thw[vision_index]
+                        if is_video
+                        else image_grid_thw[vision_index]
+                    )
+
                     time_steps, height, width = grid_thw.clone()
                     height //= self.spatial_merge_size
                     width //= self.spatial_merge_size
 
-                    # Calculate lengths and indices same as before
+                    # calculate the length of the text and image tokens
                     text_length = next_vision_pos - current_pos
-                    start_idx = llm_pos_ids_list[-1].max() + 1 if llm_pos_ids_list else 0
+                    start_idx = (
+                        llm_pos_ids_list[-1].max() + 1 if llm_pos_ids_list else 0
+                    )
 
-                    # Text position ids
+                    # text position ids
                     text_pos_ids = torch.arange(text_length, device=d)
                     text_pos_ids = text_pos_ids.view(1, -1).expand(3, -1) + start_idx
                     llm_pos_ids_list.append(text_pos_ids)
 
-                    # Vision position ids
+                    # vision position ids
                     t_indices = torch.arange(time_steps, device=d).repeat_interleave(
                         height * width
                     )
@@ -485,7 +487,9 @@ class Qwen2VLForConditionalGeneration(nn.Module):
                         .repeat_interleave(width)
                         .repeat(time_steps)
                     )
-                    w_indices = torch.arange(width, device=d).repeat(height * time_steps)
+                    w_indices = torch.arange(width, device=d).repeat(
+                        height * time_steps
+                    )
 
                     vision_pos_ids = (
                         torch.stack([t_indices, h_indices, w_indices])
@@ -499,7 +503,9 @@ class Qwen2VLForConditionalGeneration(nn.Module):
 
             # Handle remaining text if any
             if current_pos < batch_input_ids.size(1):
-                st_idx = llm_pos_ids_list[-1].max() + 1 if len(llm_pos_ids_list) > 0 else 0
+                st_idx = (
+                    llm_pos_ids_list[-1].max() + 1 if len(llm_pos_ids_list) > 0 else 0
+                )
                 text_len = batch_input_ids.size(1) - current_pos
                 llm_pos_ids_list.append(
                     torch.arange(text_len, device=d).view(1, -1).expand(3, -1) + st_idx
@@ -528,6 +534,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor],
         pixel_values: torch.FloatTensor = None,
+        video_pixel_values: torch.FloatTensor = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
         pixel_attention_mask=None,
@@ -538,15 +545,26 @@ class Qwen2VLForConditionalGeneration(nn.Module):
     ):
         inputs_embeds = self.embed_tokens(input_ids)
 
+        if video_pixel_values is not None and len(video_pixel_values) > 0:
+            vision_embeds = self.visual(
+                video_pixel_values, grid_thw=video_grid_thw
+            ).squeeze(0)
+            vision_token_mask = input_ids == self.video_token_id
+            inputs_embeds[vision_token_mask] = vision_embeds
+
         # apply the visual model to the pixel values if they are provided
         if pixel_values is not None and len(pixel_values) > 0:
             vision_embeds = self.visual(
-                pixel_values, 
-                grid_thw=torch.cat([image_grid_thw, video_grid_thw]) if video_grid_thw is not None else image_grid_thw
+                pixel_values,
+                grid_thw=(
+                    torch.cat([image_grid_thw, video_grid_thw])
+                    if video_grid_thw is not None
+                    else image_grid_thw
+                ),
             ).squeeze(0)
-            
-            # Apply embeddings to both image and video tokens
-            vision_token_mask = (input_ids == self.image_token_id) | (input_ids == self.video_token_id)
+
+            # Apply embeddings to image tokens
+            vision_token_mask = input_ids == self.image_token_id
             inputs_embeds[vision_token_mask] = vision_embeds
 
         hidden_states = self.text_model(

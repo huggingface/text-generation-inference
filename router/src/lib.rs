@@ -1230,7 +1230,9 @@ impl From<Message> for TextMessage {
                     .map(|chunk| match chunk {
                         MessageChunk::Text { text } => text,
                         MessageChunk::ImageUrl { image_url } => format!("![]({})", image_url.url),
-                        MessageChunk::VideoUrl { video_url } => format!("![]({})", video_url.url),
+                        MessageChunk::VideoUrl { video_url } => {
+                            format!("<video>({})", video_url.url)
+                        }
                     })
                     .collect::<Vec<_>>()
                     .join(""),

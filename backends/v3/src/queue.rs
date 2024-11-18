@@ -439,7 +439,10 @@ impl State {
                                     data: image.data,
                                     mimetype: image.mimetype,
                                 }),
-                                Chunk::Video(url) => client::Chunk::Video(url),
+                                Chunk::Video(video) => client::Chunk::Video(client::Video {
+                                    data: video.data,
+                                    mimetype: video.mimetype,
+                                }),
                             }),
                         })
                         .collect(),

@@ -9,7 +9,7 @@ use thiserror::Error;
 use tonic::transport;
 use tonic::Status;
 
-pub use v3::{Chunk, Image, Input, InputChunk};
+pub use v3::{Chunk, Image, Input, InputChunk, Video};
 
 #[async_trait]
 pub trait Health {
@@ -79,8 +79,9 @@ impl ChunksToString for Vec<InputChunk> {
                 let encoded = STANDARD.encode(data);
                 output.push_str(&format!("![](data:{};base64,{})", mimetype, encoded))
             }
-            Some(Chunk::Video(url)) => {
-                output.push_str(&format!("<video>({})", url))
+            Some(Chunk::Video(Video { data, mimetype })) => {
+                let encoded = STANDARD.encode(data);
+                output.push_str(&format!("<video>(data:{};base64,{})", mimetype, encoded))
             }
             // We don't create empty chunks, so this should be unreachable.
             None => unreachable!("Chunks should never be empty"),
