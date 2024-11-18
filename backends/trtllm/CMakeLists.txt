@@ -13,7 +13,7 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
 endif ()
 
 project(tgi-trtllm-backend VERSION 1.0.0)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 include(FetchContent)
 include(ExternalProject)
@@ -29,7 +29,6 @@ set(TGI_TRTLLM_BACKEND_TRT_LIB_DIR "${TGI_TRTLLM_BACKEND_TRT_ROOT}/lib" CACHE ST
 find_package(CUDAToolkit 12.6 REQUIRED COMPONENTS CUDA::cudart CUDA::nvml)
 
 #### External dependencies ####
-include(cmake/fmt.cmake)
 include(cmake/json.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/trtllm.cmake)
@@ -41,15 +40,15 @@ add_subdirectory("${trtllm_SOURCE_DIR}/cpp" "${trtllm_SOURCE_DIR}/..")
 set_target_properties(executorWorker PROPERTIES SKIP_BUILD_RPATH TRUE)
 
 # TGI TRTLLM Backend definition
-add_library(tgi_trtllm_backend_impl STATIC include/backend.h lib/backend.cpp include/hardware.h)
+add_library(tgi_trtllm_backend_impl STATIC csrc/hardware.hpp csrc/backend.hpp csrc/backend.cpp)
 include_directories(${TGI_TRTLLM_BACKEND_TRT_INCLUDE_DIR})
 target_include_directories(tgi_trtllm_backend_impl PRIVATE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/csrc>
+#        $<INSTALL_INTERFACE:csrc>
 )
 target_include_directories(tgi_trtllm_backend_impl PUBLIC "${trtllm_SOURCE_DIR}/cpp/include")
 target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tensorrt_llm_nvrtc_wrapper CUDA::cudart CUDA::nvml)
-target_link_libraries(tgi_trtllm_backend_impl PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt)
+target_link_libraries(tgi_trtllm_backend_impl PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog)
 
 # This install all the artifacts in CMAKE_INSTALL_PREFIX under include/ lib/ bin/ to make easy to link / find it back
 install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm decoder_attention executorWorker)
@@ -60,16 +59,16 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     message(STATUS "Building tests")
     FetchContent_Declare(
             Catch2
-            GIT_REPOSITORY https://github.com/catchorg/Catch2
-            GIT_TAG v3.6.0
+            URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.7.1.tar.gz
     )
     FetchContent_MakeAvailable(Catch2)
 
-    #    add_executable(tgi_trtllm_backend_tests tests/infer_test.cpp)
-    #    target_link_libraries(tgi_trtllm_backend_tests PRIVATE tgi_trtllm_backend_impl Catch2::Catch2WithMain nlohmann_json::nlohmann_json spdlog::spdlog fmt::fmt CUDA::cudart CUDA::nvml)
+    add_executable(tgi_trtllm_backend_tests tests/test_hardware.cpp)
+    target_link_libraries(tgi_trtllm_backend_tests PRIVATE CUDA::cudart CUDA::nvml)
+    target_link_libraries(tgi_trtllm_backend_tests PRIVATE Catch2::Catch2WithMain tensorrt_llm nlohmann_json::nlohmann_json spdlog::spdlog)
 
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
     include(CTest)
     include(Catch)
-    #    catch_discover_tests(tgi_trtllm_backend_tests)
+    catch_discover_tests(tgi_trtllm_backend_tests)
 endif ()
