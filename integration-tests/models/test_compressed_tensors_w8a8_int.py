@@ -37,7 +37,9 @@ async def test_compressed_tensors_w8a8_int(
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
+@pytest.mark.private
 async def test_compressed_tensors_w8a8_int_all_params(
     compressed_tensors_w8a8_int, response_snapshot
 ):

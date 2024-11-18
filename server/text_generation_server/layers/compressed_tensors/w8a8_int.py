@@ -51,10 +51,10 @@ class W8A8IntLoader(WeightsLoader):
         def scale_to_str(scale):
             return "static" if scale else "dynamic"
 
-        def symmetric_to_string(symmetric):
+        def symmetric_to_str(symmetric):
             return "symmetric" if symmetric else "asymmetric"
 
-        return f"{self.__class__.__name__} (w8a8 int, input: dynamic/{symmetric_to_string(self.input_symmetric)}, weight: {scale_to_str(self.load_weight_scale)}/symmetric))"
+        return f"{self.__class__.__name__} (w8a8 int, input: dynamic/{symmetric_to_str(self.input_symmetric)}, weight: {scale_to_str(self.load_weight_scale)}/symmetric))"
 
     def get_weights(self, weights: "Weights", prefix: str):
         w = weights.get_tensor(f"{prefix}.weight", to_dtype=False)
