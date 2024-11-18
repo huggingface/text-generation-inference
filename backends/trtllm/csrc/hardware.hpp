@@ -2,7 +2,6 @@
 #include <optional>
 
 #include <nvml.h>
-#include <spdlog/spdlog.h>
 
 namespace huggingface::tgi::hardware::cuda {
     static constexpr auto VOLTA = std::make_tuple(7u, 0u);
@@ -18,7 +17,6 @@ namespace huggingface::tgi::hardware::cuda {
     std::optional<size_t> get_device_count() {
         uint32_t numGpus = 0;
         if (nvmlDeviceGetCount_v2(&numGpus) == NVML_SUCCESS) {
-            SPDLOG_DEBUG(FMT_STRING("Detected {:d} GPUs on the machine"), numGpus);
             return numGpus;
         } else {
             return std::nullopt;
@@ -33,13 +31,10 @@ namespace huggingface::tgi::hardware::cuda {
         int32_t minor;
 
         compute_capabilities_t(): compute_capabilities_t(0) {}
-        explicit compute_capabilities_t(size_t device_idx): major(0), minor(0) {
+        explicit compute_capabilities_t(size_t device_idx): major(-1), minor(-1) {
             nvmlDevice_t device;
             if (nvmlDeviceGetHandleByIndex_v2(device_idx, &device) == NVML_SUCCESS) {
-                SPDLOG_DEBUG("Successfully acquired nvmlDevice_t = 0");
-                if (nvmlDeviceGetCudaComputeCapability(device, &major, &minor) == NVML_SUCCESS) {
-                    SPDLOG_INFO(FMT_STRING("Detected sm_{:d}{:d} compute capabilities"), major, minor);
-                }
+               nvmlDeviceGetCudaComputeCapability(device, &major, &minor);
             }
         };
         compute_capabilities_t(int32_t major, int32_t minor): major(major), minor(minor) {}
