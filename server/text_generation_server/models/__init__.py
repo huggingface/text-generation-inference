@@ -390,7 +390,9 @@ def get_model(
 
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
-            if SYSTEM == "ipex" and not hasattr(torch, "xpu"):
+            if SYSTEM == "ipex" and not (
+                hasattr(torch, "xpu") and torch.xpu.is_available()
+            ):
                 dtype = torch.bfloat16
             else:
                 # These quantizers only work with float16 params.

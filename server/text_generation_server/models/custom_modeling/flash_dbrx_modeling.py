@@ -27,6 +27,8 @@ if SYSTEM == "rocm":
     from vllm.model_executor.layers.fused_moe import fused_moe
 elif SYSTEM != "ipex":
     from moe_kernels.fused_moe import fused_moe
+else:
+    from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
 
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -490,19 +492,35 @@ class BlockSparseMoE(nn.Module):
         )
 
         self.process_group = weights.process_group
+        if SYSTEM == "ipex":
+            self.ipex_fused_moe = GatedMLPMOE(
+                W13=self.wv1, W2=self.w2, use_prepack=True
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # router_logits: (num_tokens, n_experts)
         router_logits = self.gate(x)
-        out = fused_moe(
-            x,
-            self.wv1,
-            self.w2,
-            router_logits,
-            self.top_k,
-            renormalize=self.moe_normalize_expert_weights,
-            inplace=True,
-        )
+
+        if SYSTEM == "ipex":
+            out = self.ipex_fused_moe(
+                hidden_states=x,
+                router_logits=router_logits,
+                top_k=self.top_k,
+                renormalize=self.moe_normalize_expert_weights,
+                use_grouped_topk=False,
+                num_expert_group=None,
+                topk_group=None,
+            )
+        else:
+            out = fused_moe(
+                x,
+                self.wv1,
+                self.w2,
+                router_logits,
+                self.top_k,
+                renormalize=self.moe_normalize_expert_weights,
+                inplace=True,
+            )
 
         # Reduce sum
         if self.process_group.size() > 1:
