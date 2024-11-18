@@ -2,10 +2,16 @@
   "nodes": {
     "cachix": {
       "inputs": {
-        "devenv": ["crate2nix"],
-        "flake-compat": ["crate2nix"],
+        "devenv": [
+          "crate2nix"
+        ],
+        "flake-compat": [
+          "crate2nix"
+        ],
         "nixpkgs": "nixpkgs",
-        "pre-commit-hooks": ["crate2nix"]
+        "pre-commit-hooks": [
+          "crate2nix"
+        ]
       },
       "locked": {
         "lastModified": 1709700175,
@@ -24,10 +30,19 @@
     },
     "cachix_2": {
       "inputs": {
-        "devenv": ["crate2nix", "crate2nix_stable"],
-        "flake-compat": ["crate2nix", "crate2nix_stable"],
+        "devenv": [
+          "crate2nix",
+          "crate2nix_stable"
+        ],
+        "flake-compat": [
+          "crate2nix",
+          "crate2nix_stable"
+        ],
         "nixpkgs": "nixpkgs_2",
-        "pre-commit-hooks": ["crate2nix", "crate2nix_stable"]
+        "pre-commit-hooks": [
+          "crate2nix",
+          "crate2nix_stable"
+        ]
       },
       "locked": {
         "lastModified": 1716549461,
@@ -46,8 +61,16 @@
     },
     "cachix_3": {
       "inputs": {
-        "devenv": ["crate2nix", "crate2nix_stable", "crate2nix_stable"],
-        "flake-compat": ["crate2nix", "crate2nix_stable", "crate2nix_stable"],
+        "devenv": [
+          "crate2nix",
+          "crate2nix_stable",
+          "crate2nix_stable"
+        ],
+        "flake-compat": [
+          "crate2nix",
+          "crate2nix_stable",
+          "crate2nix_stable"
+        ],
         "nixpkgs": "nixpkgs_3",
         "pre-commit-hooks": [
           "crate2nix",
@@ -78,7 +101,10 @@
         "flake-compat": "flake-compat_3",
         "flake-parts": "flake-parts_3",
         "nix-test-runner": "nix-test-runner_3",
-        "nixpkgs": ["tgi-nix", "nixpkgs"],
+        "nixpkgs": [
+          "tgi-nix",
+          "nixpkgs"
+        ],
         "pre-commit-hooks": "pre-commit-hooks_3"
       },
       "locked": {
@@ -193,7 +219,11 @@
     "devshell_2": {
       "inputs": {
         "flake-utils": "flake-utils_3",
-        "nixpkgs": ["crate2nix", "crate2nix_stable", "nixpkgs"]
+        "nixpkgs": [
+          "crate2nix",
+          "crate2nix_stable",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1717408969,
@@ -212,7 +242,10 @@
     "devshell_3": {
       "inputs": {
         "flake-utils": "flake-utils_4",
-        "nixpkgs": ["crate2nix", "nixpkgs"]
+        "nixpkgs": [
+          "crate2nix",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1711099426,
@@ -310,7 +343,11 @@
     },
     "flake-parts_2": {
       "inputs": {
-        "nixpkgs-lib": ["crate2nix", "crate2nix_stable", "nixpkgs"]
+        "nixpkgs-lib": [
+          "crate2nix",
+          "crate2nix_stable",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1719745305,
@@ -328,7 +365,10 @@
     },
     "flake-parts_3": {
       "inputs": {
-        "nixpkgs-lib": ["crate2nix", "nixpkgs"]
+        "nixpkgs-lib": [
+          "crate2nix",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1712014858,
@@ -519,7 +559,11 @@
     },
     "gitignore_3": {
       "inputs": {
-        "nixpkgs": ["crate2nix", "pre-commit-hooks", "nixpkgs"]
+        "nixpkgs": [
+          "crate2nix",
+          "pre-commit-hooks",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1709087332,
@@ -726,10 +770,22 @@
     },
     "pre-commit-hooks_2": {
       "inputs": {
-        "flake-compat": ["crate2nix", "crate2nix_stable", "flake-compat"],
+        "flake-compat": [
+          "crate2nix",
+          "crate2nix_stable",
+          "flake-compat"
+        ],
         "gitignore": "gitignore_2",
-        "nixpkgs": ["crate2nix", "crate2nix_stable", "nixpkgs"],
-        "nixpkgs-stable": ["crate2nix", "crate2nix_stable", "nixpkgs"]
+        "nixpkgs": [
+          "crate2nix",
+          "crate2nix_stable",
+          "nixpkgs"
+        ],
+        "nixpkgs-stable": [
+          "crate2nix",
+          "crate2nix_stable",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1719259945,
@@ -747,11 +803,20 @@
     },
     "pre-commit-hooks_3": {
       "inputs": {
-        "flake-compat": ["crate2nix", "flake-compat"],
+        "flake-compat": [
+          "crate2nix",
+          "flake-compat"
+        ],
         "flake-utils": "flake-utils_5",
         "gitignore": "gitignore_3",
-        "nixpkgs": ["crate2nix", "nixpkgs"],
-        "nixpkgs-stable": ["crate2nix", "nixpkgs"]
+        "nixpkgs": [
+          "crate2nix",
+          "nixpkgs"
+        ],
+        "nixpkgs-stable": [
+          "crate2nix",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1712055707,
@@ -772,14 +837,20 @@
         "crate2nix": "crate2nix",
         "flake-utils": "flake-utils_6",
         "nix-filter": "nix-filter",
-        "nixpkgs": ["tgi-nix", "nixpkgs"],
+        "nixpkgs": [
+          "tgi-nix",
+          "nixpkgs"
+        ],
         "rust-overlay": "rust-overlay",
         "tgi-nix": "tgi-nix"
       }
     },
     "rust-overlay": {
       "inputs": {
-        "nixpkgs": ["tgi-nix", "nixpkgs"]
+        "nixpkgs": [
+          "tgi-nix",
+          "nixpkgs"
+        ]
       },
       "locked": {
         "lastModified": 1729045942,
@@ -907,15 +978,16 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1731674227,
-        "narHash": "sha256-k/ur37KSc+RXcwwz0tgxeamz6wQ5rsOe5hMepzIdD2s=",
+        "lastModified": 1731923801,
+        "narHash": "sha256-SVtXtTGgnKjwPwMLe030l/DVhcm1vH4fXM7tUAPYOZc=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "407b9e22a0b7121bf6e171d67ce0144e3f3e39bf",
+        "rev": "b87d4b5bede0ffed7da50e9a5246b133c7d618dc",
         "type": "github"
       },
       "original": {
         "owner": "huggingface",
+        "ref": "marlin-kernels-0.3.5",
         "repo": "text-generation-inference-nix",
         "type": "github"
       }
