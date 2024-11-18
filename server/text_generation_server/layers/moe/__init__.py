@@ -27,10 +27,10 @@ from text_generation_server.utils.weights import (
 if SYSTEM == "rocm":
     from .fused_moe_rocm import grouped_topk
     from vllm.model_executor.layers.fused_moe import fused_topk
-elif SYSTEM != "ipex":
-    from moe_kernels.fused_moe import fused_topk, grouped_topk
-else:
+elif SYSTEM == "ipex":
     from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
+else:
+    from moe_kernels.fused_moe import fused_topk, grouped_topk
 
 
 # NOTE: we are using a protocol here, because multiple inherance is not nice.
