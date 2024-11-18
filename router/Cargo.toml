@@ -64,6 +64,7 @@ uuid = { version = "1.9.1", default-features = false, features = [
 csv = "1.3.0"
 ureq = "=2.9"
 pyo3 = { workspace = true }
+mp4parse = "0.17.0"
 
 
 [build-dependencies]
