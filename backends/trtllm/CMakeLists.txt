@@ -67,6 +67,11 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     target_link_libraries(tgi_trtllm_backend_tests PRIVATE CUDA::cudart CUDA::nvml)
     target_link_libraries(tgi_trtllm_backend_tests PRIVATE Catch2::Catch2WithMain tensorrt_llm nlohmann_json::nlohmann_json spdlog::spdlog)
 
+    if(CMAKE_BUILD_TYPE MATCHES "Debug")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fsanitize=undefined -fsanitize=address")
+        target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address)
+    endif()
+
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
     include(CTest)
     include(Catch)
