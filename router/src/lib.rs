@@ -12,8 +12,8 @@ mod sagemaker;
 pub mod usage_stats;
 mod vertex;
 
+use crate::infer::tool_grammar::ToolGrammar;
 use crate::infer::{Infer, InferError};
-use crate::server::prepare_chat_input;
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 use serde::{Deserialize, Serialize};
@@ -899,7 +899,7 @@ pub(crate) struct ChatRequest {
 
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
     #[serde(default)]
-    #[schema(nullable = true, example = "null")]
+    #[schema(nullable = true, default = "auto", example = "auto")]
     pub tool_choice: ToolChoice,
 
     /// Response format constraints for the generation.
@@ -953,15 +953,43 @@ impl ChatRequest {
             Some(temperature) if temperature == 0.0 => (false, None),
             other => (true, other),
         };
-        let (inputs, grammar, using_tools) = prepare_chat_input(
-            infer,
-            response_format,
-            tools,
-            tool_choice,
-            &tool_prompt,
-            guideline,
-            messages,
-        )?;
+
+        if response_format.is_some() && tools.is_some() {
+            return Err(InferError::ToolError(
+                "Grammar and tools are mutually exclusive".into(),
+            ));
+        }
+
+        let (inputs, grammar, using_tools) = match response_format {
+            Some(format) => {
+                let inputs = infer.apply_chat_template(guideline, messages, None)?;
+                (inputs, Some(format), false)
+            }
+            None => {
+                if let Some(tools) = tools {
+                    match ToolGrammar::apply(tools, tool_choice)? {
+                        Some((updated_tools, tool_schema)) => {
+                            let grammar = GrammarType::Json(serde_json::json!(tool_schema));
+                            let inputs: String = infer.apply_chat_template(
+                                guideline,
+                                messages,
+                                Some((updated_tools, tool_prompt)),
+                            )?;
+                            (inputs, Some(grammar), true)
+                        }
+                        None => {
+                            // same as if no response_format or tools are set
+                            let inputs = infer.apply_chat_template(guideline, messages, None)?;
+                            (inputs, None, false)
+                        }
+                    }
+                } else {
+                    // if no response_format or tools are set simply apply the chat template to generate inputs
+                    let inputs = infer.apply_chat_template(guideline, messages, None)?;
+                    (inputs, None, false)
+                }
+            }
+        };
 
         Ok((
             GenerateRequest {
@@ -1006,19 +1034,11 @@ pub fn default_tool_prompt() -> String {
     "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
-#[schema(example = "auto")]
-/// Controls which (if any) tool is called by the model.
-pub enum ToolType {
-    /// Means the model can pick between generating a message or calling one or more tools.
-    #[schema(rename = "auto")]
-    OneOf,
-    /// Means the model will not call any tool and instead generates a message.
-    #[schema(rename = "none")]
-    NoTool,
-    /// Forces the model to call a specific tool.
-    #[schema(rename = "function")]
-    Function(FunctionName),
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(tag = "type")]
+pub enum TypedChoice {
+    #[serde(rename = "function")]
+    Function { function: FunctionName },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -1026,28 +1046,58 @@ pub struct FunctionName {
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema, Default)]
 #[serde(from = "ToolTypeDeserializer")]
-pub struct ToolChoice(pub Option<ToolType>);
+#[serde(rename_all = "snake_case")]
+/// <https://platform.openai.com/docs/guides/function-calling/configuring-function-calling-behavior-using-the-tool_choice-parameter>
+pub enum ToolChoice {
+    /// Means the model can pick between generating a message or calling one or more tools.
+    #[default]
+    Auto,
+    /// Means the model will not call any tool and instead generates a message.
+    #[serde(rename = "none")]
+    NoTool,
+    /// Means the model must call one or more tools.
+    Required,
+    /// Forces the model to call a specific tool. This structure aligns with the `OpenAI` API schema to force a specific tool.
+    Function(FunctionName),
+}
 
-#[derive(Deserialize)]
+#[derive(Deserialize, ToSchema)]
 #[serde(untagged)]
+/// Controls which (if any) tool is called by the model.
+/// - `none` means the model will not call any tool and instead generates a message.
+/// - `auto` means the model can pick between generating a message or calling one or more tools.
+/// - `required` means the model must call one or more tools.
+/// - Specifying a particular tool via `{\"type\": \"function\", \"function\": {\"name\": \"my_function\"}}` forces the model to call that tool.
+///
+/// `none` is the default when no tools are present. `auto` is the default if tools are present."
 enum ToolTypeDeserializer {
+    /// None means `null` was passed in the JSON, and the default choice is applied based on the presence of tools.
     Null,
+
+    /// `auto` means the model can pick between generating a message or calling one or more tools.
+    #[schema(example = "auto")]
     String(String),
-    ToolType(ToolType),
+
+    /// Specifying a particular tool forces the model to call that tool, with structured function details.
+    #[schema(example = r#"{"type": "function", "function": {"name": "my_function"}}"#)]
+    TypedChoice(TypedChoice),
 }
 
 impl From<ToolTypeDeserializer> for ToolChoice {
     fn from(value: ToolTypeDeserializer) -> Self {
         match value {
-            ToolTypeDeserializer::Null => ToolChoice(None),
+            ToolTypeDeserializer::Null => ToolChoice::Auto,
             ToolTypeDeserializer::String(s) => match s.as_str() {
-                "none" => ToolChoice(Some(ToolType::NoTool)),
-                "auto" => ToolChoice(Some(ToolType::OneOf)),
-                _ => ToolChoice(Some(ToolType::Function(FunctionName { name: s }))),
+                "none" => ToolChoice::NoTool,
+                "auto" => ToolChoice::Auto,
+                "required" => ToolChoice::Required,
+                _ => ToolChoice::Function(FunctionName { name: s }),
             },
-            ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
+            ToolTypeDeserializer::TypedChoice(TypedChoice::Function { function }) => {
+                ToolChoice::Function(function)
+            }
         }
     }
 }
@@ -1213,6 +1263,7 @@ pub(crate) enum OutputMessage {
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct GenerateRequest {
     #[schema(example = "My name is Olivier and I")]
     pub inputs: String,
@@ -1651,6 +1702,43 @@ mod tests {
         assert_eq!(
             serialized,
             r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}]}"#
+        );
+    }
+
+    #[test]
+    fn tool_choice_formats() {
+        #[derive(Deserialize)]
+        struct TestRequest {
+            tool_choice: ToolChoice,
+        }
+
+        let de_none: TestRequest = serde_json::from_str(r#"{"tool_choice":"none"}"#).unwrap();
+        assert_eq!(de_none.tool_choice, ToolChoice::NoTool);
+
+        let de_auto: TestRequest = serde_json::from_str(r#"{"tool_choice":"auto"}"#).unwrap();
+        assert_eq!(de_auto.tool_choice, ToolChoice::Auto);
+
+        let de_required: TestRequest =
+            serde_json::from_str(r#"{"tool_choice":"required"}"#).unwrap();
+        assert_eq!(de_required.tool_choice, ToolChoice::Required);
+
+        let de_named: TestRequest = serde_json::from_str(r#"{"tool_choice":"myfn"}"#).unwrap();
+        assert_eq!(
+            de_named.tool_choice,
+            ToolChoice::Function(FunctionName {
+                name: "myfn".to_string(),
+            })
+        );
+
+        let de_openai_named: TestRequest = serde_json::from_str(
+            r#"{"tool_choice":{"type":"function","function":{"name":"myfn"}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            de_openai_named.tool_choice,
+            ToolChoice::Function(FunctionName {
+                name: "myfn".to_string(),
+            })
         );
     }
 }

@@ -1102,6 +1102,7 @@
                 "$ref": "#/components/schemas/ToolChoice"
               }
             ],
+            "default": "auto",
             "nullable": true
           },
           "tool_prompt": {
@@ -2294,14 +2295,6 @@
         }
       },
       "ToolChoice": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ToolType"
-          }
-        ],
-        "nullable": true
-      },
-      "ToolType": {
         "oneOf": [
           {
             "type": "string",
@@ -2318,6 +2311,13 @@
             ]
           },
           {
+            "type": "string",
+            "description": "Means the model must call one or more tools.",
+            "enum": [
+              "required"
+            ]
+          },
+          {
             "type": "object",
             "required": [
               "function"
@@ -2329,8 +2329,7 @@
             }
           }
         ],
-        "description": "Controls which (if any) tool is called by the model.",
-        "example": "auto"
+        "description": "<https://platform.openai.com/docs/guides/function-calling/configuring-function-calling-behavior-using-the-tool_choice-parameter>"
       },
       "Url": {
         "type": "object",
