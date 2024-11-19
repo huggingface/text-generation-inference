@@ -5,19 +5,19 @@
       "index": 0,
       "logprobs": null,
       "message": {
-        "content": "Hi, I hope this is the right place for your written question. Please provide the maximum possible length to help me complete the message for you! Based",
+        "content": "\nGenerate according to: It is an elephant's one year old baby or a mouse's one year old baby. It is",
         "role": "assistant"
       }
     }
   ],
-  "created": 1731082056,
+  "created": 1732050325,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
   "object": "chat.completion",
   "system_fingerprint": "2.4.1-dev0-native",
   "usage": {
     "completion_tokens": 30,
-    "prompt_tokens": 57,
-    "total_tokens": 87
+    "prompt_tokens": 37,
+    "total_tokens": 67
   }
 }

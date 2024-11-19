@@ -54,7 +54,6 @@ impl ChatTemplate {
     pub(crate) fn apply(
         &self,
         guideline: Option<&str>,
-        continue_final_message: bool,
         mut messages: Vec<Message>,
         tools_and_prompt: Option<(Vec<Tool>, String)>,
     ) -> Result<String, InferError> {
@@ -85,7 +84,7 @@ impl ChatTemplate {
         };
 
         let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
-        let final_message_content = messages.last().map(|m| m.content.clone());
+        let final_message = messages.last().cloned();
         let mut rendered_template = self
             .template
             .render(ChatTemplateInputs {
@@ -98,20 +97,20 @@ impl ChatTemplate {
             })
             .map_err(InferError::TemplateError)?;
 
-        if continue_final_message {
-            // find the last occurrence of the final message in the rendered chat
-            if let Some(final_message) = final_message_content {
-                rendered_template = if let Some(index) = rendered_template.rfind(&final_message) {
+        // if the last message is from the assistant, continue the generation prompt
+        rendered_template = match final_message {
+            Some(msg) if msg.role == "assistant" => {
+                match rendered_template.rfind(msg.content.as_str()) {
                     // implementation based on feature in transformers pipeline
                     // https://github.com/huggingface/transformers/blob/1cf17077bf2d4affed31387c0943251a4ba8fab7/src/transformers/pipelines/text_generation.py#L418
-                    rendered_template[..index + final_message.len()]
+                    Some(index) => rendered_template[..index + msg.content.len()]
                         .trim_end()
-                        .to_string()
-                } else {
-                    rendered_template
-                };
+                        .to_string(),
+                    None => rendered_template,
+                }
             }
-        }
+            _ => rendered_template,
+        };
 
         Ok(rendered_template)
     }
@@ -843,9 +842,8 @@ mod tests {
                 content: MessageContent::SingleText("Hello, how are you?".to_string()),
             },
         ];
-        let continue_final_message = false;
 
-        let result = ct.apply(None, continue_final_message, msgs, None);
+        let result = ct.apply(None, msgs, None);
 
         match result {
             Ok(_) => panic!("Should have failed since no guideline is provided"),
@@ -885,10 +883,9 @@ mod tests {
         ];
         let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
         let tools: Vec<Tool> = serde_json::from_str(&tools_string).unwrap();
-        let continue_final_message = false;
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
-        let result = ct.apply(None, continue_final_message, msgs, tools_and_prompt);
+        let result = ct.apply(None, msgs, tools_and_prompt);
         let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"arguments\":{\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}}}]\nThis default prompt will be used [/INST]".to_string();
         assert_eq!(result.unwrap(), expected);
     }
@@ -920,10 +917,9 @@ mod tests {
         ];
         let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
         let tools: Vec<Tool> = serde_json::from_str(&tools_string).unwrap();
-        let continue_final_message = false;
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
-        let result = ct.apply(None, continue_final_message, msgs, tools_and_prompt);
+        let result = ct.apply(None, msgs, tools_and_prompt);
         let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n    \"function\": {\n        \"arguments\": {\n            \"properties\": {\n                \"format\": {\n                    \"description\": \"The temperature unit to use. Infer this from the users location.\",\n                    \"enum\": [\n                        \"celsius\",\n                        \"fahrenheit\"\n                    ],\n                    \"type\": \"string\"\n                },\n                \"location\": {\n                    \"description\": \"The city and state, e.g. San Francisco, CA\",\n                    \"type\": \"string\"\n                }\n            },\n            \"required\": [\n                \"location\",\n                \"format\"\n            ],\n            \"type\": \"object\"\n        },\n        \"description\": \"Get the current weather\",\n        \"name\": \"get_current_weather\"\n    },\n    \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
         assert_eq!(result.unwrap(), expected);
     }

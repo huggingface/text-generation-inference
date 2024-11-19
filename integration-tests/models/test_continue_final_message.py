@@ -28,13 +28,11 @@ def test_llama_completion_single_prompt(
             "model": "tgi",
             "messages": [
                 {"role": "system", "content": "system message"},
-                {"role": "user", "content": "user message"},
-                {"role": "assistant", "content": "assistant message"},
+                {"role": "user", "content": "Which is bigger an elephant or a mouse?"},
             ],
             "max_tokens": 30,
             "stream": False,
             "seed": 1337,
-            "continue_final_message": False,
         },
         headers=llama_continue_final_message.headers,
         stream=False,
@@ -45,7 +43,7 @@ def test_llama_completion_single_prompt(
     content = response["choices"][0]["message"]["content"]
     assert (
         content
-        == "Hi, I hope this is the right place for your written question. Please provide the maximum possible length to help me complete the message for you! Based"
+        == "\nGenerate according to: It is an elephant's one year old baby or a mouse's one year old baby. It is"
     )
     assert response == response_snapshot
 
@@ -59,13 +57,15 @@ def test_llama_completion_single_prompt_continue(
             "model": "tgi",
             "messages": [
                 {"role": "system", "content": "system message"},
-                {"role": "user", "content": "user message"},
-                {"role": "assistant", "content": "assistant message"},
+                {"role": "user", "content": "Which is bigger an elephant or a mouse?"},
+                {
+                    "role": "assistant",
+                    "content": "the elephant, but have you heard about",
+                },
             ],
             "max_tokens": 30,
             "stream": False,
             "seed": 1337,
-            "continue_final_message": True,
         },
         headers=llama_continue_final_message.headers,
         stream=False,
@@ -76,6 +76,6 @@ def test_llama_completion_single_prompt_continue(
     content = response["choices"][0]["message"]["content"]
     assert (
         content
-        == ": Thanks for the awesome slides, they were just what we needed to produce the presentation we needed to deliver for our company's budgeting system"
+        == " Shere Kohan's fantastic exploits? written by David Shimomura & illustrated by Sarah Stern\n\nTitle: Elephant"
     )
     assert response == response_snapshot
