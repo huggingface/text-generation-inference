@@ -108,11 +108,11 @@
         "pre-commit-hooks": "pre-commit-hooks_3"
       },
       "locked": {
-        "lastModified": 1723311214,
-        "narHash": "sha256-xdGZQBEa1AC2us/sY3igS/CucWY6jErXsAvCFRhB2LI=",
+        "lastModified": 1730277369,
+        "narHash": "sha256-yvQbeJbnnwCB68yv7uZXdGb+P7NMn5JMGBw0aBHymDI=",
         "owner": "nix-community",
         "repo": "crate2nix",
-        "rev": "236f6addfd452a48be805819e3216af79e988fd5",
+        "rev": "151122427d030874ebef3517cda766a6984e6ed6",
         "type": "github"
       },
       "original": {
@@ -581,11 +581,11 @@
     },
     "nix-filter": {
       "locked": {
-        "lastModified": 1710156097,
-        "narHash": "sha256-1Wvk8UP7PXdf8bCCaEoMnOT1qe5/Duqgj+rL8sRQsSM=",
+        "lastModified": 1730207686,
+        "narHash": "sha256-SCHiL+1f7q9TAnxpasriP6fMarWE5H43t25F5/9e28I=",
         "owner": "numtide",
         "repo": "nix-filter",
-        "rev": "3342559a24e85fc164b295c3444e8a139924675b",
+        "rev": "776e68c1d014c3adde193a18db9d738458cd2ba4",
         "type": "github"
       },
       "original": {
@@ -853,11 +853,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1729045942,
-        "narHash": "sha256-HjmK0x5Zm2TK2vFpC7XBM2e3EDNVnAIuEoU2FkeN8xw=",
+        "lastModified": 1730687492,
+        "narHash": "sha256-xQVadjquBA/tFxDt5A55LJ1D1AvkVWsnrKC2o+pr8F4=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "9de3cea452d2401d6f93c06ad985178a4e11d1fc",
+        "rev": "41814763a2c597755b0755dbe3e721367a5e420f",
         "type": "github"
       },
       "original": {
@@ -978,16 +978,15 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1731923801,
-        "narHash": "sha256-SVtXtTGgnKjwPwMLe030l/DVhcm1vH4fXM7tUAPYOZc=",
+        "lastModified": 1732005645,
+        "narHash": "sha256-WbmABjHuixrYrGtiTc7cyj/EA8qta/FjRvmlU3JvKKQ=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "b87d4b5bede0ffed7da50e9a5246b133c7d618dc",
+        "rev": "93a6aa5c029d893226880d313d24237a379b18c7",
         "type": "github"
       },
       "original": {
         "owner": "huggingface",
-        "ref": "marlin-kernels-0.3.5",
         "repo": "text-generation-inference-nix",
         "type": "github"
       }
