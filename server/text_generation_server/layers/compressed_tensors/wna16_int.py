@@ -9,7 +9,7 @@ from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weights, WeightsLoader
 
 
-class WNA16Loader(WeightsLoader):
+class WNA16IntLoader(WeightsLoader):
     """
     Loader for W4A16/W8A16 INT compressed-tensors parameters.
     """
@@ -22,7 +22,7 @@ class WNA16Loader(WeightsLoader):
         )
 
     def __str__(self) -> str:
-        quantization_type = f"W{self.weights.num_bits}8A16"
+        quantization_type = f"W{self.weights.num_bits}A16"
 
         return f"{self.__class__.__name__} ({quantization_type})"
 

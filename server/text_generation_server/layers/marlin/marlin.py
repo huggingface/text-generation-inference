@@ -34,7 +34,9 @@ class MarlinWeightsLoader(WeightsLoader):
 
             B_meta = weights.get_tensor(f"{prefix}.B_meta")
             s = weights.get_tensor(f"{prefix}.s")
-            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+            weight = GPTQMarlin24Weight(
+                weight_packed=B, meta=B_meta, scale_packed=s, bits=self.bits
+            )
         else:
             try:
                 B = weights.get_tensor(f"{prefix}.B")
@@ -65,7 +67,9 @@ class MarlinWeightsLoader(WeightsLoader):
                 f"{prefix}.s", dim=1, block_sizes=block_sizes
             )
 
-            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+            weight = GPTQMarlin24Weight(
+                weight_packed=B, meta=B_meta, scale_packed=s, bits=self.bits
+            )
         else:
             B = weights.get_packed_sharded(
                 f"{prefix}.B", dim=1, block_sizes=block_sizes
@@ -96,7 +100,9 @@ class MarlinWeightsLoader(WeightsLoader):
                 [weights.get_sharded(f"{p}.s", dim=1) for p in prefixes], dim=1
             )
 
-            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+            weight = GPTQMarlin24Weight(
+                weight_packed=B, meta=B_meta, scale_packed=s, bits=self.bits
+            )
         else:
             try:
                 B = torch.cat(
@@ -132,7 +138,9 @@ class MarlinWeightsLoader(WeightsLoader):
             else:
                 s = weights.get_sharded(f"{prefix}.s", dim=0)
 
-            weight = GPTQMarlin24Weight(B=B, B_meta=B_meta, s=s, bits=self.bits)
+            weight = GPTQMarlin24Weight(
+                weight_packed=B, meta=B_meta, scale_packed=s, bits=self.bits
+            )
         else:
             try:
                 B = weights.get_sharded(f"{prefix}.B", dim=0)
@@ -247,15 +255,15 @@ class GPTQMarlin24Weight:
         bits: quantized weight size.
     """
 
-    B: torch.Tensor
-    B_meta: torch.Tensor
-    s: torch.Tensor
+    weight_packed: torch.Tensor
+    meta: torch.Tensor
+    scale_packed: torch.Tensor
     bits: int
 
     def __post_init__(self):
-        assert self.B.dtype == torch.int32
-        assert self.B_meta.dtype == torch.int16
-        assert self.s.dtype == torch.float16
+        assert self.weight_packed.dtype == torch.int32
+        assert self.meta.dtype == torch.int16
+        assert self.scale_packed.dtype == torch.float16
 
     def get_linear(self, bias: torch.Tensor):
         return GPTQMarlin24Linear(
@@ -279,9 +287,13 @@ class GPTQMarlin24Linear(nn.Module):
                 f"{weight.bits}-bit GPTQ Sparse 2:4 Marlin is not supported, must be one of: {supported_bits}"
             )
 
-        in_features = weight.B.shape[0] * MARLIN_TILE_SIZE * 2
-        out_features = weight.s.shape[1]
-        groupsize = -1 if weight.s.shape[0] == 1 else in_features // weight.s.shape[0]
+        in_features = weight.weight_packed.shape[0] * MARLIN_TILE_SIZE * 2
+        out_features = weight.scale_packed.shape[1]
+        groupsize = (
+            -1
+            if weight.scale_packed.shape[0] == 1
+            else in_features // weight.scale_packed.shape[0]
+        )
 
         if groupsize not in GPTQ_MARLIN_24_SUPPORTED_GROUP_SIZES:
             supported_sizes = ", ".join(
@@ -309,9 +321,9 @@ class GPTQMarlin24Linear(nn.Module):
                 f"Number of input features ({in_features}) not divisable by group size ({groupsize})"
             )
 
-        self.B = weight.B
-        self.B_meta = weight.B_meta
-        self.s = weight.s
+        self.weight_packed = weight.weight_packed
+        self.meta = weight.meta
+        self.scale_packed = weight.scale_packed
         if bias is not None:
             self.bias = bias
         else:
@@ -320,7 +332,7 @@ class GPTQMarlin24Linear(nn.Module):
         self.workspace = torch.zeros(
             (out_features // GPTQ_MARLIN_24_MIN_THREAD_N) * GPTQ_MARLIN_24_MAX_PARALLEL,
             dtype=torch.int,
-            device=weight.B.device,
+            device=weight.weight_packed.device,
         )
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
@@ -328,17 +340,17 @@ class GPTQMarlin24Linear(nn.Module):
 
         C = marlin_kernels.gptq_marlin_24_gemm(
             A.view(-1, A.shape[-1]),
-            self.B,
-            self.B_meta,
-            self.s,
+            self.weight_packed,
+            self.meta,
+            self.scale_packed,
             self.workspace,
             self.bits,
             A.shape[0],
-            self.s.shape[1],
+            self.scale_packed.shape[1],
             A.shape[1],
         )
 
-        C = C.reshape(A.shape[:-1] + (self.s.shape[1],))
+        C = C.reshape(A.shape[:-1] + (self.scale_packed.shape[1],))
 
         if self.bias is not None:
             C += self.bias
