@@ -29,5 +29,6 @@ jobs:
         run: nix build .\#devShells.x86_64-linux.impure
       - name: Build impure devshell (CUDA dev)
         run: nix build .\#devShells.x86_64-linux.impureWithCuda
-      - name: Build pure devshell
-        run: nix build .\#devShells.x86_64-linux.pure
+      # Pure shell dependencies are covered by Nix tests.
+      # - name: Build pure devshell
+      #   run: nix build .\#devShells.x86_64-linux.pure
