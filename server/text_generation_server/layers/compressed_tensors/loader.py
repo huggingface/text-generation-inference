@@ -13,7 +13,10 @@ from torch import nn
 
 from text_generation_server.layers.compressed_tensors.w8an_fp import W8ANFpLoader
 from text_generation_server.layers.compressed_tensors.w8a8_int import W8A8IntLoader
-from text_generation_server.layers.compressed_tensors.wna16_int import WNA16Loader
+from text_generation_server.layers.compressed_tensors.wna16_int_24 import (
+    WNA16Int24Loader,
+)
+from text_generation_server.layers.compressed_tensors.wna16_int import WNA16IntLoader
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import (
     DefaultWeightsLoader,
@@ -151,7 +154,14 @@ class CompressedTensorsLoader(WeightsLoader):
             and weights.num_bits in (4, 8)
         ):
             # INT W4A16 or W8A16 (GPTQ/AWQ-like).
-            return WNA16Loader(weights)
+            return WNA16IntLoader(weights)
+        elif (
+            format == CompressionFormat.marlin_24.value
+            and weights is not None
+            and weights.type == QuantizationType.INT
+            and weights.num_bits in (4, 8)
+        ):
+            return WNA16Int24Loader(weights)
         elif (
             format
             in {
