@@ -30,6 +30,7 @@
   opentelemetry-semantic-conventions,
   outlines,
   peft,
+  pillow,
   prometheus-client,
   punica-kernels,
   py-cpuinfo,
@@ -69,6 +70,7 @@ buildPythonPackage {
     "huggingface-hub"
     "loguru"
     "opentelemetry-instrumentation-grpc"
+    "pillow"
     "sentencepiece"
     "typer"
   ];
@@ -102,6 +104,7 @@ buildPythonPackage {
     opentelemetry-semantic-conventions
     outlines
     peft
+    pillow
     prometheus-client
     punica-kernels
     py-cpuinfo

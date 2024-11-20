@@ -1,0 +1,34 @@
+name: "Cache devshells"
+on:
+  pull_request:
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on:
+      group: aws-highmemory-32-plus-priv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/cachix-action@v14
+        with:
+          name: text-generation-inference
+          # If you chose signing key for write access
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+        env:
+          USER: github_runner
+      - name: Build impure devshell
+        run: nix build .\#devShells.x86_64-linux.impure
+      - name: Build impure devshell (CUDA dev)
+        run: nix build .\#devShells.x86_64-linux.impureWithCuda
+      # Pure shell dependencies are covered by Nix tests.
+      # - name: Build pure devshell
+      #   run: nix build .\#devShells.x86_64-linux.pure
