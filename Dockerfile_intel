@@ -218,7 +218,7 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements_intel.txt && \
-    pip install ".[accelerate, peft, outlines]" --no-cache-dir
+    pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
