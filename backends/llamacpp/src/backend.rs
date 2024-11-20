@@ -1,13 +1,17 @@
 use crate::ffi::{
-    create_worker_frontend, GenerationParams, LlamaCppWorkerFrontend, SamplingParams,
+    create_worker_frontend, set_numactl_core_affinity, GenerationParams, LlamaCppWorkerFrontend,
+    SamplingParams,
 };
 use async_trait::async_trait;
 use cxx::UniquePtr;
-use std::ops::Deref;
+use log::warn;
+use std::cell::RefCell;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-use std::thread::{spawn, JoinHandle};
+use std::thread::spawn;
+use text_generation_router::infer::InferError::GenerationError;
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::{
     ValidGenerateRequest, ValidParameters, ValidStoppingParameters,
@@ -15,10 +19,40 @@ use text_generation_router::validation::{
 use text_generation_router::{FinishReason, Token};
 use thiserror::Error;
 use tokenizers::Tokenizer;
-use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::{Semaphore, SemaphorePermit, TryAcquireError};
+use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, error, info};
+
+macro_rules! send_or_warn {
+    ($send: expr, $err: expr) => {
+        if let Err(se) = $send.send(err) {
+            warn!(
+                "Failed to send message back to the user: {}. Originating error: {}",
+                se, e
+            );
+        }
+    };
+}
+
+fn get_num_cores() -> usize {
+    match option_env!("TGI_USE_PHYSICAL_CORES")
+        .unwrap_or("OFF")
+        .to_uppercase()
+        .as_str()
+    {
+        "ON" => {
+            info!("Using only physical cores on the machine");
+            num_cpus::get_physical()
+        }
+        _ => {
+            info!("Using physical and logical cores on the machine");
+            num_cpus::get()
+        }
+    }
+}
 
 type InferResult = Result<InferStreamResponse, InferError>;
 
@@ -71,12 +105,19 @@ pub enum LlamaCppBackendError {
 
 struct LlamaCppWorker {
     sender: Sender<(GenerationContext, UnboundedSender<InferResult>)>,
-    handle: JoinHandle<()>,
 }
 
-pub enum LlamaCppBackend {
-    Single(LlamaCppWorker),
-    // Multi(Vec<LlamaCppWorker>)
+impl LlamaCppWorker {
+    fn submit(&self, ctx: GenerationContext, sx: UnboundedSender<InferResult>) {
+        if let Err(err) = self.sender.send((ctx, sx)) {
+            // TODO: What do we do?
+        }
+    }
+}
+
+pub struct LlamaCppBackend {
+    scheduler_sender: UnboundedSender<(GenerationContext, UnboundedSender<InferResult>)>,
+    scheduler_handle: JoinHandle<()>,
 }
 
 impl LlamaCppBackend {
@@ -93,26 +134,65 @@ impl LlamaCppBackend {
         tokenizer: Arc<Tokenizer>,
         num_cores_per_instance: u16,
     ) -> Result<Self, LlamaCppBackendError> {
-        let shared_path = Arc::new(model_path);
-        let path = shared_path.deref().as_ref();
+        let path = model_path.as_ref();
         if !path.exists() {
             return Err(LlamaCppBackendError::ModelFileDoesntExist(
                 path.display().to_string(),
             ));
         }
 
-        let worker = match num_cores_per_instance {
-            0 => {
-                let worker = Self::allocate_worker(path)?;
-                let (sender, receiver) = channel();
-                let handle = spawn(move || scheduler_loop(worker, tokenizer, receiver));
-                LlamaCppBackend::Single(LlamaCppWorker { sender, handle })
-            }
-            _ => panic!("No supported yet"),
-        };
+        let cores_allocation = get_cores_allocation(num_cores_per_instance as usize);
 
-        Ok(worker)
+        // Allocate all the workers
+        let streams = cores_allocation
+            .iter()
+            .map(|affinity| match Self::allocate_worker(path) {
+                Ok(worker) => {
+                    let tokenizer = Arc::clone(&tokenizer);
+                    let (sender, receiver) = channel();
+                    let affinity = affinity.clone().collect::<Vec<_>>();
+                    spawn(move || worker_loop(worker, affinity, tokenizer, receiver));
+
+                    Ok(LlamaCppWorker { sender })
+                }
+                Err(e) => Err(e),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // Start the scheduler loop
+        let (scheduler_sender, scheduler_receiver) = unbounded_channel();
+        let scheduler_handle = tokio::spawn(scheduler_loop(scheduler_receiver, streams));
+        Ok(Self {
+            scheduler_sender,
+            scheduler_handle,
+        })
     }
+}
+
+fn get_cores_allocation(num_cores_per_instance: usize) -> Vec<Range<usize>> {
+    // Get the total number of cores on the CPU
+    let cores_count = get_num_cores();
+
+    // Make sure each instance has some cores available
+    let mut effective_num_cores_per_instance = match num_cores_per_instance {
+        0 => cores_count,
+        _ => num_cores_per_instance,
+    };
+
+    // If we have spare cores, let's see if we can give everyone one more core
+    let mut num_instances = cores_count / effective_num_cores_per_instance;
+    if cores_count - (num_instances * effective_num_cores_per_instance) >= num_instances {
+        effective_num_cores_per_instance = effective_num_cores_per_instance + 1;
+        warn!("Overriding cores allocation to {effective_num_cores_per_instance} per instance");
+    }
+
+    (0..num_instances)
+        .map(|ordinal| {
+            let start = ordinal * effective_num_cores_per_instance;
+            let end = (ordinal + 1) * effective_num_cores_per_instance - 1;
+            (start..end)
+        })
+        .collect()
 }
 
 fn llama_generate_callback(
@@ -164,12 +244,12 @@ fn llama_generate_callback(
                             start: ctx.start,
                             queued: ctx.start,
                         }),
-                        Err(err) => Err(InferError::GenerationError(err.to_string())),
+                        Err(err) => Err(GenerationError(err.to_string())),
                     }
                 }
             }
         }
-        Err(ref err) => Err(InferError::GenerationError(err.to_string())),
+        Err(ref err) => Err(GenerationError(err.to_string())),
     };
 
     // Send back to the client
@@ -179,13 +259,42 @@ fn llama_generate_callback(
     status.is_err()
 }
 
-fn scheduler_loop(
+async fn scheduler_loop(
+    mut queue: UnboundedReceiver<(GenerationContext, UnboundedSender<InferResult>)>,
+    mut workers: Vec<LlamaCppWorker>,
+) {
+    // Semaphore allows us to wait for a worker to become available
+    let permits = Semaphore::new(workers.len());
+
+    // Let's receive incoming requests
+    loop {
+        match queue.recv().await {
+            None => break,
+            Some((ctx, sender)) => {
+                let permit = permits.try_acquire();
+                if let Err(err) = permit {
+                    let _ = sender.send(Err(InferError::Overloaded(err)));
+                }
+
+                // We can unwrap because we wouldn't have a semaphore available otherwise
+                let worker = workers.pop().unwrap();
+                worker.submit(ctx, sender);
+            }
+        }
+    }
+}
+
+fn worker_loop(
     mut backend: UniquePtr<LlamaCppWorkerFrontend>,
+    affinity: Vec<usize>,
     tokenizer: Arc<Tokenizer>,
     backlog: Receiver<(GenerationContext, UnboundedSender<InferResult>)>,
 ) {
     // This loop will mostly decode single token at every step, so no need to rely on parallelism
     tokenizers::utils::parallelism::set_parallelism(false);
+
+    // Bind cores for the current thread
+    set_numactl_core_affinity(&affinity);
 
     loop {
         if let Ok((generation, stream)) = backlog.recv() {
@@ -214,6 +323,7 @@ fn scheduler_loop(
                     llama_generate_callback,
                 ) {
                     error!("Error while decoding tokens... {}", e.what());
+                    // TODO: What error to give back to the user?
                 }
 
                 // Make sure we re-keep track of the OpaqueStream box
@@ -244,18 +354,15 @@ impl Backend for LlamaCppBackend {
                 sampling_params,
             };
 
-            match self {
-                LlamaCppBackend::Single(worker) => match worker.sender.send((ctx, sx)) {
-                    Ok(_) => Ok(UnboundedReceiverStream::new(rx)),
-                    Err(_) => Err(InferError::GenerationError(
-                        "Failed to sent the request".to_string(),
-                    )),
-                },
+            // We send the workload to the scheduler
+            if let Err(e) = self.scheduler_sender.send((ctx, sx)) {
+                Err(InferError::IncompleteGenerationStream)
+            } else {
+                // We are returning the associated channel as early as we can, potentially closing it up
+                Ok(UnboundedReceiverStream::new(rx))
             }
         } else {
-            Err(InferError::GenerationError(
-                "Unsupported modalities".to_string(),
-            ))
+            Err(GenerationError("Unsupported modalities".to_string()))
         }
     }
 

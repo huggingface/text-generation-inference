@@ -86,6 +86,7 @@ fn main() {
 
     // Emit linkage search path
     probe!("ompi", MPI_REQUIRED_VERSION);
+    probe!("numa", "2.0");
 
     // Backend
     BACKEND_DEPS.iter().for_each(|name| {
@@ -96,7 +97,9 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", out_dir.display());
 
     let spdlog_linkage_target = if is_debug { "spdlogd" } else { "spdlog" };
-    println!("cargo:rustc-link-lib=static={spdlog_linkage_target}");
+    let fmt_linkage_target = if is_debug { "fmtd" } else { "fmt" };
+    println!("cargo:rustc-link-lib=dylib={spdlog_linkage_target}");
+    println!("cargo:rustc-link-lib=dylib={fmt_linkage_target}");
     println!("cargo:rustc-link-lib=dylib=ggml");
     println!("cargo:rustc-link-lib=dylib=llama");
 

@@ -9,6 +9,7 @@ homepage.workspace = true
 async-trait = "0.1"
 clap = { version = "4.5.19", features = ["derive"] }
 cxx = "1.0"
+num_cpus = "1"
 hf-hub = { workspace = true }
 image = { version = "0.25.1", features = ["default-formats"] }
 metrics = { workspace = true }

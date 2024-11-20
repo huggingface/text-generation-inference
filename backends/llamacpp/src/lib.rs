@@ -51,6 +51,8 @@ mod ffi {
 
         fn create_worker_frontend(modelPath: &str) -> Result<UniquePtr<LlamaCppWorkerFrontend>>;
 
+        fn set_numactl_core_affinity(affinity: &[usize]);
+
         unsafe fn stream(
             self: Pin<&mut LlamaCppWorkerFrontend>,
             tokens: &[u32],

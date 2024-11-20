@@ -4229,6 +4229,7 @@ dependencies = [
  "log",
  "metrics",
  "metrics-exporter-prometheus",
+ "num_cpus",
  "pkg-config",
  "serde_json",
  "text-generation-router",

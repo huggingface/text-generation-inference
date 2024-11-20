@@ -5,13 +5,19 @@
 #ifndef TGI_LLAMA_CPP_BACKEND_FFI_HPP
 #define TGI_LLAMA_CPP_BACKEND_FFI_HPP
 
+#include <cstdint>
 #include <exception>
 #include <filesystem>
 #include <memory>
 #include <ranges>
 #include <string_view>
+#include <thread>
 
 #include <spdlog/spdlog.h>
+#include <spdlog/fmt/ranges.h>
+#include <spdlog/fmt/std.h>
+
+#include <numa.h>
 
 namespace huggingface::tgi::backends::llamacpp {
     class llama_cpp_worker_frontend_t;
@@ -91,6 +97,23 @@ namespace huggingface::tgi::backends::llamacpp {
         // Allocate the model from the Rust provided, string path
         auto *model = (llama_load_model_from_file(static_cast<std::string>(modelPath).c_str(), params));
         return std::make_unique<llama_cpp_worker_frontend_t>(model);
+    }
+
+    void set_numactl_core_affinity(rust::Slice<const size_t> affinity) {
+        SPDLOG_INFO("Setting numactl cores affinity to {} for thread {}", affinity, std::this_thread::get_id());
+//        auto nodes = std::unordered_set<usize>();
+        auto cpumask = numa_allocate_cpumask();
+        for(auto core : affinity) {
+            numa_bitmask_setbit(cpumask, core);
+            numa_sched_setaffinity(0, cpumask);
+        }
+
+//#ifdef TGI_LLAMACPP_BACKEND_DEBUG
+        auto cpumask_check = numa_allocate_cpumask();
+        numa_sched_getaffinity(0, cpumask_check);
+        SPDLOG_DEBUG(FMT_STRING("numa_sched_affinity for thread {} -> {:b}"), std::this_thread::get_id(), *cpumask_check->maskp);
+//#endif
+
     }
 }
 

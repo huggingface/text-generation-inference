@@ -45,7 +45,7 @@ namespace huggingface::tgi::backends::llamacpp {
 #ifdef TGI_LLAMACPP_BACKEND_DEBUG
         char modelName[256];
         llama_model_meta_val_str(model.get(), "general.name", modelName, sizeof(modelName));
-        SPDLOG_DEBUG(FMT_STRING("Created llama.cpp  backend for model: '{}'"), std::string_view(modelName));
+        SPDLOG_DEBUG(FMT_STRING("Created llama.cpp backend for model: '{}'"), std::string_view(modelName));
 #endif
     }
 

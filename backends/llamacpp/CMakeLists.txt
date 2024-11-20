@@ -18,6 +18,7 @@ else ()
 endif ()
 
 # Add dependencies
+include(cmake/numa.cmake)
 include(cmake/spdlog.cmake)
 
 if (${LLAMA_CPP_BUILD_CUDA})
@@ -40,6 +41,11 @@ fetchcontent_makeavailable(llama)
 add_library(tgi_llamacpp_backend_impl STATIC csrc/backend.hpp csrc/backend.cpp)
 target_compile_features(tgi_llamacpp_backend_impl PRIVATE cxx_std_11)
 target_link_libraries(tgi_llamacpp_backend_impl PUBLIC spdlog::spdlog llama)
+
+if (NUMA_FOUND)
+    target_link_libraries(tgi_llamacpp_backend_impl PUBLIC numa)
+endif ()
+
 install(TARGETS tgi_llamacpp_backend_impl spdlog llama)
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
