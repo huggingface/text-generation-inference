@@ -2,7 +2,6 @@ use crate::infer::InferError;
 use crate::{ChatTemplateInputs, Message, MessageChunk, TextMessage, TokenizerConfigToken, Tool};
 use minijinja::{Environment, ErrorKind, Template};
 use minijinja_contrib::pycompat;
-use std::collections::HashSet;
 
 /// Raise a exception (custom function) used in the chat templates
 pub(crate) fn raise_exception(err_text: String) -> Result<String, minijinja::Error> {
@@ -15,7 +14,6 @@ pub(crate) struct ChatTemplate {
     bos_token: Option<String>,
     eos_token: Option<String>,
     use_default_tool_template: bool,
-    variables: HashSet<String>,
 }
 
 impl ChatTemplate {
@@ -47,21 +45,14 @@ impl ChatTemplate {
             bos_token: bos_token.map(|token| token.as_str().to_string()),
             eos_token: eos_token.map(|token| token.as_str().to_string()),
             use_default_tool_template,
-            variables,
         }
     }
 
     pub(crate) fn apply(
         &self,
-        guideline: Option<&str>,
         mut messages: Vec<Message>,
         tools_and_prompt: Option<(Vec<Tool>, String)>,
     ) -> Result<String, InferError> {
-        // check if guideline is expected but not provided
-        if self.variables.contains("guideline") && guideline.is_none() {
-            return Err(InferError::MissingTemplateVariable("guideline".to_string()));
-        }
-
         let tools = match tools_and_prompt {
             Some((tools, tool_prompt)) => {
                 // check if the `tools` variable is used in the template
@@ -87,7 +78,6 @@ impl ChatTemplate {
 
         self.template
             .render(ChatTemplateInputs {
-                guideline,
                 messages,
                 bos_token: self.bos_token.as_deref(),
                 eos_token: self.eos_token.as_deref(),
@@ -756,19 +746,6 @@ mod tests {
                 },
                 target: "You are a friendly chatbot who always responds in the style of a pirateYou are a friendly chatbot who always responds in the style of a pirate### Instruction: Hello, how are you?### Response: I'm doing great. How can I help you today?### Instruction: I'd like to show off how chat templating works!",
             },
-            ChatTemplateTestItem {
-                name: "google/shieldgemma-9b",
-                chat_template: "{{- bos_token }}\n{%- if messages[-1].role == 'user' %}\n    {{- \"You are a policy expert trying to help determine whether a user prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the human question violate the above principle? Your answer must start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- else %}\n    {{- \"You are a policy expert trying to help determine whether an AI response to a prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-2].content }}\n    {{- \"\\n<end_of_turn>\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Chatbot Response: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the Chatbot Response violate the above principle? Your answer must  start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- endif %}\n\n",
-                input: ChatTemplateInputs {
-                    messages: example_chat_with_system.clone(),
-                    add_generation_prompt: false,
-                    bos_token: Some("<s>"),
-                    eos_token: Some("</s>"),
-                    guideline: Some("Do not use offensive language."),
-                    ..Default::default()
-                },
-                target: "<s>You are a policy expert trying to help determine whether a user prompt is in violation of the defined safety policies.\n\n<start_of_turn>\nHuman Question: I'd like to show off how chat templating works!\n<end_of_turn>\n\nOur safety principle is defined in the below:\n\n* Do not use offensive language.\n\n===\n\nDoes the human question violate the above principle? Your answer must start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\n\n",
-            },
         ];
 
         #[allow(unused_variables)] // name is unused
@@ -791,47 +768,6 @@ mod tests {
             let tmpl = env.template_from_str(&chat_template);
             let result = tmpl.unwrap().render(input).unwrap();
             assert_eq!(result, target);
-        }
-    }
-
-    #[test]
-    fn test_chat_template_invalid_with_guideline() {
-        let ct = ChatTemplate::new(
-            "{{- bos_token }}\n{%- if messages[-1].role == 'user' %}\n    {{- \"You are a policy expert trying to help determine whether a user prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the human question violate the above principle? Your answer must start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- else %}\n    {{- \"You are a policy expert trying to help determine whether an AI response to a prompt is in violation of the defined safety policies.\\n\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Human Question: \" + messages[-2].content }}\n    {{- \"\\n<end_of_turn>\\n\" }}\n    {{- \"<start_of_turn>\\n\" }}\n    {{- \"Chatbot Response: \" + messages[-1].content }}\n    {{- \"\\n<end_of_turn>\\n\\n\" }}\n    {{- \"Our safety principle is defined in the below:\\n\\n\" }}\n    {{- \"* \" + guideline + \"\\n\" }}\n    {{- \"\\n===\\n\\n\" }}\n    {{- \"Does the Chatbot Response violate the above principle? Your answer must  start with 'Yes' or 'No'. And then walk through step by step to be sure we answer correctly.\\n\\n\" }}\n{%- endif %}\n\n".to_string(),
-            Some(TokenizerConfigToken::String("<s>".to_string())),
-            Some(TokenizerConfigToken::String("</s>".to_string())),
-        );
-
-        // convert TextMessage to Message
-        let msgs: Vec<Message> = vec![
-            Message {
-                name: None,
-                role: "user".to_string(),
-                content: MessageContent::SingleText(
-                    "I'd like to show off how chat templating works!".to_string(),
-                ),
-            },
-            Message {
-                name: None,
-                role: "assistant".to_string(),
-                content: MessageContent::SingleText(
-                    "I'm doing great. How can I help you today?".to_string(),
-                ),
-            },
-            Message {
-                name: None,
-                role: "user".to_string(),
-                content: MessageContent::SingleText("Hello, how are you?".to_string()),
-            },
-        ];
-
-        let result = ct.apply(None, msgs, None);
-
-        match result {
-            Ok(_) => panic!("Should have failed since no guideline is provided"),
-            Err(e) => {
-                assert_eq!(e.to_string(), "Missing template vatiable: guideline")
-            }
         }
     }
 

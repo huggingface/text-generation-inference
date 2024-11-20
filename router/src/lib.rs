@@ -909,11 +909,6 @@ pub(crate) struct ChatRequest {
     #[schema(nullable = true, default = "null", example = "null")]
     pub response_format: Option<GrammarType>,
 
-    /// A guideline to be used in the chat_template
-    #[serde(default)]
-    #[schema(nullable = true, default = "null", example = "null")]
-    pub guideline: Option<String>,
-
     /// Options for streaming response. Only set this when you set stream: true.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
@@ -934,7 +929,6 @@ impl ChatRequest {
             tool_prompt,
             temperature,
             response_format,
-            guideline,
             presence_penalty,
             frequency_penalty,
             top_p,
@@ -962,7 +956,7 @@ impl ChatRequest {
 
         let (inputs, grammar, using_tools) = match response_format {
             Some(format) => {
-                let inputs = infer.apply_chat_template(guideline, messages, None)?;
+                let inputs = infer.apply_chat_template(messages, None)?;
                 (inputs, Some(format), false)
             }
             None => {
@@ -971,7 +965,6 @@ impl ChatRequest {
                         Some((updated_tools, tool_schema)) => {
                             let grammar = GrammarType::Json(serde_json::json!(tool_schema));
                             let inputs: String = infer.apply_chat_template(
-                                guideline,
                                 messages,
                                 Some((updated_tools, tool_prompt)),
                             )?;
@@ -979,13 +972,13 @@ impl ChatRequest {
                         }
                         None => {
                             // same as if no response_format or tools are set
-                            let inputs = infer.apply_chat_template(guideline, messages, None)?;
+                            let inputs = infer.apply_chat_template(messages, None)?;
                             (inputs, None, false)
                         }
                     }
                 } else {
                     // if no response_format or tools are set simply apply the chat template to generate inputs
-                    let inputs = infer.apply_chat_template(guideline, messages, None)?;
+                    let inputs = infer.apply_chat_template(messages, None)?;
                     (inputs, None, false)
                 }
             }
@@ -1163,7 +1156,6 @@ pub(crate) struct ChatTemplateInputs<'a> {
     eos_token: Option<&'a str>,
     add_generation_prompt: bool,
     tools: Option<Vec<Tool>>,
-    guideline: Option<&'a str>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug, PartialEq)]
