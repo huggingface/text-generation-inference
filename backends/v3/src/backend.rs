@@ -369,11 +369,6 @@ async fn filter_batch(
 ) -> Option<CachedBatch> {
     let mut batch = next_batch?;
 
-    // No need to filter
-    if batch.size as usize == entries.len() {
-        return Some(batch);
-    }
-
     let id = batch.id;
 
     // Retain only requests that are still in entries
