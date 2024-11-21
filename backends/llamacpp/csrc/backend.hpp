@@ -85,7 +85,7 @@ namespace huggingface::tgi::backends::llamacpp {
          * @param model
          * @param params
          */
-        worker_t(std::shared_ptr<llama_model>, const llama_context_params &);
+        worker_t(std::shared_ptr<llama_model>, const llama_context_params &&);
 
         /**
          *

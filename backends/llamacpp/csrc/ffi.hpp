@@ -51,8 +51,8 @@ namespace huggingface::tgi::backends::llamacpp {
         worker_t worker_;
 
     public:
-        explicit llama_cpp_worker_frontend_t(llama_model *model):
-            model_{ make_shared_llama_model(model) }, worker_(model_, {.no_perf = true}) {}
+        explicit llama_cpp_worker_frontend_t(llama_model *model, int32_t num_threads):
+            model_{ make_shared_llama_model(model) }, worker_(model_, {.n_ubatch = 1, .n_threads = num_threads, .no_perf = true}) {}
 
         size_t stream(
                 rust::Slice<const uint32_t> input_tokens,
@@ -88,7 +88,7 @@ namespace huggingface::tgi::backends::llamacpp {
         }
     };
 
-    std::unique_ptr<llama_cpp_worker_frontend_t> create_worker_frontend(rust::Str modelPath) {
+    std::unique_ptr<llama_cpp_worker_frontend_t> create_worker_frontend(rust::Str modelPath, uint32_t num_threads) {
 #ifdef TGI_LLAMACPP_BACKEND_DEBUG
         spdlog::set_level(spdlog::level::debug);
 #endif
@@ -105,7 +105,7 @@ namespace huggingface::tgi::backends::llamacpp {
 
         // Allocate the model from the Rust provided, string path
         auto *model = (llama_load_model_from_file(static_cast<std::string>(modelPath).c_str(), params));
-        return std::make_unique<llama_cpp_worker_frontend_t>(model);
+        return std::make_unique<llama_cpp_worker_frontend_t>(model, static_cast<int32_t>(num_threads));
     }
 
     struct numa_cpumask_deleter { void operator()(struct bitmask* cpumask){ numa_free_cpumask(cpumask); }};

@@ -39,7 +39,7 @@ namespace huggingface::tgi::backends::llamacpp {
         return {pSampler, llama_sampler_deleter};
     }
 
-    worker_t::worker_t(std::shared_ptr<llama_model> model, const llama_context_params &params)
+    worker_t::worker_t(std::shared_ptr<llama_model> model, const llama_context_params &&params)
             : model_(model), context_(llama_new_context_with_model(model_.get(), params)) {
 
 #ifdef TGI_LLAMACPP_BACKEND_DEBUG

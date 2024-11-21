@@ -122,8 +122,9 @@ pub struct LlamaCppBackend {
 impl LlamaCppBackend {
     fn allocate_worker(
         path: &Path,
+        num_threads: u32,
     ) -> Result<UniquePtr<LlamaCppWorkerFrontend>, LlamaCppBackendError> {
-        create_worker_frontend(&path.display().to_string()).map_err(|ref err| {
+        create_worker_frontend(&path.display().to_string(), num_threads).map_err(|ref err| {
             LlamaCppBackendError::ModelInitializationFailed(path.to_path_buf(), err.to_string())
         })
     }
@@ -145,17 +146,19 @@ impl LlamaCppBackend {
         // Allocate all the workers
         let streams = cores_allocation
             .iter()
-            .map(|affinity| match Self::allocate_worker(path) {
-                Ok(worker) => {
-                    let tokenizer = Arc::clone(&tokenizer);
-                    let (sender, receiver) = channel();
-                    let affinity = affinity.clone().collect::<Vec<_>>();
-                    spawn(move || worker_loop(worker, affinity, tokenizer, receiver));
+            .map(
+                |affinity| match Self::allocate_worker(path, num_cores_per_instance as u32) {
+                    Ok(worker) => {
+                        let tokenizer = Arc::clone(&tokenizer);
+                        let (sender, receiver) = channel();
+                        let affinity = affinity.clone().collect::<Vec<_>>();
+                        spawn(move || worker_loop(worker, affinity, tokenizer, receiver));
 
-                    Ok(LlamaCppWorker { sender })
-                }
-                Err(e) => Err(e),
-            })
+                        Ok(LlamaCppWorker { sender })
+                    }
+                    Err(e) => Err(e),
+                },
+            )
             .collect::<Result<Vec<_>, _>>()?;
 
         // Start the scheduler loop

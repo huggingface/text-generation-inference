@@ -49,7 +49,10 @@ mod ffi {
         #[cxx_name = "llama_cpp_worker_frontend_t"]
         type LlamaCppWorkerFrontend;
 
-        fn create_worker_frontend(modelPath: &str) -> Result<UniquePtr<LlamaCppWorkerFrontend>>;
+        fn create_worker_frontend(
+            modelPath: &str,
+            num_threads: u32,
+        ) -> Result<UniquePtr<LlamaCppWorkerFrontend>>;
 
         fn set_numactl_core_affinity(affinity: &[usize]);
 
