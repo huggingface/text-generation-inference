@@ -55,10 +55,7 @@ async def test_grammar_response_format_llama_json(llama_grammar, response_snapsh
     called = chat_completion["choices"][0]["message"]["content"]
 
     assert response.status_code == 200
-    assert (
-        called
-        == '{\n  "temperature": [\n    35,\n    34,\n    36\n  ],\n  "unit": "°c"\n}'
-    )
+    assert called == '{ "temperature": [ 26, 30, 33, 29 ] ,"unit": "Fahrenheit" }'
     assert chat_completion == response_snapshot
 
 

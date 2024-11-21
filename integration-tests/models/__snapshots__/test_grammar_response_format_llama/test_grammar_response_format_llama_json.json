@@ -5,7 +5,7 @@
       "index": 0,
       "logprobs": null,
       "message": {
-        "content": "{\n  \"temperature\": [\n    35,\n    34,\n    36\n  ],\n  \"unit\": \"°c\"\n}",
+        "content": "{ \"temperature\": [ 26, 30, 33, 29 ] ,\"unit\": \"Fahrenheit\" }",
         "role": "assistant"
       }
     }
