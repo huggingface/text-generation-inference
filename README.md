@@ -28,6 +28,7 @@ to power Hugging Chat, the Inference API and Inference Endpoint.
     - [Distributed Tracing](#distributed-tracing)
     - [Architecture](#architecture)
     - [Local install](#local-install)
+    - [Local install (Nix)](#local-install-nix)
   - [Optimized architectures](#optimized-architectures)
   - [Run locally](#run-locally)
     - [Run](#run)
@@ -235,6 +236,44 @@ text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2
 ```shell
 sudo apt-get install libssl-dev gcc -y
 ```
+
+### Local install (Nix)
+
+Another option is to install `text-generation-inference` locally using [Nix](https://nixos.org). Currently,
+we only support Nix on x86_64 Linux with CUDA GPUs. When using Nix, all dependencies can
+be pulled from a binary cache, removing the need to build them locally.
+
+First follow the instructions to [install Cachix and enable the TGI cache](https://app.cachix.org/cache/text-generation-inference).
+Setting up the cache is important, otherwise Nix will build many of the dependencies
+locally, which can take hours.
+
+After that you can run TGI with `nix run`:
+
+```shell
+nix run . -- --model-id meta-llama/Llama-3.1-8B-Instruct
+```
+
+**Note:** when you are using Nix on a non-NixOS system, you have to [make some symlinks](https://danieldk.eu/Nix-CUDA-on-non-NixOS-systems#make-runopengl-driverlib-and-symlink-the-driver-library)
+to make the CUDA driver libraries visible to Nix packages.
+
+For TGI development, you can use the `impure` dev shell:
+
+```shell
+nix develop .#impure
+
+# Only needed the first time the devshell is started or after updating the protobuf.
+(
+cd server
+mkdir text_generation_server/pb || true
+python -m grpc_tools.protoc -I../proto/v3 --python_out=text_generation_server/pb \
+       --grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/v3/generate.proto
+find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
+touch text_generation_server/pb/__init__.py
+)
+```
+
+All development dependencies (cargo, Python, Torch), etc. are available in this
+dev shell.
 
 ## Optimized architectures
 
