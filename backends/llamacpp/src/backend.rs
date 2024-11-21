@@ -5,7 +5,6 @@ use crate::ffi::{
 use async_trait::async_trait;
 use cxx::UniquePtr;
 use log::warn;
-use std::cell::RefCell;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -20,7 +19,7 @@ use text_generation_router::{FinishReason, Token};
 use thiserror::Error;
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
-use tokio::sync::{Semaphore, SemaphorePermit, TryAcquireError};
+use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -180,7 +179,7 @@ fn get_cores_allocation(num_cores_per_instance: usize) -> Vec<Range<usize>> {
     };
 
     // If we have spare cores, let's see if we can give everyone one more core
-    let mut num_instances = cores_count / effective_num_cores_per_instance;
+    let num_instances = cores_count / effective_num_cores_per_instance;
     if cores_count - (num_instances * effective_num_cores_per_instance) >= num_instances {
         effective_num_cores_per_instance = effective_num_cores_per_instance + 1;
         warn!("Overriding cores allocation to {effective_num_cores_per_instance} per instance");
@@ -190,7 +189,7 @@ fn get_cores_allocation(num_cores_per_instance: usize) -> Vec<Range<usize>> {
         .map(|ordinal| {
             let start = ordinal * effective_num_cores_per_instance;
             let end = (ordinal + 1) * effective_num_cores_per_instance - 1;
-            (start..end)
+            start..end
         })
         .collect()
 }

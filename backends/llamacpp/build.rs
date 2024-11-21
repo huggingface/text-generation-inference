@@ -12,8 +12,12 @@ const BACKEND_DEPS: [&str; 2] = [CMAKE_LLAMA_CPP_TARGET, CMAKE_LLAMA_CPP_FFI_TAR
 macro_rules! probe {
     ($name: expr, $version: expr) => {
         if let Err(_) = pkg_config::probe_library($name) {
-            pkg_config::probe_library(&format!("{}-{}", $name, $version))
-                .expect(&format!("Failed to locate {}", $name));
+            match pkg_config::probe_library(&format!("{}-{}", $name, $version)) {
+                Ok(_) => Ok(()),
+                Err(_) => Err(()),
+            }
+        } else {
+            Ok(())
         }
     };
 }
@@ -53,16 +57,27 @@ fn build_backend(
     deps_folder
 }
 
-fn build_ffi_layer(deps_folder: &Path, install_prefix: &Path) {
-    println!("cargo:warning={}", deps_folder.display());
+fn build_ffi_layer(is_debug: bool, install_prefix: &Path) {
     CFG.include_prefix = "backends/llamacpp";
-    cxx_build::bridge("src/lib.rs")
+
+    let mut bridge = cxx_build::bridge("src/lib.rs");
+
+    bridge
         .static_flag(true)
         .std("c++23")
         .include(install_prefix.join("include"))
         .include("csrc")
-        .file("csrc/ffi.hpp")
-        .compile(CMAKE_LLAMA_CPP_FFI_TARGET); // Make sure this target is not the same as cmake above
+        .file("csrc/ffi.hpp");
+
+    if is_debug {
+        bridge.define("TGI_LLAMACPP_BACKEND_DEBUG", "");
+    }
+
+    if probe!("numa", "2.0").is_ok() {
+        bridge.define("NUMA_AVAILABLE", "");
+    };
+
+    bridge.compile(CMAKE_LLAMA_CPP_FFI_TARGET); // Make sure this target is not the same as cmake above
 }
 
 fn main() {
@@ -82,11 +97,12 @@ fn main() {
     let deps_path = build_backend(is_debug, opt_level, out_dir.as_path(), &install_path);
 
     // Build the FFI layer calling the backend above
-    build_ffi_layer(&deps_path, &install_path);
+    build_ffi_layer(is_debug, &install_path);
 
     // Emit linkage search path
-    probe!("ompi", MPI_REQUIRED_VERSION);
-    probe!("numa", "2.0");
+    if probe!("ompi", MPI_REQUIRED_VERSION).is_err() {
+        panic!("An implement of MPI is required");
+    }
 
     // Backend
     BACKEND_DEPS.iter().for_each(|name| {
@@ -97,9 +113,7 @@ fn main() {
     println!("cargo:rustc-link-search=native={}", out_dir.display());
 
     let spdlog_linkage_target = if is_debug { "spdlogd" } else { "spdlog" };
-    let fmt_linkage_target = if is_debug { "fmtd" } else { "fmt" };
     println!("cargo:rustc-link-lib=dylib={spdlog_linkage_target}");
-    println!("cargo:rustc-link-lib=dylib={fmt_linkage_target}");
     println!("cargo:rustc-link-lib=dylib=ggml");
     println!("cargo:rustc-link-lib=dylib=llama");
 

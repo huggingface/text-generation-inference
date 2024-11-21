@@ -17,7 +17,12 @@
 #include <spdlog/fmt/ranges.h>
 #include <spdlog/fmt/std.h>
 
+#ifdef NUMA_AVAILABLE
+#define CURRENT_THREAD 0
+#include <algorithm>
+#include <unordered_set>
 #include <numa.h>
+#endif
 
 namespace huggingface::tgi::backends::llamacpp {
     class llama_cpp_worker_frontend_t;
@@ -84,6 +89,10 @@ namespace huggingface::tgi::backends::llamacpp {
     };
 
     std::unique_ptr<llama_cpp_worker_frontend_t> create_worker_frontend(rust::Str modelPath) {
+#ifdef TGI_LLAMACPP_BACKEND_DEBUG
+        spdlog::set_level(spdlog::level::debug);
+#endif
+
         // Initialize the numa context from numactl
         static const bool INITIALIZED_NUMA_CONTEXT_ONCE = [](){
             llama_numa_init(GGML_NUMA_STRATEGY_NUMACTL);
@@ -99,21 +108,70 @@ namespace huggingface::tgi::backends::llamacpp {
         return std::make_unique<llama_cpp_worker_frontend_t>(model);
     }
 
+    struct numa_cpumask_deleter { void operator()(struct bitmask* cpumask){ numa_free_cpumask(cpumask); }};
+    typedef std::unique_ptr<struct bitmask, numa_cpumask_deleter> unique_cpumask_ptr;
+
     void set_numactl_core_affinity(rust::Slice<const size_t> affinity) {
-        SPDLOG_INFO("Setting numactl cores affinity to {} for thread {}", affinity, std::this_thread::get_id());
-//        auto nodes = std::unordered_set<usize>();
-        auto cpumask = numa_allocate_cpumask();
-        for(auto core : affinity) {
-            numa_bitmask_setbit(cpumask, core);
-            numa_sched_setaffinity(0, cpumask);
+//    void set_numactl_core_affinity(std::vector<size_t> affinity) {
+#ifdef NUMA_AVAILABLE
+        if(numa_available()) {
+            SPDLOG_INFO("Setting numactl cores affinity to {} for thread {}", affinity, std::this_thread::get_id());
+
+            auto cpumask = unique_cpumask_ptr(numa_allocate_cpumask());
+            std::ranges::for_each(affinity, [&cpumask](size_t cpu) { numa_bitmask_setbit(cpumask.get(), cpu); });
+            numa_sched_setaffinity(CURRENT_THREAD, cpumask.get());
+
+            // Retrieve some information about the current setup
+            if(const auto numa_num_nodes = numa_num_configured_nodes(); numa_num_nodes > 1) {
+                const auto *numa_all_cpus = numa_all_cpus_ptr;
+                SPDLOG_INFO(FMT_STRING("All CPUs: {:b} (# Nodes: {:d}"), *numa_all_cpus->maskp, numa_num_nodes);
+
+                // Retrieve the cpumask specific for the current node
+                auto cpus_per_node = unique_cpumask_ptr(numa_allocate_cpumask());
+
+                // Allocate a set which keeps track of which nodes is being targeted
+                auto numa_spawning_nodes = std::unordered_set<size_t>();
+                for(auto node = 0; node < numa_num_nodes; ++node) {
+                    // Retrieve the cpumask for the target node
+                    numa_node_to_cpus(node, cpus_per_node.get());
+
+                    // intersect which cores on the nodes are targeted, in no one on that specific node
+                    // the value of allocated_cpus_on_node will be 0 as the result of the AND operation.
+                    const auto allocated_cpus_on_node = *cpus_per_node->maskp & *cpumask->maskp;
+                    if(allocated_cpus_on_node > 0) {
+
+                        // If we have some cores on the node, attempt to insert in the set of targeted node
+                        if(const auto [_, was_inserted] = numa_spawning_nodes.emplace(node); was_inserted) {
+                            SPDLOG_DEBUG("Allocated thread spawning node: {:d}", node);
+                        }
+                    }
+
+                    // Clear all the bits relative to the current node
+                    numa_bitmask_clearall(cpus_per_node.get());
+                }
+
+                // Bind the memory if we spawn a single node, otherwise, let's display a warning
+                if(numa_spawning_nodes.size() == 1) {
+                    SPDLOG_INFO(FMT_STRING("Setting memory affinity to node: {:d}"), *numa_spawning_nodes.begin());
+                    numa_set_preferred(*numa_spawning_nodes.begin());
+                } else {
+                    SPDLOG_WARN(FMT_STRING("Specified thread affinity spawn multiple NUMA nodes: {}"), numa_spawning_nodes);
+                }
+            }
+
+#ifdef TGI_LLAMACPP_BACKEND_DEBUG
+            // Sanity check in the logs...
+            auto *cpumask_check = numa_allocate_cpumask();
+            numa_sched_getaffinity(CURRENT_THREAD, cpumask_check);
+            SPDLOG_DEBUG(
+                    FMT_STRING("numa_sched_affinity for thread {} -> {:b}"),
+                    std::this_thread::get_id(), *cpumask_check->maskp);
+            numa_free_cpumask(cpumask_check);
+#endif
         }
-
-//#ifdef TGI_LLAMACPP_BACKEND_DEBUG
-        auto cpumask_check = numa_allocate_cpumask();
-        numa_sched_getaffinity(0, cpumask_check);
-        SPDLOG_DEBUG(FMT_STRING("numa_sched_affinity for thread {} -> {:b}"), std::this_thread::get_id(), *cpumask_check->maskp);
-//#endif
-
+#else
+        SPDLOG_WARN("TGI's llama.cpp backend was compiled without NUMA support");
+#endif
     }
 }
 
