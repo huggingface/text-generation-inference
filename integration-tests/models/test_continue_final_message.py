@@ -4,12 +4,7 @@ import requests
 
 @pytest.fixture(scope="module")
 def llama_continue_final_message_handle(launcher):
-    with launcher(
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-        num_shard=1,
-        disable_grammar_support=False,
-        use_flash_attention=False,
-    ) as handle:
+    with launcher("TinyLlama/TinyLlama-1.1B-Chat-v1.0") as handle:
         yield handle
 
 
