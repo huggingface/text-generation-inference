@@ -62,6 +62,8 @@ struct Args {
     executor_worker: PathBuf,
     #[clap(default_value = "on", long, env)]
     usage_stats: usage_stats::UsageStatsLevel,
+    #[clap(default_value = "2000000", long, env)]
+    payload_limit: usize,
 }
 
 async fn get_tokenizer(
@@ -217,6 +219,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         auth_token,
         executor_worker,
         usage_stats,
+        payload_limit,
     } = args;
 
     // Launch Tokio runtime
@@ -287,6 +290,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         tokenizer_name,
         tokenizer_config_path,
         revision,
+        false,
         hostname,
         port,
         cors_allow_origin,
@@ -296,6 +300,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         true,
         max_client_batch_size,
         usage_stats,
+        payload_limit,
     )
     .await?;
     Ok(())

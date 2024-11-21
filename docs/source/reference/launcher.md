@@ -457,6 +457,17 @@ Options:
           - no-stack: Doesn't send the error stack trace or error type, but allows sending a crash event
 
 ```
+## PAYLOAD_LIMIT
+```shell
+      --payload-limit <PAYLOAD_LIMIT>
+          Payload size limit in bytes
+          
+          Default is 2MB
+          
+          [env: PAYLOAD_LIMIT=]
+          [default: 2000000]
+
+```
 ## HELP
 ```shell
   -h, --help

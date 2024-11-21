@@ -962,9 +962,9 @@ class FlashCausalLMBatch(Batch):
         self.input_lengths_tensor = torch.tensor(
             self.input_lengths, dtype=torch.int32, device=device
         )
-        self.cu_seqlen_prefill = torch.nn.functional.pad(
-            torch.cumsum(self.input_lengths_tensor, dim=0), (1, 0)
-        ).to(torch.int32)
+        cu_seqlen_prefill = self.input_lengths_tensor.new_zeros(len(self) + 1)
+        torch.cumsum(self.input_lengths_tensor, out=cu_seqlen_prefill[1:], dim=0)
+        self.cu_seqlen_prefill = cu_seqlen_prefill.to(torch.int32)
         self.cache_lengths_tensor = torch.tensor(
             self.cache_lengths, dtype=torch.int32, device=device
         )
@@ -2020,9 +2020,8 @@ class FlashCausalLM(Model):
 
         # For each member of the batch
         # Cumulative length
-        cu_accepted_ids = torch.nn.functional.pad(
-            torch.cumsum(accepted_ids, dim=0), (1, 0)
-        )
+        cu_accepted_ids = accepted_ids.new_zeros(accepted_ids.shape[0] + 1)
+        torch.cumsum(accepted_ids, dim=0, out=cu_accepted_ids[1:])
         cumulative_length = 0
         for i, (
             request,

@@ -66,8 +66,9 @@ def block_tables_to_ragged(
     )
 
     if has_triton():
-        cu_seqlen = torch.nn.functional.pad(
-            torch.cumsum(input_lengths_tensor + cache_lengths_tensor, dim=0), (1, 0)
+        cu_seqlen = input_lengths_tensor.new_zeros(input_lengths_tensor.shape[0] + 1)
+        torch.cumsum(
+            input_lengths_tensor + cache_lengths_tensor, out=cu_seqlen[1:], dim=0
         )
 
         def grid(meta):
