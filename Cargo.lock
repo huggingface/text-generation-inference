@@ -4345,7 +4345,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-backends-trtllm"
-version = "2.4.2-dev0"
+version = "2.4.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -4369,7 +4369,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "2.4.2-dev0"
+version = "2.4.1"
 dependencies = [
  "average",
  "clap 4.5.21",
@@ -4389,7 +4389,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "2.4.2-dev0"
+version = "2.4.1"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4407,7 +4407,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "2.4.2-dev0"
+version = "2.4.1"
 dependencies = [
  "clap 4.5.21",
  "ctrlc",
@@ -4428,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "2.4.2-dev0"
+version = "2.4.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -4477,7 +4477,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router-v2"
-version = "2.4.2-dev0"
+version = "2.4.1"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -4526,7 +4526,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router-v3"
-version = "2.4.2-dev0"
+version = "2.4.1"
 dependencies = [
  "async-stream",
  "async-trait",
