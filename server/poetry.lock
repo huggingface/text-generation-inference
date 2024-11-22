@@ -1288,12 +1288,12 @@ files = [
 
 [[package]]
 name = "marlin-kernels"
-version = "0.3.5"
+version = "0.3.6"
 description = "Marlin quantization kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "marlin_kernels-0.3.5+cu123torch2.4-cp310-cp310-linux_x86_64.whl", hash = "sha256:58d4bf0aa1a9533acc05f1e5bf50f727ed0129848d1fa1feb2c5c3fa482518d4"},
+    {file = "marlin_kernels-0.3.6+cu123torch2.4-cp310-cp310-linux_x86_64.whl", hash = "sha256:afedaa9a15e8991442bc8c81f62833fbf5c1556ae9d7a5a9e13b747ce97beef9"},
 ]
 
 [package.dependencies]
@@ -1301,16 +1301,16 @@ torch = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.5/marlin_kernels-0.3.5+cu123torch2.4-cp310-cp310-linux_x86_64.whl"
+url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.6/marlin_kernels-0.3.6+cu123torch2.4-cp310-cp310-linux_x86_64.whl"
 
 [[package]]
 name = "marlin-kernels"
-version = "0.3.5"
+version = "0.3.6"
 description = "Marlin quantization kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "marlin_kernels-0.3.5+cu123torch2.4-cp311-cp311-linux_x86_64.whl", hash = "sha256:a3a3653e6908db013ca96979a5ee1f6a8bb590ee7506a129e06b87d4a8cbb87d"},
+    {file = "marlin_kernels-0.3.6+cu123torch2.4-cp311-cp311-linux_x86_64.whl", hash = "sha256:c0c05621d5e87144415d8a6e439072bd844d5f3cb55e4c4c69eabdc4c94610f4"},
 ]
 
 [package.dependencies]
@@ -1318,16 +1318,16 @@ torch = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.5/marlin_kernels-0.3.5+cu123torch2.4-cp311-cp311-linux_x86_64.whl"
+url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.6/marlin_kernels-0.3.6+cu123torch2.4-cp311-cp311-linux_x86_64.whl"
 
 [[package]]
 name = "marlin-kernels"
-version = "0.3.5"
+version = "0.3.6"
 description = "Marlin quantization kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "marlin_kernels-0.3.5+cu123torch2.4-cp312-cp312-linux_x86_64.whl", hash = "sha256:967b4765a591530a4b9160ae32f3f352a89ae4c71daf43220c99976987d76723"},
+    {file = "marlin_kernels-0.3.6+cu123torch2.4-cp312-cp312-linux_x86_64.whl", hash = "sha256:3be4662c8d25a3cdb1793dafe0e2e76dd600913a69a468e2c68d1fed4e149255"},
 ]
 
 [package.dependencies]
@@ -1335,16 +1335,16 @@ torch = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.5/marlin_kernels-0.3.5+cu123torch2.4-cp312-cp312-linux_x86_64.whl"
+url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.6/marlin_kernels-0.3.6+cu123torch2.4-cp312-cp312-linux_x86_64.whl"
 
 [[package]]
 name = "marlin-kernels"
-version = "0.3.5"
+version = "0.3.6"
 description = "Marlin quantization kernels"
 optional = true
 python-versions = ">=3.7"
 files = [
-    {file = "marlin_kernels-0.3.5+cu123torch2.4-cp39-cp39-linux_x86_64.whl", hash = "sha256:fbe607d5afd1e1fca6e294c3594a0ec279d1f9ea6a2fdf7f34ccb6180d15e195"},
+    {file = "marlin_kernels-0.3.6+cu123torch2.4-cp39-cp39-linux_x86_64.whl", hash = "sha256:89eac9d46bc084a256b538afda6053683eb7e505db0e0d4f6dbeca32368caac6"},
 ]
 
 [package.dependencies]
@@ -1352,7 +1352,7 @@ torch = "*"
 
 [package.source]
 type = "url"
-url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.5/marlin_kernels-0.3.5+cu123torch2.4-cp39-cp39-linux_x86_64.whl"
+url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.6/marlin_kernels-0.3.6+cu123torch2.4-cp39-cp39-linux_x86_64.whl"
 
 [[package]]
 name = "mdurl"
@@ -4066,4 +4066,4 @@ torch = ["torch"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "7082f1983403ff58a1f0304e8bbf1197715b5156ddeea0f3e8287334d52c2617"
+content-hash = "995bb2a29e3e8cfa6ee8ddb139ec623c2cba4d7ad047066eb4952ccbab5579d5"
