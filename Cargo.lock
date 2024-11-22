@@ -267,7 +267,7 @@ version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad3a619a9de81e1d7de1f1186dcba4506ed661a0e483d84410fdef0ee87b2f96"
 dependencies = [
- "bindgen",
+ "bindgen 0.69.5",
  "cc",
  "cmake",
  "dunce",
@@ -452,6 +452,24 @@ dependencies = [
  "shlex",
  "syn 2.0.89",
  "which",
+]
+
+[[package]]
+name = "bindgen"
+version = "0.70.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f49d8fed880d473ea71efb9bf597651e77201bdd4893efe54c9e5d65ae04ce6f"
+dependencies = [
+ "bitflags 2.6.0",
+ "cexpr",
+ "clang-sys",
+ "itertools 0.13.0",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "rustc-hash",
+ "shlex",
+ "syn 2.0.89",
 ]
 
 [[package]]
@@ -1235,6 +1253,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07c6f4c64c1d33a3111c4466f7365ebdcc37c5bd1ea0d62aae2e3d722aacbedb"
 dependencies = [
  "simd-adler32",
+]
+
+[[package]]
+name = "ffmpeg-next"
+version = "7.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da02698288e0275e442a47fc12ca26d50daf0d48b15398ba5906f20ac2e2a9f9"
+dependencies = [
+ "bitflags 2.6.0",
+ "ffmpeg-sys-next",
+ "libc",
+]
+
+[[package]]
+name = "ffmpeg-sys-next"
+version = "7.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bc3234d0a4b2f7d083699d0860c6c9dd83713908771b60f94a96f8704adfe45"
+dependencies = [
+ "bindgen 0.70.1",
+ "cc",
+ "libc",
+ "num_cpus",
+ "pkg-config",
+ "vcpkg",
 ]
 
 [[package]]
@@ -3015,17 +3058,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "outlines-core"
-version = "0.1.0"
-source = "git+https://github.com/dottxt-ai/outlines-core.git?rev=ba10c619fc9bf3c487e43f49bdecb95a24bb465c#ba10c619fc9bf3c487e43f49bdecb95a24bb465c"
-dependencies = [
- "anyhow",
- "regex",
- "serde-pyobject",
- "serde_json",
-]
-
-[[package]]
 name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3973,16 +4005,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-pyobject"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca4b0aad8b225845739a0030a0d5cc2ae949c56a86a7daf9226c7df7c2016d16"
-dependencies = [
- "pyo3",
- "serde",
-]
-
-[[package]]
 name = "serde_cbor"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4009,7 +4031,6 @@ version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7fceb2473b9166b2294ef05efcb65a3db80803f0b03ef86a5fc88a2b85ee377"
 dependencies = [
- "indexmap 2.6.0",
  "itoa",
  "memchr",
  "ryu",
@@ -4458,7 +4479,6 @@ dependencies = [
 name = "text-generation-router"
 version = "3.0.2-dev0"
 dependencies = [
- "anyhow",
  "async-stream",
  "async-trait",
  "axum 0.7.9",
@@ -4466,6 +4486,7 @@ dependencies = [
  "base64 0.22.1",
  "clap 4.5.21",
  "csv",
+ "ffmpeg-next",
  "futures",
  "futures-util",
  "hf-hub",
@@ -4483,7 +4504,6 @@ dependencies = [
  "once_cell",
  "opentelemetry 0.20.0",
  "opentelemetry-otlp",
- "outlines-core",
  "pyo3",
  "rand",
  "regex",
@@ -4491,6 +4511,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sysinfo",
+ "tempfile",
  "thiserror",
  "tokenizers",
  "tokio",
