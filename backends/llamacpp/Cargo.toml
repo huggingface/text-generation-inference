@@ -7,6 +7,7 @@ homepage.workspace = true
 
 [dependencies]
 async-trait = "0.1"
+async-channel = "2.3"
 clap = { version = "4.5.19", features = ["derive"] }
 cxx = "1.0"
 num_cpus = "1"
