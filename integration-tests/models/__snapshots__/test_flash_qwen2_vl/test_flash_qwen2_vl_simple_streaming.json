@@ -15,6 +15,6 @@
   "id": "",
   "model": "Qwen/Qwen2-VL-7B-Instruct",
   "object": "chat.completion.chunk",
-  "system_fingerprint": "2.4.1-dev0-native",
+  "system_fingerprint": "2.4.2-dev0-native",
   "usage": null
 }
