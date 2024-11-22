@@ -35,11 +35,18 @@ namespace huggingface::tgi::backends::llamacpp {
 
 namespace huggingface::tgi::backends::llamacpp {
 
+    /**
+     * Smart pointer to drop a llama_model when going out of scope
+     */
     auto llama_model_deleter = [](llama_model *model) { llama_free_model(model); };
     auto make_shared_llama_model = [](llama_model *model) {
         return std::shared_ptr<llama_model>(model, llama_model_deleter);
     };
 
+    /**
+     * llama.cpp backend specific exception mapped from `backend_exception_t` to throw at the FFI level and
+     * allow automatic implementation of Result<_, Exception> from C++ to Rust
+     */
     class llama_cpp_backend_exception_t : std::exception {};
 
     /**
@@ -51,9 +58,29 @@ namespace huggingface::tgi::backends::llamacpp {
         worker_t worker_;
 
     public:
+        /**
+         * Create a new llama.cpp worker frontend allowing to map custom Rust FFI types from CXX crate to c++ boundary
+         * @param model The `llama_model` to use on the worker
+         * @param num_threads The number of threads the worker is allowed to spawn accross for its threadpool
+         */
         explicit llama_cpp_worker_frontend_t(llama_model *model, int32_t num_threads):
             model_{ make_shared_llama_model(model) }, worker_(model_, {.n_ubatch = 1, .n_threads = num_threads, .no_perf = true}) {}
 
+        /**
+         * Generate a new set of tokens from the provided `input_tokens`, streaming each individual token generated
+         * through the `callback`.
+         * Individual tokens are generated using the sampling parameters provided through `sampling_params` and the
+         * generation parameters, provided through `generation_params` allowing to define the behaviour of the generation loop.
+         * `ctx` is an opaque structure defined on Rust side which holds stream information to send tokens back to the originating client.
+         * @param input_tokens Prompt input tokens originating from the tokenization of the request's text input
+         * @param generation_params Parameters controlling the generation loop such as ignoring the end of sentence token or
+         * the maximum number of tokens to generate
+         * @param sampling_params Parameters controlling the sampling process on the final token distribution
+         * @param ctx Opaque structure from Rust holding HTTP channel to stream back response to the client
+         * @param callback Function pointer called everytime a new token is generated during the generation loop.
+         * If this callback returns `true` it signals an early termination request on the Rust side.
+         * @return Number of generated tokens
+         */
         size_t stream(
                 rust::Slice<const uint32_t> input_tokens,
                 const generation_params_t generation_params,
@@ -88,6 +115,12 @@ namespace huggingface::tgi::backends::llamacpp {
         }
     };
 
+    /**
+     * Utility method to allocate a new worker frontend from Rust
+     * @param modelPath The GGUF model path as an UTF-8 string from Rust
+     * @param num_threads Integer greater than zero representing the number of threads the worker is allowed to use for computations
+     * @return unique ownership of `llama_cpp_worker_frontend_t` pointer
+     */
     std::unique_ptr<llama_cpp_worker_frontend_t> create_worker_frontend(rust::Str modelPath, uint32_t num_threads) {
 #ifdef TGI_LLAMACPP_BACKEND_DEBUG
         spdlog::set_level(spdlog::level::debug);
@@ -108,9 +141,16 @@ namespace huggingface::tgi::backends::llamacpp {
         return std::make_unique<llama_cpp_worker_frontend_t>(model, static_cast<int32_t>(num_threads));
     }
 
+    /**
+     * Smart pointer to automatically destroy the underlying numa_bitset * when going out of scope
+     */
     struct numa_cpumask_deleter { void operator()(struct bitmask* cpumask){ numa_free_cpumask(cpumask); }};
     typedef std::unique_ptr<struct bitmask, numa_cpumask_deleter> unique_cpumask_ptr;
 
+    /**
+     * Define the NUMA core and memory affinity for the current thread by binding cores and memory to respective NUMA node(s)
+     * @param affinity The set of allowed execution cores to inform the scheduler for the current thread
+     */
     void set_numa_core_affinity(rust::Slice<const size_t> affinity) {
 //    void set_numactl_core_affinity(std::vector<size_t> affinity) {
 #ifdef NUMA_AVAILABLE
@@ -175,7 +215,7 @@ namespace huggingface::tgi::backends::llamacpp {
     }
 
     /**
-     * 
+     * Force an update of the llama.cpp/ggml threadpool, reading from NUMA cores affinity
      */
     void update_numa_affinity() {
         SPDLOG_INFO("Rebinding NUMA affinity for current worker on thread: {}", std::this_thread::get_id());
