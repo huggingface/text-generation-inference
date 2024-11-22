@@ -1,0 +1,94 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 3838,
+        "logprob": null,
+        "text": "What"
+      },
+      {
+        "id": 374,
+        "logprob": -8.59375,
+        "text": " is"
+      },
+      {
+        "id": 5538,
+        "logprob": -10.921875,
+        "text": " deep"
+      },
+      {
+        "id": 6832,
+        "logprob": -0.56347656,
+        "text": " learning"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 1939,
+        "logprob": -2.2675781,
+        "special": false,
+        "text": "?\n\n"
+      },
+      {
+        "id": 33464,
+        "logprob": 0.0,
+        "special": false,
+        "text": "Deep"
+      },
+      {
+        "id": 20909,
+        "logprob": -0.37695312,
+        "special": false,
+        "text": " Learning"
+      },
+      {
+        "id": 4102,
+        "logprob": -1.9316406,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 285,
+        "logprob": 0.0,
+        "special": false,
+        "text": "is"
+      },
+      {
+        "id": 458,
+        "logprob": -0.80859375,
+        "special": false,
+        "text": " an"
+      },
+      {
+        "id": 3082,
+        "logprob": -1.4541016,
+        "special": false,
+        "text": " area"
+      },
+      {
+        "id": 315,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 20443,
+        "logprob": -0.5136719,
+        "special": false,
+        "text": " artificial"
+      },
+      {
+        "id": 11229,
+        "logprob": 0.0,
+        "special": false,
+        "text": " intelligence"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "What is deep learning?\n\nDeep Learning is an area of artificial intelligence"
+}

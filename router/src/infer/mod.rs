@@ -10,10 +10,12 @@ use crate::{
 };
 use async_stream::stream;
 use async_trait::async_trait;
+use axum::response::sse::Event;
 use chat_template::ChatTemplate;
 use futures::future::try_join_all;
 use futures::Stream;
 use minijinja::ErrorKind;
+use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
@@ -135,7 +137,7 @@ impl Infer {
     pub(crate) async fn tokenize(
         &self,
         request: GenerateRequest,
-    ) -> Result<Option<tokenizers::Encoding>, InferError> {
+    ) -> Result<tokenizers::Encoding, InferError> {
         // Tokenize request
         let inputs = request.inputs;
         let add_special_tokens = request.add_special_tokens;
@@ -150,21 +152,20 @@ impl Infer {
             })?;
 
         // Return Encoding
-        Ok(encoding.map(|(encoding, _)| encoding))
+        Ok(encoding.0)
     }
 
     /// Apply the chat template to the chat request
     #[instrument(skip_all)]
     pub(crate) fn apply_chat_template(
         &self,
-        guideline: Option<String>,
         messages: Vec<Message>,
         tools_and_prompt: Option<(Vec<Tool>, String)>,
     ) -> Result<String, InferError> {
         self.chat_template
             .as_ref()
             .ok_or_else(|| InferError::TemplateError(ErrorKind::TemplateNotFound.into()))?
-            .apply(guideline.as_deref(), messages, tools_and_prompt)
+            .apply(messages, tools_and_prompt)
             .map_err(|e| {
                 metrics::counter!("tgi_request_failure", "err" => "template").increment(1);
                 tracing::error!("{e}");
@@ -373,4 +374,26 @@ impl InferError {
             InferError::StreamSerializationError(_) => "stream_serialization_error",
         }
     }
+
+    pub(crate) fn into_openai_event(self) -> Event {
+        Event::default()
+            .json_data(OpenaiErrorEvent {
+                error: APIError {
+                    message: self.to_string(),
+                    http_status_code: 422,
+                },
+            })
+            .unwrap()
+    }
+}
+
+#[derive(Serialize)]
+pub struct APIError {
+    message: String,
+    http_status_code: usize,
+}
+
+#[derive(Serialize)]
+pub struct OpenaiErrorEvent {
+    error: APIError,
 }

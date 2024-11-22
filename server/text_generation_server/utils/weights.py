@@ -220,6 +220,7 @@ class Weights:
             tensor.dtype
             not in [
                 torch.float8_e4m3fn,
+                torch.int8,
                 torch.int16,
                 torch.int32,
                 torch.int64,
@@ -255,7 +256,8 @@ class Weights:
         # u4 which are disguised as int32. exl2 uses int16.
         # FP8 uses torch.float8_e4m3fn.
         if (
-            tensor.dtype not in (torch.float8_e4m3fn, torch.int16, torch.int32)
+            tensor.dtype
+            not in (torch.float8_e4m3fn, torch.int8, torch.int16, torch.int32)
             and to_dtype
         ):
             tensor = tensor.to(dtype=self.dtype)
@@ -331,6 +333,7 @@ class Weights:
             tensor.dtype
             not in [
                 torch.float8_e4m3fn,
+                torch.int8,
                 torch.int16,
                 torch.int32,
                 torch.int64,

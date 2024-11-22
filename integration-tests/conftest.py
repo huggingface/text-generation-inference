@@ -1,3 +1,15 @@
+# ruff: noqa: E402
+import requests
+
+
+class SessionTimeoutFix(requests.Session):
+    def request(self, *args, **kwargs):
+        timeout = kwargs.pop("timeout", 120)
+        return super().request(*args, **kwargs, timeout=timeout)
+
+
+requests.sessions.Session = SessionTimeoutFix
+
 import asyncio
 import contextlib
 import json
@@ -557,7 +569,7 @@ def launcher(event_loop):
             devices=devices,
             volumes=volumes,
             ports={"80/tcp": port},
-            healthcheck={"timeout": int(10 * 1e9)},
+            healthcheck={"timeout": int(60 * 1e9), "retries": 2},  # 60s
             shm_size="1G",
         )
 

@@ -422,7 +422,7 @@ class FlashLlamaLayer(nn.Module):
                 if SparseMoELayer.is_supported(weights)
                 else DenseMoELayer
             )
-            self.dense = Phi3MoE(
+            self.mlp = Phi3MoE(
                 f"{prefix}.block_sparse_moe", config, moe_layer_cls, weights
             )
             # with moe the layernorms are are not rmsnorms and they have bias
@@ -437,7 +437,7 @@ class FlashLlamaLayer(nn.Module):
                 eps=config.rms_norm_eps,
             )
         else:
-            self.dense = LlamaMLP(
+            self.mlp = LlamaMLP(
                 prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
             )
             self.input_layernorm = FastRMSNorm.load(
@@ -493,7 +493,7 @@ class FlashLlamaLayer(nn.Module):
             attn_output, res
         )
 
-        mlp_output = self.dense(normed_attn_res_output, adapter_data)
+        mlp_output = self.mlp(normed_attn_res_output, adapter_data)
         if self.residual_multiplier is not None:
             mlp_output *= self.residual_multiplier
 

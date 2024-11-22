@@ -9,6 +9,7 @@
   cudaPackages,
   openssl,
   pkg-config,
+  poetry,
   protobuf,
   python3,
   pyright,
@@ -28,6 +29,7 @@ mkShell {
       black
       isort
       pkg-config
+      poetry
       (rust-bin.stable.latest.default.override {
         extensions = [
           "rust-analyzer"

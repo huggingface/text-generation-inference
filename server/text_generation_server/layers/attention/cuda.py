@@ -108,7 +108,7 @@ def paged_attention(
         if softcap is not None:
             raise RuntimeError("Paged attention doesn't support softcapping")
         input_lengths = seqlen.input_lengths + seqlen.cache_lengths
-        from vllm._C import ops
+        import attention_kernels
 
         out = torch.empty_like(query)
 
@@ -116,7 +116,7 @@ def paged_attention(
             max_num_partitions == 1 or num_seqs * num_heads > 512
         )
         if use_v1:
-            ops.paged_attention_v1(
+            attention_kernels.paged_attention_v1(
                 out,
                 query,
                 kv_cache.key,
@@ -146,7 +146,7 @@ def paged_attention(
             )
             max_logits = torch.empty_like(exp_sums)
 
-            ops.paged_attention_v2(
+            attention_kernels.paged_attention_v2(
                 out,
                 exp_sums,
                 max_logits,

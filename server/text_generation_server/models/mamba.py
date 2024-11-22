@@ -1,7 +1,7 @@
 import torch
 import torch.distributed
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
-from typing import Optional
+from typing import Optional, Union
 from text_generation_server.models.custom_modeling.mamba_modeling import (
     MambaConfig,
 )
@@ -475,7 +475,9 @@ class Mamba(Model):
     def batch_type(self) -> Type[MambaBatch]:
         return MambaBatch
 
-    def warmup(self, batch) -> Optional[int]:
+    def warmup(
+        self, batch, max_input_tokens: Optional[int], max_total_tokens: Optional[int]
+    ) -> Union[Optional[int], Optional[int], Optional[int]]:
         # TODO: implement warmup for Mamba if needed
         if CUDA_GRAPHS:
             if self.speculate is None or self.speculate == 0:
@@ -489,7 +491,12 @@ class Mamba(Model):
         else:
             logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
-        return None
+        if max_total_tokens is None:
+            max_total_tokens = min(self.tokenizer.model_max_length, 4096)
+
+        if max_input_tokens is None:
+            max_input_tokens = max_total_tokens - 1
+        return None, max_input_tokens, max_total_tokens
 
     def cuda_graph_warmup(self, batch_size: int):
         input_ids = torch.zeros((batch_size, 1), dtype=torch.int64, device=self.device)

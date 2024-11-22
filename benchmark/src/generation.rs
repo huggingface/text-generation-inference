@@ -180,7 +180,7 @@ async fn prefill(
     let latency = start_time.elapsed();
 
     // Compute throughput from latency and batch size
-    let throughput = batch_size as f64 / latency.as_secs_f64();
+    let throughput = (batch_size * sequence_length) as f64 / latency.as_secs_f64();
 
     // Decode batch cannot be empty
     let decode_batch = decode_batch.expect("decode_batch is None. This is a bug.");

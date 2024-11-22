@@ -10,7 +10,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "2.3.2-dev0"
+    "version": "2.4.1-dev0"
   },
   "paths": {
     "/": {
@@ -36,7 +36,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GenerateResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenerateResponse"
+                  }
                 }
               },
               "text/event-stream": {
@@ -94,6 +97,47 @@
                 },
                 "example": {
                   "error": "Incomplete generation"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/chat_tokenize": {
+      "post": {
+        "tags": [
+          "Text Generation Inference"
+        ],
+        "summary": "Template and tokenize ChatRequest",
+        "operationId": "get_chat_tokenize",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Templated and tokenized ChatRequest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatTokenizeResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Failed to tokenize ChatRequest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -950,13 +994,6 @@
             "example": "1.0",
             "nullable": true
           },
-          "guideline": {
-            "type": "string",
-            "description": "A guideline to be used in the chat_template",
-            "default": "null",
-            "example": "null",
-            "nullable": true
-          },
           "logit_bias": {
             "type": "array",
             "items": {
@@ -1058,6 +1095,7 @@
                 "$ref": "#/components/schemas/ToolChoice"
               }
             ],
+            "default": "auto",
             "nullable": true
           },
           "tool_prompt": {
@@ -1089,6 +1127,21 @@
             "description": "An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the\ntokens with top_p probability mass. So 0.1 means only the tokens comprising the top 10% probability mass are considered.",
             "example": 0.95,
             "nullable": true
+          }
+        }
+      },
+      "ChatTokenizeResponse": {
+        "type": "object",
+        "required": [
+          "tokenize_response",
+          "templated_text"
+        ],
+        "properties": {
+          "templated_text": {
+            "type": "string"
+          },
+          "tokenize_response": {
+            "$ref": "#/components/schemas/TokenizeResponse"
           }
         }
       },
@@ -2235,14 +2288,6 @@
         }
       },
       "ToolChoice": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/ToolType"
-          }
-        ],
-        "nullable": true
-      },
-      "ToolType": {
         "oneOf": [
           {
             "type": "string",
@@ -2259,6 +2304,13 @@
             ]
           },
           {
+            "type": "string",
+            "description": "Means the model must call one or more tools.",
+            "enum": [
+              "required"
+            ]
+          },
+          {
             "type": "object",
             "required": [
               "function"
@@ -2270,8 +2322,7 @@
             }
           }
         ],
-        "description": "Controls which (if any) tool is called by the model.",
-        "example": "auto"
+        "description": "<https://platform.openai.com/docs/guides/function-calling/configuring-function-calling-behavior-using-the-tool_choice-parameter>"
       },
       "Url": {
         "type": "object",

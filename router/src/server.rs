@@ -1,6 +1,5 @@
 /// HTTP Server logic
 use crate::config::Config;
-use crate::infer::tool_grammar::ToolGrammar;
 use crate::infer::{Backend, Infer, InferError, InferResponse, InferStreamResponse};
 #[cfg(feature = "kserve")]
 use crate::kserve::{
@@ -20,7 +19,8 @@ use crate::{
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
     HubProcessorConfig, HubTokenizerConfig, Info, Message, MessageChunk, MessageContent,
     OutputMessage, PrefillToken, SimpleToken, StreamDetails, StreamOptions, StreamResponse,
-    TextMessage, Token, TokenizeResponse, ToolCallDelta, ToolCallMessage, Url, Usage, Validation,
+    TextMessage, Token, TokenizeResponse, Tokenizer, ToolCallDelta, ToolCallMessage, Url, Usage,
+    Validation,
 };
 use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
@@ -28,10 +28,10 @@ use crate::{
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
-use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice, ToolType};
+use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
 use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
-use axum::extract::Extension;
+use axum::extract::{DefaultBodyLimit, Extension};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
@@ -46,6 +46,7 @@ use hf_hub::api::tokio::{Api, ApiBuilder, ApiRepo};
 use hf_hub::{Cache, Repo, RepoType};
 use http::header::AUTHORIZATION;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
+use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 use regex::Regex;
 use serde_json::Value;
@@ -55,7 +56,6 @@ use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tokenizers::Tokenizer;
 use tokio::select;
 use tokio::signal;
 use tokio::sync::oneshot;
@@ -66,6 +66,41 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+fn encoding_to_tokens(encoding: &tokenizers::Encoding, input: &str) -> Vec<SimpleToken> {
+    let offsets = encoding.get_offsets();
+    let input_ids = encoding.get_ids();
+    if offsets.len() == input_ids.len() {
+        input_ids
+            .iter()
+            .zip(offsets)
+            .map(|(&id, &(start, stop))| {
+                let text = input
+                    .chars()
+                    .skip(start)
+                    .take(stop - start)
+                    .collect::<String>();
+                SimpleToken {
+                    id,
+                    text,
+                    start,
+                    stop,
+                }
+            })
+            .collect()
+    } else {
+        encoding
+            .get_ids()
+            .iter()
+            .map(|&id| SimpleToken {
+                id,
+                text: "".to_string(),
+                start: 0,
+                stop: 0,
+            })
+            .collect()
+    }
+}
+
 /// Generate tokens if `stream == false` or a stream of token if `stream == true`
 #[utoipa::path(
 post,
@@ -75,7 +110,7 @@ request_body = CompatGenerateRequest,
 responses(
 (status = 200, description = "Generated Text",
 content(
-("application/json" = GenerateResponse),
+("application/json" = Vec<GenerateResponse>),
 ("text/event-stream" = StreamResponse),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
@@ -151,12 +186,16 @@ async fn openai_get_model_info(info: Extension<Info>) -> Json<ModelsInfo> {
     })
 }
 
+/// Template and tokenize ChatRequest
 #[utoipa::path(
     post,
     tag = "Text Generation Inference",
     path = "/chat_tokenize",
     request_body = ChatRequest,
-    responses((status = 200, description = "Templated and tokenized ChatRequest", body = ChatTokenizeResponse))
+    responses(
+    (status = 200, description = "Templated and tokenized ChatRequest", body = ChatTokenizeResponse),
+    (status = 404, description = "Failed to tokenize ChatRequest", body = ErrorResponse),
+    )
 )]
 async fn get_chat_tokenize(
     Extension(infer): Extension<Infer>,
@@ -167,40 +206,14 @@ async fn get_chat_tokenize(
     let generate_request: GenerateRequest = chat.try_into_generate(&infer)?.0;
     let input = generate_request.inputs.clone();
     let encoding = infer.tokenize(generate_request).await?;
-    if let Some(encoding) = encoding {
-        let tokens: Vec<SimpleToken> = encoding
-            .get_ids()
-            .iter()
-            .zip(encoding.get_offsets())
-            .map(|(&id, &(start, stop))| {
-                let text = input
-                    .chars()
-                    .skip(start)
-                    .take(stop - start)
-                    .collect::<String>();
-                SimpleToken {
-                    id,
-                    text,
-                    start,
-                    stop,
-                }
-            })
-            .collect();
 
-        let resp = ChatTokenizeResponse {
-            tokenize_response: TokenizeResponse(tokens),
-            templated_text: input,
-        };
-        Ok((HeaderMap::new(), Json(resp)))
-    } else {
-        Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: "No fast tokenizer or tokenizer.json for this model".to_string(),
-                error_type: "no fast tokenizer".to_string(),
-            }),
-        ))
-    }
+    let tokens = encoding_to_tokens(&encoding, &input);
+
+    let resp = ChatTokenizeResponse {
+        tokenize_response: TokenizeResponse(tokens),
+        templated_text: input,
+    };
+    Ok((HeaderMap::new(), Json(resp)))
 }
 
 #[utoipa::path(
@@ -873,7 +886,7 @@ pub(crate) async fn completions(
 
                                     yield Ok(event);
                                 }
-                                Err(err) => yield Ok(Event::from(err)),
+                                Err(err) => yield Ok(err.into_openai_event()),
                             }
                         }
                     };
@@ -1286,7 +1299,8 @@ pub(crate) async fn chat_completions(
             };
             let mut response_as_tool = using_tools;
             while let Some(result) = response_stream.next().await {
-                if let Ok(stream_token) = result {
+                match result{
+                Ok(stream_token) => {
                     let token_text = &stream_token.token.text.clone();
                     match state {
                         StreamState::Buffering => {
@@ -1379,6 +1393,8 @@ pub(crate) async fn chat_completions(
                             yield Ok::<Event, Infallible>(event);
                         }
                     }
+                }
+                Err(err) => yield Ok(err.into_openai_event())
                 }
             }
             yield Ok::<Event, Infallible>(Event::default().data("[DONE]"));
@@ -1484,35 +1500,8 @@ async fn tokenize(
 ) -> Result<Json<TokenizeResponse>, (StatusCode, Json<ErrorResponse>)> {
     let input = req.inputs.clone();
     let encoding = infer.tokenize(req).await?;
-    if let Some(encoding) = encoding {
-        let tokens: Vec<SimpleToken> = encoding
-            .get_ids()
-            .iter()
-            .zip(encoding.get_offsets())
-            .map(|(&id, &(start, stop))| {
-                let text = input
-                    .chars()
-                    .skip(start)
-                    .take(stop - start)
-                    .collect::<String>();
-                SimpleToken {
-                    id,
-                    text,
-                    start,
-                    stop,
-                }
-            })
-            .collect();
-        Ok(Json(TokenizeResponse(tokens)))
-    } else {
-        Err((
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: "No fast tokenizer or tokenizer.json for this model".to_string(),
-                error_type: "no fast tokenizer".to_string(),
-            }),
-        ))
-    }
+    let tokens = encoding_to_tokens(&encoding, &input);
+    Ok(Json(TokenizeResponse(tokens)))
 }
 
 /// Prometheus metrics scrape endpoint
@@ -1544,6 +1533,7 @@ tokenize,
 metrics,
 openai_get_model_info,
 sagemaker_compatibility,
+get_chat_tokenize,
 ),
 components(
 schemas(
@@ -1594,13 +1584,13 @@ GrammarType,
 Usage,
 StreamOptions,
 DeltaToolCall,
-ToolType,
 Tool,
 ToolCall,
 Function,
 FunctionDefinition,
 ToolChoice,
 ModelInfo,
+ChatTokenizeResponse,
 )
 ),
 tags(
@@ -1618,6 +1608,71 @@ pub struct ApiDoc;
 
 pub fn schema() -> ApiDoc {
     ApiDoc
+}
+
+fn py_resolve_tokenizer(
+    py: pyo3::Python,
+    tokenizer_name: &str,
+    revision: Option<&str>,
+    trust_remote_code: bool,
+) -> pyo3::PyResult<()> {
+    let transformers = py.import_bound("transformers")?;
+    let auto = transformers.getattr("AutoTokenizer")?;
+    let from_pretrained = auto.getattr("from_pretrained")?;
+    let args = (tokenizer_name,);
+    let kwargs = if let Some(rev) = &revision {
+        [
+            ("revision", rev.to_string().into_py(py)),
+            ("trust_remote_code", trust_remote_code.into_py(py)),
+        ]
+        .into_py_dict_bound(py)
+    } else {
+        [("trust_remote_code", trust_remote_code.into_py(py))].into_py_dict_bound(py)
+    };
+    let tokenizer = from_pretrained.call(args, Some(&kwargs))?;
+    let save = tokenizer.getattr("save_pretrained")?;
+    let args = ("out".to_string(),);
+    save.call1(args)?;
+    Ok(())
+}
+
+fn legacy_tokenizer_handle(config_filename: Option<&PathBuf>) -> Option<()> {
+    // XXX Legacy case for FasterDecoding/medusa-vicuna-7b-v1.3
+    // and state-spaces/mamba-130m
+    tracing::warn!("Odd tokenizer detected, falling back on legacy tokenization");
+
+    #[derive(serde::Deserialize)]
+    struct FallbackConfig {
+        base_model_name_or_path: Option<String>,
+        model_type: Option<String>,
+        ssm_config: Option<serde_json::Value>,
+    }
+    config_filename.and_then(|filename| {
+        std::fs::read_to_string(filename)
+            .ok()
+            .as_ref()
+            .and_then(|c| {
+                let config: Result<FallbackConfig, _> = serde_json::from_str(c);
+                if let Ok(config) = config {
+                    if config.model_type.is_none() {
+                        if let Some(base) = config.base_model_name_or_path {
+                            pyo3::Python::with_gil(|py| -> PyResult<()> {
+                                py_resolve_tokenizer(py, &base, Some("main"), false)
+                            })
+                            .ok()?;
+                        }
+                    }
+                    if config.ssm_config.is_some() {
+                        // XXX Legacy mamba
+                        pyo3::Python::with_gil(|py| -> PyResult<()> {
+                            py_resolve_tokenizer(py, "EleutherAI/gpt-neox-20b", Some("main"), false)
+                        })
+                        .ok()?;
+                    }
+                }
+                Some(())
+            })
+    })
 }
 
 /// Serving method
@@ -1645,6 +1700,7 @@ pub async fn run(
     disable_grammar_support: bool,
     max_client_batch_size: usize,
     usage_stats_level: usage_stats::UsageStatsLevel,
+    payload_limit: usize,
 ) -> Result<(), WebServerError> {
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
@@ -1713,7 +1769,6 @@ pub async fn run(
 
     // Load tokenizer and model info
     let (
-        tokenizer_filename,
         config_filename,
         tokenizer_config_filename,
         preprocessor_config_filename,
@@ -1721,7 +1776,6 @@ pub async fn run(
         model_info,
     ) = match api {
         Type::None => (
-            Some(local_path.join("tokenizer.json")),
             Some(local_path.join("config.json")),
             Some(local_path.join("tokenizer_config.json")),
             Some(local_path.join("preprocessor_config.json")),
@@ -1735,10 +1789,6 @@ pub async fn run(
                 revision.clone().unwrap_or_else(|| "main".to_string()),
             ));
 
-            let tokenizer_filename = match api_repo.get("tokenizer.json").await {
-                Ok(tokenizer_filename) => Some(tokenizer_filename),
-                Err(_) => get_base_tokenizer(&api, &api_repo).await,
-            };
             let config_filename = api_repo.get("config.json").await.ok();
             let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
             let preprocessor_config_filename = api_repo.get("preprocessor_config.json").await.ok();
@@ -1751,7 +1801,6 @@ pub async fn run(
                 None
             };
             (
-                tokenizer_filename,
                 config_filename,
                 tokenizer_config_filename,
                 preprocessor_config_filename,
@@ -1766,7 +1815,6 @@ pub async fn run(
                 revision.clone().unwrap_or_else(|| "main".to_string()),
             ));
             (
-                repo.get("tokenizer.json"),
                 repo.get("config.json"),
                 repo.get("tokenizer_config.json"),
                 repo.get("preprocessor_config.json"),
@@ -1788,39 +1836,31 @@ pub async fn run(
         HubTokenizerConfig::default()
     });
 
-    let tokenizer: Option<Tokenizer> = tokenizer_filename.and_then(|filename| {
+    let tokenizer: Tokenizer = {
         use pyo3::prelude::*;
-        let convert = pyo3::Python::with_gil(|py| -> PyResult<()> {
-            let transformers = py.import_bound("transformers")?;
-            let auto = transformers.getattr("AutoTokenizer")?;
-            let from_pretrained = auto.getattr("from_pretrained")?;
-            let args = (tokenizer_name.to_string(),);
-            let kwargs = [
-                (
-                    "revision",
-                    (revision.clone().unwrap_or_else(|| "main".to_string())).into_py(py),
-                ),
-                ("trust_remote_code", trust_remote_code.into_py(py)),
-            ]
-            .into_py_dict_bound(py);
-            let tokenizer = from_pretrained.call(args, Some(&kwargs))?;
-            let save = tokenizer.getattr("save_pretrained")?;
-            let args = ("out".to_string(),);
-            save.call1(args)?;
+        pyo3::Python::with_gil(|py| -> PyResult<()> {
+            py_resolve_tokenizer(py, &tokenizer_name, revision.as_deref(), trust_remote_code)?;
             Ok(())
         })
         .inspect_err(|err| {
             tracing::error!("Failed to import python tokenizer {err}");
-        });
-        let filename = if convert.is_ok() {
-            // If we have correctly loaded and resaved with transformers
-            // We might have modified the tokenizer.json according to transformers
-            "out/tokenizer.json".into()
+        })
+        .or_else(|err| {
+            let out = legacy_tokenizer_handle(config_filename.as_ref());
+            out.ok_or(err)
+        })
+        .expect("We cannot load a tokenizer");
+        let filename = "out/tokenizer.json";
+        if let Ok(tok) = tokenizers::Tokenizer::from_file(filename) {
+            Tokenizer::Rust(tok)
         } else {
-            filename
-        };
-        Tokenizer::from_file(filename).ok()
-    });
+            Tokenizer::Python {
+                tokenizer_name: tokenizer_name.clone(),
+                revision: revision.clone(),
+                trust_remote_code,
+            }
+        }
+    };
 
     let config: Option<Config> = config_filename.and_then(|filename| {
         std::fs::read_to_string(filename)
@@ -1848,10 +1888,6 @@ pub async fn run(
         preprocessor_config_filename.and_then(HubPreprocessorConfig::from_file);
 
     tracing::info!("Using config {config:?}");
-    if tokenizer.is_none() {
-        tracing::warn!("Could not find a fast tokenizer implementation for {tokenizer_name}");
-        tracing::warn!("Rust input length validation and truncation is disabled");
-    }
 
     // Only send usage stats when TGI is run in container and the function returns Some
     let is_container = matches!(usage_stats::is_container(), Ok(true));
@@ -1919,6 +1955,7 @@ pub async fn run(
         model_info,
         compat_return_full_text,
         allow_origin,
+        payload_limit,
     )
     .await;
 
@@ -1966,7 +2003,7 @@ async fn start(
     validation_workers: usize,
     api_key: Option<String>,
     config: Option<Config>,
-    (tokenizer, tokenizer_config): (Option<Tokenizer>, HubTokenizerConfig),
+    (tokenizer, tokenizer_config): (Tokenizer, HubTokenizerConfig),
     (preprocessor_config, processor_config): (Option<HubPreprocessorConfig>, HubProcessorConfig),
     hostname: String,
     port: u16,
@@ -1978,6 +2015,7 @@ async fn start(
     model_info: HubModelInfo,
     compat_return_full_text: bool,
     allow_origin: Option<AllowOrigin>,
+    payload_limit: usize,
 ) -> Result<(), WebServerError> {
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
@@ -2375,6 +2413,7 @@ async fn start(
         .layer(Extension(compute_type))
         .layer(Extension(prom_handle.clone()))
         .layer(OtelAxumLayer::default())
+        .layer(DefaultBodyLimit::max(payload_limit))
         .layer(axum::middleware::from_fn(trace_context_middleware))
         .layer(cors_layer);
 
@@ -2422,30 +2461,6 @@ pub async fn get_hub_model_info(api: &ApiRepo) -> Option<HubModelInfo> {
             );
         }
         Some(hub_model_info)
-    } else {
-        None
-    }
-}
-
-/// get base tokenizer
-pub async fn get_base_tokenizer(api: &Api, api_repo: &ApiRepo) -> Option<PathBuf> {
-    let config_filename = api_repo.get("config.json").await.ok()?;
-
-    // Open the file in read-only mode with buffer.
-    let file = File::open(config_filename).ok()?;
-    let reader = BufReader::new(file);
-
-    // Read the JSON contents of the file as an instance of `User`.
-    let config: serde_json::Value = serde_json::from_reader(reader).ok()?;
-
-    if let Some(serde_json::Value::String(base_model_id)) = config.get("base_model_name_or_path") {
-        let api_base_repo = api.repo(Repo::with_revision(
-            base_model_id.to_string(),
-            RepoType::Model,
-            "main".to_string(),
-        ));
-
-        api_base_repo.get("tokenizer.json").await.ok()
     } else {
         None
     }
@@ -2538,158 +2553,4 @@ impl From<InferError> for Event {
 pub enum WebServerError {
     #[error("Axum error: {0}")]
     Axum(#[from] axum::BoxError),
-}
-
-type PreparedInput = (String, Option<GrammarType>, bool);
-
-pub(crate) fn prepare_chat_input(
-    infer: &Infer,
-    response_format: Option<GrammarType>,
-    tools: Option<Vec<Tool>>,
-    tool_choice: ToolChoice,
-    tool_prompt: &str,
-    guideline: Option<String>,
-    messages: Vec<Message>,
-) -> Result<PreparedInput, InferError> {
-    if response_format.is_some() && tools.is_some() {
-        return Err(InferError::ToolError(
-            "Grammar and tools are mutually exclusive".into(),
-        ));
-    }
-
-    // when response_format is set, tools are not included when applying the chat template to generate inputs
-    if let Some(format) = response_format {
-        let inputs = infer.apply_chat_template(guideline, messages, None)?;
-        return Ok((inputs, Some(format), false));
-    }
-
-    // when no response_format is set and tools are included, apply the chat template with the tools
-    // to generate inputs
-    if let Some(tools) = tools {
-        let (updated_tools, tool_schema) = ToolGrammar::apply(tools, tool_choice)?;
-
-        let grammar = tool_schema
-            .as_ref()
-            .map(|t| GrammarType::Json(serde_json::json!(t)));
-
-        let inputs: String = infer.apply_chat_template(
-            guideline,
-            messages,
-            Some((updated_tools, tool_prompt.into())),
-        )?;
-        return Ok((inputs, grammar, tool_schema.is_some()));
-    }
-
-    // if no response_format or tools are set simply apply the chat template to generate inputs
-    let inputs = infer.apply_chat_template(guideline, messages, None)?;
-    Ok((inputs, None, false))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ChatTemplateVersions;
-    use crate::HubTokenizerConfig;
-    use crate::TokenizerConfigToken;
-    use crate::Tool;
-
-    use serde_json::json;
-
-    #[test]
-    fn test_prepare_chat_input() {
-        // Mock Backend to avoid network requests
-        struct MockBackend;
-
-        impl Backend for MockBackend {
-            fn schedule(
-                &self,
-                _request: crate::validation::ValidGenerateRequest,
-            ) -> Result<
-                tokio_stream::wrappers::UnboundedReceiverStream<
-                    Result<InferStreamResponse, InferError>,
-                >,
-                InferError,
-            > {
-                unimplemented!("Never called in this test");
-            }
-            fn health<'a, 'async_trait>(
-                &'a self,
-                _current_health: bool,
-            ) -> core::pin::Pin<
-                Box<dyn core::future::Future<Output = bool> + core::marker::Send + 'async_trait>,
-            >
-            where
-                'a: 'async_trait,
-                Self: 'async_trait,
-            {
-                unimplemented!("Never called in this test");
-            }
-        }
-
-        let backend = MockBackend {};
-
-        let mut tokenizer_config = HubTokenizerConfig::default();
-
-        // mock tokenizer config values
-        tokenizer_config.bos_token = Some(TokenizerConfigToken::String("<s>".to_string()));
-        tokenizer_config.eos_token = Some(TokenizerConfigToken::String("</s>".to_string()));
-        tokenizer_config.chat_template = Some(
-            ChatTemplateVersions::Single("{%- if messages[0][\"role\"] == \"system\" %}\n    {%- set system_message = messages[0][\"content\"] %}\n    {%- set loop_messages = messages[1:] %}\n{%- else %}\n    {%- set loop_messages = messages %}\n{%- endif %}\n{%- if not tools is defined %}\n    {%- set tools = none %}\n{%- endif %}\n{%- set user_messages = loop_messages | selectattr(\"role\", \"equalto\", \"user\") | list %}\n\n{#- This block checks for alternating user/assistant messages, skipping tool calling messages #}\n{%- set ns = namespace() %}\n{%- set ns.index = 0 %}\n{%- for message in loop_messages %}\n    {%- if not (message.role == \"tool\" or message.role == \"tool_results\" or (message.tool_calls is defined and message.tool_calls is not none)) %}\n        {%- if (message[\"role\"] == \"user\") != (ns.index % 2 == 0) %}\n            {{- raise_exception(\"After the optional system message, conversation roles must alternate user/assistant/user/assistant/...\") }}\n        {%- endif %}\n        {%- set ns.index = ns.index + 1 %}\n    {%- endif %}\n{%- endfor %}\n\n{{- bos_token }}\n{%- for message in loop_messages %}\n    {%- if message[\"role\"] == \"user\" %}\n        {%- if tools is not none and (message == user_messages[-1]) %}\n            {{- \"[AVAILABLE_TOOLS] [\" }}\n            {%- for tool in tools %}\n                {%- set tool = tool.function %}\n                {{- '{\"type\": \"function\", \"function\": {' }}\n                {%- for key, val in tool.items() if key != \"return\" %}\n                    {%- if val is string %}\n                        {{- '\"' + key + '\": \"' + val + '\"' }}\n                    {%- else %}\n                        {{- '\"' + key + '\": ' + val|tojson }}\n                    {%- endif %}\n                    {%- if not loop.last %}\n                        {{- \", \" }}\n                    {%- endif %}\n                {%- endfor %}\n                {{- \"}}\" }}\n                {%- if not loop.last %}\n                    {{- \", \" }}\n                {%- else %}\n                    {{- \"]\" }}\n                {%- endif %}\n            {%- endfor %}\n            {{- \"[/AVAILABLE_TOOLS]\" }}\n            {%- endif %}\n        {%- if loop.last and system_message is defined %}\n            {{- \"[INST] \" + system_message + \"\\n\\n\" + message[\"content\"] + \"[/INST]\" }}\n        {%- else %}\n            {{- \"[INST] \" + message[\"content\"] + \"[/INST]\" }}\n        {%- endif %}\n    {%- elif message.tool_calls is defined and message.tool_calls is not none %}\n        {{- \"[TOOL_CALLS] [\" }}\n        {%- for tool_call in message.tool_calls %}\n            {%- set out = tool_call.function|tojson %}\n            {{- out[:-1] }}\n            {%- if not tool_call.id is defined or tool_call.id|length != 9 %}\n                {{- raise_exception(\"Tool call IDs should be alphanumeric strings with length 9!\") }}\n            {%- endif %}\n            {{- ', \"id\": \"' + tool_call.id + '\"}' }}\n            {%- if not loop.last %}\n                {{- \", \" }}\n            {%- else %}\n                {{- \"]\" + eos_token }}\n            {%- endif %}\n        {%- endfor %}\n    {%- elif message[\"role\"] == \"assistant\" %}\n        {{- \" \" + message[\"content\"]|trim + eos_token}}\n    {%- elif message[\"role\"] == \"tool_results\" or message[\"role\"] == \"tool\" %}\n        {%- if message.content is defined and message.content.content is defined %}\n            {%- set content = message.content.content %}\n        {%- else %}\n            {%- set content = message.content %}\n        {%- endif %}\n        {{- '[TOOL_RESULTS] {\"content\": ' + content|string + \", \" }}\n        {%- if not message.tool_call_id is defined or message.tool_call_id|length != 9 %}\n            {{- raise_exception(\"Tool call IDs should be alphanumeric strings with length 9!\") }}\n        {%- endif %}\n        {{- '\"call_id\": \"' + message.tool_call_id + '\"}[/TOOL_RESULTS]' }}\n    {%- else %}\n        {{- raise_exception(\"Only user and assistant roles are supported, with the exception of an initial optional system message!\") }}\n    {%- endif %}\n{%- endfor %}\n".to_string())
-        );
-
-        let infer = Infer::new(
-            backend,
-            Validation::new(1, None, None, None, 1, 1, 1, 1, 1, false),
-            1,
-            tokenizer_config,
-            HubProcessorConfig::default(),
-        );
-        let response_format = None;
-        let tools = Some(vec![Tool {
-            r#type: "function".to_string(),
-            function: FunctionDefinition {
-                name: "get_current_weather".to_string(),
-                description: Some("Get the current weather".to_string()),
-                arguments: json!({
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city and state, e.g. San Francisco, CA"
-                        },
-                        "format": {
-                            "type": "string",
-                            "enum": ["celsius", "fahrenheit"],
-                            "description": "The temperature unit to use. Infer this from the users location."
-                        }
-                    },
-                    "required": ["location", "format"]
-                }),
-            },
-        }]);
-        let tool_prompt = "Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.";
-        let guideline = None;
-        let messages = vec![Message {
-            name: None,
-            role: "user".to_string(),
-            content: MessageContent::SingleText(
-                "What is the weather like in New York?".to_string(),
-            ),
-        }];
-
-        let result = prepare_chat_input(
-            &infer,
-            response_format,
-            tools,
-            ToolChoice(None),
-            tool_prompt,
-            guideline,
-            messages,
-        );
-
-        assert!(result.is_ok());
-        let (inputs, _grammar, using_tools) = result.expect("Failed to prepare chat input");
-        assert_eq!(using_tools, true);
-        assert_eq!(inputs, "<s>[AVAILABLE_TOOLS] [{\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}, \"description\": \"Get the current weather\", \"name\": \"get_current_weather\"}}, {\"type\": \"function\", \"function\": {\"arguments\": {\"properties\":{\"content\":{\"description\":\"The response content\",\"type\":\"string\"}},\"required\":[\"content\"],\"type\":\"object\"}, \"description\": \"Open ened response with no specific tool selected\", \"name\": \"no_tool\"}}][/AVAILABLE_TOOLS][INST] What is the weather like in New York?\n---\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.[/INST]".to_string());
-    }
 }

@@ -28,6 +28,7 @@ to power Hugging Chat, the Inference API and Inference Endpoint.
     - [Distributed Tracing](#distributed-tracing)
     - [Architecture](#architecture)
     - [Local install](#local-install)
+    - [Local install (Nix)](#local-install-nix)
   - [Optimized architectures](#optimized-architectures)
   - [Run locally](#run-locally)
     - [Run](#run)
@@ -83,7 +84,7 @@ model=HuggingFaceH4/zephyr-7b-beta
 volume=$PWD/data
 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:2.3.1 --model-id $model
+    ghcr.io/huggingface/text-generation-inference:2.4.0 --model-id $model
 ```
 
 And then you can make requests like
@@ -120,7 +121,7 @@ curl localhost:8080/v1/chat/completions \
 
 **Note:** To use NVIDIA GPUs, you need to install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). We also recommend using NVIDIA drivers with CUDA version 12.2 or higher. For running the Docker container on a machine with no GPUs or CUDA support, it is enough to remove the `--gpus all` flag and add `--disable-custom-kernels`, please note CPU is not the intended platform for this project, so performance might be subpar.
 
-**Note:** TGI supports AMD Instinct MI210 and MI250 GPUs. Details can be found in the [Supported Hardware documentation](https://huggingface.co/docs/text-generation-inference/supported_models#supported-hardware). To use AMD GPUs, please use `docker run --device /dev/kfd --device /dev/dri --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:2.3.1-rocm --model-id $model` instead of the command above.
+**Note:** TGI supports AMD Instinct MI210 and MI250 GPUs. Details can be found in the [Supported Hardware documentation](https://huggingface.co/docs/text-generation-inference/supported_models#supported-hardware). To use AMD GPUs, please use `docker run --device /dev/kfd --device /dev/dri --shm-size 1g -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:2.4.0-rocm --model-id $model` instead of the command above.
 
 To see all options to serve your models (in the [code](https://github.com/huggingface/text-generation-inference/blob/main/launcher/src/main.rs) or in the cli):
 ```
@@ -150,7 +151,7 @@ model=meta-llama/Meta-Llama-3.1-8B-Instruct
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 token=<your cli READ token>
 
-docker run --gpus all --shm-size 1g -e HF_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:2.3.1 --model-id $model
+docker run --gpus all --shm-size 1g -e HF_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:2.4.0 --model-id $model
 ```
 
 ### A note on Shared Memory (shm)
@@ -235,6 +236,44 @@ text-generation-launcher --model-id mistralai/Mistral-7B-Instruct-v0.2
 ```shell
 sudo apt-get install libssl-dev gcc -y
 ```
+
+### Local install (Nix)
+
+Another option is to install `text-generation-inference` locally using [Nix](https://nixos.org). Currently,
+we only support Nix on x86_64 Linux with CUDA GPUs. When using Nix, all dependencies can
+be pulled from a binary cache, removing the need to build them locally.
+
+First follow the instructions to [install Cachix and enable the TGI cache](https://app.cachix.org/cache/text-generation-inference).
+Setting up the cache is important, otherwise Nix will build many of the dependencies
+locally, which can take hours.
+
+After that you can run TGI with `nix run`:
+
+```shell
+nix run . -- --model-id meta-llama/Llama-3.1-8B-Instruct
+```
+
+**Note:** when you are using Nix on a non-NixOS system, you have to [make some symlinks](https://danieldk.eu/Nix-CUDA-on-non-NixOS-systems#make-runopengl-driverlib-and-symlink-the-driver-library)
+to make the CUDA driver libraries visible to Nix packages.
+
+For TGI development, you can use the `impure` dev shell:
+
+```shell
+nix develop .#impure
+
+# Only needed the first time the devshell is started or after updating the protobuf.
+(
+cd server
+mkdir text_generation_server/pb || true
+python -m grpc_tools.protoc -I../proto/v3 --python_out=text_generation_server/pb \
+       --grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/v3/generate.proto
+find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
+touch text_generation_server/pb/__init__.py
+)
+```
+
+All development dependencies (cargo, Python, Torch), etc. are available in this
+dev shell.
 
 ## Optimized architectures
 

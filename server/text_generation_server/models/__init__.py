@@ -146,6 +146,9 @@ try:
     from text_generation_server.models.custom_modeling.idefics2 import (
         Idefics2ForConditionalGeneration,
     )
+    from text_generation_server.models.custom_modeling.qwen2_vl import (
+        Qwen2VLForConditionalGeneration,
+    )
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
     log_master(logger.warning, f"Could not import Flash Attention enabled models: {e}")
@@ -226,7 +229,7 @@ class ModelType(enum.Enum):
         "url": "https://huggingface.co/databricks/dbrx-instruct",
     }
     MAMBA = {
-        "type": "ssm",
+        "type": "mamba",
         "name": "Mamba",
         "url": "https://huggingface.co/state-spaces/mamba-2.8b-slimpj",
     }
@@ -274,6 +277,11 @@ class ModelType(enum.Enum):
         "type": "qwen2",
         "name": "Qwen 2",
         "url": "https://huggingface.co/collections/Qwen/qwen2-6659360b33528ced941e557f",
+    }
+    QWEN2_VL = {
+        "type": "qwen2_vl",
+        "name": "Qwen 2 VL",
+        "url": "https://huggingface.co/collections/Qwen/qwen2-vl-66cee7455501d7126940800d",
     }
     OPT = {
         "type": "opt",
@@ -362,60 +370,33 @@ def get_model(
     compression_config = config_dict.get("compression_config", None)
     if quantization_config is not None and quantize is None:
         method = quantization_config.get("quant_method", None)
-        config_groups = quantization_config.get("config_groups", None)
         if method in {"gptq", "awq", "exl2"}:
             log_master(logger.info, f"Auto selecting quantization method {method}")
             quantize = method
         elif method == "fbgemm_fp8" or method == "fp8":
             log_master(logger.info, "Auto selecting quantization method fp8")
             quantize = "fp8"
-        elif config_groups is not None:
-            # TODO: at some point we should probably fully parse the compression
-            # configuration to know which parameters are compressed.
-            for _, group in config_groups.items():
-                weights_config = group.get("weights")
-                if weights_config is not None:
-                    if (
-                        weights_config["type"] == "float"
-                        and weights_config["num_bits"] == 8
-                    ):
-                        log_master(
-                            logger.info, "Auto selecting quantization method fp8"
-                        )
-                        quantize = "fp8"
-                        break
+        if method == "compressed-tensors":
+            log_master(
+                logger.info, "Auto selecting quantization method compressed-tensors"
+            )
+            quantize = "compressed-tensors"
         else:
             log_master(logger.warning, f"Unknown quantization method {method}")
     elif compression_config is not None:
         # `compression_config` renamed to `quantization_config`; support retained for backward compatibility.
-        config_groups = compression_config.get("config_groups")
-        if config_groups is not None:
-            for _, group in config_groups.items():
-                weights_config = group.get("weights")
-                if weights_config is not None:
-                    if (
-                        weights_config["type"] == "float"
-                        and weights_config["num_bits"] == 8
-                    ):
-                        log_master(
-                            logger.info, "Auto selecting quantization method fp8"
-                        )
-                        quantize = "fp8"
-                        break
+        log_master(logger.info, "Auto selecting quantization method compressed-tensors")
+        quantize = "compressed-tensors"
 
     if dtype is None:
         if quantize in ["awq", "exl2", "gptq", "marlin"]:
-            if SYSTEM == "ipex" and not hasattr(torch, "xpu"):
+            if SYSTEM == "ipex" and not (
+                hasattr(torch, "xpu") and torch.xpu.is_available()
+            ):
                 dtype = torch.bfloat16
             else:
                 # These quantizers only work with float16 params.
                 dtype = torch.float16
-        elif quantize == "fp8":
-            from text_generation_server.layers.fp8 import FBGEMM_DYN_AVAILABLE
-
-            if FBGEMM_DYN_AVAILABLE:
-                # fbgemm kernels are fp8xfp8->bf16
-                dtype = torch.bfloat16
         else:
             # Keep it as default for now and let
             # every model resolve their own default dtype.
@@ -555,7 +536,7 @@ def get_model(
         # TODO: fix how we determine model type for Mamba
         if "ssm_cfg" in config_dict:
             # *only happens in Mamba case
-            model_type = "ssm"
+            model_type = "mamba"
         else:
             raise RuntimeError(
                 f"Could not determine model type for {model_id} revision {revision}"
@@ -623,6 +604,10 @@ def get_model(
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+        )
+    elif model_type == "ssm":
+        raise RuntimeError(
+            "`ssm` models have been deprecated in favor of `mamba` models, which follow standard HF formats. Check out a list here: https://huggingface.co/models?search=mamba%20-hf"
         )
 
     if model_id.startswith("facebook/galactica"):
@@ -1195,6 +1180,18 @@ def get_model(
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+    if model_type == QWEN2_VL:
+        return VlmCausalLM(
+            model_id=model_id,
+            model_class=Qwen2VLForConditionalGeneration,
+            revision=revision,
+            quantize=quantize,
+            speculator=speculator,
+            dtype=dtype,
+            kv_cache_dtype=kv_cache_dtype,
+            trust_remote_code=trust_remote_code,
+            lora_adapter_ids=lora_adapter_ids,
+        )
     if model_type == MLLAMA:
         if FLASH_ATTENTION:
             return MllamaCausalLM(
