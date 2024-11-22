@@ -24,6 +24,10 @@ use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, error, info};
 
+/// Detect the number of CPU cores on the machine
+///
+/// returns: usize Integer greater than 0 representing the number of CPU cores on the machine
+///
 fn get_num_cores() -> usize {
     match option_env!("TGI_USE_PHYSICAL_CORES")
         .unwrap_or("OFF")
@@ -39,6 +43,45 @@ fn get_num_cores() -> usize {
             num_cpus::get()
         }
     }
+}
+
+/// Subdivide the set of CPU cores available on the system to equal, non-overlapping, subsets of CPU cores
+///
+/// # Arguments
+///
+/// * `num_cores_per_instance`: Minimum number of cores for each instance
+///
+/// returns: Vec<Range<usize>, Global>
+///
+/// # Examples
+///
+/// ```
+///
+/// ```
+fn get_cores_allocation(num_cores_per_instance: usize) -> Vec<Range<usize>> {
+    // Get the total number of cores on the CPU
+    let cores_count = get_num_cores();
+
+    // Make sure each instance has some cores available
+    let mut effective_num_cores_per_instance = match num_cores_per_instance {
+        0 => cores_count,
+        _ => num_cores_per_instance,
+    };
+
+    // If we have spare cores, let's see if we can give everyone one more core
+    let num_instances = cores_count / effective_num_cores_per_instance;
+    if cores_count - (num_instances * effective_num_cores_per_instance) >= num_instances {
+        effective_num_cores_per_instance = effective_num_cores_per_instance + 1;
+        warn!("Overriding cores allocation to {effective_num_cores_per_instance} per instance");
+    }
+
+    (0..num_instances)
+        .map(|ordinal| {
+            let start = ordinal * effective_num_cores_per_instance;
+            let end = (ordinal + 1) * effective_num_cores_per_instance - 1;
+            start..end
+        })
+        .collect()
 }
 
 type InferResult = Result<InferStreamResponse, InferError>;
@@ -96,6 +139,20 @@ pub struct LlamaCppBackend {
 }
 
 impl LlamaCppBackend {
+    /// Attempt to create a new llama.cpp worker from the provided model path
+    ///
+    /// # Arguments
+    ///
+    /// * `path`: Path to the GGUF model file to load
+    /// * `num_threads`: Number of cores the model is allowed to spawn for its computations
+    ///
+    /// returns: Result<UniquePtr<LlamaCppWorkerFrontend>, LlamaCppBackendError>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    ///
+    /// ```
     fn allocate_worker(
         path: &Path,
         num_threads: u32,
@@ -144,32 +201,27 @@ impl LlamaCppBackend {
     }
 }
 
-fn get_cores_allocation(num_cores_per_instance: usize) -> Vec<Range<usize>> {
-    // Get the total number of cores on the CPU
-    let cores_count = get_num_cores();
-
-    // Make sure each instance has some cores available
-    let mut effective_num_cores_per_instance = match num_cores_per_instance {
-        0 => cores_count,
-        _ => num_cores_per_instance,
-    };
-
-    // If we have spare cores, let's see if we can give everyone one more core
-    let num_instances = cores_count / effective_num_cores_per_instance;
-    if cores_count - (num_instances * effective_num_cores_per_instance) >= num_instances {
-        effective_num_cores_per_instance = effective_num_cores_per_instance + 1;
-        warn!("Overriding cores allocation to {effective_num_cores_per_instance} per instance");
-    }
-
-    (0..num_instances)
-        .map(|ordinal| {
-            let start = ordinal * effective_num_cores_per_instance;
-            let end = (ordinal + 1) * effective_num_cores_per_instance - 1;
-            start..end
-        })
-        .collect()
-}
-
+/// llama.cpp worker actual streaming callback, called everytime a new token is being generated
+///
+/// # Arguments
+///
+/// * `ctx`: InferContext holding the channel to stream back generated token to the client.
+/// *UNSAFE* This parameter is unsafe and represented as a mutable pointer to avoid automatic drop of its
+/// referenced resources after the first iteration step.
+/// It's the responsibility of the caller to ensure a `Box::from_raw` is taking back full ownership of the pointer
+/// for correct deletion.
+/// * `new_token_id`: The sampled token identifier
+/// * `new_token_logit`: the sampled token identifier log probability
+/// * `is_final`: Flag indicating if the sampled token is a final one
+/// * `n_generated_tokens`: Counter representing the actual number of token generated at this stage
+///
+/// returns: bool `true` if the worker should stop the generation at this stage, `false` to continue
+///
+/// # Examples
+///
+/// ```
+///
+/// ```
 fn llama_generate_callback(
     ctx: *mut InferContext,
     new_token_id: u32,
@@ -234,6 +286,20 @@ fn llama_generate_callback(
     status.is_err()
 }
 
+/// Main loop allowing scheduling incoming requests without blocking the main execution thread
+///
+/// # Arguments
+///
+/// * `queue`: Synchronized container to receive new request
+/// * `backlog`: Synchronized container to dispatch new request towards all the workers for one to pick it up.
+///
+/// returns: ()
+///
+/// # Examples
+///
+/// ```
+///
+/// ```
 async fn scheduler_loop(
     mut queue: UnboundedReceiver<(GenerationContext, UnboundedSender<InferResult>)>,
     backlog: MpmcSender<(GenerationContext, UnboundedSender<InferResult>)>,
@@ -251,6 +317,23 @@ async fn scheduler_loop(
     }
 }
 
+/// llama.cpp worker thread receiving incoming requests from the scheduler and handling all generation
+/// process along with the streaming logic back to the client.
+///
+/// # Arguments
+///
+/// * `backend`: Owned llama.cpp worker with allocated execution resources
+/// * `affinity`: Set of CPUs to bind the worker's thread for scheduling
+/// * `tokenizer`: Tokenizer to use to decode generated token
+/// * `backlog`: Multi-consumers queue holding the requests waiting to be handled by a worker
+///
+/// returns: ()
+///
+/// # Examples
+///
+/// ```
+///
+/// ```
 fn worker_loop(
     mut backend: UniquePtr<LlamaCppWorkerFrontend>,
     affinity: Vec<usize>,
