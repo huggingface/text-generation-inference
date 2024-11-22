@@ -803,7 +803,7 @@ mod tests {
         let tools: Vec<Tool> = serde_json::from_str(&tools_string).unwrap();
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
-        let result = ct.apply(None, msgs, tools_and_prompt);
+        let result = ct.apply(msgs, tools_and_prompt);
         let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"arguments\":{\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}}}]\nThis default prompt will be used [/INST]".to_string();
         assert_eq!(result.unwrap(), expected);
     }
@@ -837,7 +837,7 @@ mod tests {
         let tools: Vec<Tool> = serde_json::from_str(&tools_string).unwrap();
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
-        let result = ct.apply(None, msgs, tools_and_prompt);
+        let result = ct.apply(msgs, tools_and_prompt);
         let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n    \"function\": {\n        \"arguments\": {\n            \"properties\": {\n                \"format\": {\n                    \"description\": \"The temperature unit to use. Infer this from the users location.\",\n                    \"enum\": [\n                        \"celsius\",\n                        \"fahrenheit\"\n                    ],\n                    \"type\": \"string\"\n                },\n                \"location\": {\n                    \"description\": \"The city and state, e.g. San Francisco, CA\",\n                    \"type\": \"string\"\n                }\n            },\n            \"required\": [\n                \"location\",\n                \"format\"\n            ],\n            \"type\": \"object\"\n        },\n        \"description\": \"Get the current weather\",\n        \"name\": \"get_current_weather\"\n    },\n    \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
         assert_eq!(result.unwrap(), expected);
     }
