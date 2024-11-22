@@ -23,6 +23,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     cmake \
     gcc g++ \
     libc++-dev \
+    libnumactl-dev \
     libopenmpi-dev \
     libssl-dev \
     ninja-build \
@@ -61,6 +62,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt update && \
     apt upgrade -y && \
     apt install -y \
+    numactl \
     openssl \
     python3.11-dev
 
