@@ -6,7 +6,7 @@
         "role": "assistant",
         "tool_calls": {
           "function": {
-            "arguments": "</s>",
+            "arguments": "<|eot_id|>",
             "name": null
           },
           "id": "",
@@ -14,14 +14,15 @@
           "type": "function"
         }
       },
-      "finish_reason": "eos_token",
+      "finish_reason": "stop",
       "index": 0,
       "logprobs": null
     }
   ],
-  "created": 1712788218,
+  "created": 1732293235,
   "id": "",
-  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-  "object": "text_completion",
-  "system_fingerprint": "2.0.1-native"
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "object": "chat.completion.chunk",
+  "system_fingerprint": "2.4.1-dev0-native",
+  "usage": null
 }
