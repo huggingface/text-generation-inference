@@ -2,7 +2,7 @@ import torch
 from PIL import Image
 from io import BytesIO
 
-
+import numpy as np
 from opentelemetry import trace
 from typing import Iterable, Optional, Tuple, List, Type, Dict
 
@@ -252,28 +252,16 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         video_inputs = None
         if videos:
             try:
-                tensor_videos = []
                 video = videos[0]
-                video_buffer = BytesIO(video.data)
-                video, _audio, info = io.read_video(
-                    video_buffer,
-                    start_pts=0.0,
-                    end_pts=None,
-                    pts_unit="sec",
-                    output_format="TCHW",
-                )
-                total_frames, video_fps = video.size(0), info["video_fps"]
-                nframes = smart_nframes(
-                    fps=30,
-                    nframes=None,
-                    min_frames=16,
-                    max_frames=64,
-                    total_frames=total_frames,
-                    video_fps=video_fps,
-                )
-                idx = torch.linspace(0, total_frames - 1, nframes).round().long()
-                video = video[idx]
-                tensor_videos.append(video)
+                # Frames are already sampled and resized
+                frames = [
+                    torch.from_numpy(np.frombuffer(frame, dtype=np.uint8).reshape(video.height, video.width, 3))
+                    for frame in video.frames
+                ]
+                video_tensor = torch.stack(frames).permute(0, 3, 1, 2)  # NHWC -> NCHW
+                
+                # Apply any additional preprocessing required by the model
+                tensor_videos = [video_tensor]
                 video_inputs = processor.image_processor(
                     tensor_videos, return_tensors="pt"
                 )
