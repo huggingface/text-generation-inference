@@ -9,6 +9,7 @@ use crate::{PyTokenizer, Tokenizer};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{ImageFormat, ImageReader};
 use jsonschema::{Draft, JSONSchema};
+use outlines_core::json_schema::to_regex as json_schema_to_regex;
 use rand::{thread_rng, Rng};
 use serde_json::Value;
 use std::io::Cursor;
@@ -351,11 +352,13 @@ impl Validation {
                                 "Grammar must have a 'properties' field".to_string(),
                             ))?;
 
-                        // Serialize json to string
-                        ValidGrammar::Json(
-                            serde_json::to_string(&json)
-                                .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?,
-                        )
+                        // Do compilation in the router for performance. In the future, we
+                        // should also move regex -> automaton compilation in the router,
+                        // but this is not yet supported in pure Rust by outlines-core.
+                        let grammar_regex = json_schema_to_regex(&json, None, &json)
+                            .map_err(ValidationError::RegexFromSchema)?;
+
+                        ValidGrammar::Regex(grammar_regex.to_string())
                     }
                     GrammarType::Regex(regex) => ValidGrammar::Regex(regex),
                 };
@@ -810,6 +813,8 @@ pub enum ValidationError {
     Grammar,
     #[error("grammar is not valid: {0}")]
     InvalidGrammar(String),
+    #[error("cannot compile regex from schema: {0}")]
+    RegexFromSchema(anyhow::Error),
     #[error("base64 encoding is invalid: {0}")]
     InvalidBase64(#[from] base64::DecodeError),
     #[error("invalid image: {0}")]

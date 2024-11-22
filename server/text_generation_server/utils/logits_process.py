@@ -1,19 +1,19 @@
+from functools import lru_cache
 import math
+import time
 import torch
+from typing import List, Optional, DefaultDict
 
 from loguru import logger
 from typing import Dict, Union
 from text_generation_server.pb.generate_pb2 import GrammarType
 
 from outlines.fsm.guide import RegexGuide
-from outlines.fsm.json_schema import build_regex_from_schema
-from functools import lru_cache
-from typing import List, Optional, DefaultDict
-import time
 
 from transformers import (
     LogitsWarper,
     LogitsProcessor,
+    PreTrainedTokenizerBase,
     TemperatureLogitsWarper,
     TopKLogitsWarper,
     TopPLogitsWarper,
@@ -484,7 +484,13 @@ class GrammarLogitProcessor(LogitsProcessor):
     fsm_state: DefaultDict[int, int]
     fsm: RegexGuide
 
-    def __init__(self, tokenizer, device, grammar, grammar_type):
+    def __init__(
+        self,
+        tokenizer: Optional[PreTrainedTokenizerBase],
+        device: str,
+        grammar: str,
+        grammar_type: GrammarType,
+    ):
         self.device = device
         self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
         self.fsm = GrammarLogitProcessor._cached_compile_fsm(
@@ -519,18 +525,20 @@ class GrammarLogitProcessor(LogitsProcessor):
     # TODO: move grammar compilation into the router
     @staticmethod
     @lru_cache(maxsize=32, typed=True)
-    def _cached_compile_fsm(grammar_type, schema, tokenizer):
+    def _cached_compile_fsm(
+        grammar_type: GrammarType,
+        schema: str,
+        tokenizer: Optional[PreTrainedTokenizerBase],
+    ):
         start_time = time.time()
         if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
-            try:
-                schema = build_regex_from_schema(schema)
-            # TODO: this is only here short term to avoid crashing the python server, mid term we want this in the rust/router layer
-            except Exception as e:
-                logger.error(f"Error compiling FSM, grammar won't be enforced \n{e}")
-                # allows everything
-                schema = "(.*?)"
-        elif grammar_type == GrammarType.GRAMMAR_TYPE_REGEX:
-            pass  # schema is already a regex just here for clarity
+            # JSON schema is compiled by the v3 router.
+            logger.error(
+                "Non-regex grammars must be compiled by the router, grammar won't be enforced"
+            )
+            # allows everything
+            schema = "(.*?)"
+
         fsm = RegexGuide.from_regex(schema, tokenizer)
         logger.debug(f"Compiled FSM in {time.time() - start_time:.2f}s")
         return fsm

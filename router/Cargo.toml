@@ -8,6 +8,7 @@ authors.workspace = true
 homepage.workspace = true
 
 [dependencies]
+anyhow = "1"
 async-trait = "0.1.74"
 async-stream = "0.3.5"
 axum = { version = "0.7", features = ["json"] }
@@ -22,6 +23,7 @@ metrics-exporter-prometheus = { workspace = true }
 nohash-hasher = "0.2.0"
 opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
 opentelemetry-otlp = "0.13.0"
+outlines-core = { git = "https://github.com/dottxt-ai/outlines-core.git", rev = "ba10c619fc9bf3c487e43f49bdecb95a24bb465c" }
 rand = "0.8.5"
 reqwest = { version = "0.11.20", features = [] }
 serde = "1.0.188"
