@@ -111,7 +111,7 @@ namespace huggingface::tgi::backends::llamacpp {
     struct numa_cpumask_deleter { void operator()(struct bitmask* cpumask){ numa_free_cpumask(cpumask); }};
     typedef std::unique_ptr<struct bitmask, numa_cpumask_deleter> unique_cpumask_ptr;
 
-    void set_numactl_core_affinity(rust::Slice<const size_t> affinity) {
+    void set_numa_core_affinity(rust::Slice<const size_t> affinity) {
 //    void set_numactl_core_affinity(std::vector<size_t> affinity) {
 #ifdef NUMA_AVAILABLE
         if(numa_available()) {
@@ -172,6 +172,14 @@ namespace huggingface::tgi::backends::llamacpp {
 #else
         SPDLOG_WARN("TGI's llama.cpp backend was compiled without NUMA support");
 #endif
+    }
+
+    /**
+     * 
+     */
+    void update_numa_affinity() {
+        SPDLOG_INFO("Rebinding NUMA affinity for current worker on thread: {}", std::this_thread::get_id());
+        llama_numa_init(ggml_numa_strategy::GGML_NUMA_STRATEGY_NUMACTL);
     }
 }
 

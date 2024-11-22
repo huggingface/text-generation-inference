@@ -54,7 +54,8 @@ mod ffi {
             num_threads: u32,
         ) -> Result<UniquePtr<LlamaCppWorkerFrontend>>;
 
-        fn set_numactl_core_affinity(affinity: &[usize]);
+        fn set_numa_core_affinity(affinity: &[usize]);
+        fn update_numa_affinity();
 
         unsafe fn stream(
             self: Pin<&mut LlamaCppWorkerFrontend>,

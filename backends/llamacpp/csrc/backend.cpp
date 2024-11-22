@@ -3,7 +3,6 @@
 //
 
 #include <filesystem>
-#include <span>
 
 #include <ggml.h>
 #include <llama.h>

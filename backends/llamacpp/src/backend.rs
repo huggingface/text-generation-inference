@@ -1,6 +1,6 @@
 use crate::ffi::{
-    create_worker_frontend, set_numactl_core_affinity, GenerationParams, LlamaCppWorkerFrontend,
-    SamplingParams,
+    create_worker_frontend, set_numa_core_affinity, update_numa_affinity, GenerationParams,
+    LlamaCppWorkerFrontend, SamplingParams,
 };
 use async_channel::{unbounded as mpmc_unbounded, Receiver as MpmcReceiver, Sender as MpmcSender};
 use async_trait::async_trait;
@@ -8,7 +8,6 @@ use cxx::UniquePtr;
 use log::warn;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::thread::spawn;
 use text_generation_router::infer::InferError::GenerationError;
@@ -24,17 +23,6 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, error, info};
-
-macro_rules! send_or_warn {
-    ($send: expr, $err: expr) => {
-        if let Err(se) = $send.send(err) {
-            warn!(
-                "Failed to send message back to the user: {}. Originating error: {}",
-                se, e
-            );
-        }
-    };
-}
 
 fn get_num_cores() -> usize {
     match option_env!("TGI_USE_PHYSICAL_CORES")
@@ -272,8 +260,9 @@ fn worker_loop(
     // This loop will mostly decode single token at every step, so no need to rely on parallelism
     tokenizers::utils::parallelism::set_parallelism(false);
 
-    // Bind cores for the current thread
-    set_numactl_core_affinity(&affinity);
+    // Bind cores for the current thread and make sure it's taken into account
+    set_numa_core_affinity(&affinity);
+    update_numa_affinity();
 
     loop {
         if let Ok((generation, stream)) = backlog.recv_blocking() {
