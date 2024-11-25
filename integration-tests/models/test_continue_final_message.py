@@ -71,6 +71,6 @@ def test_llama_completion_single_prompt_continue(
     content = response["choices"][0]["message"]["content"]
     assert (
         content
-        == "the mouse is much smaller than an elephant. The average elephant weight is around 6,500 lbs (3,"
+        == " the royal mouse? It is a little more slender and only weighs around 1.5 pounds for males and 1.3 pounds"
     )
     assert response == response_snapshot
