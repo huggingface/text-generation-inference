@@ -1242,7 +1242,7 @@ pub(crate) async fn chat_completions(
     // extract model id from request if specified
     let model_id = match model.as_deref() {
         Some("tgi") | None => info.model_id.clone(),
-        Some(m_id) => format!("{}+{}", info.model_id, m_id),
+        Some(m_id) => m_id.to_string(),
     };
     let system_fingerprint = format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
     // switch on stream
