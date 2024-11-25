@@ -8,13 +8,13 @@ authors.workspace = true
 homepage.workspace = true
 
 [dependencies]
-ffmpeg-next = "7.1.0"
-tempfile = "3.10.1"
+anyhow = "1"
 async-trait = "0.1.74"
 async-stream = "0.3.5"
 axum = { version = "0.7", features = ["json"] }
 axum-tracing-opentelemetry = "0.16"
 clap = { version = "4.4.5", features = ["derive", "env"] }
+ffmpeg-next = "7.1.0"
 futures = "0.3.28"
 hf-hub = { workspace = true }
 itertools = "0.10"
@@ -23,11 +23,13 @@ metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 nohash-hasher = "0.2.0"
 opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
+outlines-core = { git = "https://github.com/dottxt-ai/outlines-core.git", rev = "ba10c619fc9bf3c487e43f49bdecb95a24bb465c" }
 opentelemetry-otlp = "0.13.0"
 rand = "0.8.5"
 reqwest = { version = "0.11.20", features = [] }
 serde = "1.0.188"
 serde_json = "1.0.107"
+tempfile = "3.10.1"
 thiserror = "1.0.48"
 tokenizers = { workspace = true }
 tokio = { version = "1.32.0", features = [
