@@ -38,7 +38,7 @@ def test_llama_completion_single_prompt(
     content = response["choices"][0]["message"]["content"]
     assert (
         content
-        == "\nGenerate according to: It is an elephant's one year old baby or a mouse's one year old baby. It is"
+        == "Both an elephant and a mouse are mammals. However, the differences between elephants and mice are:\n\n1"
     )
     assert response == response_snapshot
 
@@ -71,6 +71,6 @@ def test_llama_completion_single_prompt_continue(
     content = response["choices"][0]["message"]["content"]
     assert (
         content
-        == " the royal mouse? It is a little more slender and only weighs around 1.5 pounds for males and 1.3 pounds"
+        == "the mouse is much smaller than an elephant. The average elephant weight is around 6,500 lbs (3,"
     )
     assert response == response_snapshot
