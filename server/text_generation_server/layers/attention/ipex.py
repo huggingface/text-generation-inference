@@ -34,7 +34,7 @@ def attention(
     if ATTENTION == "flashdecoding":
         ipex.llm.modules.PagedAttention.flash_attn_varlen_func(
             out,
-            query,
+            query.contiguous() if query.device.type == "xpu" else query,
             kv_cache.key,
             kv_cache.value,
             seqlen.cu_seqlen_q,
@@ -87,7 +87,7 @@ def paged_attention(
     if ATTENTION == "flashdecoding":
         ipex.llm.modules.PagedAttention.flash_attn_varlen_func(
             out,
-            query,
+            query.contiguous() if query.device.type == "xpu" else query,
             kv_cache.key,
             kv_cache.value,
             seqlen.cu_seqlen_q,
