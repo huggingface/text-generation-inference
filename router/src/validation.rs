@@ -816,6 +816,12 @@ pub struct Video {
     pub mimetype: String,
 }
 
+impl Video {
+    pub fn as_bytes(&self) -> Vec<u8> {
+        self.frames.iter().flatten().cloned().collect()
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Chunk {
     Text(String),
