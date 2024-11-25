@@ -25,7 +25,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     ffmpeg \
     libavcodec-dev \
     libavfilter-dev \
-    libavdevice-dev \ 
+    libavdevice-dev \
     libavformat-dev \
     libavutil-dev \
     libswscale-dev \

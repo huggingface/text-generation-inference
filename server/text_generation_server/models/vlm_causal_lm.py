@@ -18,7 +18,6 @@ from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.models.metadata_kernels import block_tables_to_ragged
-from torchvision import io
 import math
 
 tracer = trace.get_tracer(__name__)
@@ -240,7 +239,27 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         images.append([image])
                 elif chunk_type == "video":
                     if config.model_type == "qwen2_vl":
-                        videos.append(chunk.video)
+                        video_frame_buf = np.frombuffer(
+                            chunk.video.data, dtype=np.uint8
+                        )
+                        num_bytes = len(video_frame_buf)
+                        bytes_per_frame = num_bytes // chunk.video.frames
+                        height = bytes_per_frame // 3 // chunk.video.width
+
+                        # iterate over with a stride the size of a frame
+                        frames = []
+                        for i in range(chunk.video.frames):
+                            frame = video_frame_buf[
+                                i * bytes_per_frame : (i + 1) * bytes_per_frame
+                            ]
+                            frame = frame.reshape(height, chunk.video.width, 3)
+                            frames.append(frame)
+
+                        video_frame_buf = np.stack(frames)
+                        frame_nchw_tensor = torch.from_numpy(video_frame_buf).permute(
+                            0, 3, 1, 2
+                        )
+                        videos.append(frame_nchw_tensor)
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
@@ -252,20 +271,10 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         video_inputs = None
         if videos:
             try:
-                video = videos[0]
-                # Frames are already sampled and resized
-                frames = [
-                    torch.from_numpy(np.frombuffer(frame, dtype=np.uint8).reshape(video.height, video.width, 3))
-                    for frame in video.frames
-                ]
-                video_tensor = torch.stack(frames).permute(0, 3, 1, 2)  # NHWC -> NCHW
-                
-                # Apply any additional preprocessing required by the model
-                tensor_videos = [video_tensor]
                 video_inputs = processor.image_processor(
-                    tensor_videos, return_tensors="pt"
+                    videos,
+                    return_tensors="pt",
                 )
-
             except Exception as e:
                 print(f"Failed to process video: {e}")
                 pass

@@ -440,8 +440,10 @@ impl State {
                                     mimetype: image.mimetype,
                                 }),
                                 Chunk::Video(video) => client::Chunk::Video(client::Video {
-                                    data: video.frames,
+                                    data: video.data,
                                     mimetype: video.mimetype,
+                                    width: video.width,
+                                    frames: video.num_frames,
                                 }),
                             }),
                         })
