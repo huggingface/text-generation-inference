@@ -65,11 +65,17 @@ message Image {
 }
 
 message Video {
-  /// Binary video data.
+  /// Binary video data (array of RGB data)
   bytes data = 1;
 
   /// Video MIME type.
   string mimetype = 2;
+
+  /// Video width
+  uint32 width = 3;
+
+  /// Total number of frames
+  uint32 frames = 4;
 }
 
 message InputChunk {
