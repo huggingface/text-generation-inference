@@ -101,7 +101,7 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "Brooklyn, NY"},
+                "arguments": {"format": "celsius", "location": "Brooklyn, New York"},
             },
         }
     ]
@@ -138,7 +138,7 @@ async def test_flash_llama_grammar_tools_auto(
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "Brooklyn, NY"},
+                "arguments": {"format": "celsius", "location": "Brooklyn, New York"},
             },
         }
     ]
@@ -219,7 +219,7 @@ async def test_flash_llama_grammar_tools_stream(
 
     assert (
         tool_calls_generated
-        == '{"function": {"_name": "get_current_weather", "format": "celsius", "location": "Paris, France"}}<|eot_id|>'
+        == '{"function": {"_name": "get_current_weather", "location": "Paris, France", "format": "celsius"}}<|eot_id|>'
     )
     assert count == 28
     assert last_response == response_snapshot
@@ -366,7 +366,7 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_required(
     assert count == 29
     assert (
         tool_calls_generated
-        == '{"function": {"_name": "get_current_weather", "format": "celsius", "location": "San Francisco, CA"}}<|eot_id|>'
+        == '{"function": {"_name": "get_current_weather", "location": "San Francisco, CA", "format": "celsius"}}<|eot_id|>'
     )
     assert last_response == response_snapshot
 
@@ -465,6 +465,6 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
     assert count == 39
     assert (
         tool_calls_generated
-        == '{"function": {"_name": "get_n_day_weather_forecast", "format": "celsius", "location": "San Francisco, CA", "num_days":3}}<|eot_id|>'
+        == '{"function": {"_name": "get_n_day_weather_forecast", "location": "San Francisco, CA", "format": "celsius", "num_days":3}}<|eot_id|>'
     )
     assert last_response == response_snapshot

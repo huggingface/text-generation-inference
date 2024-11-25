@@ -4,6 +4,7 @@ repos:
     hooks:
     -   id: check-yaml
     -   id: end-of-file-fixer
+        exclude: crate-hashes.json
     -   id: trailing-whitespace
         exclude: docs/source/reference/launcher.md
 -   repo: https://github.com/psf/black
