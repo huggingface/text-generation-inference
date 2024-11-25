@@ -1228,6 +1228,7 @@ pub(crate) async fn chat_completions(
     let span = tracing::Span::current();
     metrics::counter!("tgi_request_count").increment(1);
     let ChatRequest {
+        model,
         stream,
         stream_options,
         logprobs,
@@ -1238,8 +1239,11 @@ pub(crate) async fn chat_completions(
 
     let logprobs = logprobs.unwrap_or_default();
 
-    // static values that will be returned in all cases
-    let model_id = info.model_id.clone();
+    // extract model id from request if specified
+    let model_id = match model.as_deref() {
+        Some("tgi") | None => info.model_id.clone(),
+        Some(m_id) => m_id.to_string(),
+    };
     let system_fingerprint = format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
     // switch on stream
     if stream {
