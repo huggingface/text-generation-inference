@@ -44,6 +44,11 @@ jobs:
         run: |
           sudo apt update
           sudo apt install python3.11-dev clang libavcodec-dev libavformat-dev libavutil-dev pkg-config -y
+          export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
+          export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+          pkg-config --modversion libavutil
+          echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+          echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
           make install-cpu
       - name: Run server tests
         run: |
