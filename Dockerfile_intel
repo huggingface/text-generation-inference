@@ -197,9 +197,10 @@ RUN pip install triton py-libnuma
 
 WORKDIR /usr/src
 
-RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout 2e1c98f74ec1b35ad8dd1ebe7dd4b25470f2fd41
+RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout b7b552baf64283b594665b8687430fe92990e497
 RUN git clone https://github.com/intel/torch-ccl.git && cd torch-ccl && git checkout v2.4.0+cpu+rc0
 
+RUN sed -i 's/VERSION_MINOR 6/VERSION_MINOR 5/' intel-extension-for-pytorch/version.txt
 RUN cd intel-extension-for-pytorch && git submodule sync && git submodule update --init --recursive && python setup.py install
 
 RUN cd torch-ccl && git submodule sync && git submodule update --init --recursive && pip install .
