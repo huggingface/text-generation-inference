@@ -43,7 +43,7 @@ jobs:
       - name: Install
         run: |
           sudo apt update
-          sudo apt install python3.11-dev -y
+          sudo apt install python3.11-dev clang libavcodec-dev libavformat-dev libavutil-dev pkg-config -y
           make install-cpu
       - name: Run server tests
         run: |
