@@ -13,33 +13,33 @@ protobuf = ">=4.25.3,<6"
 grpcio = "^1.51.1"
 grpcio-status = "^1.51.1"
 grpcio-reflection = "^1.51.1"
-grpc-interceptor = "^0.15.0"
-typer = "^0.6.1"
-accelerate = { version = "^0.29.1", optional = true }
+grpc-interceptor = "^0.15.4"
+typer = "^0.12.5"
+accelerate = {version = "^1.1.0", optional = true}
 bitsandbytes = { version = "^0.43.0", optional = true }
-safetensors = "^0.4"
-loguru = "^0.6.0"
-opentelemetry-api = "^1.25.0"
-opentelemetry-exporter-otlp = "^1.25.0"
-opentelemetry-instrumentation-grpc = "^0.46b0"
+safetensors = "^0.4.5"
+loguru = "^0.7.2"
+opentelemetry-api = "^1.27.0"
+opentelemetry-exporter-otlp = "^1.27.0"
+opentelemetry-instrumentation-grpc = "^0.48b0"
 hf-transfer = "^0.1.2"
-sentencepiece = "^0.2"
-tokenizers = "^0.20"
+sentencepiece = "^0.2.0"
+tokenizers = "^0.20.3"
 huggingface-hub = "^0.23"
-transformers = "^4.45"
-einops = "^0.6.1"
+transformers = "^4.46.2"
+einops = "^0.8.0"
 texttable = { version = "^1.6.7", optional = true }
-datasets = { version = "^2.14.0", optional = true }
-peft = { version = "^0.10", optional = true }
-torch = { version = "^2.4.0", optional = true }
-scipy = "^1.11.1"
-pillow = "^10.0.0"
-outlines= { version = "0.1.3", optional = true }
+datasets = {version = "^2.21.0", optional = true}
+peft = {version = "^0.13.2", optional = true}
+torch = {version = "^2.4.1", optional = true}
+scipy = "^1.13.1"
+pillow = "^11.0.0"
+outlines= {version = "^0.1.3", optional = true}
 prometheus-client = ">=0.20.0,<0.22"
 py-cpuinfo = "^9.0.0"
-compressed-tensors = { version = "^0.7.1", optional = true }
+compressed-tensors = {version = "^0.7.1", optional = true}
 # Remove later, temporary workaround for outlines.
-numpy = "^1.26"
+numpy = "^1.26.4"
 
 attention-kernels = [
   { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.4-cp39-cp39-linux_x86_64.whl", python = "~3.9", optional = true },
@@ -59,7 +59,7 @@ moe-kernels = [
   { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.4-cp311-cp311-linux_x86_64.whl", python = "~3.11", optional = true },
   { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.4-cp312-cp312-linux_x86_64.whl", python = "~3.12", optional = true },
 ]
-rich = "^13.7.1"
+rich = "^13.8.1"
 
 [tool.poetry.extras]
 torch = ["torch"]
