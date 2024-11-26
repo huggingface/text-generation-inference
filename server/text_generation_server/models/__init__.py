@@ -174,12 +174,12 @@ def get_model(
     model_type = config_dict["model_type"]
 
     if model_type == "gpt_bigcode":
-        return StarCoder(model_id, revision, dtype)
+        return StarCoder(model_id=model_id, revision=revision, dtype=dtype)
 
     if model_type == "bloom":
         return BLOOM(
-            model_id,
-            revision,
+            model_id=model_id,
+            revision=revision,
             speculator=speculator,
             dtype=dtype,
             trust_remote_code=trust_remote_code,

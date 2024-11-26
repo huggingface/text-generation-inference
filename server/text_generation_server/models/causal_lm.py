@@ -623,7 +623,7 @@ class CausalLM(Model):
     def __init__(
         self,
         model_id: str,
-        model_class,
+        model_class: Optional[Type[torch.nn.Module]] = None,
         revision: Optional[str] = None,
         quantize: Optional[str] = None,
         speculator: Optional[str] = None,
