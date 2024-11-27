@@ -207,6 +207,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         make \
         curl \
         git \
+        ffmpeg \
+        libavcodec-dev \
+        libavfilter-dev \
+        libavdevice-dev \
+        libavformat-dev \
+        libavutil-dev \
+        libswscale-dev \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed
