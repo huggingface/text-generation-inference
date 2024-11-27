@@ -5,14 +5,11 @@
   cmake,
   isort,
   ninja,
+  rustPlatform,
   which,
   cudaPackages,
   openssl,
   ffmpeg,
-  llvmPackages,
-  gcc,
-  gcc-unwrapped,
-  stdenv,
   pkg-config,
   poetry,
   protobuf,
@@ -31,6 +28,7 @@
 mkShell {
   nativeBuildInputs =
     [
+      rustPlatform.bindgenHook
       black
       isort
       pkg-config
@@ -58,11 +56,7 @@ mkShell {
   buildInputs =
     [
       openssl.dev
-      ffmpeg.dev
-      llvmPackages.libclang
-      gcc.cc
-      gcc-unwrapped
-      stdenv
+      ffmpeg
     ]
     ++ (with python3.pkgs; [
       venvShellHook
@@ -91,15 +85,7 @@ mkShell {
 
   inputsFrom = [ server ];
 
-  env = {
-    LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib";
-    CPATH = "${gcc-unwrapped}/lib/gcc/${stdenv.hostPlatform.config}/${gcc-unwrapped.version}/include";
-    BINDGEN_EXTRA_CLANG_ARGS = builtins.concatStringsSep " " [
-      "-I${gcc.libc.dev}/include"
-      "-I${gcc}/lib/gcc/x86_64-unknown-linux-gnu/${gcc.version}/include"
-      "-I${llvmPackages.libclang.lib}/lib/clang/${llvmPackages.libclang.version}/include"
-    ];
-  } // lib.optionalAttrs withCuda {
+  env = lib.optionalAttrs withCuda {
     CUDA_HOME = "${lib.getDev cudaPackages.cuda_nvcc}";
     TORCH_CUDA_ARCH_LIST = lib.concatStringsSep ";" python3.pkgs.torch.cudaCapabilities;
   };
