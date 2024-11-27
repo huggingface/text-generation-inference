@@ -20,7 +20,7 @@ jobs:
     - name: Install Protocol Buffers compiler
       run: |
         sudo apt-get update
-        sudo apt-get install -y protobuf-compiler libprotobuf-dev clang libavcodec-dev libavformat-dev libavutil-dev pkg-config
+        sudo apt-get install -y protobuf-compiler libprotobuf-dev clang libavcodec-dev libavfilter-dev libavdevice-dev libavformat-dev libavutil-dev pkg-config
 
     - name: Install Launcher
       id: install-launcher
