@@ -19,6 +19,29 @@ defaultCrateOverrides
   };
   rav1e = attrs: { env.CARGO_ENCODED_RUSTFLAGS = "-C target-feature=-crt-static"; };
 
+  ffmpeg-sys-next = attrs: {
+    nativeBuildInputs = (attrs.nativeBuildInputs or []) ++ [
+      pkg-config
+    ];
+    buildInputs = (attrs.buildInputs or []) ++ [
+      llvmPackages.libclang
+      ffmpeg.dev
+      gcc.cc
+      gcc-unwrapped
+      stdenv
+    ];
+    env = (attrs.env or {}) // {
+      LIBCLANG_PATH = "${llvmPackages.libclang.lib}/lib";
+      CPATH = "${gcc-unwrapped}/lib/gcc/${stdenv.hostPlatform.config}/${gcc-unwrapped.version}/include";
+      BINDGEN_EXTRA_CLANG_ARGS = builtins.concatStringsSep " " [
+        "-I${gcc.libc.dev}/include"
+        "-I${gcc}/lib/gcc/x86_64-unknown-linux-gnu/${gcc.version}/include"
+        "-I${llvmPackages.libclang.lib}/lib/clang/${llvmPackages.libclang.version}/include"
+      ];
+      PKG_CONFIG_PATH = "${ffmpeg.dev}/lib/pkgconfig";
+    };
+  };
+
   grpc-metadata = attrs: {
     src = filter {
       root = ../backends/grpc-metadata;
