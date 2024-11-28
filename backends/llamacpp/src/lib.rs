@@ -10,6 +10,7 @@ impl Default for SamplingParams {
             top_p: 1.0f32,
             frequency_penalty: 0.0f32,
             repetition_penalty: 0.0f32,
+            temperature: 1.0f32,
             seed: 2014u64,
         }
     }
@@ -29,6 +30,7 @@ mod ffi {
         top_p: f32,
         frequency_penalty: f32,
         repetition_penalty: f32,
+        temperature: f32,
         seed: u64,
     }
 

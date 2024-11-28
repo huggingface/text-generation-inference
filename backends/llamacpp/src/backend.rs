@@ -104,6 +104,7 @@ impl From<&ValidParameters> for SamplingParams {
             top_p: v.top_p,
             frequency_penalty: v.frequency_penalty,
             repetition_penalty: v.repetition_penalty,
+            temperature: v.temperature,
             seed: v.seed,
         }
     }

@@ -37,6 +37,7 @@ namespace huggingface::tgi::backends::llamacpp {
             llama_sampler_chain_add(pSampler, llama_sampler_init_top_p(top_p, 1));
         }
 
+        llama_sampler_chain_add(pSampler, llama_sampler_init_temp(temperature));
         llama_sampler_chain_add(pSampler, llama_sampler_init_dist(seed));
         return {pSampler, llama_sampler_deleter};
     }

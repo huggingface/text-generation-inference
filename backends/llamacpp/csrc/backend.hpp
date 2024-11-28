@@ -48,6 +48,7 @@ namespace huggingface::tgi::backends::llamacpp {
         float_t top_p = 1.0f;
         float_t frequency_penalty = 0.0f;
         float_t repetition_penalty = 0.0f;
+        float_t temperature = 0.0f;
         uint64_t seed = 2014;
 
         /**
