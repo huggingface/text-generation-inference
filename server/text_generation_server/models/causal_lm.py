@@ -494,9 +494,12 @@ class CausalLMBatch(Batch):
             inputs.append(concat_text_chunks(r.input_chunks.chunks))
             top_n_tokens.append(r.top_n_tokens)
             max_truncation = max(max_truncation, r.truncate)
-
-        max_new_tokens = max(r.stopping_criteria.max_new_tokens for r in requests)
+  
         max_input_length = max_truncation
+        if max_input_length < PAD_SEQUENCE_TO_MULTIPLE_OF:
+             max_input_length = PAD_SEQUENCE_TO_MULTIPLE_OF
+        max_new_tokens = max(r.stopping_criteria.max_new_tokens for r in requests)
+
         # TODO: by tokenizing all inputs at once we loose information on actual input lengths
         # this means that we cannot shift inputs to the left after a long input sequence
         # was filtered out
