@@ -94,7 +94,7 @@ fn main() {
         .unwrap_or(out_dir.join("dist"));
 
     // Build the backend
-    let deps_path = build_backend(is_debug, opt_level, out_dir.as_path(), &install_path);
+    let _ = build_backend(is_debug, opt_level, out_dir.as_path(), &install_path);
 
     // Build the FFI layer calling the backend above
     build_ffi_layer(is_debug, &install_path);

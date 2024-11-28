@@ -28,6 +28,7 @@ use tracing::{debug, error, info};
 ///
 /// returns: usize Integer greater than 0 representing the number of CPU cores on the machine
 ///
+#[cfg(not(test))]
 fn get_num_cores() -> usize {
     match option_env!("TGI_USE_PHYSICAL_CORES")
         .unwrap_or("OFF")
@@ -42,6 +43,18 @@ fn get_num_cores() -> usize {
             info!("Using physical and logical cores on the machine");
             num_cpus::get()
         }
+    }
+}
+
+#[cfg(test)]
+fn get_num_cores() -> usize {
+    match option_env!("TGI_USE_PHYSICAL_CORES")
+        .unwrap_or("OFF")
+        .to_uppercase()
+        .as_str()
+    {
+        "ON" => 16,
+        _ => 32,
     }
 }
 
@@ -415,5 +428,68 @@ impl Backend for LlamaCppBackend {
 
     async fn health(&self, _: bool) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::backend::{get_cores_allocation, get_num_cores};
+
+    fn test_get_num_cores() {
+        std::env::set_var("TGI_USE_PHYSICAL_CORES", "OFF");
+        assert_eq!(get_num_cores(), 32);
+
+        std::env::set_var("TGI_USE_PHYSICAL_CORES", "ON");
+        assert_eq!(get_num_cores(), 16);
+    }
+
+    fn test_get_cores_allocation_single_instance() {
+        std::env::set_var("TGI_USE_PHYSICAL_CORES", "OFF");
+        let smt_allocation = get_cores_allocation(0);
+        assert_eq!(smt_allocation.len(), 1);
+        assert_eq!(
+            smt_allocation[0].clone().collect::<Vec<_>>(),
+            (0..32).collect::<Vec<_>>()
+        );
+
+        std::env::set_var("TGI_USE_PHYSICAL_CORES", "ON");
+        let smt_allocation = get_cores_allocation(0);
+        assert_eq!(smt_allocation.len(), 1);
+        assert_eq!(
+            smt_allocation[0].clone().collect::<Vec<_>>(),
+            (0..16).collect::<Vec<_>>()
+        );
+    }
+
+    fn test_get_cores_allocation_multi_instances() {
+        for cores_per_instance in [1, 2, 4, 8, 16, 3, 7] {
+            std::env::set_var("TGI_USE_PHYSICAL_CORES", "OFF");
+
+            let num_instances = 32 / cores_per_instance;
+            let smt_allocation = get_cores_allocation(cores_per_instance);
+
+            for i in 0..num_instances {
+                let start = i * cores_per_instance;
+                let end = start + cores_per_instance;
+                assert_eq!(
+                    smt_allocation[i].clone().collect::<Vec<_>>(),
+                    (start..end).collect::<Vec<_>>()
+                );
+            }
+
+            std::env::set_var("TGI_USE_PHYSICAL_CORES", "ON");
+            let num_instances = 16 / cores_per_instance;
+            let smt_allocation = get_cores_allocation(cores_per_instance);
+            assert_eq!(smt_allocation.len(), num_instances);
+
+            for i in 0..num_instances {
+                let start = i * cores_per_instance;
+                let end = start + cores_per_instance;
+                assert_eq!(
+                    smt_allocation[i].clone().collect::<Vec<_>>(),
+                    (start..end).collect::<Vec<_>>()
+                );
+            }
+        }
     }
 }
