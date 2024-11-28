@@ -66,11 +66,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     openssl \
     python3.11-dev \
     python3.11-venv \
-    ibgomp1
+    libgomp1
 
 COPY --from=builder /usr/src/text-generation-inference/target/release-opt/text-generation-backend-llamacpp /usr/src/text-generation-inference/text-generation-launcher
 COPY --from=builder /usr/src/text-generation-inference/dist /usr/
-
+COPY --from=builder /usr/src/text-generation-inference/backends/llamacpp/requirements.txt requirements.txt
+RUN /usr/bin/python3.11 -m venv /usr/src/text-generation-inference/venv
+ENV PATH="/usr/src/text-generation-inference/venv/bin:$PATH"
+RUN pip3 install --no-cache-dir -r requirements.txt
 ENV PORT=8080
 WORKDIR /usr/src/text-generation-inference
 ENTRYPOINT ["text-generation-launcher"]
