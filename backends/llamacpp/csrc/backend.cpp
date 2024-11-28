@@ -28,7 +28,10 @@ namespace huggingface::tgi::backends::llamacpp {
                 false,
                 false
         ));
-        llama_sampler_chain_add(pSampler, llama_sampler_init_top_k(static_cast<int32_t>(top_k)));
+
+        if (top_k > 0) {
+            llama_sampler_chain_add(pSampler, llama_sampler_init_top_k(static_cast<int32_t>(top_k)));
+        }
 
         if (0 < top_p && top_p < 1) {
             llama_sampler_chain_add(pSampler, llama_sampler_init_top_p(top_p, 1));
