@@ -216,6 +216,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         libswscale-dev \
         && rm -rf /var/lib/apt/lists/*
 
+# Add ffmpeg libraries to the path
+ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+
 # Copy conda with PyTorch installed
 COPY --from=pytorch-install /opt/conda /opt/conda
 
