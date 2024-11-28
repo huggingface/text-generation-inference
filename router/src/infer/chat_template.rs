@@ -75,8 +75,9 @@ impl ChatTemplate {
         };
 
         let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
-
-        self.template
+        let final_message = messages.last().cloned();
+        let mut rendered_template = self
+            .template
             .render(ChatTemplateInputs {
                 messages,
                 bos_token: self.bos_token.as_deref(),
@@ -84,7 +85,24 @@ impl ChatTemplate {
                 add_generation_prompt: true,
                 tools,
             })
-            .map_err(InferError::TemplateError)
+            .map_err(InferError::TemplateError)?;
+
+        // if the last message is from the assistant, continue the generation prompt
+        rendered_template = match final_message {
+            Some(msg) if msg.role == "assistant" => {
+                match rendered_template.rfind(msg.content.as_str()) {
+                    // implementation based on feature in transformers pipeline
+                    // https://github.com/huggingface/transformers/blob/1cf17077bf2d4affed31387c0943251a4ba8fab7/src/transformers/pipelines/text_generation.py#L418
+                    Some(index) => rendered_template[..index + msg.content.len()]
+                        .trim_end()
+                        .to_string(),
+                    None => rendered_template,
+                }
+            }
+            _ => rendered_template,
+        };
+
+        Ok(rendered_template)
     }
 }
 
