@@ -1,0 +1,1 @@
+transformers==4.45.2 ; python_version >= "3.9" and python_version < "3.13"
