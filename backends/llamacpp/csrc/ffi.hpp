@@ -43,6 +43,15 @@ namespace huggingface::tgi::backends::llamacpp {
         return std::shared_ptr<llama_model>(model, llama_model_deleter);
     };
 
+    auto get_llama_context_params = [](size_t num_threads) {
+        auto params = llama_context_default_params();
+        params.n_threads = num_threads;
+        params.n_threads_batch = num_threads;
+        params.flash_attn = true;
+        params.no_perf = false;
+        return params;
+    };
+
     /**
      * llama.cpp backend specific exception mapped from `backend_exception_t` to throw at the FFI level and
      * allow automatic implementation of Result<_, Exception> from C++ to Rust
@@ -64,7 +73,7 @@ namespace huggingface::tgi::backends::llamacpp {
          * @param num_threads The number of threads the worker is allowed to spawn accross for its threadpool
          */
         explicit llama_cpp_worker_frontend_t(llama_model *model, int32_t num_threads):
-            model_{ make_shared_llama_model(model) }, worker_(model_, {.n_ubatch = 1, .n_threads = num_threads, .no_perf = true}) {}
+            model_{ make_shared_llama_model(model) }, worker_(model_, get_llama_context_params(num_threads)) {}
 
         /**
          * Generate a new set of tokens from the provided `input_tokens`, streaming each individual token generated
