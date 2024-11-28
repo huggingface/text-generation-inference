@@ -176,7 +176,7 @@ impl LlamaCppBackend {
         // Allocate all the workers
         let cores_allocation = get_cores_allocation(num_cores_per_instance as usize);
         cores_allocation.iter().for_each(|affinity| {
-            match Self::allocate_worker(path, num_cores_per_instance as u32) {
+            match Self::allocate_worker(path, affinity.len() as u32) {
                 Ok(worker) => {
                     let tokenizer = Arc::clone(&tokenizer);
                     let affinity = affinity.clone().collect::<Vec<_>>();
