@@ -64,7 +64,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt install -y \
     numactl \
     openssl \
-    python3.11-dev
+    python3.11-dev \
+    python3.11-venv \
+    ibgomp1
 
 COPY --from=builder /usr/src/text-generation-inference/target/release-opt/text-generation-backend-llamacpp /usr/src/text-generation-inference/text-generation-launcher
 COPY --from=builder /usr/src/text-generation-inference/dist /usr/
