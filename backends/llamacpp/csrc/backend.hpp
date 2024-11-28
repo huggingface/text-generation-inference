@@ -75,7 +75,7 @@ namespace huggingface::tgi::backends::llamacpp {
     struct generation_context_t {
         generation_params_t generation_params;
         sampling_params_t sampling_params;
-        std::span<const llama_token> input_tokens;
+        std::span<llama_token> input_tokens;
     };
 
     /**
