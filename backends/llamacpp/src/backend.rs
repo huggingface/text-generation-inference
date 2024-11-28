@@ -70,10 +70,6 @@ fn get_cores_allocation(num_cores_per_instance: usize) -> Vec<Range<usize>> {
 
     // If we have spare cores, let's see if we can give everyone one more core
     let num_instances = cores_count / effective_num_cores_per_instance;
-    if cores_count - (num_instances * effective_num_cores_per_instance) >= num_instances {
-        effective_num_cores_per_instance = effective_num_cores_per_instance + 1;
-        warn!("Overriding cores allocation to {effective_num_cores_per_instance} per instance");
-    }
 
     (0..num_instances)
         .map(|ordinal| {
