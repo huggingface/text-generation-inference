@@ -199,7 +199,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 COPY --from=pytorch-install /opt/conda /opt/conda
 
 # Export text-generation-server Python requirements from poetry lock file
-FROM poetry-install AS poetry-requirements
+FROM conda-install AS poetry-requirements
 
 COPY server/poetry.lock poetry.lock
 COPY server/pyproject.toml pyproject.toml
