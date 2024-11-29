@@ -211,7 +211,7 @@ RUN pip install poetry && poetry export -f requirements.txt  \
 FROM conda-install AS base
 
 # Copy the requirements file generated from the poetry lock
-COPY --from=poetry-requirements /usr/src/requirements_poetry.txt requirements_poetry.txt
+COPY --from=poetry-requirements /usr/src/requirements_poetry.txt server/requirements_poetry.txt
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
