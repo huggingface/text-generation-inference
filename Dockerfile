@@ -204,9 +204,11 @@ FROM conda-install AS poetry-requirements
 COPY server/poetry.lock poetry.lock
 COPY server/pyproject.toml pyproject.toml
 
-RUN pip install poetry && poetry export -f requirements.txt  \
-    --extras "attention bnb accelerate compressed-tensors marlin moe quantize peft outlines" \
-    --output requirements_poetry.txt
+RUN pip install poetry && \
+    poetry self add poetry-plugin-export && \
+    poetry export -f requirements.txt \
+        --extras "attention bnb accelerate compressed-tensors marlin moe quantize peft outlines" \
+        --output requirements_poetry.txt
 
 FROM conda-install AS base
 
