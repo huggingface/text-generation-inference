@@ -37,7 +37,9 @@ namespace huggingface::tgi::backends::llamacpp {
      */
     enum backend_error_t : uint8_t {
         // Provided model filepath doesnt exist
-        MODEL_FILE_DOESNT_EXIST = 1
+        MODEL_FILE_DOESNT_EXIST = 1,
+        NO_KV_SLOT_AVAILABLE = 2,
+        DECODING_ERROR = 3
     };
 
     /**

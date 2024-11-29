@@ -32,7 +32,6 @@ namespace huggingface::tgi::backends::llamacpp {
 #include "backends/llamacpp/src/lib.rs.h"
 #include "rust/cxx.h"
 
-
 namespace huggingface::tgi::backends::llamacpp {
 
     /**
@@ -56,7 +55,12 @@ namespace huggingface::tgi::backends::llamacpp {
      * llama.cpp backend specific exception mapped from `backend_exception_t` to throw at the FFI level and
      * allow automatic implementation of Result<_, Exception> from C++ to Rust
      */
-    class llama_cpp_backend_exception_t : std::exception {};
+    class llama_cpp_backend_exception_t : std::exception {
+    public:
+        backend_error_t error;
+
+        llama_cpp_backend_exception_t(const backend_error_t error): error(error) {};
+    };
 
     /**
      * Llama.cpp frontend over the worker interfacing with Rust FFI layer
@@ -119,7 +123,7 @@ namespace huggingface::tgi::backends::llamacpp {
             if(const auto result = worker_.generate(generation_context, context_forwarding_callback); result.has_value()) [[likely]] {
                 return *result;
             } else {
-                throw llama_cpp_backend_exception_t {};
+                throw llama_cpp_backend_exception_t(result.error());
             }
         }
     };
@@ -231,6 +235,29 @@ namespace huggingface::tgi::backends::llamacpp {
         llama_numa_init(ggml_numa_strategy::GGML_NUMA_STRATEGY_NUMACTL);
     }
 }
+
+// Error handle converting to rust Result<T, CxxError>
+template <typename Try, typename Fail>
+static void trycatch(Try &&func, Fail &&fail) noexcept try {
+    func();
+} catch (const huggingface::tgi::backends::llamacpp::llama_cpp_backend_exception_t &e) {
+    switch (e.error) {
+        case huggingface::tgi::backends::llamacpp::backend_error_t::MODEL_FILE_DOESNT_EXIST: {
+            fail("Specified model path doesn't exist.");
+            break;
+        }
+        case huggingface::tgi::backends::llamacpp::backend_error_t::NO_KV_SLOT_AVAILABLE: {
+            fail("Keys/Values cache is full, no slot available for the new batch.");
+            break;
+        }
+        case huggingface::tgi::backends::llamacpp::backend_error_t::DECODING_ERROR: {
+            fail("An error what detected during the generation.");
+            break;
+        }
+    }
+    fail();
+}
+
 
 
 #endif //TGI_LLAMA_CPP_BACKEND_FFI_HPP

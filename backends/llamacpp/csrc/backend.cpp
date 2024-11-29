@@ -125,6 +125,12 @@ namespace huggingface::tgi::backends::llamacpp {
                     // Update the batch for the next generation
                     sampling_index = update_batch_for_decoding(batch, new_token_id, position);
                     position += 1;
+                } else {
+                    if (status == 1) {
+                        return backend_error_t::NO_KV_SLOT_AVAILABLE;
+                    } else {
+                        return backend_error_t::DECODING_ERROR;
+                    }
                 }
             }
 
