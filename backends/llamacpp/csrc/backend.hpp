@@ -17,18 +17,12 @@
 #include <vector>
 
 #include <llama.h>
+#include <llama-cpp.h>
 #include <thread>
 
 #define LLAMA_SUCCESS(x) x == 0
 
 namespace huggingface::tgi::backends::llamacpp {
-
-    static constexpr auto llama_context_deleter = [](llama_context *pContext) { llama_free(pContext); };
-    typedef std::unique_ptr<llama_context, decltype(llama_context_deleter)> llama_context_ptr;
-
-    static constexpr auto llama_sampler_deleter = [](llama_sampler *pSampler) { llama_sampler_free(pSampler); };
-    typedef std::unique_ptr<llama_sampler, decltype(llama_sampler_deleter)> llama_sampler_ptr;
-
     typedef std::function<bool(llama_token, float_t, bool, size_t)> llama_decode_callback;
     static constexpr auto llama_void_callback = [](llama_token, float_t, bool, size_t) -> bool { return false; };
 

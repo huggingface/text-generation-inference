@@ -36,7 +36,7 @@ namespace huggingface::tgi::backends::llamacpp {
 
         llama_sampler_chain_add(sampler, llama_sampler_init_temp(temperature));
         llama_sampler_chain_add(sampler, llama_sampler_init_dist(seed));
-        return {sampler, llama_sampler_deleter};
+        return llama_sampler_ptr(sampler);
     }
 
     std::expected<llama_batch, backend_error_t> get_batch_from_prompt(std::span<llama_token> prompt) {
