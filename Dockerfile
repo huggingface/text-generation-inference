@@ -174,7 +174,7 @@ COPY server/Makefile-flashinfer Makefile
 RUN make install-flashinfer
 
 # Text Generation Inference base image
-FROM nvidia/cuda:12.1.0-base-ubuntu22.04 AS base
+FROM nvidia/cuda:12.1.0-base-ubuntu22.04 AS conda-install
 
 # Conda env
 ENV PATH=/opt/conda/bin:$PATH \
@@ -197,6 +197,21 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 
 # Copy conda with PyTorch installed
 COPY --from=pytorch-install /opt/conda /opt/conda
+
+# Export text-generation-server Python requirements from poetry lock file
+FROM poetry-install AS poetry-requirements
+
+COPY server/poetry.lock poetry.lock
+COPY server/pyproject.toml pyproject.toml
+
+RUN pip install poetry && poetry export -f requirements.txt  \
+    --extras "attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines" \
+    --output requirements_poetry.txt
+
+FROM conda-install AS base
+
+# Copy the requirements file generated from the poetry lock
+COPY --from=poetry-requirements /usr/src/requirements_poetry.txt requirements_poetry.txt
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
@@ -233,7 +248,8 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install -r requirements_cuda.txt && \
-    pip install ".[attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir && \
+    pip install -r requirements_poetry.txt --no-cache-dir && \
+    pip install . --no-cache-dir && \
     pip install nvidia-nccl-cu12==2.22.3
 
 ENV LD_PRELOAD=/opt/conda/lib/python3.11/site-packages/nvidia/nccl/lib/libnccl.so.2
@@ -257,7 +273,6 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/l
 COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
-
 
 # AWS Sagemaker compatible image
 FROM base AS sagemaker
