@@ -115,6 +115,9 @@ fn main() {
     let spdlog_linkage_target = if is_debug { "spdlogd" } else { "spdlog" };
     println!("cargo:rustc-link-lib=dylib={spdlog_linkage_target}");
     println!("cargo:rustc-link-lib=dylib=ggml");
+    println!("cargo:rustc-link-lib=dylib=ggml-base");
+    println!("cargo:rustc-link-lib=dylib=ggml-cpu");
+    println!("cargo:rustc-link-lib=dylib=ggml-amx");
     println!("cargo:rustc-link-lib=dylib=llama");
 
     // Rerun if one of these file change
