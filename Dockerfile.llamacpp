@@ -54,6 +54,26 @@ ENV RUSTFLAGS="-L/usr/lib"
 ENV CMAKE_INSTALL_PREFIX=/usr/src/text-generation-inference/dist
 RUN cargo build --profile release-opt --package text-generation-backend-llamacpp --bin text-generation-backend-llamacpp --frozen
 
+FROM ubuntu:22.04 AS mimalloc-builder
+ENV DEBIAN_FRONTEND=noninteractive
+ENV MIMALLOC_VERSION=2.1.7
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt update && \
+    apt upgrade -y && \
+    apt install -y \
+    clang \
+    cmake \
+    ninja-build \
+    wget
+
+RUN wget https://github.com/microsoft/mimalloc/archive/refs/tags/v${MIMALLOC_VERSION}.tar.gz -O mimalloc-${MIMALLOC_VERSION}.tar.gz && \
+    tar -xzf mimalloc-${MIMALLOC_VERSION}.tar.gz && \
+    cd mimalloc-${MIMALLOC_VERSION} && \
+    cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -B build . && \
+    cmake --build build --parallel && \
+    cmake --install build
+
 FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -62,18 +82,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt update && \
     apt upgrade -y && \
     apt install -y \
+    libopenmpi3 \
     numactl \
     openssl \
     python3.11-dev \
-    python3.11-venv \
-    libgomp1
+    python3.11-venv
 
 COPY --from=builder /usr/src/text-generation-inference/target/release-opt/text-generation-backend-llamacpp /usr/src/text-generation-inference/text-generation-launcher
 COPY --from=builder /usr/src/text-generation-inference/dist /usr/
 COPY --from=builder /usr/src/text-generation-inference/backends/llamacpp/requirements.txt requirements.txt
+COPY --from=mimalloc-builder /usr/local/lib/libmimalloc.so.2.1 /usr/lib/libmimalloc.so.2.1
+
 RUN /usr/bin/python3.11 -m venv /usr/src/text-generation-inference/venv
 ENV PATH="/usr/src/text-generation-inference/venv/bin:$PATH"
 RUN pip3 install --no-cache-dir -r requirements.txt
 ENV PORT=8080
 WORKDIR /usr/src/text-generation-inference
-ENTRYPOINT ["text-generation-launcher"]
+ENTRYPOINT ["LD_PRELOAD=/usr/lib/libmimalloc.so.2.1", "text-generation-launcher"]
