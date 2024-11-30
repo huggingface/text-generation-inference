@@ -52,6 +52,7 @@ namespace huggingface::tgi::backends::trtllm {
                 return *maybe_request_id;
             } else {
                 SPDLOG_WARN("[FFI] Failed to submit request to the executor");
+                return maybe_request_id.error();
             }
         }
 
@@ -60,6 +61,4 @@ namespace huggingface::tgi::backends::trtllm {
             inner_.cancel(requestId);
         }
     };
-
-
 }
