@@ -17,6 +17,7 @@ set(CMAKE_CXX_STANDARD 23)
 
 include(FetchContent)
 include(ExternalProject)
+include(CheckCXXCompilerFlag)
 
 option(TGI_TRTLLM_BACKEND_BUILD_TESTS "Enable building the unittests suite" OFF)
 option(TGI_TRTLLM_BACKEND_BUILD_EXAMPLES "Enable building the examples suite" OFF)
@@ -32,6 +33,12 @@ find_package(CUDAToolkit 12.6 REQUIRED COMPONENTS CUDA::cudart CUDA::nvml)
 include(cmake/json.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/trtllm.cmake)
+
+# This attempt to detect if the compiler can emit warning if it can't apply return value optimization from a function
+check_cxx_compiler_flag("-Wnrvo" COMPILER_SUPPORT_WARNING_ON_NVRO)
+if(${COMPILER_SUPPORT_WARNING_ON_NVRO})
+    set(CMAKE_CXX_FLAGS "{CMAKE_CXX_FLAGS} -Wnvro")
+endif()
 
 # Let's build TRTLLM as part of CMake
 add_subdirectory("${trtllm_SOURCE_DIR}/cpp" "${trtllm_SOURCE_DIR}/..")
