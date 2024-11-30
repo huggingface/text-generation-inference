@@ -1,5 +1,4 @@
 #include <ranges>
-#include <utility>
 #include "backend.hpp"
 
 #include <spdlog/spdlog.h>
@@ -12,7 +11,7 @@ namespace huggingface::tgi::backends::trtllm {
 
     std::expected<request_id_t, backend_exception_t>
     backend_t::submit(std::span<tle::TokenIdType> token_ids, generation_params_t generation_params, sampling_params_t sampling_params) noexcept {
-        SPDLOG_DEBUG(FMT_STRING("Submitting {:d} tokens to the executor for scheduling"), token_ids.size());
+        SPDLOG_DEBUG("Submitting {:d} tokens to the executor for scheduling ({}, {})", token_ids.size(), generation_params, sampling_params);
         return executor_.enqueueRequest(tle::Request {
                 {token_ids.begin(), token_ids.end()},  // Making actual copy of the tokens
                 static_cast<tle::SizeType32>(generation_params.max_new_tokens),
@@ -28,11 +27,12 @@ namespace huggingface::tgi::backends::trtllm {
     }
 
     std::vector<tle::Response> backend_t::pull_tokens() noexcept {
+        SPDLOG_TRACE(FMT_STRING("Pulling out tokens ({:d} available)"), num_tokens_ready());
         return executor_.awaitResponses();
     }
 
     void backend_t::cancel(request_id_t request_id) noexcept {
-        SPDLOG_INFO(FMT_STRING("Cancelling request: {:d}"), request_id);
+        SPDLOG_TRACE(FMT_STRING("Cancelling request: {:d}"), request_id);
         executor_.cancelRequest(request_id);
     }
 }

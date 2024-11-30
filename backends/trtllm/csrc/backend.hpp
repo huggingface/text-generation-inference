@@ -5,6 +5,7 @@
 #include <list>
 #include <span>
 
+#include <spdlog/fmt/fmt.h>
 #include <tensorrt_llm/executor/executor.h>
 
 namespace huggingface::tgi::backends::trtllm {
@@ -98,3 +99,19 @@ namespace huggingface::tgi::backends::trtllm {
         void cancel(request_id_t) noexcept;
     };
 }
+
+template <> struct fmt::formatter<huggingface::tgi::backends::trtllm::generation_params_t>: formatter<string_view> {
+    auto format(huggingface::tgi::backends::trtllm::generation_params_t c, format_context& ctx) const -> format_context::iterator {
+        return format_to(ctx.out(), "generation_params_t{{ max_new_tokens={:d} }}", c.max_new_tokens);
+    }
+};
+
+template <> struct fmt::formatter<huggingface::tgi::backends::trtllm::sampling_params_t>: formatter<string_view> {
+    auto format(huggingface::tgi::backends::trtllm::sampling_params_t c, format_context& ctx) const -> format_context::iterator {
+        return format_to(
+                ctx.out(),
+                "sampling_params_t{{ top_k={:d}, top_p={:.3f}, repetition_penalty={:.3f}, frequency_penalty={:.3f}, length_penalty={:.3f}, temperature={:.3f}, seed={:d} }}",
+                c.top_k, c.top_p, c.repetition_penalty, c.frequency_penalty, c.length_penalty, c.temperature, c.seed
+        );
+    }
+};
