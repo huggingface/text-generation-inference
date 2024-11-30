@@ -2,15 +2,19 @@
 #include <cstdint>
 #include <exception>
 #include <expected>
+#include <fstream>
 #include <list>
 #include <span>
 
+#include <nlohmann/json.hpp>
 #include <spdlog/fmt/fmt.h>
 #include <tensorrt_llm/executor/executor.h>
 
+#include <hardware.hpp>
+
 namespace huggingface::tgi::backends::trtllm {
     namespace tle = tensorrt_llm::executor;
-
+    using json = nlohmann::json;
     using request_id_t = uint32_t;
     using token_id_t = tle::TokenIdType;
 
@@ -33,7 +37,7 @@ namespace huggingface::tgi::backends::trtllm {
         float_t temperature;
         uint64_t seed;
 
-        explicit operator tle::SamplingConfig() const {
+        constexpr explicit operator tle::SamplingConfig() const {
             return tle::SamplingConfig {
                 1,
                 top_k,
@@ -56,6 +60,79 @@ namespace huggingface::tgi::backends::trtllm {
     /**
      *
      */
+    struct generation_config_t {
+        float_t top_p;
+        float_t temperature;
+        std::list<std::vector<int32_t>> stop_words;
+
+        explicit generation_config_t(const json &config):
+            top_p(config.value("top_p", 1.0f)), temperature( config.value("temperature", 1.0f)), stop_words(0) {
+            if(config.contains("/eos_token_id"_json) && config["/eos_token_id"_json].is_array()) {
+                const auto& eos_token_id = config["eos_token_id"];
+                std::for_each(eos_token_id.begin(), eos_token_id.end(), [this](int32_t token_id) {
+                    stop_words.push_back({token_id});
+                });
+            }
+        }
+    };
+
+    /**
+     *
+     */
+    class backend_workspace_t {
+    private:
+        constexpr static auto as_json = [](const std::filesystem::path &path) -> json {
+            std::ifstream config_f(path);
+            return json::parse(config_f);
+        };
+
+        std::filesystem::path engines_folder_;
+        std::filesystem::path executor_worker_path_;
+        json config_;
+        generation_config_t generation_config_;
+
+    public:
+        backend_workspace_t(std::filesystem::path &engines_folder, std::filesystem::path &executor_worker_path):
+            engines_folder_(engines_folder),
+            executor_worker_path_(executor_worker_path),
+            config_(as_json(engines_folder / "config.json")),
+            generation_config_(as_json(engines_folder / "generation_config.json")) {};
+
+        backend_workspace_t(std::filesystem::path &&engines_folder, std::filesystem::path &&executor_worker_path):
+                engines_folder_(engines_folder),
+                executor_worker_path_(executor_worker_path),
+                config_(as_json(engines_folder / "config.json")),
+                generation_config_(as_json(engines_folder / "generation_config.json")) {};
+
+        /**
+         * Path to the folder containing the TensorRT-LLM engines
+         * @return local filesystem path to the folder
+         */
+        [[nodiscard]] std::filesystem::path engines_folder() const { return engines_folder_; }
+
+        /**
+         *
+         * @return
+         */
+        [[nodiscard]] const generation_config_t& generation_config() const { return generation_config_; }
+
+        /**
+         *
+         * @return
+         */
+        [[nodiscard]] constexpr tle::ParallelConfig parallel_config() const;
+
+        /**
+         *
+         * @return
+         */
+        [[nodiscard]] constexpr tle::ExecutorConfig executor_config() const;
+    };
+
+
+    /**
+     *
+     */
     class backend_exception_t: std::exception  {};
 
     /**
@@ -63,10 +140,14 @@ namespace huggingface::tgi::backends::trtllm {
      */
     class backend_t {
     private:
+        backend_workspace_t workspace;
         tle::Executor executor_;
-        std::list<std::vector<int32_t>> stop_words_;
 
     public:
+        backend_t(std::filesystem::path &engines_folder, std::filesystem::path &executor_worker_path);
+        backend_t(std::filesystem::path &&engines_folder, std::filesystem::path &&executor_worker_path)
+            : backend_t(engines_folder, executor_worker_path) {};
+
         /**
          * Submit a new request to the executor
          * @param token_ids
@@ -97,6 +178,13 @@ namespace huggingface::tgi::backends::trtllm {
          * @param request_id Request's Identifier to remove from the in-flight executor
          */
         void cancel(request_id_t) noexcept;
+    };
+
+    /**
+     * Create a TensorRT-LLM executor from a workspace
+     */
+    const auto executor_factory_initializer = [](const backend_workspace_t &workspace) -> tle::Executor {
+        return { workspace.engines_folder(), tensorrt_llm::executor::ModelType::kDECODER_ONLY, workspace.executor_config() };
     };
 }
 

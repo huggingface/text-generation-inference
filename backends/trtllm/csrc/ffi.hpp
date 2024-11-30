@@ -1,4 +1,4 @@
-
+#include <memory>
 #include <tensorrt_llm/common/tllmException.h>
 
 namespace rust::behavior {
@@ -13,6 +13,7 @@ namespace rust::behavior {
 #include <spdlog/spdlog.h>
 #include <spdlog/pattern_formatter.h>
 #include <spdlog/fmt/fmt.h>
+
 #include <backend.hpp>
 
 namespace huggingface::tgi::backends::trtllm {
@@ -21,7 +22,8 @@ namespace huggingface::tgi::backends::trtllm {
         backend_t inner_;
 
     public:
-        tensorrt_llm_backend_t(std::filesystem::path &engine_folder): inner_(engine_folder) {}
+        tensorrt_llm_backend_t(std::filesystem::path &&engine_folder, std::filesystem::path &&executor_worker_path)
+            : inner_(engine_folder) {}
 
         size_t num_tokens_ready() const noexcept {
             return inner_.num_tokens_ready();
@@ -61,4 +63,8 @@ namespace huggingface::tgi::backends::trtllm {
             inner_.cancel(requestId);
         }
     };
+
+    std::unique_ptr<tensorrt_llm_backend_t> create_backend_from_engine_folder(rust::Str engines_folder, rust::Str executor_worker_path) {
+        return std::make_unique<tensorrt_llm_backend_t>(engines_folder);
+    }
 }
