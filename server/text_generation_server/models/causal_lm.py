@@ -1202,7 +1202,6 @@ class CausalLM(Model):
         decode_batch_size_list.append(max_decode_batch_size)
         decode_batch_size_list.sort(reverse=True)
 
-        self.limit_hpu_graph = True
         try:
             for batch_size in decode_batch_size_list:
                 batches= []
@@ -1234,31 +1233,30 @@ class CausalLM(Model):
                 f"Memory stats: {mem_stats} "
             )
 
-        # Warmup prefill batch_size
-        max_input_length =  request.max_input_length
-        prefill_batch_size_list = []
-        prefill_seqlen_list = []
-        #Prefill and decode warmup
-        try:
-            for batch_size in range(max_prefill_batch_size, 0, -PREFILL_BATCH_BUCKET_SIZE):
-                prefill_batch_size_list.append(batch_size)
-                for seq_len in range(max_input_length, 0, -PAD_SEQUENCE_TO_MULTIPLE_OF):
-                    prefill_seqlen_list.append(seq_len)
-                    batch = self.generate_warmup_batch(request, seq_len, batch_size)
-                    _, prefill_batch, _ = self.generate_token([batch])
-                    del batch
-                    del prefill_batch
-        except:
-            raise RuntimeError(
-                f"Not enough memory to run following prefill batch_size."
-                f"Prefill batch size list:{prefill_batch_size_list}"
-                f"Prefill sequence length list:{prefill_seqlen_list}"
-                f"You need to decrease `--max-batch-prefill-tokens`"
-            )
-        prefill_batch_size_list.sort()
-        prefill_seqlen_list.sort()
         limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "false").lower() == "true"
         if limit_hpu_graph == False:
+            # Warmup prefill batch_size
+            max_input_length =  request.max_input_length
+            prefill_batch_size_list = []
+            prefill_seqlen_list = []
+            try:
+                for batch_size in range(max_prefill_batch_size, 0, -PREFILL_BATCH_BUCKET_SIZE):
+                    prefill_batch_size_list.append(batch_size)
+                    for seq_len in range(max_input_length, 0, -PAD_SEQUENCE_TO_MULTIPLE_OF):
+                        prefill_seqlen_list.append(seq_len)
+                        batch = self.generate_warmup_batch(request, seq_len, batch_size)
+                        _, prefill_batch, _ = self.generate_token([batch])
+                        del batch
+                        del prefill_batch
+            except:
+                raise RuntimeError(
+                    f"Not enough memory to run following prefill batch_size."
+                    f"Prefill batch size list:{prefill_batch_size_list}"
+                    f"Prefill sequence length list:{prefill_seqlen_list}"
+                    f"You need to decrease `--max-batch-prefill-tokens`"
+                )
+            prefill_batch_size_list.sort()
+            prefill_seqlen_list.sort()
             mem_stats = get_hpu_memory_stats(self.device)
             logger.info(
                     f"\nFollowing prefill and decode warmup successfully.\n"
