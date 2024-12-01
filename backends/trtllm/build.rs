@@ -90,15 +90,16 @@ fn build_ffi_layer(deps_folder: &PathBuf, is_debug: bool) {
     CFG.include_prefix = "backends/trtllm";
     cxx_build::bridge("src/lib.rs")
         .static_flag(true)
+        .std("c++23")
         .include(deps_folder.join("fmt-src").join("include"))
         .include(deps_folder.join("spdlog-src").join("include"))
         .include(deps_folder.join("json-src").join("include"))
         .include(deps_folder.join("trtllm-src").join("cpp").join("include"))
         .include("/usr/local/cuda/include")
         .include("/usr/local/tensorrt/include")
-        .file("src/ffi.cpp")
-        .std("c++20")
-        .define("NDEBUG", ndebug)
+        .include("csrc/")
+        .file("csrc/ffi.hpp")
+        .define("TGI_TRTLLM_BACKEND_DEBUG", ndebug)
         .compile("tgi_trtllm_backend");
 
     println!("cargo:rerun-if-changed=CMakeLists.txt");
@@ -106,10 +107,10 @@ fn build_ffi_layer(deps_folder: &PathBuf, is_debug: bool) {
     println!("cargo:rerun-if-changed=cmake/json.cmake");
     println!("cargo:rerun-if-changed=cmake/fmt.cmake");
     println!("cargo:rerun-if-changed=cmake/spdlog.cmake");
-    println!("cargo:rerun-if-changed=include/backend.h");
-    println!("cargo:rerun-if-changed=lib/backend.cpp");
-    println!("cargo:rerun-if-changed=include/ffi.h");
-    println!("cargo:rerun-if-changed=src/ffi.cpp");
+    println!("cargo:rerun-if-changed=csrc/backend.hpp");
+    println!("cargo:rerun-if-changed=csrc/backend.cpp");
+    println!("cargo:rerun-if-changed=csrc/hardware.hpp");
+    println!("cargo:rerun-if-changed=csrc/ffi.hpp");
 }
 
 fn main() {
