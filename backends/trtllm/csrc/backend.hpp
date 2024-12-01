@@ -7,7 +7,9 @@
 #include <span>
 
 #include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
 #include <spdlog/fmt/fmt.h>
+
 #include <tensorrt_llm/executor/executor.h>
 
 #include <hardware.hpp>
@@ -58,7 +60,8 @@ namespace huggingface::tgi::backends::trtllm {
     };
 
     /**
-     *
+     * Represent possible values from transformers generation `generation_config.json`.
+     * It usually stores default sampling parameters to use, such as top_p, temperature, etc.
      */
     struct generation_config_t {
         float_t top_p;
@@ -69,15 +72,18 @@ namespace huggingface::tgi::backends::trtllm {
             top_p(config.value("top_p", 1.0f)), temperature( config.value("temperature", 1.0f)), stop_words(0) {
             if(config.contains("/eos_token_id"_json) && config["/eos_token_id"_json].is_array()) {
                 const auto& eos_token_id = config["eos_token_id"];
-                std::for_each(eos_token_id.begin(), eos_token_id.end(), [this](int32_t token_id) {
-                    stop_words.push_back({token_id});
+                std::for_each(eos_token_id.begin(), eos_token_id.end(), [this](const auto token_id) {
+                    stop_words.emplace_back(token_id.template get<int32_t>());
                 });
+
+                SPDLOG_DEBUG("Detected {:d} predefined stop_words from generation_config.json", stop_words.size());
             }
         }
     };
 
     /**
-     *
+     * Helper class representing various items which are stored within the TensorRT-LLM engines folder and
+     * can be retrieved at runtime
      */
     class backend_workspace_t {
     private:
@@ -111,32 +117,41 @@ namespace huggingface::tgi::backends::trtllm {
         [[nodiscard]] std::filesystem::path engines_folder() const { return engines_folder_; }
 
         /**
-         *
-         * @return
+         * Hugging Face transformers' generated `generation_config_t` mapping information stored in the
+         * `generation_config.json` holding default generation parameters.
+         * @return `generation_config_t`
          */
         [[nodiscard]] const generation_config_t& generation_config() const { return generation_config_; }
 
-        /**
-         *
-         * @return
+/**
+         * Factory method returning new `tensorrt_llm::executor::ParallelConfig` instance used
+         * to initialize `tensorrt_llm::executor::Executor` with multi-instance communication information
+         * @return `tensorrt_llm::executor::ParallelConfig` instance
          */
         [[nodiscard]] constexpr tle::ParallelConfig parallel_config() const;
 
         /**
-         *
-         * @return
+         * Factory method returning new `tensorrt_llm::executor::ExecutorConfig` instance used
+         * to initialize `tensorrt_llm::executor::Executor`
+         * @return `tensorrt_llm::executor::ExecutorConfig` instance
          */
         [[nodiscard]] constexpr tle::ExecutorConfig executor_config() const;
     };
 
-
     /**
-     *
+     * Error raised by the underlying backend implementation
      */
-    class backend_exception_t: std::exception  {};
+    enum backend_error_t {
+        EXECUTOR_NOT_READY = 3,
+        EXECUTOR_SCHEDULING_FAILED = 4,
+    };
+
 
     /**
-     *
+     * Actual TensorRT-LLM backend implementation interacting with TensorRT-LLM Executor service to
+     * - schedule new request
+     * - pull status of submitted request(s)
+     * - cancel submitted request(s)
      */
     class backend_t {
     private:
@@ -156,7 +171,7 @@ namespace huggingface::tgi::backends::trtllm {
          * @return Either newly submitted request's id or the error why it failed to submit
          */
         [[nodiscard("Discarded executor request_id needs to be assigned")]]
-        std::expected<request_id_t, backend_exception_t>
+        std::expected<request_id_t, backend_error_t>
         submit(std::span<token_id_t> token_ids, generation_params_t generation_params, sampling_params_t sampling_params) noexcept;
 
         /**
@@ -188,15 +203,18 @@ namespace huggingface::tgi::backends::trtllm {
     };
 }
 
+/**
+ * Helper structures to define formatting strategies for various types in the backend
+ */
 template <> struct fmt::formatter<huggingface::tgi::backends::trtllm::generation_params_t>: formatter<string_view> {
-    auto format(huggingface::tgi::backends::trtllm::generation_params_t c, format_context& ctx) const -> format_context::iterator {
-        return format_to(ctx.out(), "generation_params_t{{ max_new_tokens={:d} }}", c.max_new_tokens);
+    auto format(huggingface::tgi::backends::trtllm::generation_params_t const& c, format_context& ctx) const -> format_context::iterator {
+        return fmt::format_to(ctx.out(), "generation_params_t{{ max_new_tokens={:d} }}", c.max_new_tokens);
     }
 };
 
 template <> struct fmt::formatter<huggingface::tgi::backends::trtllm::sampling_params_t>: formatter<string_view> {
-    auto format(huggingface::tgi::backends::trtllm::sampling_params_t c, format_context& ctx) const -> format_context::iterator {
-        return format_to(
+    auto format(huggingface::tgi::backends::trtllm::sampling_params_t const& c, format_context& ctx) const -> format_context::iterator {
+        return fmt::format_to(
                 ctx.out(),
                 "sampling_params_t{{ top_k={:d}, top_p={:.3f}, repetition_penalty={:.3f}, frequency_penalty={:.3f}, length_penalty={:.3f}, temperature={:.3f}, seed={:d} }}",
                 c.top_k, c.top_p, c.repetition_penalty, c.frequency_penalty, c.length_penalty, c.temperature, c.seed

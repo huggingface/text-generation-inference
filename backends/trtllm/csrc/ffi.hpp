@@ -1,5 +1,8 @@
 #include <memory>
+#include <thread>
+
 #include <tensorrt_llm/common/tllmException.h>
+#include <tensorrt_llm/plugins/api/tllmPlugin.h>
 
 namespace rust::behavior {
     template<typename Try, typename Fail>
@@ -17,13 +20,15 @@ namespace rust::behavior {
 #include <backend.hpp>
 
 namespace huggingface::tgi::backends::trtllm {
+    std::once_flag backend_initialized_flag;
+
     class tensorrt_llm_backend_t {
     private:
         backend_t inner_;
 
     public:
         tensorrt_llm_backend_t(std::filesystem::path &&engine_folder, std::filesystem::path &&executor_worker_path)
-            : inner_(engine_folder) {}
+            : inner_(engine_folder, executor_worker_path) {}
 
         size_t num_tokens_ready() const noexcept {
             return inner_.num_tokens_ready();
@@ -64,7 +69,46 @@ namespace huggingface::tgi::backends::trtllm {
         }
     };
 
+    void initialize_logging() {
+#ifndef TGI_TRTLLM_BACKEND_DEBUG
+        if (const auto TRTLLM_LOG_LEVEL_CSTR = std::getenv("TRTLLM_LOG_LEVEL")) {
+        std::string log_level(TRTLLM_LOG_LEVEL_CSTR);
+        std::transform(log_level.begin(), log_level.end(), log_level.begin(), [](unsigned char c) {
+            return std::tolower(c);
+        });
+
+        if (log_level == "debug")
+            spdlog::set_level(spdlog::level::debug);
+        else
+            spdlog::set_level(spdlog::level::info);
+    }
+#else
+        spdlog::set_level(spdlog::level::debug);
+#endif
+    }
+
+    void initialize_tensorrt_llm_backend() {
+        SPDLOG_INFO("Initializing TGI - TensoRT-LLM Backend (v{})", tle::version());
+
+        // Initialize everyone
+        initialize_logging();
+        nvmlInit_v2();
+        initTrtLlmPlugins();
+
+        const auto numGpus = huggingface::tgi::hardware::cuda::get_device_count();
+        if (numGpus.has_value()) {
+            SPDLOG_INFO("[FFI] Detected {:d} Nvidia GPU(s)", numGpus.value());
+        } else {
+            SPDLOG_WARN("[FFI] Failed to detected Nvidia GPU(s) on the system");
+            // todo: throw
+        }
+    }
+
     std::unique_ptr<tensorrt_llm_backend_t> create_backend_from_engine_folder(rust::Str engines_folder, rust::Str executor_worker_path) {
-        return std::make_unique<tensorrt_llm_backend_t>(engines_folder);
+        std::call_once(backend_initialized_flag, initialize_tensorrt_llm_backend);
+        return std::make_unique<tensorrt_llm_backend_t>(
+            std::filesystem::path(std::string_view(engines_folder.begin(), engines_folder.end()), std::filesystem::path::format::auto_format),
+            std::filesystem::path(std::string_view(executor_worker_path.begin(), executor_worker_path.end()), std::filesystem::path::format::auto_format)
+        );
     }
 }

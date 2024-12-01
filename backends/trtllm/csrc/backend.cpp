@@ -48,7 +48,7 @@ namespace huggingface::tgi::backends::trtllm {
     }
 
     std::expected<request_id_t, backend_exception_t>
-    backend_t::submit(std::span<tle::TokenIdType> token_ids, generation_params_t generation_params, sampling_params_t sampling_params) noexcept {
+    backend_t::submit(const std::span<tle::TokenIdType> token_ids, const generation_params_t generation_params, const sampling_params_t sampling_params) noexcept {
         SPDLOG_DEBUG("Submitting {:d} tokens to the executor for scheduling ({}, {})", token_ids.size(), generation_params, sampling_params);
         return executor_.enqueueRequest(tle::Request {
                 {token_ids.begin(), token_ids.end()},  // Making actual copy of the tokens
