@@ -1560,9 +1560,6 @@ class FlashCausalLM(Model):
             batch_num_blocks = batch.num_blocks
 
             num_tokens = batch.to_pb().current_tokens
-            logger.info(f"BLOCKS {batch.num_blocks}")
-            free_memory = get_free_memory(self.device, MEMORY_FRACTION)
-            logger.info(f"Free memory {free_memory}")
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
             _, _batch, _ = self.generate_token(batch)
