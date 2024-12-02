@@ -14,7 +14,7 @@ FROM nvidia/cuda:12.6.1-cudnn-devel-ubuntu24.04 AS cuda-builder
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt update && apt install -y \
+    apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
     build-essential \
     cmake \
     curl \
@@ -53,7 +53,7 @@ RUN wget "https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILE
 
 # Install TensorRT
 FROM cuda-builder AS trt-builder
-COPY backends/trtllm/scripts/install_tensorrt.sh /opt/install_tensorrt.sh
+COPY install_tensorrt.sh /opt/install_tensorrt.sh
 RUN chmod +x /opt/install_tensorrt.sh && \
     /opt/install_tensorrt.sh
 
