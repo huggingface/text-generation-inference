@@ -16,7 +16,7 @@ If the above list lacks the model you would like to serve, depending on the mode
 
 ```python
 # for causal LMs/text-generation models
-AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")`
+AutoModelForCausalLM.from_pretrained(<model>, device_map="auto")
 # or, for text-to-text generation models
 AutoModelForSeq2SeqLM.from_pretrained(<model>, device_map="auto")
 ```
