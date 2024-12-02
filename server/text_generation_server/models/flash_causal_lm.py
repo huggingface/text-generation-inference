@@ -1416,6 +1416,10 @@ class FlashCausalLM(Model):
                     max_current_length=max_s,
                 )
         else:
+            if bs > max_bs:
+                raise RuntimeError(
+                    "Cuda graphs should be generated in decreasing order size to reduce VRAM usage"
+                )
             input_ids = self.cuda_graphs[max_bs]["input_ids"][:bs]
             position_ids = self.cuda_graphs[max_bs]["position_ids"][:bs]
             if ATTENTION == "flashinfer":
