@@ -12,7 +12,7 @@ PREFIX_CACHING = os.environ["PREFIX_CACHING"].lower() in {
     "1",
     "true",
 }
-PREFILL_CHUNKING = os.getenv("PREFILL_CHUNKING", "0").lower() in {"1", "true"}
+PREFILL_CHUNKING = os.getenv("PREFILL_CHUNKING", "1").lower() in {"1", "true"}
 log_master(logger.info, f"Using prefix caching = {PREFIX_CACHING}")
 _expected = {"paged", "flashdecoding", "flashinfer"}
 assert (
