@@ -21,11 +21,13 @@ else ()
     set(NVTX_DISABLE ON)
 endif ()
 
+find_package(Python3 REQUIRED Interpreter)
+
 fetchcontent_declare(
         trtllm
         GIT_REPOSITORY https://github.com/NVIDIA/TensorRT-LLM.git
-        GIT_TAG c994b697313b8d36527ba346a0c5e8e374616c95
-        GIT_SHALLOW ON
+        GIT_TAG 385626572df16175dd327fa785e4434cb7866a64
+        GIT_SHALLOW OFF
         DOWNLOAD_EXTRACT_TIMESTAMP
 )
 fetchcontent_makeavailable(trtllm)
