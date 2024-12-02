@@ -4,7 +4,7 @@
   "name": "CUDA",
 //  "image": "nvidia/cuda:12.6.0-devel-ubuntu24.04",
   "build": {
-    "dockerfile": "Dockerfile.trtllm"
+    "dockerfile": "Dockerfile_trtllm"
   },
   "remoteEnv": {
     "PATH": "${containerEnv:PATH}:/usr/local/cuda/bin",

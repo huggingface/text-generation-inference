@@ -71,3 +71,5 @@ RUN cargo install cargo-chef
 
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
+
+ENV MPI_HOME=/usr/local/mpi
