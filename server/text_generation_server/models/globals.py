@@ -31,10 +31,11 @@ assert TGI_WIGGLE_ROOM < 1
 
 # This is overridden by the cli
 BLOCK_SIZE: int
-if SYSTEM == "ipex":
-    BLOCK_SIZE = 16
-elif ATTENTION == "flashdecoding":
-    BLOCK_SIZE = 256
+if ATTENTION == "flashdecoding":
+    if SYSTEM == "ipex":
+        BLOCK_SIZE = 64
+    else:
+        BLOCK_SIZE = 256
 elif ATTENTION == "flashinfer":
     BLOCK_SIZE = 1
 else:
