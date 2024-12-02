@@ -4,7 +4,7 @@ use std::env;
 use std::env::consts::ARCH;
 use std::path::{absolute, PathBuf};
 
-const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 2] = ["spdlog", "fmt"];
+const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 1] = ["spdlog"];
 const CUDA_ARCH_LIST: Option<&str> = option_env!("CUDA_ARCH_LIST");
 const CUDA_REQUIRED_VERSION: &str = "12.6";
 const MPI_REQUIRED_VERSION: &str = "4.1";
@@ -98,7 +98,6 @@ fn build_ffi_layer(deps_folder: &PathBuf, is_debug: bool) {
     cxx_build::bridge("src/lib.rs")
         .static_flag(true)
         .std("c++23")
-        .include(deps_folder.join("fmt-src").join("include"))
         .include(deps_folder.join("spdlog-src").join("include"))
         .include(deps_folder.join("json-src").join("include"))
         .include(deps_folder.join("trtllm-src").join("cpp").join("include"))
@@ -112,7 +111,6 @@ fn build_ffi_layer(deps_folder: &PathBuf, is_debug: bool) {
     println!("cargo:rerun-if-changed=CMakeLists.txt");
     println!("cargo:rerun-if-changed=cmake/trtllm.cmake");
     println!("cargo:rerun-if-changed=cmake/json.cmake");
-    println!("cargo:rerun-if-changed=cmake/fmt.cmake");
     println!("cargo:rerun-if-changed=cmake/spdlog.cmake");
     println!("cargo:rerun-if-changed=csrc/backend.hpp");
     println!("cargo:rerun-if-changed=csrc/backend.cpp");

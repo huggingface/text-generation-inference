@@ -1,3 +1,4 @@
+#pragma once
 #include <cmath>
 #include <cstdint>
 #include <exception>
@@ -17,7 +18,7 @@
 namespace huggingface::tgi::backends::trtllm {
     namespace tle = tensorrt_llm::executor;
     using json = nlohmann::json;
-    using request_id_t = uint32_t;
+    using request_id_t = uint64_t;
     using token_id_t = tle::TokenIdType;
 
     /**
@@ -35,7 +36,6 @@ namespace huggingface::tgi::backends::trtllm {
         float_t top_p;
         float_t repetition_penalty;
         float_t frequency_penalty;
-        float_t length_penalty;
         float_t temperature;
         uint64_t seed;
 
@@ -54,7 +54,7 @@ namespace huggingface::tgi::backends::trtllm {
                 repetition_penalty,
                 std::nullopt,
                 frequency_penalty,
-                length_penalty
+                std::nullopt
             };
         }
     };
@@ -172,7 +172,7 @@ namespace huggingface::tgi::backends::trtllm {
          */
         [[nodiscard("Discarded executor request_id needs to be assigned")]]
         std::expected<request_id_t, backend_error_t>
-        submit(std::span<token_id_t> token_ids, generation_params_t generation_params, sampling_params_t sampling_params) noexcept;
+        submit(std::span<const token_id_t> token_ids, generation_params_t generation_params, sampling_params_t sampling_params) noexcept;
 
         /**
          * Query the number of tokens available across all in-flight generations
@@ -216,8 +216,8 @@ template <> struct fmt::formatter<huggingface::tgi::backends::trtllm::sampling_p
     auto format(huggingface::tgi::backends::trtllm::sampling_params_t const& c, format_context& ctx) const -> format_context::iterator {
         return fmt::format_to(
                 ctx.out(),
-                "sampling_params_t{{ top_k={:d}, top_p={:.3f}, repetition_penalty={:.3f}, frequency_penalty={:.3f}, length_penalty={:.3f}, temperature={:.3f}, seed={:d} }}",
-                c.top_k, c.top_p, c.repetition_penalty, c.frequency_penalty, c.length_penalty, c.temperature, c.seed
+                "sampling_params_t{{ top_k={:d}, top_p={:.3f}, repetition_penalty={:.3f}, frequency_penalty={:.3f}, temperature={:.3f}, seed={:d} }}",
+                c.top_k, c.top_p, c.repetition_penalty, c.frequency_penalty, c.temperature, c.seed
         );
     }
 };

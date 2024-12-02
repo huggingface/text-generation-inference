@@ -22,7 +22,7 @@ use text_generation_router::validation::{Chunk, ValidGenerateRequest};
 use text_generation_router::{FinishReason, Token};
 
 use crate::errors::TensorRtLlmBackendError;
-use crate::ffi::{create_tensorrt_llm_backend, GenerationStep, TensorRtLlmBackendImpl};
+use crate::ffi::{create_backend_from_engine_folder, GenerationStep, TensorRtLlmBackendImpl};
 use crate::utils::first_line;
 
 type InferResult<T> = Result<T, InferError>;
@@ -93,7 +93,7 @@ fn executor_status_looper(
                 match backend.pin_mut().submit(
                     &input_ids.unwrap(), // This is checked beforehand in validate()
                     stopping_params.max_new_tokens,
-                    generation_params.top_k as i32,
+                    generation_params.top_k,
                     generation_params.top_p,
                     generation_params.temperature,
                     generation_params.repetition_penalty,
@@ -120,7 +120,7 @@ fn executor_status_looper(
             }
         }
 
-        if backend.num_responses_ready() > 0 {
+        if backend.num_tokens_ready() > 0 {
             match backend.pin_mut().pull_tokens() {
                 Ok(responses) => {
                     // Iterate through all the decoded token
@@ -298,7 +298,7 @@ impl TensorRtLlmBackendV2 {
         let (post_processor_sender, post_processor_receiver) = unbounded_channel();
 
         // Create the FFI backend
-        let backend = create_tensorrt_llm_backend(&engine_folder, &executor_worker_path)
+        let backend = create_backend_from_engine_folder(&engine_folder, &executor_worker_path)
             .map_err(|e| TensorRtLlmBackendError::Runtime(first_line(e.what(), "Unknown error")))?;
 
         // Executor looper is responsible for scheduling and pulling requests state at regular interval
