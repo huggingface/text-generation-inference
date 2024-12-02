@@ -2,7 +2,10 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/cpp
 {
   "name": "CUDA",
-  "image": "nvidia/cuda:12.6.0-devel-ubuntu24.04",
+//  "image": "nvidia/cuda:12.6.0-devel-ubuntu24.04",
+  "build": {
+    "dockerfile": "Dockerfile.trtllm"
+  },
 //  "runArgs": [
 //    "--gpus=all"
 //  ],
