@@ -68,3 +68,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y &&
 
 ENV PATH="/root/.cargo/bin:$PATH"
 RUN cargo install cargo-chef
+
+COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
+COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
