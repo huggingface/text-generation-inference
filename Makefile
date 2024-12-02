@@ -48,8 +48,5 @@ python-tests: python-server-tests python-client-tests
 run-falcon-7b-instruct:
 	text-generation-launcher --model-id tiiuae/falcon-7b-instruct --port 8080
 
-run-falcon-7b-instruct-quantize:
-	text-generation-launcher --model-id tiiuae/falcon-7b-instruct --quantize bitsandbytes --port 8080
-
 clean:
 	rm -rf target aml
