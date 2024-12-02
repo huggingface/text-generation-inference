@@ -21,7 +21,7 @@ FROM chef AS builder
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     python3.11-dev
 
-    RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y \
     ffmpeg \
     libavcodec-dev \
     libavfilter-dev \
@@ -75,18 +75,18 @@ ARG TARGETPLATFORM
 ENV PATH /opt/conda/bin:$PATH
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential \
-        ca-certificates \
-        ccache \
-        curl \
-        git && \
-        rm -rf /var/lib/apt/lists/*
+    build-essential \
+    ca-certificates \
+    ccache \
+    curl \
+    git && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install conda
 # translating Docker's TARGETPLATFORM into mamba arches
 RUN case ${TARGETPLATFORM} in \
-         "linux/arm64")  MAMBA_ARCH=aarch64  ;; \
-         *)              MAMBA_ARCH=x86_64   ;; \
+    "linux/arm64")  MAMBA_ARCH=aarch64  ;; \
+    *)              MAMBA_ARCH=x86_64   ;; \
     esac && \
     curl -fsSL -v -o ~/mambaforge.sh -O  "https://github.com/conda-forge/miniforge/releases/download/${MAMBA_VERSION}/Mambaforge-${MAMBA_VERSION}-Linux-${MAMBA_ARCH}.sh"
 RUN chmod +x ~/mambaforge.sh && \
@@ -96,9 +96,9 @@ RUN chmod +x ~/mambaforge.sh && \
 # Install pytorch
 # On arm64 we exit with an error code
 RUN case ${TARGETPLATFORM} in \
-         "linux/arm64")  exit 1 ;; \
-         *)              /opt/conda/bin/conda update -y conda &&  \
-                         /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" "pytorch=$PYTORCH_VERSION" "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
+    "linux/arm64")  exit 1 ;; \
+    *)              /opt/conda/bin/conda update -y conda &&  \
+    /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" "pytorch=$PYTORCH_VERSION" "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
     esac && \
     /opt/conda/bin/conda clean -ya
 
@@ -109,8 +109,8 @@ ARG MAX_JOBS=8
 ENV TORCH_CUDA_ARCH_LIST="8.0;8.6;9.0+PTX"
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        ninja-build cmake \
-        && rm -rf /var/lib/apt/lists/*
+    ninja-build cmake \
+    && rm -rf /var/lib/apt/lists/*
 
 # Build Flash Attention CUDA kernels
 FROM kernel-builder AS flash-att-builder
@@ -202,19 +202,12 @@ ENV HF_HOME=/data \
 WORKDIR /usr/src
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        libssl-dev \
-        ca-certificates \
-        make \
-        curl \
-        git \
-        ffmpeg \
-        libavcodec-dev \
-        libavfilter-dev \
-        libavdevice-dev \
-        libavformat-dev \
-        libavutil-dev \
-        libswscale-dev \
-        && rm -rf /var/lib/apt/lists/*
+    libssl-dev \
+    ca-certificates \
+    make \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 # Add ffmpeg libraries to the path
 ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
@@ -271,9 +264,9 @@ ENV EXLLAMA_NO_FLASH_ATTN=1
 # The binaries change on every build given we burn the SHA into them
 # The deps change less often.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        build-essential \
-        g++ \
-        && rm -rf /var/lib/apt/lists/*
+    build-essential \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
@@ -282,6 +275,9 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/loca
 # Install launcher
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 
+# Copy the ffmpeg libraries
+COPY --from=builder /usr/lib/x86_64-linux-gnu/* /usr/lib/x86_64-linux-gnu-copy/
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu-copy"
 
 # AWS Sagemaker compatible image
 FROM base AS sagemaker
