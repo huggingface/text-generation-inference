@@ -1,4 +1,5 @@
-#pragma once
+#ifndef TGI_HARDWARE_CUDA
+#define TGI_HARDWARE_CUDA
 #include <cstdint>
 #include <optional>
 
@@ -78,3 +79,4 @@ namespace huggingface::tgi::hardware::cuda {
         [[nodiscard]] constexpr bool is_at_least_hopper() const { return is_at_least(HOPPER); }
     };
 }
+#endif

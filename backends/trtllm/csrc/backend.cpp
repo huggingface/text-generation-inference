@@ -1,8 +1,10 @@
 #include <ranges>
-#include "backend.hpp"
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+
+#include "backend.hpp"
+#include "hardware.hpp"
 
 namespace huggingface::tgi::backends::trtllm {
     constexpr tle::ParallelConfig backend_workspace_t::parallel_config() const {
@@ -23,7 +25,8 @@ namespace huggingface::tgi::backends::trtllm {
         return tle::ParallelConfig(tle::CommunicationType::kMPI, mode, std::nullopt, std::nullopt, orchestratorConfig);
     }
 
-    constexpr tle::ExecutorConfig backend_workspace_t::executor_config() const {
+
+    tle::ExecutorConfig backend_workspace_t::executor_config() const {
         // Retrieve the compute capabilities to enable some options at runtime
         const auto compute_capabilities = hardware::cuda::compute_capabilities_t();
 

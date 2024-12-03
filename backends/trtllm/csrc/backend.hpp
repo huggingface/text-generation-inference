@@ -1,7 +1,8 @@
-#pragma once
+#ifndef TGI_BACKEND_TRTLLM
+#define TGI_BACKEND_TRTLLM
+
 #include <cmath>
 #include <cstdint>
-#include <exception>
 #include <expected>
 #include <fstream>
 #include <list>
@@ -12,8 +13,6 @@
 #include <spdlog/fmt/fmt.h>
 
 #include <tensorrt_llm/executor/executor.h>
-
-#include <hardware.hpp>
 
 namespace huggingface::tgi::backends::trtllm {
     namespace tle = tensorrt_llm::executor;
@@ -68,7 +67,7 @@ namespace huggingface::tgi::backends::trtllm {
         float_t temperature;
         std::list<std::vector<int32_t>> stop_words;
 
-        explicit generation_config_t(const json &config):
+        constexpr explicit generation_config_t(const json &config):
             top_p(config.value("top_p", 1.0f)), temperature( config.value("temperature", 1.0f)), stop_words(0) {
             if(config.contains("/eos_token_id"_json) && config["/eos_token_id"_json].is_array()) {
                 const auto& eos_token_id = config["eos_token_id"];
@@ -121,7 +120,7 @@ namespace huggingface::tgi::backends::trtllm {
          * `generation_config.json` holding default generation parameters.
          * @return `generation_config_t`
          */
-        [[nodiscard]] const generation_config_t& generation_config() const { return generation_config_; }
+        [[nodiscard]] constexpr const generation_config_t& generation_config() const { return generation_config_; }
 
 /**
          * Factory method returning new `tensorrt_llm::executor::ParallelConfig` instance used
@@ -135,7 +134,7 @@ namespace huggingface::tgi::backends::trtllm {
          * to initialize `tensorrt_llm::executor::Executor`
          * @return `tensorrt_llm::executor::ExecutorConfig` instance
          */
-        [[nodiscard]] constexpr tle::ExecutorConfig executor_config() const;
+        [[nodiscard]] tle::ExecutorConfig executor_config() const;
     };
 
     /**
@@ -221,3 +220,4 @@ template <> struct fmt::formatter<huggingface::tgi::backends::trtllm::sampling_p
         );
     }
 };
+#endif
