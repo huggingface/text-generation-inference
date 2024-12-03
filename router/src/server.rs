@@ -1588,7 +1588,7 @@ pub fn schema() -> ApiDoc {
     ApiDoc
 }
 
-fn py_resolve_tokenizer(
+pub fn py_resolve_tokenizer(
     py: pyo3::Python,
     tokenizer_name: &str,
     revision: Option<&str>,
@@ -1614,7 +1614,7 @@ fn py_resolve_tokenizer(
     Ok(())
 }
 
-fn legacy_tokenizer_handle(config_filename: Option<&PathBuf>) -> Option<()> {
+pub fn legacy_tokenizer_handle(config_filename: Option<&PathBuf>) -> Option<()> {
     // XXX Legacy case for FasterDecoding/medusa-vicuna-7b-v1.3
     // and state-spaces/mamba-130m
     tracing::warn!("Odd tokenizer detected, falling back on legacy tokenization");

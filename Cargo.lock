@@ -2851,20 +2851,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "opentelemetry"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c365a63eec4f55b7efeceb724f1336f26a9cf3427b70e59e2cd2a5b947fba96"
-dependencies = [
- "futures-core",
- "futures-sink",
- "js-sys",
- "once_cell",
- "pin-project-lite",
- "thiserror",
-]
-
-[[package]]
 name = "opentelemetry-otlp"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2958,24 +2944,6 @@ dependencies = [
  "once_cell",
  "opentelemetry 0.21.0",
  "ordered-float 4.5.0",
- "percent-encoding",
- "rand",
- "thiserror",
-]
-
-[[package]]
-name = "opentelemetry_sdk"
-version = "0.24.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "692eac490ec80f24a17828d49b40b60f5aeaccdfe6a503f939713afd22bc28df"
-dependencies = [
- "async-trait",
- "futures-channel",
- "futures-executor",
- "futures-util",
- "glob",
- "once_cell",
- "opentelemetry 0.24.0",
  "percent-encoding",
  "rand",
  "thiserror",
@@ -4369,7 +4337,6 @@ dependencies = [
 name = "text-generation-backends-trtllm"
 version = "2.4.2-dev0"
 dependencies = [
- "async-stream",
  "async-trait",
  "clap 4.5.21",
  "cmake",
@@ -4377,16 +4344,14 @@ dependencies = [
  "cxx-build",
  "hashbrown 0.14.5",
  "hf-hub",
- "log",
  "pkg-config",
+ "pyo3",
  "text-generation-router",
  "thiserror",
  "tokenizers",
  "tokio",
  "tokio-stream",
  "tracing",
- "tracing-opentelemetry 0.25.0",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -5084,24 +5049,6 @@ dependencies = [
  "tracing-log 0.2.0",
  "tracing-subscriber",
  "web-time 0.2.4",
-]
-
-[[package]]
-name = "tracing-opentelemetry"
-version = "0.25.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a9784ed4da7d921bc8df6963f8c80a0e4ce34ba6ba76668acadd3edbd985ff3b"
-dependencies = [
- "js-sys",
- "once_cell",
- "opentelemetry 0.24.0",
- "opentelemetry_sdk 0.24.1",
- "smallvec",
- "tracing",
- "tracing-core",
- "tracing-log 0.2.0",
- "tracing-subscriber",
- "web-time 1.1.0",
 ]
 
 [[package]]
