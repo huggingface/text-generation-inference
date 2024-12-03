@@ -16,13 +16,12 @@ namespace huggingface::tgi::hardware::cuda {
      * Get the number of GPUs on the local machine
      * @return std::nullopt if no device is available, otherwise >= 1
      */
-    std::optional<size_t> get_device_count() {
+    inline std::optional<size_t> get_device_count() {
         uint32_t numGpus = 0;
         if (nvmlDeviceGetCount_v2(&numGpus) == NVML_SUCCESS) {
             return numGpus;
-        } else {
-            return std::nullopt;
         }
+        return std::nullopt;
     }
 
     /**

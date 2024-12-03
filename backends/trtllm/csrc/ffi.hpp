@@ -4,14 +4,14 @@
 #include <memory>
 #include <thread>
 
+#include <nvml.h>
 #include <tensorrt_llm/common/tllmException.h>
 #include <tensorrt_llm/plugins/api/tllmPlugin.h>
 
 #include <spdlog/spdlog.h>
-#include <spdlog/pattern_formatter.h>
-#include <spdlog/fmt/fmt.h>
 
 #include <backend.hpp>
+#include <hardware.hpp>
 
 namespace rust::behavior {
     template<typename Try, typename Fail>
@@ -111,7 +111,7 @@ namespace huggingface::tgi::backends::trtllm {
         }
 
         void cancel(request_id_t requestId) noexcept {
-            SPDLOG_DEBUG(FMT_STRING("[FFI] cancelling request {:d}"), requestId);
+            SPDLOG_DEBUG("[FFI] cancelling request {:d}", requestId);
             inner_.cancel(requestId);
         }
     };
@@ -144,7 +144,7 @@ namespace huggingface::tgi::backends::trtllm {
 
         const auto numGpus = huggingface::tgi::hardware::cuda::get_device_count();
         if (numGpus.has_value()) {
-            SPDLOG_INFO("[FFI] Detected {:d} Nvidia GPU(s)", numGpus.value());
+            SPDLOG_INFO("[FFI] Detected {:d} Nvidia GPU(s)", *numGpus);
         } else {
             SPDLOG_WARN("[FFI] Failed to detected Nvidia GPU(s) on the system");
             // todo: throw
