@@ -48,7 +48,7 @@
 - sections:
   - local: backends/trtllm
     title: TensorRT-LLM
-  title: Multi-backends support
+  title: Multi-backend support
 - sections:
   - local: reference/launcher
     title: All TGI CLI options
