@@ -148,6 +148,8 @@
         };
 
         packages = rec {
+          inherit server;
+
           default = pkgs.writeShellApplication {
             name = "text-generation-inference";
             runtimeInputs = [
