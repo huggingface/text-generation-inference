@@ -114,7 +114,7 @@ namespace huggingface::tgi::backends::trtllm {
          * Path to the folder containing the TensorRT-LLM engines
          * @return local filesystem path to the folder
          */
-        [[nodiscard]] std::filesystem::path engines_folder() const { return engines_folder_; }
+        [[nodiscard]] constexpr std::filesystem::path engines_folder() const { return engines_folder_; }
 
         /**
          * Hugging Face transformers' generated `generation_config_t` mapping information stored in the
