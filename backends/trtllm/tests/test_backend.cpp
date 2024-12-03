@@ -72,7 +72,7 @@ TEST_CASE("parse generation_config.json empty", "[generation_config_t]")
     REQUIRE(generation_config2.stop_words.empty());
 }
 
-TEST_CASE("parallel_config", "[backend_workspace_t]")
+TEST_CASE("parallel_config single", "[backend_workspace_t]")
 {
     // Generate temporary folder
     const auto tmp_p = std::filesystem::temp_directory_path();
@@ -88,13 +88,65 @@ TEST_CASE("parallel_config", "[backend_workspace_t]")
     o_generation_config << R"({"eos_token_id": []})"_json;
     o_generation_config.close();
 
-    const auto workspace = backend_workspace_t(absolute(tmp_p).generic_string(), absolute(tmp_p).generic_string());
+    const auto workspace = backend_workspace_t(tmp_p.generic_string(), tmp_p.generic_string());
     const auto parallel = workspace.parallel_config();
     REQUIRE(parallel.getCommunicationMode() == tle::CommunicationMode::kORCHESTRATOR);
+    REQUIRE(parallel.getCommunicationType() == tle::CommunicationType::kMPI);
 
+    std::filesystem::remove(config_p);
+    std::filesystem::remove(generation_config_p);
+}
+
+TEST_CASE("parallel_config multi", "[backend_workspace_t]")
+{
+    // Generate temporary folder
+    const auto tmp_p = std::filesystem::temp_directory_path();
+    const auto config_p = tmp_p / "config.json";
+    const auto generation_config_p = tmp_p / "generation_config.json";
+
+    // Generate content
+    std::ofstream o_config(config_p);
+    o_config << R"({"pretrained_config": {"mapping": {"world_size": 1}}})"_json;
+    o_config.close();
+
+    std::ofstream o_generation_config(generation_config_p);
+    o_generation_config << R"({"eos_token_id": []})"_json;
+    o_generation_config.close();
+
+    const auto workspace = backend_workspace_t(tmp_p.generic_string(), tmp_p.generic_string());
+    const auto parallel = workspace.parallel_config();
+    REQUIRE(parallel.getCommunicationMode() == tle::CommunicationMode::kLEADER);
+    REQUIRE(parallel.getCommunicationType() == tle::CommunicationType::kMPI);
+
+    std::filesystem::remove(config_p);
+    std::filesystem::remove(generation_config_p);
 }
 
 TEST_CASE("executor_config", "[backend_workspace_t]")
 {
 
+}
+
+TEST_CASE("sampling_params_t to tle::SamplingConfig", "[backend_t]")
+{
+    const sampling_params_t params = {40, 0.95, 0.9, 1.0, 0.6, 2014};
+    const auto config = static_cast<tle::SamplingConfig>(params);
+
+    REQUIRE(config.getTopK().has_value());
+    REQUIRE(config.getTopK().value() == params.top_k);
+
+    REQUIRE(config.getSeed().has_value());
+    REQUIRE(config.getSeed().value() == params.seed);
+
+    REQUIRE(config.getTopP().has_value());
+    REQUIRE_THAT(*config.getTopP(), Catch::Matchers::WithinAbs(params.top_p, 1e-6f));
+
+    REQUIRE(config.getRepetitionPenalty().has_value());
+    REQUIRE_THAT(*config.getRepetitionPenalty(), Catch::Matchers::WithinAbs(params.repetition_penalty, 1e-6f));
+
+    REQUIRE(config.getFrequencyPenalty().has_value());
+    REQUIRE_THAT(*config.getFrequencyPenalty(), Catch::Matchers::WithinAbs(params.frequency_penalty, 1e-6f));
+
+    REQUIRE(config.getTemperature().has_value());
+    REQUIRE_THAT(*config.getTemperature(), Catch::Matchers::WithinAbs(params.temperature, 1e-6f));
 }
