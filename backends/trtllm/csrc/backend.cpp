@@ -7,7 +7,7 @@
 #include "hardware.hpp"
 
 namespace huggingface::tgi::backends::trtllm {
-    constexpr tle::ParallelConfig backend_workspace_t::parallel_config() const {
+    tle::ParallelConfig backend_workspace_t::parallel_config() const {
         // Single engine (TP = PP = 1) -> using leader mode (no MPI involved)
         const auto world_size = config_["/pretrained_config/mapping/world_size"_json_pointer].get<size_t>();
 

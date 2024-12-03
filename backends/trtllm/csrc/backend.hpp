@@ -127,7 +127,7 @@ namespace huggingface::tgi::backends::trtllm {
          * to initialize `tensorrt_llm::executor::Executor` with multi-instance communication information
          * @return `tensorrt_llm::executor::ParallelConfig` instance
          */
-        [[nodiscard]] constexpr tle::ParallelConfig parallel_config() const;
+        [[nodiscard]] tle::ParallelConfig parallel_config() const;
 
         /**
          * Factory method returning new `tensorrt_llm::executor::ExecutorConfig` instance used
