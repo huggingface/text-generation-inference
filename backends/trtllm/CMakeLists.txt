@@ -39,10 +39,10 @@ if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 endif()
 
 # This attempt to detect if the compiler can emit warning if it can't apply return value optimization from a function
-#check_cxx_compiler_flag("-Wnrvo" COMPILER_SUPPORT_WARNING_ON_NVRO)
-#if(${COMPILER_SUPPORT_WARNING_ON_NVRO})
-#    set(CMAKE_CXX_FLAGS "{CMAKE_CXX_FLAGS} -Wnvro")
-#endif()
+check_cxx_compiler_flag("-Wnrvo" COMPILER_SUPPORT_WARNING_ON_NVRO)
+if(${COMPILER_SUPPORT_WARNING_ON_NVRO})
+    set(CMAKE_CXX_FLAGS "{CMAKE_CXX_FLAGS} -Wnvro")
+endif()
 
 # Let's build TRTLLM as part of CMake
 add_subdirectory("${trtllm_SOURCE_DIR}/cpp" "${trtllm_SOURCE_DIR}/..")
@@ -74,12 +74,15 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     )
     FetchContent_MakeAvailable(Catch2)
 
-    add_executable(tgi_trtllm_backend_tests tests/test_hardware.cpp)
+    add_executable(tgi_trtllm_backend_tests tests/test_hardware.cpp tests/test_backend.cpp)
+    target_include_directories(tgi_trtllm_backend_tests PUBLIC "${trtllm_SOURCE_DIR}/cpp/include")
+    target_include_directories(tgi_trtllm_backend_tests PUBLIC "csrc/")
     target_link_libraries(tgi_trtllm_backend_tests PRIVATE CUDA::cudart CUDA::nvml)
     target_link_libraries(tgi_trtllm_backend_tests PRIVATE Catch2::Catch2WithMain tensorrt_llm nlohmann_json::nlohmann_json spdlog::spdlog)
 
     if(CMAKE_BUILD_TYPE MATCHES "Debug")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fsanitize=undefined -fsanitize=address")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fsanitize=undefined -fsanitize=address")
         target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address)
     endif()
 

@@ -69,10 +69,10 @@ namespace huggingface::tgi::backends::trtllm {
 
         constexpr explicit generation_config_t(const json &config):
             top_p(config.value("top_p", 1.0f)), temperature( config.value("temperature", 1.0f)), stop_words(0) {
-            if(config.contains("/eos_token_id"_json) && config["/eos_token_id"_json].is_array()) {
-                const auto& eos_token_id = config["eos_token_id"];
+            if(config.contains("/eos_token_id"_json_pointer) && config["/eos_token_id"_json_pointer].is_array()) {
+                const auto& eos_token_id = config["/eos_token_id"_json_pointer];
                 std::for_each(eos_token_id.begin(), eos_token_id.end(), [this](const auto token_id) {
-                    stop_words.emplace_back(token_id.template get<int32_t>());
+                    stop_words.emplace_back(1, token_id.template get<int32_t>());
                 });
 
                 SPDLOG_DEBUG("Detected {:d} predefined stop_words from generation_config.json", stop_words.size());
