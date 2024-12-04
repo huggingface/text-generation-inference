@@ -2112,10 +2112,6 @@ class FlashCausalLM(Model):
 
         if prefill and prefill_logprobs:
             # Get prefill logprobs with inplace softmax (avoid copying the `out` tensor (max_batch_prefill_tokens * vocab_size))
-            free_memory = get_free_memory(self.device, MEMORY_FRACTION)
-            logger.info(f"Free memory {free_memory / 1e9}GB")
-            logmemory = out.nelement() * out.element_size()
-            logger.info(f"Log memory {logmemory / 1e9}GB")
             torch.log_softmax(out, -1, out=out)
             prefill_logprobs_tensor = out
             prefill_logprobs = torch.gather(

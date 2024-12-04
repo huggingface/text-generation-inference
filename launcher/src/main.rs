@@ -80,7 +80,7 @@ fn get_config(
     };
 
     let content = std::fs::read_to_string(filename)?;
-    let config: RawConfig = serde_json::from_str(&content).expect("?");
+    let config: RawConfig = serde_json::from_str(&content)?;
 
     let config: Config = config.into();
     Ok(config)
