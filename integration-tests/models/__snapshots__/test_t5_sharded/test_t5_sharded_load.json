@@ -4,13 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "eos_token",
       "generated_tokens": 7,
-      "prefill": [
-        {
-          "id": 0,
-          "logprob": null,
-          "text": "<pad>"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -64,13 +58,7 @@
       "best_of_sequences": null,
       "finish_reason": "eos_token",
       "generated_tokens": 7,
-      "prefill": [
-        {
-          "id": 0,
-          "logprob": null,
-          "text": "<pad>"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -124,13 +112,7 @@
       "best_of_sequences": null,
       "finish_reason": "eos_token",
       "generated_tokens": 7,
-      "prefill": [
-        {
-          "id": 0,
-          "logprob": null,
-          "text": "<pad>"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -184,13 +166,7 @@
       "best_of_sequences": null,
       "finish_reason": "eos_token",
       "generated_tokens": 7,
-      "prefill": [
-        {
-          "id": 0,
-          "logprob": null,
-          "text": "<pad>"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {

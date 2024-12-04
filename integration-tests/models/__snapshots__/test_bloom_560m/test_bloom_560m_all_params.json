@@ -3,33 +3,7 @@
     "best_of_sequences": null,
     "finish_reason": "length",
     "generated_tokens": 10,
-    "prefill": [
-      {
-        "id": 15,
-        "logprob": null,
-        "text": ","
-      },
-      {
-        "id": 1669,
-        "logprob": -5.4453125,
-        "text": " il"
-      },
-      {
-        "id": 11580,
-        "logprob": -2.3378906,
-        "text": " faut"
-      },
-      {
-        "id": 3913,
-        "logprob": -4.3320312,
-        "text": " tout"
-      },
-      {
-        "id": 39261,
-        "logprob": -2.9160156,
-        "text": " d'abord"
-      }
-    ],
+    "prefill": [],
     "seed": 0,
     "tokens": [
       {

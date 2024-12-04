@@ -4,48 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1824,
-          "logprob": -6.1445312,
-          "text": "What"
-        },
-        {
-          "id": 349,
-          "logprob": -1.4648438,
-          "text": "is"
-        },
-        {
-          "id": 21135,
-          "logprob": -13.6875,
-          "text": "gradient"
-        },
-        {
-          "id": 24871,
-          "logprob": -1.6005859,
-          "text": "descent"
-        },
-        {
-          "id": 28804,
-          "logprob": -0.39526367,
-          "text": "?"
-        },
-        {
-          "id": 13,
-          "logprob": -0.640625,
-          "text": "\n"
-        },
-        {
-          "id": 13,
-          "logprob": -0.18774414,
-          "text": "\n"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -118,48 +77,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1824,
-          "logprob": -6.1445312,
-          "text": "What"
-        },
-        {
-          "id": 349,
-          "logprob": -1.4677734,
-          "text": "is"
-        },
-        {
-          "id": 21135,
-          "logprob": -13.6875,
-          "text": "gradient"
-        },
-        {
-          "id": 24871,
-          "logprob": -1.6015625,
-          "text": "descent"
-        },
-        {
-          "id": 28804,
-          "logprob": -0.39453125,
-          "text": "?"
-        },
-        {
-          "id": 13,
-          "logprob": -0.6435547,
-          "text": "\n"
-        },
-        {
-          "id": 13,
-          "logprob": -0.18713379,
-          "text": "\n"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -232,48 +150,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1824,
-          "logprob": -6.140625,
-          "text": "What"
-        },
-        {
-          "id": 349,
-          "logprob": -1.4658203,
-          "text": "is"
-        },
-        {
-          "id": 21135,
-          "logprob": -13.6796875,
-          "text": "gradient"
-        },
-        {
-          "id": 24871,
-          "logprob": -1.5898438,
-          "text": "descent"
-        },
-        {
-          "id": 28804,
-          "logprob": -0.3955078,
-          "text": "?"
-        },
-        {
-          "id": 13,
-          "logprob": -0.64501953,
-          "text": "\n"
-        },
-        {
-          "id": 13,
-          "logprob": -0.18493652,
-          "text": "\n"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -346,48 +223,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1824,
-          "logprob": -6.1328125,
-          "text": "What"
-        },
-        {
-          "id": 349,
-          "logprob": -1.4658203,
-          "text": "is"
-        },
-        {
-          "id": 21135,
-          "logprob": -13.6796875,
-          "text": "gradient"
-        },
-        {
-          "id": 24871,
-          "logprob": -1.5947266,
-          "text": "descent"
-        },
-        {
-          "id": 28804,
-          "logprob": -0.39648438,
-          "text": "?"
-        },
-        {
-          "id": 13,
-          "logprob": -0.6464844,
-          "text": "\n"
-        },
-        {
-          "id": 13,
-          "logprob": -0.18688965,
-          "text": "\n"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {

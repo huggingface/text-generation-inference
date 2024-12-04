@@ -4,38 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1824,
-          "logprob": -9.2890625,
-          "text": "What"
-        },
-        {
-          "id": 349,
-          "logprob": -1.1503906,
-          "text": "is"
-        },
-        {
-          "id": 3534,
-          "logprob": -9.5859375,
-          "text": "deep"
-        },
-        {
-          "id": 5168,
-          "logprob": -1.3945312,
-          "text": "learning"
-        },
-        {
-          "id": 28804,
-          "logprob": -0.4555664,
-          "text": "?"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -108,38 +77,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1824,
-          "logprob": -9.2890625,
-          "text": "What"
-        },
-        {
-          "id": 349,
-          "logprob": -1.1425781,
-          "text": "is"
-        },
-        {
-          "id": 3534,
-          "logprob": -9.59375,
-          "text": "deep"
-        },
-        {
-          "id": 5168,
-          "logprob": -1.390625,
-          "text": "learning"
-        },
-        {
-          "id": 28804,
-          "logprob": -0.45532227,
-          "text": "?"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -212,38 +150,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1824,
-          "logprob": -9.2890625,
-          "text": "What"
-        },
-        {
-          "id": 349,
-          "logprob": -1.1425781,
-          "text": "is"
-        },
-        {
-          "id": 3534,
-          "logprob": -9.59375,
-          "text": "deep"
-        },
-        {
-          "id": 5168,
-          "logprob": -1.390625,
-          "text": "learning"
-        },
-        {
-          "id": 28804,
-          "logprob": -0.45532227,
-          "text": "?"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -316,38 +223,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1824,
-          "logprob": -9.2890625,
-          "text": "What"
-        },
-        {
-          "id": 349,
-          "logprob": -1.1425781,
-          "text": "is"
-        },
-        {
-          "id": 3534,
-          "logprob": -9.59375,
-          "text": "deep"
-        },
-        {
-          "id": 5168,
-          "logprob": -1.390625,
-          "text": "learning"
-        },
-        {
-          "id": 28804,
-          "logprob": -0.45532227,
-          "text": "?"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {

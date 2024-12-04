@@ -4,48 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 50278,
-          "logprob": null,
-          "text": "<|USER|>"
-        },
-        {
-          "id": 1276,
-          "logprob": -4.5546875,
-          "text": "What"
-        },
-        {
-          "id": 434,
-          "logprob": -4.1953125,
-          "text": "'s"
-        },
-        {
-          "id": 634,
-          "logprob": -5.125,
-          "text": " your"
-        },
-        {
-          "id": 12315,
-          "logprob": -9.8828125,
-          "text": " mood"
-        },
-        {
-          "id": 3063,
-          "logprob": -3.9980469,
-          "text": " today"
-        },
-        {
-          "id": 32,
-          "logprob": -0.14672852,
-          "text": "?"
-        },
-        {
-          "id": 50279,
-          "logprob": -0.26489258,
-          "text": "<|ASSISTANT|>"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -117,48 +76,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 50278,
-          "logprob": null,
-          "text": "<|USER|>"
-        },
-        {
-          "id": 1276,
-          "logprob": -4.5546875,
-          "text": "What"
-        },
-        {
-          "id": 434,
-          "logprob": -4.1953125,
-          "text": "'s"
-        },
-        {
-          "id": 634,
-          "logprob": -5.125,
-          "text": " your"
-        },
-        {
-          "id": 12315,
-          "logprob": -9.8828125,
-          "text": " mood"
-        },
-        {
-          "id": 3063,
-          "logprob": -3.9980469,
-          "text": " today"
-        },
-        {
-          "id": 32,
-          "logprob": -0.14672852,
-          "text": "?"
-        },
-        {
-          "id": 50279,
-          "logprob": -0.26489258,
-          "text": "<|ASSISTANT|>"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -230,48 +148,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 50278,
-          "logprob": null,
-          "text": "<|USER|>"
-        },
-        {
-          "id": 1276,
-          "logprob": -4.5546875,
-          "text": "What"
-        },
-        {
-          "id": 434,
-          "logprob": -4.1953125,
-          "text": "'s"
-        },
-        {
-          "id": 634,
-          "logprob": -5.125,
-          "text": " your"
-        },
-        {
-          "id": 12315,
-          "logprob": -9.8828125,
-          "text": " mood"
-        },
-        {
-          "id": 3063,
-          "logprob": -3.9980469,
-          "text": " today"
-        },
-        {
-          "id": 32,
-          "logprob": -0.14672852,
-          "text": "?"
-        },
-        {
-          "id": 50279,
-          "logprob": -0.26489258,
-          "text": "<|ASSISTANT|>"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -343,48 +220,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 50278,
-          "logprob": null,
-          "text": "<|USER|>"
-        },
-        {
-          "id": 1276,
-          "logprob": -4.5546875,
-          "text": "What"
-        },
-        {
-          "id": 434,
-          "logprob": -4.1953125,
-          "text": "'s"
-        },
-        {
-          "id": 634,
-          "logprob": -5.125,
-          "text": " your"
-        },
-        {
-          "id": 12315,
-          "logprob": -9.8828125,
-          "text": " mood"
-        },
-        {
-          "id": 3063,
-          "logprob": -3.9980469,
-          "text": " today"
-        },
-        {
-          "id": 32,
-          "logprob": -0.14672852,
-          "text": "?"
-        },
-        {
-          "id": 50279,
-          "logprob": -0.26489258,
-          "text": "<|ASSISTANT|>"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {

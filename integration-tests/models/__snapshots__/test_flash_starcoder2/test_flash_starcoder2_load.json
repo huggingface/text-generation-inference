@@ -4,28 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 610,
-          "logprob": null,
-          "text": "def"
-        },
-        {
-          "id": 1489,
-          "logprob": -5.2617188,
-          "text": " print"
-        },
-        {
-          "id": 100,
-          "logprob": -0.38476562,
-          "text": "_"
-        },
-        {
-          "id": 7670,
-          "logprob": -7.640625,
-          "text": "hello"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -98,28 +77,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 610,
-          "logprob": null,
-          "text": "def"
-        },
-        {
-          "id": 1489,
-          "logprob": -5.2617188,
-          "text": " print"
-        },
-        {
-          "id": 100,
-          "logprob": -0.38476562,
-          "text": "_"
-        },
-        {
-          "id": 7670,
-          "logprob": -7.640625,
-          "text": "hello"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -192,28 +150,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 610,
-          "logprob": null,
-          "text": "def"
-        },
-        {
-          "id": 1489,
-          "logprob": -5.2617188,
-          "text": " print"
-        },
-        {
-          "id": 100,
-          "logprob": -0.38476562,
-          "text": "_"
-        },
-        {
-          "id": 7670,
-          "logprob": -7.640625,
-          "text": "hello"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -286,28 +223,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 610,
-          "logprob": null,
-          "text": "def"
-        },
-        {
-          "id": 1489,
-          "logprob": -5.2617188,
-          "text": " print"
-        },
-        {
-          "id": 100,
-          "logprob": -0.38476562,
-          "text": "_"
-        },
-        {
-          "id": 7670,
-          "logprob": -7.640625,
-          "text": "hello"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {

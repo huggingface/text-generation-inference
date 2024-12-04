@@ -4,63 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 17934,
-          "logprob": null,
-          "text": "Pour"
-        },
-        {
-          "id": 49833,
-          "logprob": -10.5390625,
-          "text": " dég"
-        },
-        {
-          "id": 21543,
-          "logprob": -0.14758301,
-          "text": "uster"
-        },
-        {
-          "id": 447,
-          "logprob": -1.9296875,
-          "text": " un"
-        },
-        {
-          "id": 46341,
-          "logprob": -15.4453125,
-          "text": " ort"
-        },
-        {
-          "id": 35567,
-          "logprob": -7.59375,
-          "text": "olan"
-        },
-        {
-          "id": 15,
-          "logprob": -1.3994141,
-          "text": ","
-        },
-        {
-          "id": 1669,
-          "logprob": -1.578125,
-          "text": " il"
-        },
-        {
-          "id": 11580,
-          "logprob": -0.9453125,
-          "text": " faut"
-        },
-        {
-          "id": 3913,
-          "logprob": -3.7011719,
-          "text": " tout"
-        },
-        {
-          "id": 39261,
-          "logprob": -1.5732422,
-          "text": " d'abord"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -132,63 +76,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 17934,
-          "logprob": null,
-          "text": "Pour"
-        },
-        {
-          "id": 49833,
-          "logprob": -10.515625,
-          "text": " dég"
-        },
-        {
-          "id": 21543,
-          "logprob": -0.1484375,
-          "text": "uster"
-        },
-        {
-          "id": 447,
-          "logprob": -1.9287109,
-          "text": " un"
-        },
-        {
-          "id": 46341,
-          "logprob": -15.34375,
-          "text": " ort"
-        },
-        {
-          "id": 35567,
-          "logprob": -7.515625,
-          "text": "olan"
-        },
-        {
-          "id": 15,
-          "logprob": -1.4199219,
-          "text": ","
-        },
-        {
-          "id": 1669,
-          "logprob": -1.5664062,
-          "text": " il"
-        },
-        {
-          "id": 11580,
-          "logprob": -0.94091797,
-          "text": " faut"
-        },
-        {
-          "id": 3913,
-          "logprob": -3.6660156,
-          "text": " tout"
-        },
-        {
-          "id": 39261,
-          "logprob": -1.7753906,
-          "text": " d'abord"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -260,63 +148,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 17934,
-          "logprob": null,
-          "text": "Pour"
-        },
-        {
-          "id": 49833,
-          "logprob": -10.515625,
-          "text": " dég"
-        },
-        {
-          "id": 21543,
-          "logprob": -0.1484375,
-          "text": "uster"
-        },
-        {
-          "id": 447,
-          "logprob": -1.9287109,
-          "text": " un"
-        },
-        {
-          "id": 46341,
-          "logprob": -15.34375,
-          "text": " ort"
-        },
-        {
-          "id": 35567,
-          "logprob": -7.515625,
-          "text": "olan"
-        },
-        {
-          "id": 15,
-          "logprob": -1.4199219,
-          "text": ","
-        },
-        {
-          "id": 1669,
-          "logprob": -1.5664062,
-          "text": " il"
-        },
-        {
-          "id": 11580,
-          "logprob": -0.94091797,
-          "text": " faut"
-        },
-        {
-          "id": 3913,
-          "logprob": -3.6660156,
-          "text": " tout"
-        },
-        {
-          "id": 39261,
-          "logprob": -1.7753906,
-          "text": " d'abord"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -388,63 +220,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 17934,
-          "logprob": null,
-          "text": "Pour"
-        },
-        {
-          "id": 49833,
-          "logprob": -10.515625,
-          "text": " dég"
-        },
-        {
-          "id": 21543,
-          "logprob": -0.1484375,
-          "text": "uster"
-        },
-        {
-          "id": 447,
-          "logprob": -1.9287109,
-          "text": " un"
-        },
-        {
-          "id": 46341,
-          "logprob": -15.34375,
-          "text": " ort"
-        },
-        {
-          "id": 35567,
-          "logprob": -7.515625,
-          "text": "olan"
-        },
-        {
-          "id": 15,
-          "logprob": -1.4199219,
-          "text": ","
-        },
-        {
-          "id": 1669,
-          "logprob": -1.5664062,
-          "text": " il"
-        },
-        {
-          "id": 11580,
-          "logprob": -0.94091797,
-          "text": " faut"
-        },
-        {
-          "id": 3913,
-          "logprob": -3.6660156,
-          "text": " tout"
-        },
-        {
-          "id": 39261,
-          "logprob": -1.7753906,
-          "text": " d'abord"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {

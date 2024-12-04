@@ -4,23 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 128000,
-          "logprob": null,
-          "text": "<|begin_of_text|>"
-        },
-        {
-          "id": 2323,
-          "logprob": -9.5625,
-          "text": "Test"
-        },
-        {
-          "id": 1715,
-          "logprob": -10.375,
-          "text": " request"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -93,23 +77,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 128000,
-          "logprob": null,
-          "text": "<|begin_of_text|>"
-        },
-        {
-          "id": 2323,
-          "logprob": -9.5625,
-          "text": "Test"
-        },
-        {
-          "id": 1715,
-          "logprob": -10.375,
-          "text": " request"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -182,23 +150,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 128000,
-          "logprob": null,
-          "text": "<|begin_of_text|>"
-        },
-        {
-          "id": 2323,
-          "logprob": -9.5625,
-          "text": "Test"
-        },
-        {
-          "id": 1715,
-          "logprob": -10.375,
-          "text": " request"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -271,23 +223,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 128000,
-          "logprob": null,
-          "text": "<|begin_of_text|>"
-        },
-        {
-          "id": 2323,
-          "logprob": -9.5625,
-          "text": "Test"
-        },
-        {
-          "id": 1715,
-          "logprob": -10.375,
-          "text": " request"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {

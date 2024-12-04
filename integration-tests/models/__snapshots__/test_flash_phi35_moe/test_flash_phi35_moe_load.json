@@ -4,43 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1724,
-          "logprob": null,
-          "text": "What"
-        },
-        {
-          "id": 338,
-          "logprob": -0.6201172,
-          "text": "is"
-        },
-        {
-          "id": 16030,
-          "logprob": -13.6484375,
-          "text": "gradient"
-        },
-        {
-          "id": 26815,
-          "logprob": -0.003894806,
-          "text": "descent"
-        },
-        {
-          "id": 29973,
-          "logprob": -2.6386719,
-          "text": "?"
-        },
-        {
-          "id": 13,
-          "logprob": -6.46875,
-          "text": "\n"
-        },
-        {
-          "id": 13,
-          "logprob": -6.6875,
-          "text": "\n"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -113,43 +77,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1724,
-          "logprob": null,
-          "text": "What"
-        },
-        {
-          "id": 338,
-          "logprob": -0.6113281,
-          "text": "is"
-        },
-        {
-          "id": 16030,
-          "logprob": -13.6640625,
-          "text": "gradient"
-        },
-        {
-          "id": 26815,
-          "logprob": -0.003929138,
-          "text": "descent"
-        },
-        {
-          "id": 29973,
-          "logprob": -2.625,
-          "text": "?"
-        },
-        {
-          "id": 13,
-          "logprob": -6.484375,
-          "text": "\n"
-        },
-        {
-          "id": 13,
-          "logprob": -6.6875,
-          "text": "\n"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -222,43 +150,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1724,
-          "logprob": null,
-          "text": "What"
-        },
-        {
-          "id": 338,
-          "logprob": -0.609375,
-          "text": "is"
-        },
-        {
-          "id": 16030,
-          "logprob": -13.671875,
-          "text": "gradient"
-        },
-        {
-          "id": 26815,
-          "logprob": -0.0040016174,
-          "text": "descent"
-        },
-        {
-          "id": 29973,
-          "logprob": -2.6230469,
-          "text": "?"
-        },
-        {
-          "id": 13,
-          "logprob": -6.453125,
-          "text": "\n"
-        },
-        {
-          "id": 13,
-          "logprob": -6.6875,
-          "text": "\n"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -331,43 +223,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1724,
-          "logprob": null,
-          "text": "What"
-        },
-        {
-          "id": 338,
-          "logprob": -0.609375,
-          "text": "is"
-        },
-        {
-          "id": 16030,
-          "logprob": -13.6640625,
-          "text": "gradient"
-        },
-        {
-          "id": 26815,
-          "logprob": -0.0038967133,
-          "text": "descent"
-        },
-        {
-          "id": 29973,
-          "logprob": -2.6347656,
-          "text": "?"
-        },
-        {
-          "id": 13,
-          "logprob": -6.453125,
-          "text": "\n"
-        },
-        {
-          "id": 13,
-          "logprob": -6.6875,
-          "text": "\n"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
