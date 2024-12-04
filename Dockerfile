@@ -19,7 +19,9 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    python3.11-dev
+    python3.11-dev \ 
+    libssl-dev \
+    ca-certificates
 
 RUN apt-get update && apt-get install -y \
     ffmpeg \
