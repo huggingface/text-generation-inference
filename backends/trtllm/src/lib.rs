@@ -62,5 +62,7 @@ mod ffi {
         fn pull_tokens(
             self: Pin<&mut TensorRtLlmBackendImpl>,
         ) -> Result<UniquePtr<CxxVector<GenerationStep>>>;
+
+        fn cancel(self: Pin<&mut TensorRtLlmBackendImpl>, request_id: u64);
     }
 }
