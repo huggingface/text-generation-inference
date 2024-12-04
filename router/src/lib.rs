@@ -651,6 +651,7 @@ enum CompletionType {
 }
 
 impl ChatCompletion {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         model: String,
         system_fingerprint: String,
@@ -659,6 +660,7 @@ impl ChatCompletion {
         details: Details,
         return_logprobs: bool,
         tool_calls: Option<Vec<ToolCall>>,
+        prompt_tokens: u32,
     ) -> Self {
         let message = match (output, tool_calls) {
             (Some(content), None) => OutputMessage::ChatMessage(TextMessage {
@@ -697,9 +699,9 @@ impl ChatCompletion {
                 finish_reason: details.finish_reason.format(true),
             }],
             usage: Usage {
-                prompt_tokens: details.prefill.len() as u32,
+                prompt_tokens,
                 completion_tokens: details.generated_tokens,
-                total_tokens: details.prefill.len() as u32 + details.generated_tokens,
+                total_tokens: prompt_tokens + details.generated_tokens,
             },
         }
     }
