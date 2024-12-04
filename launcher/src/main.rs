@@ -754,6 +754,14 @@ struct Args {
     /// Default is 2MB
     #[clap(default_value = "2000000", long, env)]
     payload_limit: usize,
+
+    /// Enables prefill logprobs
+    ///
+    /// Logprobs in the prompt are deactivated by default because they consume
+    /// a large amount of VRAM (especially for long prompts).
+    /// Using this flag reallows users to ask for them.
+    #[clap(long, env)]
+    enable_prefill_logprobs: bool,
 }
 
 #[derive(Debug)]
@@ -789,6 +797,7 @@ fn shard_manager(
     max_batch_size: Option<usize>,
     max_input_tokens: Option<usize>,
     lora_adapters: Option<String>,
+    enable_prefill_logprobs: bool,
     otlp_endpoint: Option<String>,
     otlp_service_name: String,
     log_level: LevelFilter,
@@ -936,6 +945,11 @@ fn shard_manager(
     // Lora Adapters
     if let Some(lora_adapters) = lora_adapters {
         envs.push(("LORA_ADAPTERS".into(), lora_adapters.into()));
+    }
+
+    // Logprobs
+    if enable_prefill_logprobs {
+        envs.push(("REQUEST_LOGPROBS".into(), "1".into()));
     }
 
     // If huggingface_hub_cache is some, pass it to the shard
@@ -1429,6 +1443,7 @@ fn spawn_shards(
         let rope_factor = args.rope_factor;
         let max_batch_size = args.max_batch_size;
         let lora_adapters = args.lora_adapters.clone();
+        let enable_prefill_logprobs = args.enable_prefill_logprobs;
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -1456,6 +1471,7 @@ fn spawn_shards(
                 max_batch_size,
                 max_input_tokens,
                 lora_adapters,
+                enable_prefill_logprobs,
                 otlp_endpoint,
                 otlp_service_name,
                 max_log_level,
