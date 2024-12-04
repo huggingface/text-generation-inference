@@ -25,9 +25,9 @@ find_package(Python3 REQUIRED Interpreter)
 
 fetchcontent_declare(
         trtllm
-        GIT_REPOSITORY https://github.com/NVIDIA/TensorRT-LLM.git
-        GIT_TAG 385626572df16175dd327fa785e4434cb7866a64
-        GIT_SHALLOW OFF
+        GIT_REPOSITORY https://github.com/huggingface/TensorRT-LLM.git
+        GIT_TAG 1bb9ca4688805444f203647674bac1d7219d0579
+        GIT_SHALLOW ON
         DOWNLOAD_EXTRACT_TIMESTAMP
 )
 fetchcontent_makeavailable(trtllm)
