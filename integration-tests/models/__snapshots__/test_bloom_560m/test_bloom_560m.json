@@ -3,7 +3,63 @@
     "best_of_sequences": null,
     "finish_reason": "length",
     "generated_tokens": 10,
-    "prefill": [],
+    "prefill": [
+      {
+        "id": 17934,
+        "logprob": null,
+        "text": "Pour"
+      },
+      {
+        "id": 49833,
+        "logprob": -10.5703125,
+        "text": " dég"
+      },
+      {
+        "id": 21543,
+        "logprob": -0.14746094,
+        "text": "uster"
+      },
+      {
+        "id": 447,
+        "logprob": -1.9277344,
+        "text": " un"
+      },
+      {
+        "id": 46341,
+        "logprob": -15.421875,
+        "text": " ort"
+      },
+      {
+        "id": 35567,
+        "logprob": -7.5820312,
+        "text": "olan"
+      },
+      {
+        "id": 15,
+        "logprob": -1.4013672,
+        "text": ","
+      },
+      {
+        "id": 1669,
+        "logprob": -1.5595703,
+        "text": " il"
+      },
+      {
+        "id": 11580,
+        "logprob": -0.9428711,
+        "text": " faut"
+      },
+      {
+        "id": 3913,
+        "logprob": -3.703125,
+        "text": " tout"
+      },
+      {
+        "id": 39261,
+        "logprob": -1.7763672,
+        "text": " d'abord"
+      }
+    ],
     "seed": 0,
     "tokens": [
       {

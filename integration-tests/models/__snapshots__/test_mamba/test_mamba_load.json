@@ -4,7 +4,33 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [],
+      "prefill": [
+        {
+          "id": 1276,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -0.83984375,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -12.8125,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.84375,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.25,
+          "text": "?"
+        }
+      ],
       "seed": null,
       "tokens": [
         {
@@ -77,7 +103,33 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [],
+      "prefill": [
+        {
+          "id": 1276,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -0.80078125,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -13.25,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.828125,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1953125,
+          "text": "?"
+        }
+      ],
       "seed": null,
       "tokens": [
         {
@@ -150,7 +202,33 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [],
+      "prefill": [
+        {
+          "id": 1276,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -0.80078125,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -13.25,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.828125,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1953125,
+          "text": "?"
+        }
+      ],
       "seed": null,
       "tokens": [
         {
@@ -223,7 +301,33 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [],
+      "prefill": [
+        {
+          "id": 1276,
+          "logprob": null,
+          "text": "What"
+        },
+        {
+          "id": 310,
+          "logprob": -0.80078125,
+          "text": " is"
+        },
+        {
+          "id": 18147,
+          "logprob": -13.25,
+          "text": " Deep"
+        },
+        {
+          "id": 20727,
+          "logprob": -2.828125,
+          "text": " Learning"
+        },
+        {
+          "id": 32,
+          "logprob": -1.1953125,
+          "text": "?"
+        }
+      ],
       "seed": null,
       "tokens": [
         {

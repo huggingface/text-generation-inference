@@ -80,7 +80,7 @@ fn get_config(
     };
 
     let content = std::fs::read_to_string(filename)?;
-    let config: RawConfig = serde_json::from_str(&content)?;
+    let config: RawConfig = serde_json::from_str(&content).expect("?");
 
     let config: Config = config.into();
     Ok(config)
@@ -171,6 +171,8 @@ struct RawConfig {
     head_dim: Option<usize>,
     vision_config: Option<VisionConfig>,
     is_encoder_decoder: Option<bool>,
+    #[serde(rename = "num_experts_per_tok")]
+    experts: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -194,6 +196,7 @@ struct Config {
     model_type: Option<String>,
     vision_config: Option<VisionConfig>,
     is_encoder_decoder: bool,
+    experts: Option<usize>,
 }
 
 impl Config {
@@ -202,7 +205,11 @@ impl Config {
         let num_kv_heads = self.num_kv_heads? as u64;
         let head_dim = self.head_dim? as u64;
         let hidden_size = self.hidden_size? as u64;
-        let intermediate_size = self.intermediate_size? as u64;
+        let intermediate_size = if let Some(experts) = self.experts {
+            (self.intermediate_size? * experts) as u64
+        } else {
+            self.intermediate_size? as u64
+        };
         let num_layers = self.num_layers? as u64;
 
         let q_flops = 2 * num_heads * head_dim * hidden_size;
@@ -245,6 +252,7 @@ impl From<RawConfig> for Config {
         let model_type = other.model_type;
         let vision_config = other.vision_config;
         let is_encoder_decoder = other.is_encoder_decoder.unwrap_or(false);
+        let experts = other.experts;
         Config {
             max_position_embeddings,
             quantize,
@@ -257,6 +265,7 @@ impl From<RawConfig> for Config {
             num_kv_heads,
             intermediate_size,
             num_layers,
+            experts,
         }
     }
 }

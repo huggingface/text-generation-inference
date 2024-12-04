@@ -4,7 +4,103 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [],
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -6.9804688,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.006122589,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.8417969,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -9.918213e-05,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -2.3841858e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.1679688,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.014091492,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -4.4726562,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.2998047,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -4.15625,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.3828125,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -1.9716797,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.27734375,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.5605469,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.00064468384,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.14160156,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.06915283,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.16381836,
+          "text": "?"
+        }
+      ],
       "seed": null,
       "tokens": [
         {
@@ -76,7 +172,103 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [],
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -6.9804688,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.006122589,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.8417969,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -9.942055e-05,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -2.3841858e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.1679688,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.014091492,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -4.4726562,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.2998047,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -4.15625,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.3828125,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -1.9716797,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.27734375,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.5605469,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.0006451607,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.14160156,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.06915283,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.16381836,
+          "text": "?"
+        }
+      ],
       "seed": null,
       "tokens": [
         {
@@ -148,7 +340,103 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [],
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -6.9804688,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.006122589,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.8417969,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -9.918213e-05,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -2.3841858e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.1679688,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.014091492,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -4.4726562,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.2998047,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -4.15625,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.3828125,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -1.9716797,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.27734375,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.5605469,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.00064468384,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.14160156,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.06915283,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.16381836,
+          "text": "?"
+        }
+      ],
       "seed": null,
       "tokens": [
         {
@@ -220,7 +508,103 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [],
+      "prefill": [
+        {
+          "id": 1,
+          "logprob": null,
+          "text": "<s>"
+        },
+        {
+          "id": 4911,
+          "logprob": -6.9804688,
+          "text": "User"
+        },
+        {
+          "id": 29901,
+          "logprob": -0.006122589,
+          "text": ":"
+        },
+        {
+          "id": 32000,
+          "logprob": -0.8417969,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 32001,
+          "logprob": -9.942055e-05,
+          "text": "<image>"
+        },
+        {
+          "id": 32000,
+          "logprob": -2.3841858e-07,
+          "text": "<fake_token_around_image>"
+        },
+        {
+          "id": 1815,
+          "logprob": -4.1679688,
+          "text": "Can"
+        },
+        {
+          "id": 366,
+          "logprob": -0.014091492,
+          "text": "you"
+        },
+        {
+          "id": 2649,
+          "logprob": -4.4726562,
+          "text": "tell"
+        },
+        {
+          "id": 592,
+          "logprob": -0.2998047,
+          "text": "me"
+        },
+        {
+          "id": 263,
+          "logprob": -4.15625,
+          "text": "a"
+        },
+        {
+          "id": 1407,
+          "logprob": -9.3828125,
+          "text": "very"
+        },
+        {
+          "id": 3273,
+          "logprob": -1.9716797,
+          "text": "short"
+        },
+        {
+          "id": 5828,
+          "logprob": -0.27734375,
+          "text": "story"
+        },
+        {
+          "id": 2729,
+          "logprob": -3.5605469,
+          "text": "based"
+        },
+        {
+          "id": 373,
+          "logprob": -0.0006451607,
+          "text": "on"
+        },
+        {
+          "id": 278,
+          "logprob": -0.14160156,
+          "text": "the"
+        },
+        {
+          "id": 1967,
+          "logprob": -0.06915283,
+          "text": "image"
+        },
+        {
+          "id": 29973,
+          "logprob": -0.16381836,
+          "text": "?"
+        }
+      ],
       "seed": null,
       "tokens": [
         {

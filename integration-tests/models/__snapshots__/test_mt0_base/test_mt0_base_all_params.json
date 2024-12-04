@@ -3,7 +3,13 @@
     "best_of_sequences": null,
     "finish_reason": "length",
     "generated_tokens": 10,
-    "prefill": [],
+    "prefill": [
+      {
+        "id": 0,
+        "logprob": null,
+        "text": "<pad>"
+      }
+    ],
     "seed": 0,
     "tokens": [
       {
