@@ -121,8 +121,7 @@ fn executor_status_looper(
         }
 
         if backend.num_tokens_ready() > 0 {
-            let backend = backend.pin_mut();
-            match backend.pull_tokens() {
+            match backend.pin_mut().pull_tokens() {
                 Ok(responses) => {
                     // Iterate through all the decoded token
                     for step in responses.deref() {
@@ -141,7 +140,7 @@ fn executor_status_looper(
 
                             if posted.is_err() || step.is_final {
                                 debug!("Removing {}", step.request_id);
-                                backend.cancel(step.request_id);
+                                backend.pin_mut().cancel(step.request_id);
                                 let _ = in_flights.remove(&step.request_id);
                             }
                         } else {
