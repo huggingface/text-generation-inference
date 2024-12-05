@@ -201,6 +201,11 @@ struct Config {
 
 impl Config {
     fn flop(&self) -> Option<u64> {
+        if self.vision_config.is_some() {
+            // VLM are much harder to predict and VRAM requirements
+            // Are more complex.
+            return None;
+        }
         let num_heads = self.num_heads? as u64;
         let num_kv_heads = self.num_kv_heads? as u64;
         let head_dim = self.head_dim? as u64;

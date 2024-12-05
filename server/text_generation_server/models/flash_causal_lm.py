@@ -1598,6 +1598,8 @@ class FlashCausalLM(Model):
                     if max_input_tokens is None
                     else max_input_tokens
                 )
+        elif max_input_tokens is None:
+            max_input_tokens = max_total_tokens - 1
 
         del _batch, batch
         self.kv_cache = []
