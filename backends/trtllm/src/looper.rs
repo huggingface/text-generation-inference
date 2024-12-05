@@ -113,7 +113,8 @@ fn executor_status_looper(
         }
 
         if backend.num_tokens_ready() > 0 {
-            match backend.pin_mut().pull_tokens() {
+            let mut backend = backend.pin_mut();
+            match backend.as_mut().pull_tokens() {
                 Ok(responses) => {
                     // Iterate through all the decoded token
                     for step in responses.deref() {
@@ -139,7 +140,7 @@ fn executor_status_looper(
                             if let Err(_) = ctx.streamer.send(response) {
                                 // Client has dropped, remove from tracked requests
                                 debug!("Client dropped - removing request {} from tracked requests", step.request_id);
-                                backend.pin_mut().cancel(step.request_id);
+                                backend.as_mut().cancel(step.request_id);
                                 let _ = in_flights.remove(&step.request_id);
                             }
                         } else {
