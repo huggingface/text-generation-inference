@@ -7,7 +7,7 @@ use std::path::Path;
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::TryAcquireError;
-use tokio::task::{spawn_blocking, JoinHandle};
+use tokio::task::spawn_blocking;
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, error, warn};
@@ -318,7 +318,7 @@ impl Backend for TensorRtLlmBackendV2 {
 
         // Send the context to the executor for scheduling
         let queued = Instant::now();
-        match self.send(GenerationContext {
+        match self.0.send(GenerationContext {
             request,
             streamer,
             tokens: Vec::with_capacity(256),
