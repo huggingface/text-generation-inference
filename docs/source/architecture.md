@@ -9,8 +9,10 @@ A high-level architecture diagram can be seen here:
 This diagram shows well there are these separate components:
 
 - **The router**, also named `webserver`, that receives the client requests, buffers them, creates some batches, and prepares gRPC calls to a model server.
-- **The model server**, responsible of receiving the gRPC requests and to process the inference on the model. If the model is sharded across multiple accelerators (e.g.: multiple GPUs), the model server shards might be synchronized via NCCL or equivalent.
 - **The launcher** is a helper that will be able to launch one or several model servers (if model is sharded), and it launches the router with the compatible arguments.
+- **The model server**, responsible for receiving the gRPC requests and to process the inference on the model. If the model is sharded across multiple accelerators (e.g.: multiple GPUs), the model server shards might be synchronized via NCCL or equivalent.
+
+Note that for other backends (eg. TRTLLM) the model server and launcher are specific to the backend.
 
 The router and the model server can be two different machines, they do not need to be deployed together.
 
