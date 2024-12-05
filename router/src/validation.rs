@@ -22,7 +22,7 @@ use tokio::sync::oneshot;
 use tracing::{instrument, Span};
 use {once_cell::sync::Lazy, regex::Regex};
 
-static DEFAULT_GENERATION_LENGTH: u32 = 10;
+static DEFAULT_GENERATION_LENGTH: u32 = 1024;
 
 /// Validation
 #[derive(Debug, Clone)]

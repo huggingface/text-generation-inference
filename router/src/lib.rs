@@ -333,7 +333,7 @@ pub(crate) struct GenerateParameters {
 
     /// Maximum number of tokens to generate.
     #[serde(default)]
-    #[schema(nullable = true, default = "256", example = "20")]
+    #[schema(nullable = true, default = "1024", example = "20")]
     pub max_new_tokens: Option<u32>,
 
     /// Whether to prepend the prompt to the generated text
@@ -460,7 +460,7 @@ pub struct CompletionRequest {
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]
-    #[schema(default = "32")]
+    #[schema(default = "1024", example = "32")]
     pub max_tokens: Option<u32>,
 
     /// What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while
@@ -838,7 +838,7 @@ pub(crate) struct ChatRequest {
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]
-    #[schema(example = "32")]
+    #[schema(default = "1024", example = "32")]
     pub max_tokens: Option<u32>,
 
     /// UNUSED
