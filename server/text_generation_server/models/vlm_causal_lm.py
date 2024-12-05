@@ -229,14 +229,6 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     pass
                 elif chunk_type == "image":
                     image = Image.open(BytesIO(chunk.image.data))
-                    # qwen2_vl expects images to be greater than 20 pixels, this is for warmup since the
-                    # default warmup image is 20x20
-                    if config.model_type == "qwen2_vl":
-                        if image.width <= 20:
-                            w = image.width * 2
-                            h = image.height * 2
-                            image = image.resize((w, h))
-
                     if config.model_type == "llava_next":
                         images.append(image)
                     else:

@@ -533,6 +533,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
                 ).squeeze(0)
                 inputs_embeds[input_ids == self.image_token_id] = image_embeds
 
+        max_s = max(max_s, inputs_embeds.size(0))
         hidden_states = self.text_model(
             inputs_embeds=inputs_embeds,
             position_ids=position_ids,
