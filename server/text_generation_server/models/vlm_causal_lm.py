@@ -177,14 +177,6 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     pass
                 elif chunk_type == "image":
                     image = Image.open(BytesIO(chunk.image.data))
-                    # qwen2_vl expects images to be greater than 20 pixels, this is for warmup since the
-                    # default warmup image is 20x20
-                    if config.model_type == "qwen2_vl":
-                        if image.width <= 20:
-                            w = image.width * 2
-                            h = image.height * 2
-                            image = image.resize((w, h))
-
                     if config.model_type == "llava_next":
                         images.append(image)
                     else:
@@ -197,8 +189,8 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         else:
             image_inputs = None
 
-        batch_inputs = []
-        max_truncation = 0
+        batch_tokenized_inputs = []
+        max_length = 0
         image_id = 0
         for r in requests:
             full_text = ""
@@ -213,16 +205,14 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     image_id += 1
 
             full_text = image_text_replacement_fixup(config, full_text)
-
-            batch_inputs.append(full_text)
-            max_truncation = max(max_truncation, r.truncate)
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs,
-            truncation=True,
-            max_length=max_truncation,
-            add_special_tokens=not config.model_type == "paligemma",
-        )["input_ids"]
+            input_ids = tokenizer(
+                full_text,
+                truncation=True,
+                max_length=r.truncate,
+                add_special_tokens=r.add_special_tokens,
+            )["input_ids"]
+            max_length = max(max_length, len(input_ids))
+            batch_tokenized_inputs.append(input_ids)
 
         return batch_tokenized_inputs, image_inputs
 
