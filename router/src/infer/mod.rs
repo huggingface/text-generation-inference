@@ -111,21 +111,79 @@ impl Infer {
             })?;
 
         // Validate request
+        let mut local_request = request.clone();
         let valid_request = self.validation.validate(request).await.map_err(|err| {
             metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
             tracing::error!("{err}");
             err
         })?;
 
+        let seed = valid_request.parameters.seed;
+        local_request.parameters.seed = Some(seed);
         let input_length = valid_request.input_length;
+        let max_total_new_tokens = valid_request.stopping_parameters.max_total_new_tokens;
         let mut generation_stream = self.backend.schedule(valid_request)?;
 
         // Wrap generation stream to update the backend health if the stream contains an error
         let final_stream = stream! {
+            let mut total_generated_tokens = 0;
+            let mut first_start = None;
+            let mut first_queued = None;
+            let mut all_generated_text: Option<GeneratedText> = None;
+
             while let Some(response) = generation_stream.next().await {
-                yield response.inspect_err(|_err| {
+                let response = response.inspect_err(|_err| {
                     self.backend_health.store(false, Ordering::SeqCst);
-                })
+                })?;
+
+                match response {
+                    InferStreamResponse::Prefill(_) => yield Ok(response),
+                    InferStreamResponse::Intermediate { .. } => {
+                        total_generated_tokens += 1;
+                        yield Ok(response);
+                    }
+                    InferStreamResponse::End { token, top_tokens,generated_text, start, queued  } => {
+                        total_generated_tokens += 1;
+                        first_start = first_start.or(Some(start));
+                        first_queued = first_queued.or(Some(queued));
+                        if let Some(v) = all_generated_text.as_mut() {
+                                v.text.push_str(&generated_text.text);
+                                v.generated_tokens = total_generated_tokens;
+                                v.finish_reason = generated_text.finish_reason.clone();
+                        };
+
+                        if matches!(generated_text.finish_reason, FinishReason::Length) && total_generated_tokens < max_total_new_tokens {
+                            local_request.inputs.push_str(&generated_text.text);
+                            all_generated_text = all_generated_text.or(Some(generated_text));
+
+                            let valid_request = match self.validation.validate(local_request.clone()).await {
+                                Ok(valid_request) => valid_request,
+                                Err(err) => {
+                                    tracing::debug!("Failed to continue request: {err}");
+                                    yield Ok(InferStreamResponse::End {token, top_tokens, generated_text: all_generated_text.unwrap(), start: first_start.unwrap(), queued: first_queued.unwrap() });
+                                    break;
+                                }
+                            };
+
+                            generation_stream = match self.backend.schedule(valid_request) {
+                                Ok(stream) => {
+                                    tracing::debug!("Continue request");
+                                    yield Ok(InferStreamResponse::Intermediate { token, top_tokens } );
+                                    stream
+                                },
+                                Err(err) => {
+                                    tracing::debug!("Failed to continue request: {err}");
+                                    yield Ok(InferStreamResponse::End {token, top_tokens, generated_text: all_generated_text.unwrap(), start: first_start.unwrap(), queued: first_queued.unwrap() });
+                                    break;
+                                }
+                            }
+                        } else {
+                            yield Ok(InferStreamResponse::End {token, top_tokens, generated_text: all_generated_text.unwrap_or(generated_text), start: first_start.unwrap(), queued: first_queued.unwrap() });
+                            break;
+                        }
+
+                    }
+                }
             }
         };
 

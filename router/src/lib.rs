@@ -332,8 +332,8 @@ pub(crate) struct GenerateParameters {
     pub do_sample: bool,
 
     /// Maximum number of tokens to generate.
-    #[serde(default = "default_max_new_tokens")]
-    #[schema(nullable = true, default = "100", example = "20")]
+    #[serde(default)]
+    #[schema(nullable = true, default = "256", example = "20")]
     pub max_new_tokens: Option<u32>,
 
     /// Whether to prepend the prompt to the generated text
@@ -392,10 +392,6 @@ pub(crate) struct GenerateParameters {
     pub adapter_id: Option<String>,
 }
 
-fn default_max_new_tokens() -> Option<u32> {
-    Some(100)
-}
-
 fn default_parameters() -> GenerateParameters {
     GenerateParameters {
         best_of: None,
@@ -406,7 +402,7 @@ fn default_parameters() -> GenerateParameters {
         top_p: None,
         typical_p: None,
         do_sample: true,
-        max_new_tokens: default_max_new_tokens(),
+        max_new_tokens: None,
         return_full_text: None,
         stop: Vec::new(),
         truncate: None,
@@ -937,7 +933,7 @@ impl ChatRequest {
         } = self;
 
         let repetition_penalty = presence_penalty.map(|x| x + 2.0);
-        let max_new_tokens = max_tokens.or(Some(100));
+        let max_new_tokens = max_tokens;
         let tool_prompt = tool_prompt
             .filter(|s| !s.is_empty())
             .unwrap_or_else(default_tool_prompt);
@@ -1328,7 +1324,7 @@ pub struct SimpleToken {
     stop: usize,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema, Clone)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
 pub enum FinishReason {
