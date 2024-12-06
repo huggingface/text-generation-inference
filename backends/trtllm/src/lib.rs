@@ -4,10 +4,11 @@ pub mod errors;
 mod looper;
 mod utils;
 
-#[cxx::bridge(namespace = "huggingface::tgi::backends")]
+#[cxx::bridge(namespace = "huggingface::tgi::backends::trtllm")]
 mod ffi {
     /// Struct used as shared type between rust and C++ to represent the result
     /// of a single decoding iteration
+    #[cxx_name = "generation_step_t"]
     #[derive(Debug, Clone)]
     pub struct GenerationStep {
         request_id: u64,
@@ -19,9 +20,10 @@ mod ffi {
     }
 
     unsafe extern "C++" {
-        include!("backends/trtllm/src/ffi.cpp");
+        include!("backends/trtllm/csrc/ffi.hpp");
 
         /// Represent an instance of the underlying TensorRT-LLM backend
+        #[cxx_name = "tensorrt_llm_backend_t"]
         type TensorRtLlmBackendImpl;
 
         /// Create an instance backed behind a std::unique_ptr to manage the lifespan of the backend
@@ -38,21 +40,18 @@ mod ffi {
         /// ```
         ///
         /// ```
-        #[rust_name = "create_tensorrt_llm_backend"]
-        fn CreateTensorRtLlmBackend(
+        fn create_backend_from_engine_folder(
             engine_folder: &str,
             executor_worker: &str,
         ) -> Result<UniquePtr<TensorRtLlmBackendImpl>>;
 
-        #[rust_name = "num_responses_ready"]
-        fn NumResponsesReady(self: &TensorRtLlmBackendImpl) -> usize;
+        fn num_tokens_ready(self: &TensorRtLlmBackendImpl) -> usize;
 
-        #[rust_name = "submit"]
-        fn Submit(
+        fn submit(
             self: Pin<&mut TensorRtLlmBackendImpl>,
             tokens: &[u32],
             max_new_tokens: u32,
-            top_k: i32,
+            top_k: u32,
             top_p: f32,
             temperature: f32,
             repetition_penalty: f32,
@@ -60,9 +59,10 @@ mod ffi {
             seed: u64,
         ) -> Result<u64>;
 
-        #[rust_name = "pull_tokens"]
-        fn PullTokens(
+        fn pull_tokens(
             self: Pin<&mut TensorRtLlmBackendImpl>,
         ) -> Result<UniquePtr<CxxVector<GenerationStep>>>;
+
+        fn cancel(self: Pin<&mut TensorRtLlmBackendImpl>, request_id: u64);
     }
 }
