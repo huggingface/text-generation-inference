@@ -5,7 +5,7 @@ import pytest
 def flash_qwen2_vl_handle(launcher):
     with launcher(
         "Qwen/Qwen2-VL-2B-Instruct",
-        max_input_tokens=40,
+        max_input_length=40,
         max_batch_prefill_tokens=50,
         max_total_tokens=51,
     ) as handle:

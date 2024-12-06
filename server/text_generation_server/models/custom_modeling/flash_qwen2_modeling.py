@@ -138,7 +138,12 @@ class Qwen2Attention(torch.nn.Module):
                 dim=-1,
             )
 
-        self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
+        self.rotary_emb(
+            query,
+            torch.select(kv, dim=1, index=0),
+            cos[: query.shape[0], ...],
+            sin[: query.shape[0], ...],
+        )
 
         if prefill_cache_indices is not None:
             kv_to_cache = kv[prefill_cache_indices]
