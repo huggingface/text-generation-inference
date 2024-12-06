@@ -4,53 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1024,
-          "logprob": -10.578125,
-          "text": "name"
-        },
-        {
-          "id": 29901,
-          "logprob": -3.0332031,
-          "text": ":"
-        },
-        {
-          "id": 13260,
-          "logprob": -9.171875,
-          "text": "dav"
-        },
-        {
-          "id": 333,
-          "logprob": -0.04257202,
-          "text": "id"
-        },
-        {
-          "id": 29889,
-          "logprob": -2.4785156,
-          "text": "."
-        },
-        {
-          "id": 4876,
-          "logprob": -10.7890625,
-          "text": "email"
-        },
-        {
-          "id": 29901,
-          "logprob": -0.32495117,
-          "text": ":"
-        },
-        {
-          "id": 259,
-          "logprob": -9.4921875,
-          "text": " "
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -123,53 +77,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1024,
-          "logprob": -10.578125,
-          "text": "name"
-        },
-        {
-          "id": 29901,
-          "logprob": -3.03125,
-          "text": ":"
-        },
-        {
-          "id": 13260,
-          "logprob": -9.171875,
-          "text": "dav"
-        },
-        {
-          "id": 333,
-          "logprob": -0.04244995,
-          "text": "id"
-        },
-        {
-          "id": 29889,
-          "logprob": -2.4863281,
-          "text": "."
-        },
-        {
-          "id": 4876,
-          "logprob": -10.7890625,
-          "text": "email"
-        },
-        {
-          "id": 29901,
-          "logprob": -0.32714844,
-          "text": ":"
-        },
-        {
-          "id": 259,
-          "logprob": -9.4921875,
-          "text": " "
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -242,53 +150,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1024,
-          "logprob": -10.578125,
-          "text": "name"
-        },
-        {
-          "id": 29901,
-          "logprob": -3.0332031,
-          "text": ":"
-        },
-        {
-          "id": 13260,
-          "logprob": -9.171875,
-          "text": "dav"
-        },
-        {
-          "id": 333,
-          "logprob": -0.04257202,
-          "text": "id"
-        },
-        {
-          "id": 29889,
-          "logprob": -2.4785156,
-          "text": "."
-        },
-        {
-          "id": 4876,
-          "logprob": -10.7890625,
-          "text": "email"
-        },
-        {
-          "id": 29901,
-          "logprob": -0.32495117,
-          "text": ":"
-        },
-        {
-          "id": 259,
-          "logprob": -9.4921875,
-          "text": " "
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -361,53 +223,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 1024,
-          "logprob": -10.578125,
-          "text": "name"
-        },
-        {
-          "id": 29901,
-          "logprob": -3.0332031,
-          "text": ":"
-        },
-        {
-          "id": 13260,
-          "logprob": -9.171875,
-          "text": "dav"
-        },
-        {
-          "id": 333,
-          "logprob": -0.04257202,
-          "text": "id"
-        },
-        {
-          "id": 29889,
-          "logprob": -2.4785156,
-          "text": "."
-        },
-        {
-          "id": 4876,
-          "logprob": -10.7890625,
-          "text": "email"
-        },
-        {
-          "id": 29901,
-          "logprob": -0.32495117,
-          "text": ":"
-        },
-        {
-          "id": 259,
-          "logprob": -9.4921875,
-          "text": " "
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {

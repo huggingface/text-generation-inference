@@ -6,6 +6,7 @@ def flash_phi35_moe_handle(launcher):
     with launcher(
         "microsoft/Phi-3.5-MoE-instruct",
         num_shard=4,
+        max_batch_prefill_tokens=10000,
     ) as handle:
         yield handle
 

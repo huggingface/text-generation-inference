@@ -57,6 +57,7 @@ from text_generation_server.models.globals import (
     ATTENTION,
     BLOCK_SIZE,
     CUDA_GRAPHS,
+    REQUEST_LOGPROBS,
     TGI_WIGGLE_ROOM,
     get_adapter_to_index,
 )
@@ -292,6 +293,10 @@ class FlashCausalLMBatch(Batch):
         for i, (r, tokenized_input) in enumerate(
             zip(pb.requests, batch_tokenized_inputs)
         ):
+            ### XXX: This consumes so much memory on long requests
+            ### Deactivating it by default seems like the best course.
+            if not REQUEST_LOGPROBS:
+                r.prefill_logprobs = False
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
 
@@ -1554,12 +1559,13 @@ class FlashCausalLM(Model):
             )
             batch_num_blocks = batch.num_blocks
 
+            num_tokens = batch.to_pb().current_tokens
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
             _, _batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
-                f"Not enough memory to handle {batch.to_pb().current_tokens} prefill tokens. "
+                f"Not enough memory to handle {num_tokens} prefill tokens. "
                 f"You need to decrease `--max-batch-prefill-tokens`"
             ) from e
 
@@ -1592,6 +1598,8 @@ class FlashCausalLM(Model):
                     if max_input_tokens is None
                     else max_input_tokens
                 )
+        elif max_input_tokens is None:
+            max_input_tokens = max_total_tokens - 1
 
         del _batch, batch
         self.kv_cache = []

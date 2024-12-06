@@ -3,68 +3,7 @@
     "best_of_sequences": null,
     "finish_reason": "eos_token",
     "generated_tokens": 2,
-    "prefill": [
-      {
-        "id": 589,
-        "logprob": null,
-        "text": "def"
-      },
-      {
-        "id": 3226,
-        "logprob": -9.015625,
-        "text": " ge"
-      },
-      {
-        "id": 21017,
-        "logprob": -9.0859375,
-        "text": "ometric"
-      },
-      {
-        "id": 81,
-        "logprob": -0.25927734,
-        "text": "_"
-      },
-      {
-        "id": 6009,
-        "logprob": -2.2109375,
-        "text": "mean"
-      },
-      {
-        "id": 26,
-        "logprob": -0.2993164,
-        "text": "("
-      },
-      {
-        "id": 62,
-        "logprob": -5.671875,
-        "text": "L"
-      },
-      {
-        "id": 44,
-        "logprob": -3.0742188,
-        "text": ":"
-      },
-      {
-        "id": 1682,
-        "logprob": -0.6777344,
-        "text": " List"
-      },
-      {
-        "id": 77,
-        "logprob": -0.38354492,
-        "text": "["
-      },
-      {
-        "id": 1808,
-        "logprob": -0.91845703,
-        "text": "float"
-      },
-      {
-        "id": 10794,
-        "logprob": -2.5371094,
-        "text": "]):"
-      }
-    ],
+    "prefill": [],
     "seed": 0,
     "tokens": [
       {

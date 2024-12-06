@@ -29,6 +29,26 @@ use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 mod env_runtime;
 mod gpu;
 
+fn compute_optimal(config: Option<&Config>, compute: Option<&ComputeType>) -> Option<usize> {
+    if let (Some(config), Some(compute)) = (config, compute) {
+        if let (Some(f16_max_compute), Some(model_compute)) = (compute.f16_flop(), config.flop()) {
+            tracing::debug!("MAx compute {f16_max_compute} model compute {model_compute}");
+            let optimal_size = (f16_max_compute / model_compute) as usize;
+            if optimal_size > 100 {
+                // Ignore calculations that's too low
+                // Most likely an error
+                Some(optimal_size)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 fn get_config(
     model_id: &str,
     revision: &Option<String>,
@@ -144,10 +164,15 @@ struct RawConfig {
     quantization_config: Option<QuantizationConfig>,
     n_embd: Option<usize>,
     hidden_size: Option<usize>,
+    intermediate_size: Option<usize>,
     num_attention_heads: Option<usize>,
+    num_key_value_heads: Option<usize>,
+    num_hidden_layers: Option<usize>,
     head_dim: Option<usize>,
     vision_config: Option<VisionConfig>,
     is_encoder_decoder: Option<bool>,
+    #[serde(rename = "num_experts_per_tok")]
+    experts: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -155,17 +180,56 @@ struct QuantizationConfig {
     quant_method: Option<Quantization>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct VisionConfig {}
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Config {
     max_position_embeddings: Option<usize>,
     quantize: Option<Quantization>,
     head_dim: Option<usize>,
+    num_heads: Option<usize>,
+    num_kv_heads: Option<usize>,
+    num_layers: Option<usize>,
+    intermediate_size: Option<usize>,
+    hidden_size: Option<usize>,
     model_type: Option<String>,
     vision_config: Option<VisionConfig>,
     is_encoder_decoder: bool,
+    experts: Option<usize>,
+}
+
+impl Config {
+    fn flop(&self) -> Option<u64> {
+        if self.vision_config.is_some() {
+            // VLM are much harder to predict and VRAM requirements
+            // Are more complex.
+            return None;
+        }
+        let num_heads = self.num_heads? as u64;
+        let num_kv_heads = self.num_kv_heads? as u64;
+        let head_dim = self.head_dim? as u64;
+        let hidden_size = self.hidden_size? as u64;
+        let intermediate_size = if let Some(experts) = self.experts {
+            (self.intermediate_size? * experts) as u64
+        } else {
+            self.intermediate_size? as u64
+        };
+        let num_layers = self.num_layers? as u64;
+
+        let q_flops = 2 * num_heads * head_dim * hidden_size;
+        let k_flops = 2 * num_kv_heads * head_dim * hidden_size;
+        let v_flops = 2 * num_kv_heads * head_dim * hidden_size;
+        let attn_flops = 2 * num_heads * head_dim * hidden_size;
+        let o_flops = 2 * num_heads * head_dim * hidden_size;
+        let attn_layer_flops = q_flops + k_flops + v_flops + attn_flops + o_flops;
+
+        let gate_up_down_flops = 2 * 3 * hidden_size * intermediate_size;
+
+        let layer_flops = attn_layer_flops + gate_up_down_flops;
+        let total = layer_flops * num_layers;
+        Some(total)
+    }
 }
 
 impl From<RawConfig> for Config {
@@ -175,25 +239,25 @@ impl From<RawConfig> for Config {
             .or(other.max_seq_len)
             .or(other.n_positions);
         let quantize = other.quantization_config.and_then(|q| q.quant_method);
-        let head_dim = other.head_dim.or_else(|| {
-            match (other.hidden_size, other.n_embd, other.num_attention_heads) {
-                (Some(hidden_size), _, Some(num_attention_heads))
-                    if hidden_size % num_attention_heads == 0 =>
-                {
-                    Some(hidden_size / num_attention_heads)
-                }
-                // Legacy
-                (_, Some(hidden_size), Some(num_attention_heads))
+        let hidden_size = other.hidden_size.or(other.n_embd);
+        let head_dim = other
+            .head_dim
+            .or_else(|| match (hidden_size, other.num_attention_heads) {
+                (Some(hidden_size), Some(num_attention_heads))
                     if hidden_size % num_attention_heads == 0 =>
                 {
                     Some(hidden_size / num_attention_heads)
                 }
                 _ => None,
-            }
-        });
+            });
+        let num_heads = other.num_attention_heads;
+        let num_layers = other.num_hidden_layers;
+        let num_kv_heads = other.num_key_value_heads.or(other.num_attention_heads);
+        let intermediate_size = other.intermediate_size;
         let model_type = other.model_type;
         let vision_config = other.vision_config;
         let is_encoder_decoder = other.is_encoder_decoder.unwrap_or(false);
+        let experts = other.experts;
         Config {
             max_position_embeddings,
             quantize,
@@ -201,6 +265,12 @@ impl From<RawConfig> for Config {
             model_type,
             vision_config,
             is_encoder_decoder,
+            hidden_size,
+            num_heads,
+            num_kv_heads,
+            intermediate_size,
+            num_layers,
+            experts,
         }
     }
 }
@@ -698,6 +768,14 @@ struct Args {
     /// Default is 2MB
     #[clap(default_value = "2000000", long, env)]
     payload_limit: usize,
+
+    /// Enables prefill logprobs
+    ///
+    /// Logprobs in the prompt are deactivated by default because they consume
+    /// a large amount of VRAM (especially for long prompts).
+    /// Using this flag reallows users to ask for them.
+    #[clap(long, env)]
+    enable_prefill_logprobs: bool,
 }
 
 #[derive(Debug)]
@@ -733,6 +811,7 @@ fn shard_manager(
     max_batch_size: Option<usize>,
     max_input_tokens: Option<usize>,
     lora_adapters: Option<String>,
+    enable_prefill_logprobs: bool,
     otlp_endpoint: Option<String>,
     otlp_service_name: String,
     log_level: LevelFilter,
@@ -880,6 +959,11 @@ fn shard_manager(
     // Lora Adapters
     if let Some(lora_adapters) = lora_adapters {
         envs.push(("LORA_ADAPTERS".into(), lora_adapters.into()));
+    }
+
+    // Logprobs
+    if enable_prefill_logprobs {
+        envs.push(("REQUEST_LOGPROBS".into(), "1".into()));
     }
 
     // If huggingface_hub_cache is some, pass it to the shard
@@ -1373,6 +1457,7 @@ fn spawn_shards(
         let rope_factor = args.rope_factor;
         let max_batch_size = args.max_batch_size;
         let lora_adapters = args.lora_adapters.clone();
+        let enable_prefill_logprobs = args.enable_prefill_logprobs;
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -1400,6 +1485,7 @@ fn spawn_shards(
                 max_batch_size,
                 max_input_tokens,
                 lora_adapters,
+                enable_prefill_logprobs,
                 otlp_endpoint,
                 otlp_service_name,
                 max_log_level,
@@ -1439,7 +1525,45 @@ fn spawn_shards(
     Ok(())
 }
 
-fn compute_type(num_shard: usize) -> Option<String> {
+#[derive(Debug)]
+struct ComputeType {
+    count: usize,
+    card: String,
+}
+
+impl ComputeType {
+    fn f16_flop(&self) -> Option<u64> {
+        let card_flop = match &self.card[..] {
+            // https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/
+            // Specs are unclear https://www.itcreations.com/nvidia-gpu/nvidia-geforce-rtx-4090-gpu
+            "nvidia-4090" => Some(82 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/tesla-t4/
+            "nvidia-t4" => Some(65 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/l4/
+            "nvidia-l4" => Some(121 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/products/a10-gpu/
+            "nvidia-a10g" => Some(125 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/h100/
+            // https://www.techpowerup.com/gpu-specs/docs/nvidia-gh100-architecture.pdf
+            "nvidia-h100-80gb-hbm3" => Some(900 * 10u64.pow(12)),
+            // https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf
+            "nvidia-a100" => Some(312 * 10u64.pow(12)),
+            card => {
+                tracing::warn!("Unkown compute for card {card}");
+                None
+            }
+        };
+        card_flop.map(|f| f * self.count as u64)
+    }
+}
+
+impl From<ComputeType> for OsString {
+    fn from(value: ComputeType) -> Self {
+        format!("{}-{}", value.count, value.card).into()
+    }
+}
+
+fn compute_type(num_shard: usize) -> Option<ComputeType> {
     let output = Command::new("nvidia-smi")
         .args(["--query-gpu=gpu_name", "--format=csv"])
         .output()
@@ -1447,8 +1571,10 @@ fn compute_type(num_shard: usize) -> Option<String> {
     let output = String::from_utf8(output.stdout).ok()?;
     let fullname = output.split('\n').nth(1)?;
     let cardname = fullname.replace(' ', "-").to_lowercase();
-    let compute_type = format!("{num_shard}-{cardname}");
-    Some(compute_type)
+    Some(ComputeType {
+        count: num_shard,
+        card: cardname,
+    })
 }
 
 fn spawn_webserver(
@@ -1700,25 +1826,21 @@ fn main() -> Result<(), LauncherError> {
     let config: Option<Config> = get_config(&args.model_id, &args.revision).ok();
     let quantize = config.as_ref().and_then(|c| c.quantize);
     // Quantization usually means you're even more RAM constrained.
-    let max_default = 4096;
 
-    let max_position_embeddings = if let Some(config) = &config {
-        if let Some(max_position_embeddings) = config.max_position_embeddings {
-            if max_position_embeddings > max_default {
-                max_default
-            } else {
-                max_position_embeddings
-            }
-        } else {
-            max_default
-        }
-    } else {
-        max_default
-    };
     let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
     tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
     std::env::set_var("PREFIX_CACHING", prefix_caching);
     std::env::set_var("ATTENTION", attention);
+
+    let num_shard = find_num_shards(args.sharded, args.num_shard)?;
+    if num_shard > 1 {
+        if matches!(args.quantize, Some(Quantization::Exl2)) {
+            return Err(LauncherError::ArgumentValidation(
+                "Sharding is currently not supported with `exl2` quantization".into(),
+            ));
+        }
+        tracing::info!("Sharding model on {num_shard} processes");
+    }
 
     let max_input_tokens = {
         match (args.max_input_tokens, args.max_input_length) {
@@ -1739,9 +1861,17 @@ fn main() -> Result<(), LauncherError> {
             Some(max_batch_prefill_tokens) => max_batch_prefill_tokens,
             None => {
                 // TODO figure out hardware optimal value
-                let value = 4096.min(max_position_embeddings as u32);
+                let compute_type = compute_type(num_shard);
+                let compute_optimal = compute_optimal(config.as_ref(), compute_type.as_ref());
+                let default = compute_optimal.unwrap_or(4096);
+                let max_position_embeddings = config.and_then(|c| c.max_position_embeddings);
+                let value = if let Some(max_position_embeddings) = max_position_embeddings {
+                    default.min(max_position_embeddings)
+                } else {
+                    default
+                };
                 tracing::info!("Default `max_batch_prefill_tokens` to {value}");
-                value
+                value as u32
             }
         }
     };
@@ -1794,16 +1924,6 @@ fn main() -> Result<(), LauncherError> {
             "`trust_remote_code` is set. Trusting that model `{}` do not contain malicious code.",
             args.model_id
         );
-    }
-
-    let num_shard = find_num_shards(args.sharded, args.num_shard)?;
-    if num_shard > 1 {
-        if matches!(args.quantize, Some(Quantization::Exl2)) {
-            return Err(LauncherError::ArgumentValidation(
-                "Sharding is currently not supported with `exl2` quantization".into(),
-            ));
-        }
-        tracing::info!("Sharding model on {num_shard} processes");
     }
 
     if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
