@@ -116,17 +116,17 @@ def paged_attention(
     else:
         # Run PagedAttention V2.
         assert _PARTITION_SIZE % block_size == 0
-        tmp_output = torch.empty(
+        tmp_output = torch.zeros(
             size=(num_seqs, num_heads, max_num_partitions, head_size),
             dtype=out.dtype,
             device=out.device,
         )
-        exp_sums = torch.empty(
+        exp_sums = torch.zeros(
             size=(num_seqs, num_heads, max_num_partitions),
             dtype=torch.float32,
             device=out.device,
         )
-        max_logits = torch.empty_like(exp_sums)
+        max_logits = torch.zeros_like(exp_sums)
 
         if not use_custom:
             ops.paged_attention_v2(
