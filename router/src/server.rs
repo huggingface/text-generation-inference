@@ -714,7 +714,7 @@ pub(crate) async fn completions(
         ..
     } = req;
 
-    let max_new_tokens = max_tokens.or(Some(100));
+    let max_new_tokens = max_tokens;
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
     let (do_sample, temperature) = match temperature {
