@@ -7,7 +7,7 @@ members = [
   "backends/trtllm",
   "launcher",
   "router"
-]
+, "backends/llamacpp"]
 default-members = [
   "benchmark",
   "backends/v2",
