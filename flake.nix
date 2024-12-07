@@ -115,15 +115,17 @@
             buildInputs =
               [
                 benchmark
-                launcher
-                router
-                server
+                cargo
                 client
+                clippy
+                ffmpeg
+                launcher
                 openssl.dev
                 pkg-config
-                cargo
+                router
+                rustPlatform.bindgenHook
                 rustfmt
-                clippy
+                server
               ]
               ++ (with python3.pkgs; [
                 docker

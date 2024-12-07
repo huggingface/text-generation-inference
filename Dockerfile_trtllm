@@ -29,7 +29,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3-dev \
     python3-setuptools \
     tar \
-    wget
+    wget \
+    ffmpeg \
+    libavcodec-dev \
+    libavfilter-dev \
+    libavdevice-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    pkg-config \
+    libclang-dev \
+    clang
 
 ENV TGI_INSTALL_PREFIX=/usr/local/tgi
 ENV TENSORRT_INSTALL_PREFIX=/usr/local/tensorrt

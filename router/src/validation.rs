@@ -4,6 +4,9 @@ use crate::{
     GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor,
     TokenizerTrait,
 };
+use ffmpeg_next as ffmpeg;
+use std::io::Write;
+
 use crate::{PyTokenizer, Tokenizer};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{ImageFormat, ImageReader};
@@ -21,6 +24,10 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
 use {once_cell::sync::Lazy, regex::Regex};
+// video processing
+use ffmpeg::media::Type;
+use ffmpeg::software::scaling::{context::Context, flag::Flags};
+use ffmpeg_next::format::Pixel;
 
 static DEFAULT_GENERATION_LENGTH: u32 = 1024;
 
@@ -536,6 +543,125 @@ fn format_to_mimetype(format: ImageFormat) -> String {
     .to_string()
 }
 
+pub fn fetch_video(
+    input: &str,
+    target_width: u32,
+    target_height: u32,
+) -> Result<ProcessedVideo, ValidationError> {
+    let (data, mimetype) =
+        if input.starts_with("<video>(http://") || input.starts_with("<video>(https://") {
+            let url = &input["<video>(".len()..input.len() - 1];
+            let data = reqwest::blocking::get(url)?.bytes()?.to_vec();
+            (data, "video/mp4".to_string())
+        } else if input.starts_with("<video>(data:") {
+            let content = &input["<video>(data:".len()..input.len() - 1];
+            let tokens: Vec<&str> = content.split(';').collect();
+            if tokens.len() != 2 {
+                return Err(ValidationError::InvalidVideoContent(content.to_string()));
+            }
+            let mimetype = tokens[0];
+            let content = tokens[1];
+            if !content.starts_with("base64,") {
+                return Err(ValidationError::InvalidVideoContent(content.to_string()));
+            }
+            let data = STANDARD.decode(&content["base64,".len()..])?;
+            (data, mimetype.to_string())
+        } else {
+            return Err(ValidationError::InvalidVideoContent(input.to_string()));
+        };
+
+    // init ffmpeg
+    ffmpeg::init().map_err(|_| ValidationError::FFmpegError)?;
+
+    // create temporary file for ffmpeg input
+    let mut temp_file = tempfile::NamedTempFile::new().map_err(ValidationError::IoError)?;
+    temp_file
+        .write_all(&data)
+        .map_err(ValidationError::IoError)?;
+
+    let mut ictx =
+        ffmpeg::format::input(&temp_file.path()).map_err(|_| ValidationError::FFmpegError)?;
+
+    let input = ictx
+        .streams()
+        .best(Type::Video)
+        .ok_or(ValidationError::FFmpegError)?;
+    let video_stream_index = input.index();
+
+    let context_decoder = ffmpeg::codec::context::Context::from_parameters(input.parameters())
+        .map_err(|_| ValidationError::FFmpegError)?;
+    let mut decoder = context_decoder
+        .decoder()
+        .video()
+        .map_err(|_| ValidationError::FFmpegError)?;
+
+    let width = target_width;
+    let height = target_height;
+
+    let mut scaler = Context::get(
+        decoder.format(),
+        decoder.width(), // original width
+        decoder.height(),
+        Pixel::RGB24,
+        width, // target width
+        height,
+        Flags::BILINEAR,
+    )
+    .map_err(|_| ValidationError::FFmpegError)?;
+
+    let mut frame_index = 0;
+    let mut captured_frame_index = 0;
+    let mut frames = vec![];
+
+    let mut receive_and_process_decoded_frames =
+        |decoder: &mut ffmpeg::decoder::Video, fps: f32| -> Result<(), ffmpeg::Error> {
+            let mut decoded = ffmpeg::util::frame::video::Video::empty();
+            while decoder.receive_frame(&mut decoded).is_ok() {
+                let mut rgb_frame = ffmpeg::util::frame::video::Video::empty();
+                scaler.run(&decoded, &mut rgb_frame)?;
+                if frame_index as f32 % fps == 0.0 {
+                    captured_frame_index += 1;
+                    frames.push(rgb_frame.data(0).to_vec());
+                }
+                frame_index += 1;
+            }
+            Ok(())
+        };
+
+    let mut fps = 0.0;
+    let mut total_frames = 0;
+
+    for (stream, packet) in ictx.packets() {
+        total_frames = stream.frames();
+        fps = stream.rate().numerator() as f32 / stream.rate().denominator() as f32;
+
+        if stream.index() == video_stream_index {
+            decoder
+                .send_packet(&packet)
+                .map_err(|_| ValidationError::FFmpegError)?;
+            receive_and_process_decoded_frames(&mut decoder, fps)
+                .map_err(|_| ValidationError::FFmpegError)?;
+        }
+    }
+    decoder
+        .send_eof()
+        .map_err(|_| ValidationError::FFmpegError)?;
+
+    let total_frames = total_frames.try_into().map_err(|_| {
+        ValidationError::InvalidVideoContent(
+            "Total frames is too large to be represented as usize".to_string(),
+        )
+    })?;
+    Ok(ProcessedVideo {
+        mimetype,
+        height,
+        width,
+        frames,
+        fps,
+        total_frames,
+    })
+}
+
 fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), ValidationError> {
     if input.starts_with("![](http://") || input.starts_with("![](https://") {
         let url = &input["![](".len()..input.len() - 1];
@@ -624,6 +750,27 @@ fn image_tokens(
     }
 }
 
+fn video_tokens(config: &Config, height: u32, width: u32, total_frames: f32) -> String {
+    use Config::*;
+
+    match config {
+        // TOOD: improve to use the config to better estimate the number of tokens
+        Qwen2Vl(_config) => {
+            let min_frames = 2_f32;
+            let max_frames = 256_f32;
+            // make sure the frames are within the range and are even
+            let nframes = (total_frames).max(min_frames).min(max_frames);
+            let nframes = (nframes / 2.0).round() as usize * 2;
+            let num_tokens = nframes * height as usize * width as usize / 1541;
+            format!(
+                "<|vision_start|>{:?}<|vision_end|>",
+                "<|video_pad|>".repeat(num_tokens)
+            )
+        }
+        _ => unimplemented!("Video tokens are not supported for this model configuration"),
+    }
+}
+
 fn image_tokens_fixup(config: &Config, text: String) -> String {
     match config {
         Config::Idefics2(_) => {
@@ -645,6 +792,10 @@ fn prepare_input<T: TokenizerTrait>(
 ) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {
     use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
+    // Add video regex
+    static VIDEO_RE: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"<video>\((https?://[^\)]+)\)").unwrap());
+
     let (tokenizer_query, input_chunks) = match config {
         Some(
             config @ (Idefics | Mllama | Idefics2(_) | Paligemma(_) | LlavaNext(_) | Qwen2Vl(_)),
@@ -652,6 +803,54 @@ fn prepare_input<T: TokenizerTrait>(
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());
             let mut start = 0;
+
+            // handle video content first
+            for chunk in VIDEO_RE.find_iter(&inputs) {
+                let chunk_start = chunk.start();
+                let chunk_end = chunk.end();
+                if chunk_start != start {
+                    input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()));
+                    tokenizer_query.push_str(&inputs[start..chunk_start]);
+                }
+                let ProcessedVideo {
+                    mimetype,
+                    height,
+                    width,
+                    frames,
+                    fps,
+                    total_frames,
+                } = match config {
+                    Idefics | Mllama | Idefics2(_) | Paligemma(_) | LlavaNext(_) => {
+                        let default_target_width = 224;
+                        let default_target_height = 224;
+                        fetch_video(
+                            &inputs[chunk_start..chunk_end],
+                            default_target_width,
+                            default_target_height,
+                        )?
+                    }
+                    Qwen2Vl(_) => {
+                        // TODO: improve to send the full size video (do not divide by 2)
+                        let target_width = 360 / 2;
+                        let target_height = 420 / 2;
+                        fetch_video(&inputs[chunk_start..chunk_end], target_width, target_height)?
+                    }
+                    _ => {
+                        unreachable!("Video tokens are not supported for this model configuration")
+                    }
+                };
+                input_chunks.push(Chunk::Video(Video {
+                    data: frames.iter().flatten().cloned().collect(),
+                    mimetype,
+                    width,
+                    num_frames: (total_frames as f32 / fps) as u32,
+                }));
+                let video_tokens = video_tokens(config, height, width, total_frames as f32);
+                tokenizer_query.push_str(&video_tokens);
+                start = chunk_end;
+            }
+
+            // handle image content after video content
             for chunk in RE.find_iter(&inputs) {
                 let chunk_start = chunk.start();
                 let chunk_end = chunk.end();
@@ -660,7 +859,10 @@ fn prepare_input<T: TokenizerTrait>(
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
                 let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
-                input_chunks.push(Chunk::Image(Image { data, mimetype }));
+                input_chunks.push(Chunk::Image(Image {
+                    data,
+                    mimetype: mimetype.clone(),
+                }));
                 tokenizer_query.push_str(&image_tokens(config, preprocessor_config, height, width));
                 start = chunk_end;
             }
@@ -696,10 +898,28 @@ pub struct Image {
     pub mimetype: String,
 }
 
+pub struct ProcessedVideo {
+    mimetype: String,
+    height: u32,
+    width: u32,
+    frames: Vec<Vec<u8>>, // RGB frames
+    fps: f32,
+    total_frames: usize,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Video {
+    pub data: Vec<u8>,
+    pub mimetype: String,
+    pub width: u32,
+    pub num_frames: u32,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Chunk {
     Text(String),
     Image(Image),
+    Video(Video),
 }
 
 /// Convert input chunks to a stringly-typed input for backwards
@@ -717,6 +937,19 @@ impl ChunksToString for Vec<Chunk> {
             Chunk::Image(Image { data, mimetype }) => {
                 let encoded = STANDARD.encode(data);
                 output.push_str(&format!("![](data:{};base64,{})", mimetype, encoded))
+            }
+            Chunk::Video(Video {
+                data,
+                mimetype,
+                width,
+                num_frames: _,
+            }) => {
+                // TODO: revisit if we should limit video support to v3 - to avoid sending very large base64 strings
+                let encoded = STANDARD.encode(data);
+                output.push_str(&format!(
+                    r#"<video width="{}"><source src="data:{};base64,{}" type="{}"></video>"#,
+                    width, mimetype, encoded, mimetype
+                ));
             }
         });
         output
@@ -846,6 +1079,16 @@ pub enum ValidationError {
     FailedFetchImage(#[from] reqwest::Error),
     #[error("{0} modality is not supported")]
     UnsupportedModality(&'static str),
+    #[error("invalid video content: {0}")]
+    InvalidVideoContent(String),
+    #[error("could not parse MP4 file")]
+    MP4Error,
+    #[error("no video stream found")]
+    NoVideoStream,
+    #[error("io error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("ffmpeg error")]
+    FFmpegError,
 }
 
 #[cfg(test)]
