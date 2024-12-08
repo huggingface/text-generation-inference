@@ -1557,11 +1557,22 @@ class FlashCausalLM(Model):
                 self.kv_cache_dtype,
                 self.device,
             )
+
             batch_num_blocks = batch.num_blocks
 
             num_tokens = batch.to_pb().current_tokens
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
+            synchronize(self.device)
+            free_memory = get_free_memory(
+                self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM
+            )
+            real_free_memory = get_free_memory(self.device, MEMORY_FRACTION)
+            log_master(
+                logger.debug,
+                f"Free memory {free_memory/1e9:.2f}GB , (real: {real_free_memory/1e9:.2f}GB",
+            )
+
             _, _batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
@@ -1570,12 +1581,11 @@ class FlashCausalLM(Model):
             ) from e
 
         synchronize(self.device)
-
-        free_memory = get_free_memory(self.device, MEMORY_FRACTION)
-
+        free_memory = get_free_memory(self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM)
+        kv_memory = free_memory
         num_blocks = (
             # Leave 5% for some wiggle room
-            int((free_memory * TGI_WIGGLE_ROOM) // total_cache_size)
+            int(kv_memory // total_cache_size)
             # Add batch.num_blocks as we allocated it above, so it is included in the peak memory.
             + batch_num_blocks
         )
@@ -1584,21 +1594,11 @@ class FlashCausalLM(Model):
         if max_total_tokens is None:
             if get_support_chunking():
                 model_max_length = self.tokenizer.model_max_length
-                max_input_tokens = (
-                    min((num_blocks * BLOCK_SIZE - 1), model_max_length)
-                    if max_input_tokens is None
-                    else max_input_tokens
-                )
-                max_total_tokens = num_blocks * BLOCK_SIZE
-
+                max_total_tokens = min(num_blocks * BLOCK_SIZE, model_max_length)
             else:
                 max_total_tokens = sum(batch.cache_lengths)
-                max_input_tokens = (
-                    max_total_tokens - 1
-                    if max_input_tokens is None
-                    else max_input_tokens
-                )
-        elif max_input_tokens is None:
+
+        if max_input_tokens is None:
             max_input_tokens = max_total_tokens - 1
 
         del _batch, batch
@@ -1676,8 +1676,25 @@ class FlashCausalLM(Model):
                 )
                 # Warmup cuda graphs
                 for bs in CUDA_GRAPHS:
+                    synchronize(self.device)
+                    free_memory = get_free_memory(
+                        self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM
+                    )
+                    log_master(
+                        logger.debug,
+                        f"Free RAM before cuda graph {bs} {free_memory / 1e9:.2f}GB",
+                    )
                     if self.speculate is None or self.speculate + 1 <= bs:
                         self.cuda_graph_warmup(bs, max_total_tokens, max_total_tokens)
+                empty_cache()
+                synchronize(self.device)
+                free_memory = get_free_memory(
+                    self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM
+                )
+                log_master(
+                    logger.debug,
+                    f"Free RAM after cuda graphs {free_memory / 1e9:.2f}GB",
+                )
             except torch.cuda.OutOfMemoryError:
                 logger.exception("Decode cuda graph warmup failed")
         else:
