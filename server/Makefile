@@ -19,7 +19,7 @@ gen-server:
 
 install: gen-server
 	pip install pip --upgrade
-	pip install -r requirements.txt
+	pip install --no-deps -r requirements.txt
 	pip install -e "."
 
 run-dev:
