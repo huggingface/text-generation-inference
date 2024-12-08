@@ -125,7 +125,7 @@ async def test_flash_llama_load(
     assert len(responses) == len(prompts)
     outputs = [r.choices[0].message.content for r in responses]
     expected = [
-        "Jeff Walk er's Product Launch Formula is a comprehensive system",
+        "Jeff Walker's Product Launch Formula is a comprehensive system",
         "Here are three key indicators to determine if a customer",
         "You can use the `String.format()` method in",
         "In a realm of binary mysticism, we find",
