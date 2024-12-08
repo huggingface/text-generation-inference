@@ -1628,10 +1628,10 @@ pub async fn run(
             let args = ("out".to_string(),);
             save.call1(args)?;
             Ok(())
-        })
-        .inspect_err(|err| {
-            tracing::error!("Failed to import python tokenizer {err}");
         });
+        //.inspect_err(|err| {
+        //    tracing::error!("Failed to import python tokenizer {err}");
+        //});
         let filename = if convert.is_ok() {
             // If we have correctly loaded and resaved with transformers
             // We might have modified the tokenizer.json according to transformers
