@@ -19,6 +19,9 @@ try:
 except ImportError:
     marlin_kernels = None
 
+quant_dtype: torch.dtype = (
+    torch.float8_e4m3fnuz if SYSTEM == "rocm" else torch.float8_e4m3fn
+)
 
 if SYSTEM == "cuda" and marlin_kernels is not None:
     major, minor = torch.cuda.get_device_capability()
@@ -91,7 +94,7 @@ def requantize_with_max_scale(
     weight: torch.Tensor, weight_scale: torch.Tensor, logical_widths: int
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     # Max scale to be used for requanitzation.
-    max_w_scale = weight_scale.max()
+    max_w_scale = weight_scale.max().float()
 
     start = 0
     for idx, logical_width in enumerate(logical_widths):
@@ -109,7 +112,7 @@ def fp8_quantize(
     weight: torch.Tensor,
     scale: Optional[torch.Tensor] = None,
     scale_upper_bound: Optional[torch.Tensor] = None,
-    qdtype: torch.dtype = torch.float8_e4m3fn,
+    qdtype: torch.dtype = quant_dtype,
     scalar: bool = False,
 ):
     """

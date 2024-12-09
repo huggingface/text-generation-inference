@@ -267,6 +267,15 @@ COPY server/exllamav2_kernels/ .
 
 RUN python setup.py build
 
+FROM kernel-builder AS marlin-kernels
+WORKDIR /usr/src
+ENV MARLIN_KERNELS_BRANCH=v0.3.6
+ENV VLLM_TARGET_DEVICE=rocm
+RUN git clone https://github.com/danieldk/marlin-kernels.git && \
+    cd marlin-kernels && \
+    git checkout ${MARLIN_KERNELS_BRANCH} && \
+    python setup.py install
+
 FROM install_deps AS base-copy
 
 # Text Generation Inference base env
@@ -288,6 +297,9 @@ COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 
 
 # Copy build artifacts from exllamav2 kernels builder
 COPY --from=exllamav2-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
+
+# Copy build artifacts from marlin kernels
+COPY --from=marlin-kernels /usr/src/marlin-kernels/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
 
 # Install server
 COPY proto proto
