@@ -1629,6 +1629,7 @@ enum Gpu {
     T4,
     L4,
     L40,
+    L40S,
     A10G,
     H100,
     A100,
@@ -1648,6 +1649,7 @@ impl From<&str> for Gpu {
             "nvidia-t4" => Gpu::T4,
             "nvidia-l4" => Gpu::L4,
             "nvidia-l40" => Gpu::L40,
+            "nvidia-l40s" => Gpu::L40S,
             "nvidia-a10g" => Gpu::A10G,
             "nvidia-h100-80gb-hbm3" => Gpu::H100,
             "nvidia-a100-sxm4-80gb" => Gpu::A100,
@@ -1664,6 +1666,7 @@ impl std::fmt::Display for Gpu {
             Gpu::T4 => write!(f, "nvida-t4"),
             Gpu::L4 => write!(f, "nvida-l4"),
             Gpu::L40 => write!(f, "nvida-l40"),
+            Gpu::L40S => write!(f, "nvida-l40s"),
             Gpu::A10G => write!(f, "nvidia-a10g"),
             Gpu::H100 => write!(f, "nvidia-h100-80fb-hbm3"),
             Gpu::A100 => write!(f, "nvida-a100-sxm4-80gb"),
@@ -1684,6 +1687,8 @@ impl ComputeType {
             Gpu::L4 => Some(121 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/l40/
             Gpu::L40 => Some(181 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/l40s/
+            Gpu::L40S => Some(363 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/products/a10-gpu/
             Gpu::A10G => Some(125 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/h100/
