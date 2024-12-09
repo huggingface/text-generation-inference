@@ -72,7 +72,7 @@ Long:  `MODEL_ID=$MODEL_ID  HOST=localhost:8000 k6 run load_tests/long.js`
 
 ### Results
 
-![benchmarks_v3](https://github.com/huggingface/text-generation-inference/blob/042791fbd5742b1644d42c493db6bec669df6537/assets/v3_benchmarks.png)
+![benchmarks_v3](https://raw.githubusercontent.com/huggingface/text-generation-inference/refs/heads/main/assets/v3_benchmarks.png)
 
 Our benchmarking results show significant performance gains, with a 13x speedup over vLLM with prefix caching, and up to 30x speedup without prefix caching. These results are consistent with our production data and demonstrate the effectiveness of our optimized LLM architecture.
 
