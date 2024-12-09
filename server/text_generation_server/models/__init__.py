@@ -29,6 +29,7 @@ from text_generation_server.models.custom_modeling.bloom_modeling import (
     BloomForCausalLM,
 )
 from text_generation_server.models.globals import ATTENTION
+import text_generation_server.models.globals as globals
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
 from text_generation_server.models.galactica import GalacticaCausalLMBatch
 from text_generation_server.models.custom_modeling.neox_modeling import (
@@ -1208,6 +1209,11 @@ def get_model(
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == QWEN2_VL:
+        # TODO: remove edge case when cuda graph issue is resolved for BS=2 with Qwen2-VL
+        logger.warning(
+            "Qwen2-VL requires cuda graphs to be greater than 2. Removing all cuda graphs with a batch size equal or less than 2."
+        )
+        globals.CUDA_GRAPHS = list(filter(lambda x: x > 2, globals.CUDA_GRAPHS))
         return VlmCausalLM(
             model_id=model_id,
             model_class=Qwen2VLForConditionalGeneration,

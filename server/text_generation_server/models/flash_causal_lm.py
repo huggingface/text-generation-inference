@@ -56,11 +56,13 @@ from text_generation_server.models.globals import (
     MEM_POOL,
     ATTENTION,
     BLOCK_SIZE,
-    CUDA_GRAPHS,
     REQUEST_LOGPROBS,
     TGI_WIGGLE_ROOM,
     get_adapter_to_index,
 )
+
+# avoid coping CUDA_GRAPHS value by importing globals as a module
+import text_generation_server.models.globals as globals
 from text_generation_server.layers.attention import KVCache, Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
@@ -1629,8 +1631,8 @@ class FlashCausalLM(Model):
                         int(val)
                         for val in os.environ["PYTORCH_TUNABLEOP_SEQLENS"].split(",")
                     ]
-                elif CUDA_GRAPHS is not None:
-                    tuning_sequences = CUDA_GRAPHS
+                elif globals.CUDA_GRAPHS is not None:
+                    tuning_sequences = globals.CUDA_GRAPHS
                 else:
                     tuning_sequences = [1, 2, 3, 4, 5, 6, 7]
 
@@ -1669,13 +1671,14 @@ class FlashCausalLM(Model):
                     "PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp.",
                 )
 
-        if CUDA_GRAPHS:
+        if globals.CUDA_GRAPHS:
             try:
                 log_master(
-                    logger.info, f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}"
+                    logger.info,
+                    f"Cuda Graphs are enabled for sizes {globals.CUDA_GRAPHS}",
                 )
                 # Warmup cuda graphs
-                for bs in CUDA_GRAPHS:
+                for bs in globals.CUDA_GRAPHS:
                     synchronize(self.device)
                     free_memory = get_free_memory(
                         self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM
@@ -1699,7 +1702,8 @@ class FlashCausalLM(Model):
                 logger.exception("Decode cuda graph warmup failed")
         else:
             log_master(
-                logger.info, f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS})."
+                logger.info,
+                f"Cuda Graphs are disabled (CUDA_GRAPHS={globals.CUDA_GRAPHS}).",
             )
 
         assert max_input_tokens is not None
