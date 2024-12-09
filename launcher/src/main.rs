@@ -76,7 +76,7 @@ fn vram_maximum(
     if let Some(vram) = available.checked_sub(model) {
         let tokens_allowed = vram / token_vram;
         tracing::debug!(
-        "Available vram {}: model needs{}, every tokens requires {}, maximum allocatable tokens {tokens_allowed}",
+        "Available vram {}: model needs {}, every tokens requires {}, maximum allocatable tokens {tokens_allowed}",
         human_size(available, "B"),
         human_size(model, "B"),
         human_size(token_vram, "B"),
