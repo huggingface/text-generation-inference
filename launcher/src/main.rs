@@ -295,6 +295,8 @@ impl Config {
         // TODO This calculation depends on the actual implementation
         let dtype_size = 2;
         let mlp_size = self.intermediate_size?;
+        // calculation is overshooting here.
+        // Coming from here: https://github.com/vllm-project/vllm/blob/d1c2e15eb31ef12e688ce0cb71895f88eaf4cd4f/vllm/model_executor/layers/fused_moe/fused_moe.py#L618-L624
         Some((mlp_size + mlp_size / 2) * self.num_experts * dtype_size * 3)
     }
 
