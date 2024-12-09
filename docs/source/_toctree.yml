@@ -54,6 +54,8 @@
     title: API Reference
   title: Reference
 - sections:
+  - local: conceptual/chunking
+    title: V3 update, caching and chunking
   - local: conceptual/streaming
     title: Streaming
   - local: conceptual/quantization
