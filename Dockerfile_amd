@@ -276,6 +276,15 @@ RUN git clone https://github.com/danieldk/marlin-kernels.git && \
     git checkout ${MARLIN_KERNELS_BRANCH} && \
     python setup.py install
 
+FROM kernel-builder AS moe-kernels
+WORKDIR /usr/src
+ENV MOE_KERNELS_BRANCH=127ec5e0fbd2f22fad2d63fbb559d2449e7b5ddb
+ENV VLLM_TARGET_DEVICE=rocm
+RUN git clone https://github.com/mht-sharma/moe-kernels.git && \
+    cd moe-kernels && \
+    git checkout ${MOE_KERNELS_BRANCH} && \
+    python setup.py install
+
 FROM install_deps AS base-copy
 
 # Text Generation Inference base env
@@ -300,6 +309,9 @@ COPY --from=exllamav2-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-31
 
 # Copy build artifacts from marlin kernels
 COPY --from=marlin-kernels /usr/src/marlin-kernels/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
+
+# Copy build artifacts from moe kernels
+COPY --from=moe-kernels /usr/src/moe-kernels/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
 
 # Install server
 COPY proto proto
