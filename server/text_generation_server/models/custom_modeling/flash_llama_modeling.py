@@ -64,9 +64,9 @@ if SYSTEM != "ipex":
 
 if SYSTEM == "rocm":
     try:
-        from vllm import _custom_C
+        import vllm._custom_ops as ops
     except Exception as e:
-        raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
+        raise ImportError(f"Could not load `vllm._custom_ops`. Full error: {e}")
 
 
 def load_attention(config, prefix: str, weights, layer_id):
@@ -392,16 +392,37 @@ class LlamaMLP(nn.Module):
                 dtype=hidden_states.dtype,
                 device="cuda",
             )
-            _custom_C.LLMM_Silu(
+            ops.LLMM_Silu(
                 self.gate_up_proj.base_layer.linear.weight, hidden_states, out, 8
             )
             return self.down_proj(out, adapter_data)
         else:
             gate_up_states = self.gate_up_proj(hidden_states, adapter_data)
-            gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-            return self.down_proj(
-                self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], adapter_data
+            # x = gate_up_states.view(-1, 1,self.intermediate_size)
+            # from loguru import logger
+            # logger.info(f"gate_up_states: {gate_up_states.shape}")
+            # x = self.act(gate_up_states[:, 0]) * gate_up_states[:, 1]
+            # logger.info(f"x: {x.shape}")
+
+            # return self.down_proj(
+            #     x, adapter_data
+            # )
+
+            # gate_up_states: torch.Size([4096, 2, 14336])
+            # x: torch.Size([4096, 14336])
+
+            #             gate_up_states = self.gate_up_proj(hidden_states, adapter_data)
+            # x = gate_up_states.view(-1, 2, self.intermediate_size)
+            # # x = gate_up_states[:, 0] * self.act(gate_up_states[:, 1])
+
+            output_shape = gate_up_states.shape[:-1] + (self.intermediate_size,)
+
+            out = torch.empty(
+                output_shape, dtype=gate_up_states.dtype, device=gate_up_states.device
             )
+            ops.silu_and_mul(out, gate_up_states)
+
+            return self.down_proj(out, adapter_data)
 
 
 class FlashLlamaLayer(nn.Module):
