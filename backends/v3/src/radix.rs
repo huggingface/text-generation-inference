@@ -42,8 +42,8 @@ impl RadixAllocator {
             allocations: HashMap::new(),
             cache_blocks: RadixTrie::new(block_size as usize),
 
-            // Block 0 is reserved for health checks.
-            free_blocks: (1..n_blocks).collect(),
+            // XXX: Block 0,1 is reserved for health checks.
+            free_blocks: (2..n_blocks).collect(),
             window_size,
             block_size,
         }

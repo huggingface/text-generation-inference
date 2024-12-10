@@ -147,8 +147,8 @@ impl SimpleAllocator {
     fn new(blocks: u32, block_size: u32, window_size: Option<u32>) -> Self {
         SimpleAllocator {
             block_size,
-            // Block 0 is reserved for health checks
-            free_blocks: (1..blocks).collect(),
+            // XXX: Block 0&1 is reserved for health checks
+            free_blocks: (2..blocks).collect(),
             window_size,
         }
     }
