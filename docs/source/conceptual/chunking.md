@@ -80,7 +80,7 @@ Raw results
 
 |   |   |   |   |   |
 |---|---|---|---|---|
-|2nd run ||**TGI v3**|**vLLM**|**Amount of req**|
+|2nd run ||**TGI v3** (time in s)|**vLLM** (s)|**Amount of req**|
 |**Llama 3.1 8b**|Small test - L4 - 8B|17.5|19.9|200|
 |**Llama 3.1 8b**|Long test* - L4 - 8B|53|57|10|
 |**Llama 3.1 8b**|Small test - 4xL4 - 8B|4.8|6|200|
@@ -88,7 +88,7 @@ Raw results
 |**Llama 3.1 70b**|Small test - 8XH100 - 70B|6.2|7.4|200|
 |**Llama 3.1 70b**|Long test - 8H100 - 70B|2|27.5|20|
 ||||||
-|1st run ||TGI|vLLM|Amount of req|
+|1st run ||TGI (s)|vLLM (s)|Amount of req|
 |**Llama 3.1 8b**|Small test - L4|19.9|19.9|200|
 |**Llama 3.1 8b**|Long test (10) - L4|49.8|55|10|
 |**Llama 3.1 8b**|Small test - 4xL4|13|12.6|200|
