@@ -20,6 +20,7 @@ from pathlib import Path
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM, CausalLMBatchKeysLast
+from text_generation_server.models.transformers_flash_causal_lm import TransformersFlashCausalLM
 from text_generation_server.models.custom_modeling.opt_modeling import OPTForCausalLM
 from text_generation_server.models.custom_modeling.mpt_modeling import (
     MPTForCausalLM,
@@ -28,7 +29,7 @@ from text_generation_server.models.bloom import BloomCausalLMBatch
 from text_generation_server.models.custom_modeling.bloom_modeling import (
     BloomForCausalLM,
 )
-from text_generation_server.models.globals import ATTENTION
+from text_generation_server.models.globals import ATTENTION, USE_CUSTOM_MODELING
 from text_generation_server.models.seq2seq_lm import Seq2SeqLM
 from text_generation_server.models.galactica import GalacticaCausalLMBatch
 from text_generation_server.models.custom_modeling.neox_modeling import (
@@ -366,11 +367,37 @@ def get_model(
     max_input_tokens: int,
 ) -> Model:
     global FLASH_ATTENTION
+    global USE_CUSTOM_MODELING
 
     config_dict, _ = PretrainedConfig.get_config_dict(
         model_id, revision=revision, trust_remote_code=trust_remote_code
     )
     model_type = config_dict.get("model_type", None)
+
+    transformers_causal_lm_class = CausalLM
+    if (
+        not USE_CUSTOM_MODELING
+        and model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
+    ):
+        logger.info(
+            "TGI's flash enabled models could either not be loaded or are disabled, using Transformers fallback."
+        )
+        transformers_model_class = getattr(
+            transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type]
+        )
+
+        if (
+            transformers_model_class._supports_flash_attn_2
+            and transformers_model_class._supports_cache_class
+        ):
+            logger.info(
+                f"Transformers' {model_type} implementation supports custom cache and flash/paged attention. Using TransformersFlashCausalLM with ragged tensors (single dimension for batch and sequence length)."
+            )
+            transformers_causal_lm_class = TransformersFlashCausalLM
+        else:
+            logger.info(
+                f"Transformers' {model_type} implementation supports custom cache and flash/paged attention. Using TransformersCausalLM with classic tensors with padding (two dimensions for batch size and sequence length)."
+            )
 
     quantization_config = config_dict.get("quantization_config", None)
     if quantization_config is None:
