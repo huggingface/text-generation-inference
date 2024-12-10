@@ -37,8 +37,6 @@ pub enum ClientError {
     Generation(String),
     #[error("Sharded results are empty")]
     EmptyResults,
-    #[error("Invalid attention {0}")]
-    InvalidAttention(String),
 }
 
 impl From<Status> for ClientError {
