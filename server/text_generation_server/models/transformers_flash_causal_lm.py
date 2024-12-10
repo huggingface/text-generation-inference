@@ -188,6 +188,18 @@ class TransformersFlashCausalLM(FlashCausalLM):
             device=device,
         )
 
+    @classmethod
+    def fallback(
+        cls,
+        model_id: str,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
+    ):
+        return cls(model_id, revision, quantize, speculator, dtype, trust_remote_code)
+
     def warmup(self, batch: FlashCausalLMBatch):
         patch_everywhere("_flash_attention_forward", _flash_attention_forward_patched)
         super().warmup(batch)
