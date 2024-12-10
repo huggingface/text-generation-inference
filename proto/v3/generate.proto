@@ -64,12 +64,28 @@ message Image {
   string mimetype = 2;
 }
 
+message Video {
+  /// Binary video data (array of RGB data)
+  bytes data = 1;
+
+  /// Video MIME type.
+  string mimetype = 2;
+
+  /// Video width
+  uint32 width = 3;
+
+  /// Total number of frames
+  uint32 frames = 4;
+}
+
 message InputChunk {
   oneof chunk {
     /// Plain text data
     string text = 1;
     /// Image data
     Image image = 2;
+    /// Video URLs
+    Video video = 3;
   }
 }
 
