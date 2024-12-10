@@ -10,7 +10,7 @@ use tokio::sync::TryAcquireError;
 use tokio::task::spawn_blocking;
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use text_generation_router::infer::InferError::{GenerationError, ValidationError};
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
@@ -18,10 +18,12 @@ use text_generation_router::validation::ValidationError::{
     EmptyInput, Grammar, TopNTokensDisabled, UnsupportedModality,
 };
 use text_generation_router::validation::{Chunk, ValidGenerateRequest};
-use text_generation_router::{FinishReason, Token};
+use text_generation_router::Token;
 
 use crate::errors::TensorRtLlmBackendError;
-use crate::ffi::{create_backend_from_engine_folder, GenerationStep, TensorRtLlmBackendImpl};
+use crate::ffi::{
+    create_backend_from_engine_folder, FinishReason, GenerationStep, TensorRtLlmBackendImpl,
+};
 use crate::utils::first_line;
 
 type InferResult<T> = Result<T, InferError>;
@@ -40,6 +42,7 @@ struct DecodedToken {
     id: u32,
     log_prob: f32,
     is_final: bool,
+    finish_reason: FinishReason,
 }
 
 impl<'step> TryFrom<&'step GenerationStep> for DecodedToken {
@@ -51,6 +54,7 @@ impl<'step> TryFrom<&'step GenerationStep> for DecodedToken {
                 id: step.token_id,
                 log_prob: step.log_prob,
                 is_final: step.is_final,
+                finish_reason: step.finish_reason,
             })
         } else {
             Err(GenerationError(step.error_msg.clone()))
@@ -133,13 +137,16 @@ fn executor_status_looper(
                                 Ok(decoded_token) => {
                                     post_process_decoded_token(&tokenizer, ctx, decoded_token)
                                 }
-                                Err(err) => Err(err)
+                                Err(err) => Err(err),
                             };
 
                             // Attempt to send back the response to the client
                             if let Err(_) = ctx.streamer.send(response) {
                                 // Client has dropped, remove from tracked requests
-                                debug!("Client dropped - removing request {} from tracked requests", step.request_id);
+                                info!(
+                                    "Client dropped - removing request {} from tracked requests",
+                                    step.request_id
+                                );
                                 backend.as_mut().cancel(step.request_id);
                                 let _ = in_flights.remove(&step.request_id);
                             }
@@ -160,11 +167,14 @@ fn executor_status_looper(
     }
 }
 
-fn post_process_decoded_token(tokenizer: &Tokenizer, ctx: &mut GenerationContext, decoded_token: DecodedToken) -> InferResult<InferStreamResponse> {
+fn post_process_decoded_token(
+    tokenizer: &Tokenizer,
+    ctx: &mut GenerationContext,
+    decoded_token: DecodedToken,
+) -> InferResult<InferStreamResponse> {
     match tokenizer.decode(&[decoded_token.id], false) {
         Ok(text) => {
-            let is_special =
-                tokenizer.get_added_vocabulary().is_special_token(&text);
+            let is_special = tokenizer.get_added_vocabulary().is_special_token(&text);
             let token = Token {
                 id: decoded_token.id,
                 text,
@@ -186,7 +196,7 @@ fn post_process_decoded_token(tokenizer: &Tokenizer, ctx: &mut GenerationContext
                 let generated_text = GeneratedText {
                     text: text.unwrap(),
                     generated_tokens: ctx.tokens.len() as u32,
-                    finish_reason: FinishReason::EndOfSequenceToken,  // TODO : Map FinishReason
+                    finish_reason: decoded_token.finish_reason.into(),
                     seed: None,
                 };
 
@@ -248,7 +258,6 @@ unsafe impl Send for TensorRtLlmBackendImpl {}
 
 pub struct TensorRtLlmBackendV2(UnboundedSender<GenerationContext>);
 
-
 impl TensorRtLlmBackendV2 {
     pub fn new<P: AsRef<Path> + Send, PP: AsRef<Path> + Send>(
         tokenizer: Tokenizer,
@@ -268,12 +277,7 @@ impl TensorRtLlmBackendV2 {
 
         // Executor looper is responsible for scheduling and pulling requests state at regular interval
         spawn_blocking(move || {
-            executor_status_looper(
-                max_inflight_requests,
-                tokenizer,
-                backend,
-                executor_receiver,
-            )
+            executor_status_looper(max_inflight_requests, tokenizer, backend, executor_receiver)
         });
 
         Ok(TensorRtLlmBackendV2(executor_sender))
