@@ -37,7 +37,9 @@ pub trait Backend {
     /// The state of the health on startup
     /// Typically false, or true if the backend includes
     /// a warmup phase.
-    fn start_health(&self) -> bool;
+    fn start_health(&self) -> bool {
+        false
+    }
 }
 
 /// Inference struct
