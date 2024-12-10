@@ -179,7 +179,7 @@ def paged_attention(
                 1.0,
                 1.0,
                 None,
-                512,
+                _PARTITION_SIZE,
             )
 
     return out
