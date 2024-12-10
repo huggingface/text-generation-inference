@@ -1,4 +1,4 @@
-eetq_commit := 1657b1504faa359e2ce0ac02999439d7ac8c74c0
+eetq_commit := 81e0b14d64088d58ef6acd2c8f3e788d59324407
 
 eetq:
     # Clone eetq

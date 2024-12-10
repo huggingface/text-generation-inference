@@ -1,7 +1,7 @@
 {
   "choices": [
     {
-      "finish_reason": "eos_token",
+      "finish_reason": "stop",
       "index": 0,
       "logprobs": null,
       "message": {
@@ -13,12 +13,12 @@
             "function": {
               "arguments": {
                 "format": "celsius",
-                "location": "Brooklyn"
+                "location": "Brooklyn, New York"
               },
               "description": null,
               "name": "get_current_weather"
             },
-            "id": 0,
+            "id": "0",
             "type": "function"
           }
         ]
@@ -26,14 +26,14 @@
       "usage": null
     }
   ],
-  "created": 1712782670,
+  "created": 1732293383,
   "id": "",
-  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-  "object": "text_completion",
-  "system_fingerprint": "2.0.1-native",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "2.4.1-dev0-native",
   "usage": {
-    "completion_tokens": 37,
-    "prompt_tokens": 524,
-    "total_tokens": 561
+    "completion_tokens": 30,
+    "prompt_tokens": 615,
+    "total_tokens": 645
   }
 }

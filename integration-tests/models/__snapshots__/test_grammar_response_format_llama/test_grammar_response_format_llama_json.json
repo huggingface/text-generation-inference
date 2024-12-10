@@ -1,23 +1,23 @@
 {
   "choices": [
     {
-      "finish_reason": "eos_token",
+      "finish_reason": "stop",
       "index": 0,
       "logprobs": null,
       "message": {
-        "content": "{ \"temperature\": [ 26, 30, 33, 29 ] ,\"unit\": \"Fahrenheit\" }",
+        "content": "{ \"unit\": \"fahrenheit\", \"temperature\": [ 72, 79, 88 ] }",
         "role": "assistant"
       }
     }
   ],
-  "created": 1718044128,
+  "created": 1732525803,
   "id": "",
   "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-  "object": "text_completion",
-  "system_fingerprint": "2.0.5-dev0-native",
+  "object": "chat.completion",
+  "system_fingerprint": "2.4.1-dev0-native",
   "usage": {
-    "completion_tokens": 39,
+    "completion_tokens": 29,
     "prompt_tokens": 136,
-    "total_tokens": 175
+    "total_tokens": 165
   }
 }

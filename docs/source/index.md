@@ -19,7 +19,7 @@ Text Generation Inference implements many optimizations and features, such as:
 - Stop sequences
 - Log probabilities
 - Fine-tuning Support: Utilize fine-tuned models for specific tasks to achieve higher accuracy and performance.
-- [Guidance](../conceptual/guidance): Enable function calling and tool-use by forcing the model to generate structured outputs based on your own predefined output schemas.
+- [Guidance](conceptual/guidance): Enable function calling and tool-use by forcing the model to generate structured outputs based on your own predefined output schemas.
 
 Text Generation Inference is used in production by multiple projects, such as:
 

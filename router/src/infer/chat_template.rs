@@ -75,8 +75,9 @@ impl ChatTemplate {
         };
 
         let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
-
-        self.template
+        let final_message = messages.last().cloned();
+        let mut rendered_template = self
+            .template
             .render(ChatTemplateInputs {
                 messages,
                 bos_token: self.bos_token.as_deref(),
@@ -84,7 +85,24 @@ impl ChatTemplate {
                 add_generation_prompt: true,
                 tools,
             })
-            .map_err(InferError::TemplateError)
+            .map_err(InferError::TemplateError)?;
+
+        // if the last message is from the assistant, continue the generation prompt
+        rendered_template = match final_message {
+            Some(msg) if msg.role == "assistant" => {
+                match rendered_template.rfind(msg.content.as_str()) {
+                    // implementation based on feature in transformers pipeline
+                    // https://github.com/huggingface/transformers/blob/1cf17077bf2d4affed31387c0943251a4ba8fab7/src/transformers/pipelines/text_generation.py#L418
+                    Some(index) => rendered_template[..index + msg.content.len()]
+                        .trim_end()
+                        .to_string(),
+                    None => rendered_template,
+                }
+            }
+            _ => rendered_template,
+        };
+
+        Ok(rendered_template)
     }
 }
 
@@ -804,7 +822,7 @@ mod tests {
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
         let result = ct.apply(msgs, tools_and_prompt);
-        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"arguments\":{\"properties\":{\"format\":{\"description\":\"The temperature unit to use. Infer this from the users location.\",\"enum\":[\"celsius\",\"fahrenheit\"],\"type\":\"string\"},\"location\":{\"description\":\"The city and state, e.g. San Francisco, CA\",\"type\":\"string\"}},\"required\":[\"location\",\"format\"],\"type\":\"object\"}}}]\nThis default prompt will be used [/INST]".to_string();
+        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"arguments\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city and state, e.g. San Francisco, CA\"},\"format\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"description\":\"The temperature unit to use. Infer this from the users location.\"}},\"required\":[\"location\",\"format\"]}}}]\nThis default prompt will be used [/INST]".to_string();
         assert_eq!(result.unwrap(), expected);
     }
 

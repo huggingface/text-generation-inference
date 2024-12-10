@@ -271,7 +271,9 @@ async fn generate(
     Json(req): Json<GenerateRequest>,
 ) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
-    generate_internal(infer, ComputeType(compute_type), Json(req), span).await
+    let (headers, _, response) =
+        generate_internal(infer, ComputeType(compute_type), Json(req), span).await?;
+    Ok((headers, response))
 }
 
 pub(crate) async fn generate_internal(
@@ -279,7 +281,7 @@ pub(crate) async fn generate_internal(
     ComputeType(compute_type): ComputeType,
     Json(req): Json<GenerateRequest>,
     span: tracing::Span,
-) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
+) -> Result<(HeaderMap, u32, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
     metrics::counter!("tgi_request_count").increment(1);
 
@@ -423,7 +425,7 @@ pub(crate) async fn generate_internal(
         generated_text: output_text,
         details,
     };
-    Ok((headers, Json(response)))
+    Ok((headers, input_length, Json(response)))
 }
 
 /// Generate a stream of token using Server-Sent Events
@@ -714,7 +716,7 @@ pub(crate) async fn completions(
         ..
     } = req;
 
-    let max_new_tokens = max_tokens.or(Some(100));
+    let max_new_tokens = max_tokens;
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
     let (do_sample, temperature) = match temperature {
@@ -980,7 +982,9 @@ pub(crate) async fn completions(
                     span_clone,
                 )
                 .await;
-                result.map(|(headers, generation)| (index, headers, generation))
+                result.map(|(headers, input_length, generation)| {
+                    (index, headers, input_length, generation)
+                })
             };
             responses.push(response_future);
         }
@@ -1001,7 +1005,7 @@ pub(crate) async fn completions(
 
         let choices = generate_responses
             .into_iter()
-            .map(|(index, headers, Json(generation))| {
+            .map(|(index, headers, input_length, Json(generation))| {
                 let details = generation.details.ok_or((
                     // this should never happen but handle if details are missing unexpectedly
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -1056,9 +1060,9 @@ pub(crate) async fn completions(
                     .and_then(|v| v.to_str().ok()?.parse().ok())
                     .unwrap_or(0);
 
-                prompt_tokens += details.prefill.len() as u32;
+                prompt_tokens += input_length;
                 completion_tokens += details.generated_tokens;
-                total_tokens += details.prefill.len() as u32 + details.generated_tokens;
+                total_tokens += input_length + details.generated_tokens;
 
                 Ok(CompletionComplete {
                     finish_reason: details.finish_reason.format(true),
@@ -1228,6 +1232,7 @@ pub(crate) async fn chat_completions(
     let span = tracing::Span::current();
     metrics::counter!("tgi_request_count").increment(1);
     let ChatRequest {
+        model,
         stream,
         stream_options,
         logprobs,
@@ -1238,8 +1243,11 @@ pub(crate) async fn chat_completions(
 
     let logprobs = logprobs.unwrap_or_default();
 
-    // static values that will be returned in all cases
-    let model_id = info.model_id.clone();
+    // extract model id from request if specified
+    let model_id = match model.as_deref() {
+        Some("tgi") | None => info.model_id.clone(),
+        Some(m_id) => m_id.to_string(),
+    };
     let system_fingerprint = format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
     // switch on stream
     if stream {
@@ -1377,7 +1385,7 @@ pub(crate) async fn chat_completions(
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
-        let (headers, Json(generation)) =
+        let (headers, input_length, Json(generation)) =
             generate_internal(Extension(infer), compute_type, Json(generate_request), span).await?;
 
         let current_time = std::time::SystemTime::now()
@@ -1448,6 +1456,7 @@ pub(crate) async fn chat_completions(
             generation.details.unwrap(),
             logprobs,
             tool_calls,
+            input_length,
         ));
 
         // wrap generation inside a Vec to match api-inference

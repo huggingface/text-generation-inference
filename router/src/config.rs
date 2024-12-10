@@ -191,7 +191,7 @@ pub enum Config {
     #[serde(rename = "phi-msft")]
     PhiMsft,
     Phi3,
-    PhiMoe,
+    Phimoe,
     Llama,
     Baichuan,
     Paligemma(Paligemma),

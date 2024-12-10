@@ -468,6 +468,16 @@ Options:
           [default: 2000000]
 
 ```
+## ENABLE_PREFILL_LOGPROBS
+```shell
+      --enable-prefill-logprobs
+          Enables prefill logprobs
+          
+          Logprobs in the prompt are deactivated by default because they consume a large amount of VRAM (especially for long prompts). Using this flag reallows users to ask for them.
+          
+          [env: ENABLE_PREFILL_LOGPROBS=]
+
+```
 ## HELP
 ```shell
   -h, --help

@@ -57,6 +57,7 @@ from text_generation_server.models.globals import (
     ATTENTION,
     BLOCK_SIZE,
     CUDA_GRAPHS,
+    REQUEST_LOGPROBS,
     TGI_WIGGLE_ROOM,
     get_adapter_to_index,
 )
@@ -292,6 +293,10 @@ class FlashCausalLMBatch(Batch):
         for i, (r, tokenized_input) in enumerate(
             zip(pb.requests, batch_tokenized_inputs)
         ):
+            ### XXX: This consumes so much memory on long requests
+            ### Deactivating it by default seems like the best course.
+            if not REQUEST_LOGPROBS:
+                r.prefill_logprobs = False
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
 
@@ -1389,29 +1394,48 @@ class FlashCausalLM(Model):
         ]
 
     def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
-        input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
-        position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
-        slots = torch.arange(bs, dtype=torch.int64, device=self.device)
+        max_bs = max(self.cuda_graphs.keys()) if self.cuda_graphs else None
         input_lengths = [max_s] * bs
         cache_lengths = [0] * bs
-        input_lengths_tensor = (
-            torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
-        )
-        cache_lengths_tensor = torch.zeros(bs, dtype=torch.int32, device=self.device)
-        block_tables = torch.arange(
-            max_bt, dtype=torch.int32, device=self.device
-        ).repeat(bs)
-        block_tables = block_tables.reshape((bs, max_bt))
+        if max_bs is None:
+            input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
+            position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
+            slots = torch.arange(bs, dtype=torch.int64, device=self.device)
+            input_lengths_tensor = (
+                torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
+            )
+            cache_lengths_tensor = torch.zeros(
+                bs, dtype=torch.int32, device=self.device
+            )
+            block_tables = torch.arange(
+                max_bt, dtype=torch.int32, device=self.device
+            ).repeat(bs)
+            block_tables = block_tables.reshape((bs, max_bt))
+            if ATTENTION == "flashinfer":
+                block_tables = block_tables_to_ragged(
+                    block_tables=block_tables,
+                    input_lengths=input_lengths,
+                    cache_lengths=cache_lengths,
+                    input_lengths_tensor=input_lengths_tensor,
+                    cache_lengths_tensor=cache_lengths_tensor,
+                    max_current_length=max_s,
+                )
+        else:
+            if bs > max_bs:
+                raise RuntimeError(
+                    "Cuda graphs should be generated in decreasing order size to reduce VRAM usage"
+                )
+            input_ids = self.cuda_graphs[max_bs]["input_ids"][:bs]
+            position_ids = self.cuda_graphs[max_bs]["position_ids"][:bs]
+            if ATTENTION == "flashinfer":
+                block_tables = self.cuda_graphs[max_bs]["block_tables"][: bs * max_bt]
+            else:
+                block_tables = self.cuda_graphs[max_bs]["block_tables"][:bs]
+            slots = self.cuda_graphs[max_bs]["slots"][:bs]
+            input_lengths_tensor = self.cuda_graphs[max_bs]["input_lengths"][:bs]
+            cache_lengths_tensor = self.cuda_graphs[max_bs]["cache_lengths"][:bs]
 
         if ATTENTION == "flashinfer":
-            block_tables = block_tables_to_ragged(
-                block_tables=block_tables,
-                input_lengths=input_lengths,
-                cache_lengths=cache_lengths,
-                input_lengths_tensor=input_lengths_tensor,
-                cache_lengths_tensor=cache_lengths_tensor,
-                max_current_length=max_s,
-            )
             from text_generation_server.layers.attention.flashinfer import (
                 create_decode_state_cuda_graphs,
             )
@@ -1533,24 +1557,35 @@ class FlashCausalLM(Model):
                 self.kv_cache_dtype,
                 self.device,
             )
+
             batch_num_blocks = batch.num_blocks
 
+            num_tokens = batch.to_pb().current_tokens
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
+            synchronize(self.device)
+            free_memory = get_free_memory(
+                self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM
+            )
+            real_free_memory = get_free_memory(self.device, MEMORY_FRACTION)
+            log_master(
+                logger.debug,
+                f"Free memory {free_memory/1e9:.2f}GB , (real: {real_free_memory/1e9:.2f}GB",
+            )
+
             _, _batch, _ = self.generate_token(batch)
         except torch.cuda.OutOfMemoryError as e:
             raise RuntimeError(
-                f"Not enough memory to handle {batch.to_pb().current_tokens} prefill tokens. "
+                f"Not enough memory to handle {num_tokens} prefill tokens. "
                 f"You need to decrease `--max-batch-prefill-tokens`"
             ) from e
 
         synchronize(self.device)
-
-        free_memory = get_free_memory(self.device, MEMORY_FRACTION)
-
+        free_memory = get_free_memory(self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM)
+        kv_memory = free_memory
         num_blocks = (
             # Leave 5% for some wiggle room
-            int((free_memory * TGI_WIGGLE_ROOM) // total_cache_size)
+            int(kv_memory // total_cache_size)
             # Add batch.num_blocks as we allocated it above, so it is included in the peak memory.
             + batch_num_blocks
         )
@@ -1559,20 +1594,12 @@ class FlashCausalLM(Model):
         if max_total_tokens is None:
             if get_support_chunking():
                 model_max_length = self.tokenizer.model_max_length
-                max_input_tokens = (
-                    min((num_blocks * BLOCK_SIZE - 1), model_max_length)
-                    if max_input_tokens is None
-                    else max_input_tokens
-                )
-                max_total_tokens = num_blocks * BLOCK_SIZE
-
+                max_total_tokens = min(num_blocks * BLOCK_SIZE, model_max_length)
             else:
                 max_total_tokens = sum(batch.cache_lengths)
-                max_input_tokens = (
-                    max_total_tokens - 1
-                    if max_input_tokens is None
-                    else max_input_tokens
-                )
+
+        if max_input_tokens is None:
+            max_input_tokens = max_total_tokens - 1
 
         del _batch, batch
         self.kv_cache = []
@@ -1649,8 +1676,25 @@ class FlashCausalLM(Model):
                 )
                 # Warmup cuda graphs
                 for bs in CUDA_GRAPHS:
+                    synchronize(self.device)
+                    free_memory = get_free_memory(
+                        self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM
+                    )
+                    log_master(
+                        logger.debug,
+                        f"Free RAM before cuda graph {bs} {free_memory / 1e9:.2f}GB",
+                    )
                     if self.speculate is None or self.speculate + 1 <= bs:
                         self.cuda_graph_warmup(bs, max_total_tokens, max_total_tokens)
+                empty_cache()
+                synchronize(self.device)
+                free_memory = get_free_memory(
+                    self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM
+                )
+                log_master(
+                    logger.debug,
+                    f"Free RAM after cuda graphs {free_memory / 1e9:.2f}GB",
+                )
             except torch.cuda.OutOfMemoryError:
                 logger.exception("Decode cuda graph warmup failed")
         else:

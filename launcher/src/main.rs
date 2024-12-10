@@ -29,6 +29,69 @@ use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 mod env_runtime;
 mod gpu;
 
+fn compute_optimal(config: Option<&Config>, compute: Option<&ComputeType>) -> Option<usize> {
+    let config = config?;
+    let compute = compute?;
+    let f16_max_compute = compute.f16_flop()?;
+    let model_compute = config.flop()?;
+    tracing::debug!(
+        "Max compute {} model compute {}",
+        human_size(f16_max_compute as usize, "flop"),
+        human_size(model_compute as usize, "flop")
+    );
+    let optimal_size = (f16_max_compute / model_compute) as usize;
+    if optimal_size > 100 {
+        // Ignore calculations that's too low
+        // Most likely an error
+        Some(optimal_size)
+    } else {
+        None
+    }
+}
+
+fn human_size(size: usize, suffix: &str) -> String {
+    let mut size: f64 = size as f64;
+    let mut p = "";
+    for prefix in ["", "K", "M", "G", "T"] {
+        p = prefix;
+        if size > 1_000.0 {
+            size /= 1_000.0;
+        } else {
+            break;
+        }
+    }
+    format!("{size:.2}{p}{suffix}")
+}
+
+fn vram_maximum(
+    config: Option<&Config>,
+    compute: Option<&ComputeType>,
+    memory_fraction: f32,
+) -> Option<usize> {
+    let config = config?;
+    let compute = compute?;
+    let available = compute.vram(memory_fraction)?;
+    let model = config.model_vram()?;
+    let token_vram = config.token_vram()?;
+    if let Some(vram) = available.checked_sub(model) {
+        let tokens_allowed = vram / token_vram;
+        tracing::debug!(
+        "Available vram {}: model needs {}, every tokens requires {}, maximum allocatable tokens {tokens_allowed}",
+        human_size(available, "B"),
+        human_size(model, "B"),
+        human_size(token_vram, "B"),
+    );
+        Some(tokens_allowed)
+    } else {
+        tracing::warn!(
+            "Not enough VRAM to run the model: Available: {} - Model {}.",
+            human_size(available, "B"),
+            human_size(model, "B")
+        );
+        None
+    }
+}
+
 fn get_config(
     model_id: &str,
     revision: &Option<String>,
@@ -144,10 +207,20 @@ struct RawConfig {
     quantization_config: Option<QuantizationConfig>,
     n_embd: Option<usize>,
     hidden_size: Option<usize>,
+    intermediate_size: Option<usize>,
     num_attention_heads: Option<usize>,
+    num_key_value_heads: Option<usize>,
+    num_hidden_layers: Option<usize>,
     head_dim: Option<usize>,
     vision_config: Option<VisionConfig>,
     is_encoder_decoder: Option<bool>,
+    #[serde(rename = "num_experts_per_tok")]
+    num_experts_per_token: Option<usize>,
+    #[serde(rename = "n_shared_experts")]
+    num_shared_experts: Option<usize>,
+    #[serde(rename = "num_local_experts")]
+    num_experts: Option<usize>,
+    vocab_size: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -155,17 +228,100 @@ struct QuantizationConfig {
     quant_method: Option<Quantization>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct VisionConfig {}
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Config {
     max_position_embeddings: Option<usize>,
     quantize: Option<Quantization>,
     head_dim: Option<usize>,
+    num_heads: Option<usize>,
+    num_kv_heads: Option<usize>,
+    num_layers: Option<usize>,
+    intermediate_size: Option<usize>,
+    hidden_size: Option<usize>,
     model_type: Option<String>,
     vision_config: Option<VisionConfig>,
     is_encoder_decoder: bool,
+    num_experts_per_token: usize,
+    num_shared_experts: usize,
+    num_experts: usize,
+    vocab_size: Option<usize>,
+}
+
+impl Config {
+    fn flop(&self) -> Option<u64> {
+        if self.vision_config.is_some() {
+            // VLM are much harder to predict and VRAM requirements
+            // Are more complex.
+            return None;
+        }
+        let num_heads = self.num_heads? as u64;
+        let num_kv_heads = self.num_kv_heads? as u64;
+        let head_dim = self.head_dim? as u64;
+        let hidden_size = self.hidden_size? as u64;
+        let intermediate_size = (self.intermediate_size?
+            * (self.num_experts_per_token + self.num_shared_experts))
+            as u64;
+        let num_layers = self.num_layers? as u64;
+
+        let q_flops = 2 * num_heads * head_dim * hidden_size;
+        let k_flops = 2 * num_kv_heads * head_dim * hidden_size;
+        let v_flops = 2 * num_kv_heads * head_dim * hidden_size;
+        let attn_flops = 2 * num_heads * head_dim * hidden_size;
+        let o_flops = 2 * num_heads * head_dim * hidden_size;
+        let attn_layer_flops = q_flops + k_flops + v_flops + attn_flops + o_flops;
+
+        let gate_up_down_flops = 2 * 3 * hidden_size * intermediate_size;
+
+        let layer_flops = attn_layer_flops + gate_up_down_flops;
+        let total = layer_flops * num_layers;
+        Some(total)
+    }
+
+    fn kv_vram_per_tok(&self) -> Option<usize> {
+        if self.quantize.is_some() {
+            // TODO handle quantization
+            return None;
+        }
+        // 2 for key and values
+        // 2 for f16 dtype?
+        Some(self.num_kv_heads? * 2 * self.head_dim? * 2 * self.num_layers?)
+    }
+
+    fn mlp_vram_per_tok(&self) -> Option<usize> {
+        // TODO handle quantization
+        // TODO This calculation depends on the actual implementation
+        let dtype_size = 2;
+        let mlp_size = self.intermediate_size?;
+        // calculation is overshooting here.
+        // Coming from here: https://github.com/vllm-project/vllm/blob/d1c2e15eb31ef12e688ce0cb71895f88eaf4cd4f/vllm/model_executor/layers/fused_moe/fused_moe.py#L618-L624
+        Some((mlp_size + mlp_size / 2) * self.num_experts * dtype_size * 3)
+    }
+
+    fn token_vram(&self) -> Option<usize> {
+        let kv = self.kv_vram_per_tok()?;
+        let mlp_intermediary = self.mlp_vram_per_tok()?;
+        let per_tok = kv + mlp_intermediary;
+        Some(per_tok)
+    }
+
+    fn model_vram(&self) -> Option<usize> {
+        let attn_vram = (self.num_heads? + 2 * self.num_kv_heads?) * self.head_dim?;
+        let o_vram = self.num_heads? * self.head_dim? * self.hidden_size?;
+        // gate + up + down = 3
+        let mlp_vram = 3 * self.intermediate_size? * self.num_experts * self.hidden_size?;
+        let layer_vram = mlp_vram + attn_vram + o_vram;
+        let vocab = self.hidden_size? * self.vocab_size?;
+        let params = layer_vram * self.num_layers? + 2 * vocab;
+        let dtype_size = 2;
+        if self.quantize.is_some() {
+            // TODO handle quantization
+            return None;
+        }
+        Some(params * dtype_size)
+    }
 }
 
 impl From<RawConfig> for Config {
@@ -175,25 +331,28 @@ impl From<RawConfig> for Config {
             .or(other.max_seq_len)
             .or(other.n_positions);
         let quantize = other.quantization_config.and_then(|q| q.quant_method);
-        let head_dim = other.head_dim.or_else(|| {
-            match (other.hidden_size, other.n_embd, other.num_attention_heads) {
-                (Some(hidden_size), _, Some(num_attention_heads))
-                    if hidden_size % num_attention_heads == 0 =>
-                {
-                    Some(hidden_size / num_attention_heads)
-                }
-                // Legacy
-                (_, Some(hidden_size), Some(num_attention_heads))
+        let hidden_size = other.hidden_size.or(other.n_embd);
+        let head_dim = other
+            .head_dim
+            .or_else(|| match (hidden_size, other.num_attention_heads) {
+                (Some(hidden_size), Some(num_attention_heads))
                     if hidden_size % num_attention_heads == 0 =>
                 {
                     Some(hidden_size / num_attention_heads)
                 }
                 _ => None,
-            }
-        });
+            });
+        let num_heads = other.num_attention_heads;
+        let num_layers = other.num_hidden_layers;
+        let num_kv_heads = other.num_key_value_heads.or(other.num_attention_heads);
+        let intermediate_size = other.intermediate_size;
         let model_type = other.model_type;
         let vision_config = other.vision_config;
         let is_encoder_decoder = other.is_encoder_decoder.unwrap_or(false);
+        let num_experts_per_token = other.num_experts_per_token.unwrap_or(1);
+        let num_shared_experts = other.num_shared_experts.unwrap_or(0);
+        let num_experts = other.num_experts.unwrap_or(1);
+        let vocab_size = other.vocab_size;
         Config {
             max_position_embeddings,
             quantize,
@@ -201,6 +360,15 @@ impl From<RawConfig> for Config {
             model_type,
             vision_config,
             is_encoder_decoder,
+            hidden_size,
+            num_heads,
+            num_kv_heads,
+            intermediate_size,
+            num_layers,
+            num_experts_per_token,
+            num_shared_experts,
+            num_experts,
+            vocab_size,
         }
     }
 }
@@ -698,6 +866,14 @@ struct Args {
     /// Default is 2MB
     #[clap(default_value = "2000000", long, env)]
     payload_limit: usize,
+
+    /// Enables prefill logprobs
+    ///
+    /// Logprobs in the prompt are deactivated by default because they consume
+    /// a large amount of VRAM (especially for long prompts).
+    /// Using this flag reallows users to ask for them.
+    #[clap(long, env)]
+    enable_prefill_logprobs: bool,
 }
 
 #[derive(Debug)]
@@ -733,6 +909,7 @@ fn shard_manager(
     max_batch_size: Option<usize>,
     max_input_tokens: Option<usize>,
     lora_adapters: Option<String>,
+    enable_prefill_logprobs: bool,
     otlp_endpoint: Option<String>,
     otlp_service_name: String,
     log_level: LevelFilter,
@@ -880,6 +1057,11 @@ fn shard_manager(
     // Lora Adapters
     if let Some(lora_adapters) = lora_adapters {
         envs.push(("LORA_ADAPTERS".into(), lora_adapters.into()));
+    }
+
+    // Logprobs
+    if enable_prefill_logprobs {
+        envs.push(("REQUEST_LOGPROBS".into(), "1".into()));
     }
 
     // If huggingface_hub_cache is some, pass it to the shard
@@ -1193,6 +1375,7 @@ fn download_convert_model(
     huggingface_hub_cache: Option<&str>,
     weights_cache_override: Option<&str>,
     running: Arc<AtomicBool>,
+    merge_lora: bool,
 ) -> Result<(), LauncherError> {
     // Enter download tracing span
     let _span = tracing::span!(tracing::Level::INFO, "download").entered();
@@ -1206,6 +1389,10 @@ fn download_convert_model(
         "INFO".to_string(),
         "--json-output".to_string(),
     ];
+
+    if merge_lora {
+        download_args.push("--merge-lora".to_string());
+    }
 
     // Model optional revision
     if let Some(revision) = &revision {
@@ -1368,6 +1555,7 @@ fn spawn_shards(
         let rope_factor = args.rope_factor;
         let max_batch_size = args.max_batch_size;
         let lora_adapters = args.lora_adapters.clone();
+        let enable_prefill_logprobs = args.enable_prefill_logprobs;
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -1395,6 +1583,7 @@ fn spawn_shards(
                 max_batch_size,
                 max_input_tokens,
                 lora_adapters,
+                enable_prefill_logprobs,
                 otlp_endpoint,
                 otlp_service_name,
                 max_log_level,
@@ -1434,7 +1623,120 @@ fn spawn_shards(
     Ok(())
 }
 
-fn compute_type(num_shard: usize) -> Option<String> {
+#[derive(Debug)]
+enum Gpu {
+    RTX4090,
+    T4,
+    L4,
+    L40,
+    L40S,
+    A10G,
+    H100,
+    A100,
+    Unknown(String),
+}
+
+#[derive(Debug)]
+struct ComputeType {
+    count: usize,
+    card: Gpu,
+}
+
+impl From<&str> for Gpu {
+    fn from(value: &str) -> Self {
+        match value {
+            "nvidia-4090" => Gpu::RTX4090,
+            "nvidia-t4" => Gpu::T4,
+            "nvidia-l4" => Gpu::L4,
+            "nvidia-l40" => Gpu::L40,
+            "nvidia-l40s" => Gpu::L40S,
+            "nvidia-a10g" => Gpu::A10G,
+            "nvidia-h100-80gb-hbm3" => Gpu::H100,
+            "nvidia-a100-sxm4-80gb" => Gpu::A100,
+            "nvidia-a100" => Gpu::A100,
+            card => Gpu::Unknown(card.to_string()),
+        }
+    }
+}
+
+impl std::fmt::Display for Gpu {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Gpu::RTX4090 => write!(f, "nvida-4090"),
+            Gpu::T4 => write!(f, "nvida-t4"),
+            Gpu::L4 => write!(f, "nvida-l4"),
+            Gpu::L40 => write!(f, "nvida-l40"),
+            Gpu::L40S => write!(f, "nvida-l40s"),
+            Gpu::A10G => write!(f, "nvidia-a10g"),
+            Gpu::H100 => write!(f, "nvidia-h100-80fb-hbm3"),
+            Gpu::A100 => write!(f, "nvida-a100-sxm4-80gb"),
+            Gpu::Unknown(card) => write!(f, "{}", card),
+        }
+    }
+}
+
+impl ComputeType {
+    fn f16_flop(&self) -> Option<u64> {
+        let card_flop = match &self.card {
+            // https://www.nvidia.com/en-us/geforce/graphics-cards/40-series/rtx-4090/
+            // Specs are unclear https://www.itcreations.com/nvidia-gpu/nvidia-geforce-rtx-4090-gpu
+            Gpu::RTX4090 => Some(82 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/tesla-t4/
+            Gpu::T4 => Some(65 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/l4/
+            Gpu::L4 => Some(121 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/l40/
+            Gpu::L40 => Some(181 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/l40s/
+            Gpu::L40S => Some(363 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/products/a10-gpu/
+            Gpu::A10G => Some(125 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/h100/
+            // https://www.techpowerup.com/gpu-specs/docs/nvidia-gh100-architecture.pdf
+            Gpu::H100 => Some(900 * 10u64.pow(12)),
+            // https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf
+            Gpu::A100 => Some(312 * 10u64.pow(12)),
+            Gpu::Unknown(card) => {
+                tracing::warn!("Unkown compute for card {card}");
+                None
+            }
+        };
+        card_flop.map(|f| f * self.count as u64)
+    }
+
+    fn vram(&self, memory_fraction: f32) -> Option<usize> {
+        let output = Command::new("nvidia-smi")
+            .args(["--query-gpu=memory.total", "--format=csv"])
+            .output()
+            .ok()?;
+        let output = String::from_utf8(output.stdout).ok()?;
+        let fullname = output.split('\n').nth(1)?;
+        let mut tokens = fullname.split(' ');
+        let amount = tokens.next()?;
+        let unit = tokens.next()?;
+        if unit != "MiB" {
+            tracing::warn!("Unexpected memory unit {unit}, expected MiB");
+            return None;
+        }
+        let amount: usize = amount.parse().ok()?;
+        let amount = amount * 2usize.pow(20);
+        let wiggle_room: f32 = env::var("TGI_WIGGLE_ROOM")
+            .ok()
+            .and_then(|wiggle| wiggle.parse().ok())
+            .unwrap_or(0.95);
+        let total = amount * self.count;
+        let adjusted = ((total as f32) * memory_fraction * wiggle_room) as usize;
+        Some(adjusted)
+    }
+}
+
+impl From<ComputeType> for OsString {
+    fn from(value: ComputeType) -> Self {
+        format!("{}-{}", value.count, value.card).into()
+    }
+}
+
+fn compute_type(count: usize) -> Option<ComputeType> {
     let output = Command::new("nvidia-smi")
         .args(["--query-gpu=gpu_name", "--format=csv"])
         .output()
@@ -1442,8 +1744,8 @@ fn compute_type(num_shard: usize) -> Option<String> {
     let output = String::from_utf8(output.stdout).ok()?;
     let fullname = output.split('\n').nth(1)?;
     let cardname = fullname.replace(' ', "-").to_lowercase();
-    let compute_type = format!("{num_shard}-{cardname}");
-    Some(compute_type)
+    let card = (&*cardname).into();
+    Some(ComputeType { count, card })
 }
 
 fn spawn_webserver(
@@ -1695,25 +1997,21 @@ fn main() -> Result<(), LauncherError> {
     let config: Option<Config> = get_config(&args.model_id, &args.revision).ok();
     let quantize = config.as_ref().and_then(|c| c.quantize);
     // Quantization usually means you're even more RAM constrained.
-    let max_default = 4096;
 
-    let max_position_embeddings = if let Some(config) = &config {
-        if let Some(max_position_embeddings) = config.max_position_embeddings {
-            if max_position_embeddings > max_default {
-                max_default
-            } else {
-                max_position_embeddings
-            }
-        } else {
-            max_default
-        }
-    } else {
-        max_default
-    };
     let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
     tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
     std::env::set_var("PREFIX_CACHING", prefix_caching);
     std::env::set_var("ATTENTION", attention);
+
+    let num_shard = find_num_shards(args.sharded, args.num_shard)?;
+    if num_shard > 1 {
+        if matches!(args.quantize, Some(Quantization::Exl2)) {
+            return Err(LauncherError::ArgumentValidation(
+                "Sharding is currently not supported with `exl2` quantization".into(),
+            ));
+        }
+        tracing::info!("Sharding model on {num_shard} processes");
+    }
 
     let max_input_tokens = {
         match (args.max_input_tokens, args.max_input_length) {
@@ -1733,10 +2031,30 @@ fn main() -> Result<(), LauncherError> {
         match args.max_batch_prefill_tokens {
             Some(max_batch_prefill_tokens) => max_batch_prefill_tokens,
             None => {
-                // TODO figure out hardware optimal value
-                let value = 4096.min(max_position_embeddings as u32);
+                let compute_type = compute_type(num_shard);
+                let compute_optimal = compute_optimal(config.as_ref(), compute_type.as_ref());
+                let default = compute_optimal.unwrap_or(4096);
+                let vram_maximum = vram_maximum(
+                    config.as_ref(),
+                    compute_type.as_ref(),
+                    args.cuda_memory_fraction,
+                );
+                let max_position_embeddings = config.and_then(|c| c.max_position_embeddings);
+                let value = if let Some(max_position_embeddings) = max_position_embeddings {
+                    default.min(max_position_embeddings)
+                } else {
+                    default
+                };
+                let value = if let Some(vram_maximum) = vram_maximum {
+                    if vram_maximum < value {
+                        tracing::warn!("Reducing the max batch prefill from {default} to {vram_maximum} because there is not enough VRAM to support it.");
+                    }
+                    value.min(vram_maximum)
+                } else {
+                    value
+                };
                 tracing::info!("Default `max_batch_prefill_tokens` to {value}");
-                value
+                value as u32
             }
         }
     };
@@ -1791,16 +2109,6 @@ fn main() -> Result<(), LauncherError> {
         );
     }
 
-    let num_shard = find_num_shards(args.sharded, args.num_shard)?;
-    if num_shard > 1 {
-        if matches!(args.quantize, Some(Quantization::Exl2)) {
-            return Err(LauncherError::ArgumentValidation(
-                "Sharding is currently not supported with `exl2` quantization".into(),
-            ));
-        }
-        tracing::info!("Sharding model on {num_shard} processes");
-    }
-
     if let Some(ref max_batch_total_tokens) = args.max_batch_total_tokens {
         if let Some(max_total_tokens) = max_total_tokens {
             if max_total_tokens as u32 > *max_batch_total_tokens {
@@ -1842,6 +2150,7 @@ fn main() -> Result<(), LauncherError> {
         args.huggingface_hub_cache.as_deref(),
         args.weights_cache_override.as_deref(),
         running.clone(),
+        true, // if its only a lora model - we should merge the lora adapters
     )?;
 
     // Download and convert lora adapters if any
@@ -1875,6 +2184,7 @@ fn main() -> Result<(), LauncherError> {
                     args.huggingface_hub_cache.as_deref(),
                     args.weights_cache_override.as_deref(),
                     running.clone(),
+                    false, // avoid merging lora adapters if using multi-lora
                 )?;
             } else {
                 return Err(LauncherError::ArgumentValidation(format!(
