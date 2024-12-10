@@ -51,10 +51,11 @@ namespace huggingface::tgi::backends::trtllm {
         const auto reqId = r.getRequestId();
         if (!r.hasError()) [[likely]] {
             const auto result = r.getResult();
+            const auto logits = result.logProbs.value()[0];
             return generation_step_t{
                     reqId,
                     static_cast<uint32_t>(result.outputTokenIds[0][0]),
-                    result.logProbs.value()[0][0],
+                    logits.back(),
                     result.isFinal,
                     as_finish_reason_t(result.finishReasons[0]),
                     false,
