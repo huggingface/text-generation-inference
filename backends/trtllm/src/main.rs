@@ -7,9 +7,11 @@ use tracing::info;
 
 use text_generation_backends_trtllm::errors::TensorRtLlmBackendError;
 use text_generation_backends_trtllm::TensorRtLlmBackendV2;
+use text_generation_router::server::{
+    get_hub_model_info, legacy_tokenizer_handle, py_resolve_tokenizer,
+};
 use text_generation_router::usage_stats::UsageStatsLevel;
-use text_generation_router::{server, HubTokenizerConfig, Tokenizer};
-use text_generation_router::server::{get_hub_model_info, legacy_tokenizer_handle, py_resolve_tokenizer};
+use text_generation_router::{server, Tokenizer};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -65,11 +67,7 @@ struct Args {
     payload_limit: usize,
 }
 
-async fn get_tokenizer(
-    tokenizer_name: &str,
-    tokenizer_config_path: Option<&str>,
-    revision: Option<&str>,
-) -> Option<Tokenizer> {
+async fn get_tokenizer(tokenizer_name: &str, revision: Option<&str>) -> Option<Tokenizer> {
     // Parse Huggingface hub token
     let authorization_token = std::env::var("HF_TOKEN")
         .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
@@ -129,14 +127,14 @@ async fn get_tokenizer(
         _tokenizer_config_filename,
         _preprocessor_config_filename,
         _processor_config_filename,
-        _model_info
+        _model_info,
     ) = match api {
         Type::None => (
             Some(local_path.join("config.json")),
             Some(local_path.join("tokenizer_config.json")),
             Some(local_path.join("preprocessor_config.json")),
             Some(local_path.join("processor_config.json")),
-            None
+            None,
         ),
         Type::Api(api) => {
             let api_repo = api.repo(Repo::with_revision(
@@ -144,7 +142,6 @@ async fn get_tokenizer(
                 RepoType::Model,
                 revision.unwrap_or_else(|| "main").to_string(),
             ));
-
 
             let config_filename = api_repo.get("config.json").await.ok();
             let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
@@ -176,23 +173,10 @@ async fn get_tokenizer(
                 repo.get("tokenizer_config.json"),
                 repo.get("preprocessor_config.json"),
                 repo.get("processor_config.json"),
-                None
+                None,
             )
         }
     };
-
-    // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
-    // let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
-    // {
-    //     HubTokenizerConfig::from_file(filename)
-    // } else {
-    //     tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
-    // };
-
-    // let tokenizer_config = tokenizer_config.unwrap_or_else(|| {
-    //     tracing::warn!("Could not find tokenizer config locally and no API specified");
-    //     HubTokenizerConfig::default()
-    // });
 
     let tokenizer: Tokenizer = {
         use pyo3::prelude::*;
@@ -200,14 +184,14 @@ async fn get_tokenizer(
             py_resolve_tokenizer(py, &tokenizer_name, revision.as_deref(), false)?;
             Ok(())
         })
-            .inspect_err(|err| {
-                tracing::error!("Failed to import python tokenizer {err}");
-            })
-            .or_else(|err| {
-                let out = legacy_tokenizer_handle(config_filename.as_ref());
-                out.ok_or(err)
-            })
-            .expect("We cannot load a tokenizer");
+        .inspect_err(|err| {
+            tracing::error!("Failed to import python tokenizer {err}");
+        })
+        .or_else(|err| {
+            let out = legacy_tokenizer_handle(config_filename.as_ref());
+            out.ok_or(err)
+        })
+        .expect("We cannot load a tokenizer");
         let filename = "out/tokenizer.json";
         if let Ok(tok) = tokenizers::Tokenizer::from_file(filename) {
             Tokenizer::Rust(tok)
@@ -291,16 +275,13 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
     }
 
     // Create the backend
-    match get_tokenizer(
-        &tokenizer_name,
-        tokenizer_config_path.as_deref(),
-        revision.as_deref(),
-    )
-    .await
-    .expect("Failed to retrieve tokenizer implementation") {
-        Tokenizer::Python { .. } => {
-            Err(TensorRtLlmBackendError::Tokenizer("Failed to retrieve Rust based tokenizer".to_string()))
-        }
+    match get_tokenizer(&tokenizer_name, revision.as_deref())
+        .await
+        .expect("Failed to retrieve tokenizer implementation")
+    {
+        Tokenizer::Python { .. } => Err(TensorRtLlmBackendError::Tokenizer(
+            "Failed to retrieve Rust based tokenizer".to_string(),
+        )),
         Tokenizer::Rust(tokenizer) => {
             info!("Successfully retrieved tokenizer {}", &tokenizer_name);
             let backend = TensorRtLlmBackendV2::new(
@@ -337,9 +318,9 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
                 max_client_batch_size,
                 usage_stats,
                 payload_limit,
-            ).await?;
+            )
+            .await?;
             Ok(())
         }
     }
-
 }
