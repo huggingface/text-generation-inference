@@ -6,6 +6,26 @@ mod utils;
 
 #[cxx::bridge(namespace = "huggingface::tgi::backends::trtllm")]
 mod ffi {
+    #[cxx_name = "finish_reason_t"]
+    #[derive(Debug, Clone, Copy)]
+    pub enum FinishReason {
+        /// The request is not finished.
+        #[cxx_name = "kNOT_FINISHED"]
+        NotFinished = 0u8,
+
+        /// The request finished because the end id was generated.
+        #[cxx_name = "kEND_ID"]
+        EndTokenId = 1u8,
+
+        /// The request finished because a stop word was generated.
+        #[cxx_name = "kSTOP_WORDS"]
+        StopWords = 2u8,
+
+        /// The request finished because the maximum number of tokens was reached.
+        #[cxx_name = "kLENGTH"]
+        MaxLength = 3u8,
+    }
+
     /// Struct used as shared type between rust and C++ to represent the result
     /// of a single decoding iteration
     #[cxx_name = "generation_step_t"]
@@ -15,6 +35,7 @@ mod ffi {
         token_id: u32,
         log_prob: f32,
         is_final: bool,
+        finish_reason: FinishReason,
         has_error: bool,
         error_msg: String,
     }
@@ -64,5 +85,19 @@ mod ffi {
         ) -> Result<UniquePtr<CxxVector<GenerationStep>>>;
 
         fn cancel(self: Pin<&mut TensorRtLlmBackendImpl>, request_id: u64);
+    }
+}
+
+use ffi::FinishReason;
+use text_generation_router::FinishReason as InferFinishReason;
+
+impl From<FinishReason> for InferFinishReason {
+    fn from(reason: FinishReason) -> Self {
+        match reason {
+            FinishReason::StopWords => InferFinishReason::StopSequence,
+            FinishReason::MaxLength => InferFinishReason::Length,
+            FinishReason::EndTokenId => InferFinishReason::EndOfSequenceToken,
+            _ => panic!("Cannot convert {reason:?} to text_generation_router::FinishReason"),
+        }
     }
 }
