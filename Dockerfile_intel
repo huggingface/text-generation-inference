@@ -100,7 +100,6 @@ WORKDIR /usr/src
 RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/torch-2.5.0a0%2Bgite84e33f-cp311-cp311-linux_x86_64.whl --no-cache-dir
 RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/torchaudio-2.5.0a0%2B56bc006-cp311-cp311-linux_x86_64.whl --no-cache-dir
 RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/torchvision-0.20.0a0%2B8e8a208-cp311-cp311-linux_x86_64.whl --no-cache-dir
-RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/intel_extension_for_pytorch-2.5.10%2Bgit9d489a8-cp311-cp311-linux_x86_64.whl --no-cache-dir
 RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/oneccl_bind_pt-2.5.0%2Bxpu-cp311-cp311-linux_x86_64.whl --no-cache-dir
 
 RUN pip install triton-xpu==3.0.0b2 --no-cache-dir
@@ -118,6 +117,9 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/oneapi/pti/0.9/lib:/opt/conda/li
 ENV CCL_ZE_IPC_EXCHANGE=sockets
 #ENV TORCH_LLM_ALLREDUCE=1
 #ENV CCL_TOPO_FABRIC_VERTEX_CONNECTION_CHECK=0
+
+RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout c3e14caf792ad04824dd921e2fc3f16fca0d462e
+RUN cd intel-extension-for-pytorch && git submodule update --init --recursive && USE_AOT_DEVLIST='pvc' BUILD_SEPARATE_OPS=OFF BUILD_WITH_CPU=OFF USE_XETLA=ON python setup.py install && rm -rf /usr/src/intel-extension-for-pytorch
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
@@ -222,9 +224,9 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/loca
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 
 FROM ${PLATFORM} AS final
-ENV ATTENTION=paged
-ENV PREFIX_CACHING=0
-ENV PREFILL_CHUNKING=0
+ENV ATTENTION=flashdecoding
+ENV PREFIX_CACHING=1
+ENV PREFILL_CHUNKING=1
 ENV CUDA_GRAPHS=0
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]
