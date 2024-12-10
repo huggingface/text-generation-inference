@@ -33,6 +33,13 @@ pub trait Backend {
     ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError>;
 
     async fn health(&self, current_health: bool) -> bool;
+
+    /// The state of the health on startup
+    /// Typically false, or true if the backend includes
+    /// a warmup phase.
+    fn start_health(&self) -> bool {
+        false
+    }
 }
 
 /// Inference struct
@@ -75,7 +82,7 @@ impl Infer {
         let semaphore = Arc::new(Semaphore::new(max_concurrent_requests));
 
         // Backend health
-        let backend_health = Arc::new(AtomicBool::new(false));
+        let backend_health = Arc::new(AtomicBool::new(backend.start_health()));
 
         Self {
             validation,
