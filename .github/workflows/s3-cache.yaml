@@ -1,11 +1,6 @@
 name: Setup S3 Cache Storage
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - s3-cache
-
   workflow_call:
     inputs:
       # Identify on which runner this workflow should work
