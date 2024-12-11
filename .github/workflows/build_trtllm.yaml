@@ -22,7 +22,7 @@ on:
 permissions:
   contents: read # Required to check out repository.
   id-token: write # Required to authenticate via OIDC.
-  
+
 jobs:
   build:
     runs-on:
@@ -38,7 +38,15 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
 
       - name: "Install sccache"
-        run: cargo install sscache
+        run: cargo install sccache --locked
+
+      - name: "Build TensorRT-LLM Backend"
+        env:
+          SCCACHE_BUCKET: ${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+          SCCACHE_REGION: "us-east-1"
+          SCCACHE_S3_USE_SSL: false
+          SCCACHE_S3_KEY_PREFIX: "tgi+trtllm"
+        run: sccache build --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
 
 
 
