@@ -19,6 +19,10 @@ on:
     branches:
       - "main"
 
+
+permissions:
+  id-token: write # Required to authenticate via OIDC.
+  
 jobs:
   call-setup-aws-s3-cache:
     uses: ./.github/workflows/s3-cache.yaml  # TODO: Change @s3-cache to @main when merged
