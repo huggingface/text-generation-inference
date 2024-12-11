@@ -8,7 +8,6 @@ on:
         required: true
         type: string
 
-
 permissions:
   contents: read # Required to check out repository.
   id-token: write # Required to authenticate via OIDC.

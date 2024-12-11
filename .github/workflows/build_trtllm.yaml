@@ -24,19 +24,18 @@ permissions:
   id-token: write # Required to authenticate via OIDC.
   
 jobs:
-  call-setup-aws-s3-cache:
-    uses: ./.github/workflows/s3-cache.yaml  # TODO: Change @s3-cache to @main when merged
-    with:
-      runner-group: aws-highmemory-32-plus-priv
-    secrets: inherit
-
   build:
     runs-on:
       group: aws-highmemory-32-plus-priv
-    needs: call-setup-aws-s3-cache
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: "Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
 
       - name: "Install sccache"
         run: cargo install sscache
