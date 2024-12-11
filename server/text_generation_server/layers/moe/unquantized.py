@@ -6,9 +6,7 @@ import torch.nn as nn
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import UnquantizedWeight, Weights
 
-if SYSTEM == "rocm":
-    from vllm.model_executor.layers.fused_moe import fused_moe
-elif SYSTEM == "ipex":
+if SYSTEM == "ipex":
     from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
 else:
     from moe_kernels.fused_moe import fused_moe
