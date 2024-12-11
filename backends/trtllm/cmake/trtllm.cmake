@@ -11,6 +11,7 @@ set(CMAKE_CUDA_ARCHITECTURES ${TGI_TRTLLM_BACKEND_TARGET_CUDA_ARCH_LIST})
 
 message(STATUS "Building for CUDA Architectures: ${CMAKE_CUDA_ARCHITECTURES}")
 
+set(ENABLE_UCX OFF)
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     set(FAST_BUILD ON)
     set(NVTX_DISABLE OFF)
@@ -20,11 +21,13 @@ else ()
     set(NVTX_DISABLE ON)
 endif ()
 
+find_package(Python3 REQUIRED Interpreter)
+
 fetchcontent_declare(
         trtllm
-        GIT_REPOSITORY https://github.com/NVIDIA/TensorRT-LLM.git
-        GIT_TAG 201135e58aa525af7e523d091d4c9584229524bc
-        GIT_SHALLOW FALSE
+        GIT_REPOSITORY https://github.com/huggingface/TensorRT-LLM.git
+        GIT_TAG 1bb9ca4688805444f203647674bac1d7219d0579
+        GIT_SHALLOW ON
         DOWNLOAD_EXTRACT_TIMESTAMP
 )
 fetchcontent_makeavailable(trtllm)
