@@ -1,0 +1,34 @@
+name: test-s3
+
+on:
+  workflow_dispatch:
+
+
+permissions:
+
+  contents: read # Required to checkout repository.
+  id-token: write # Required to authenticate via OIDC.
+
+jobs:
+  test:
+    runs-on:
+      group: aws-general-8-plus
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
+
+      - name: S3 Write
+        run: |
+          aws s3 cp README.md s3://${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+
+      - name: S3 Read
+        run: |
+          aws s3 ls s3://${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+      
+     
