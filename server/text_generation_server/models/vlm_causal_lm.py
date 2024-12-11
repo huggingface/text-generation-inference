@@ -244,15 +244,29 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         )
                         num_bytes = len(video_frame_buf)
                         bytes_per_frame = num_bytes // chunk.video.frames
-                        height = bytes_per_frame // 3 // chunk.video.width
+                        #height = bytes_per_frame // 3 // chunk.video.width
+                        from loguru import logger
 
+                        log_master(
+                            logger.info,
+                            f"Video buffer size: {len(video_frame_buf)}",
+                        )
+                        log_master(
+                            logger.info,
+                            f"Frames in chunk: {chunk.video.frames}",
+                        )
+                        log_master(
+                            logger.info,
+                            f"Bytes per frame: {bytes_per_frame}",
+                        )
+                        
                         # iterate over with a stride the size of a frame
                         frames = []
                         for i in range(chunk.video.frames):
                             frame = video_frame_buf[
                                 i * bytes_per_frame : (i + 1) * bytes_per_frame
                             ]
-                            frame = frame.reshape(height, chunk.video.width, 3)
+                            frame = frame.reshape(chunk.video.height, chunk.video.width, 3)
                             frames.append(frame)
 
                         video_frame_buf = np.stack(frames)

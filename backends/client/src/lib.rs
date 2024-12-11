@@ -83,6 +83,7 @@ impl ChunksToString for Vec<InputChunk> {
                 data,
                 mimetype,
                 width,
+                height,
                 frames: _,
             })) => {
                 // TODO: revisit if we should limit video support to v3 - to avoid sending very large base64 strings
