@@ -19,9 +19,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS builder
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    python3.11-dev \ 
-    libssl-dev \
-    ca-certificates
+    python3.11-dev
 
 RUN apt-get update && apt-get install -y \
     ffmpeg \
@@ -100,9 +98,12 @@ RUN chmod +x ~/mambaforge.sh && \
 RUN case ${TARGETPLATFORM} in \
     "linux/arm64")  exit 1 ;; \
     *)              /opt/conda/bin/conda update -y conda &&  \
-    /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" "pytorch=$PYTORCH_VERSION" "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
+    /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" "pytorch=$PYTORCH_VERSION" "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)" "openssl>=3.3.0" ;; \
     esac && \
     /opt/conda/bin/conda clean -ya
+
+RUN /opt/conda/bin/conda install -y pyOpenSSL
+
 
 # CUDA kernels builder image
 FROM pytorch-install AS kernel-builder
@@ -258,6 +259,8 @@ RUN cd server && \
 ENV LD_PRELOAD=/opt/conda/lib/python3.11/site-packages/nvidia/nccl/lib/libnccl.so.2
 # Required to find libpython within the rust binaries
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/conda/lib/"
+ENV LD_PRELOAD="/opt/conda/lib/libcrypto.so.3"
+
 # This is needed because exl2 tries to load flash-attn
 # And fails with our builds.
 ENV EXLLAMA_NO_FLASH_ATTN=1
