@@ -2,6 +2,9 @@ name: test-s3
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+    - s3-cache
 
 
 permissions:
