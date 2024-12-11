@@ -20,7 +20,7 @@ on:
 
 jobs:
   call-setup-aws-s3-cache:
-    uses: ./.github/workflows/s3-cache.yaml@s3-cache  # TODO: Change @s3-cache to @main when merged
+    uses: ./.github/workflows/s3-cache.yaml  # TODO: Change @s3-cache to @main when merged
     with:
       runner-group: aws-highmemory-32-plus-priv
     secrets: inherit
