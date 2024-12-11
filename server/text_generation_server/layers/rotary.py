@@ -7,7 +7,7 @@ from text_generation_server.utils.import_utils import SYSTEM
 if SYSTEM == "cuda":
     import rotary_emb
 elif SYSTEM == "rocm":
-    from vllm._C import ops
+    import vllm._custom_ops as ops
 elif SYSTEM == "ipex":
     import intel_extension_for_pytorch as ipex
 

@@ -72,7 +72,7 @@ if SYSTEM == "cuda":
                 return normed_hidden_states, residual
 
 elif SYSTEM == "rocm":
-    from vllm._C import ops
+    import vllm._custom_ops as ops
 
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
@@ -121,6 +121,27 @@ class FastRMSNorm(nn.Module):
                 residual is not None,
             )
             return out, residual if residual is not None else hidden_states
+        elif SYSTEM == "rocm":
+            # We use VLLM RMSNorm kernel that can be compiled for RoCm, instead of Flash Attention ones that can not.
+            if residual is not None:
+                ops.fused_add_rms_norm(
+                    hidden_states,
+                    residual,
+                    self.weight.data,
+                    self.variance_epsilon,
+                )
+                return hidden_states, residual
+
+            residual = hidden_states
+
+            out = torch.empty_like(hidden_states)
+            ops.rms_norm(
+                out,
+                hidden_states,
+                self.weight.data,
+                self.variance_epsilon,
+            )
+            return out, residual
         elif hidden_states.shape[-1] > 8192:
             if residual is not None:
                 hidden_states += residual
@@ -164,20 +185,6 @@ class FastRMSNorm(nn.Module):
                 res = hidden_states
 
             return normed_hidden_states, res
-        elif SYSTEM == "rocm":
-            # We use VLLM RMSNorm kernel that can be compiled for RoCm, instead of Flash Attention ones that can not.
-            if residual is not None:
-                hidden_states += residual
-            residual = hidden_states
-
-            out = torch.empty_like(hidden_states)
-            ops.rms_norm(
-                out,
-                hidden_states,
-                self.weight.data,
-                self.variance_epsilon,
-            )
-            return out, residual
         else:
             raise ValueError(
                 "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."

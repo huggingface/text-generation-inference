@@ -43,9 +43,9 @@ from text_generation_server.utils.weights import Weights
 
 if SYSTEM == "rocm":
     try:
-        from vllm import _custom_C
+        import vllm._custom_ops as ops
     except Exception as e:
-        raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
+        raise ImportError(f"Could not load `vllm._custom_ops`. Full error: {e}")
 
 
 class DeepseekV2Config(PretrainedConfig):
@@ -408,7 +408,7 @@ class DeepseekV2MLP(nn.Module):
                 dtype=hidden_states.dtype,
                 device="cuda",
             )
-            _custom_C.LLMM_Silu(self.gate_up_proj.linear.weight, hidden_states, out, 8)
+            ops.LLMM_Silu(self.gate_up_proj.linear.weight, hidden_states, out, 8)
             return self.down_proj(out, reduce=reduce)
         else:
             gate_up_states = self.gate_up_proj(hidden_states)

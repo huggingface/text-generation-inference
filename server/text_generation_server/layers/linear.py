@@ -11,10 +11,10 @@ if SYSTEM == "rocm":
 
     if ROCM_USE_SKINNY_GEMM:
         try:
-            from vllm import _custom_C
+            import vllm._custom_ops as ops
         except Exception as e:
             raise ImportError(
-                f"Could not load `vllm._custom_C` for ROCm skinny gemm. Full error: {e}"
+                f"Could not load `vllm._custom_ops` for ROCm skinny gemm. Full error: {e}"
             )
 
 
@@ -95,12 +95,12 @@ class FastLinearROCm(torch.nn.Module):
                 out = torch.empty(
                     inp_shape[0], weight.shape[0], dtype=inp.dtype, device=weight.device
                 )
-                _custom_C.wvSpltK(weight, inp, out, n, self.cu_count)
+                ops.wvSpltK(weight, inp, out, n, self.cu_count)
             elif m % 4 == 0 and n == 1 and k <= 8192:
                 out = torch.empty(
                     inp_shape[0], weight.shape[0], dtype=inp.dtype, device=weight.device
                 )
-                _custom_C.LLMM1(weight, inp, out, 4)
+                ops.LLMM1(weight, inp, out, 4)
             else:
                 out = F.linear(inp, weight)
 

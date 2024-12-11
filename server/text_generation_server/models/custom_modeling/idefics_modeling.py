@@ -52,7 +52,7 @@ from loguru import logger
 if SYSTEM == "cuda":
     import dropout_layer_norm
 elif SYSTEM == "rocm":
-    from vllm._C import ops
+    import vllm._custom_ops as ops
 else:
     dropout_layer_norm = None
 

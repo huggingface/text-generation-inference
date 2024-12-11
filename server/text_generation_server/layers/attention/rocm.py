@@ -6,26 +6,42 @@ from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils.log import log_master
 from loguru import logger
+import vllm._custom_ops as ops
 
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
 
-_PARTITION_SIZE_V1V2 = 512
+_PARTITION_SIZE_V1V2 = 1024
 _PARTITION_SIZE_CUSTOM = 256
+
+_GPU_ARCH = torch.cuda.get_device_properties("cuda").gcnArchName
+_ON_MI250_MI300 = any(
+    arch in _GPU_ARCH for arch in ["gfx90a", "gfx940", "gfx941", "gfx942"]
+)
 
 use_triton = os.getenv("ROCM_USE_FLASH_ATTN_V2_TRITON", "").lower() in {"true", "1"}
 ENGINE = "triton" if use_triton else "ck"
 
 use_rocm_custom_paged_attn = os.getenv("ROCM_USE_CUSTOM_PAGED_ATTN", "1") != "0"
-try:
-    if use_rocm_custom_paged_attn:
-        from vllm._custom_C import paged_attention_custom
-except ImportError as e:
-    log_master(
-        logger.info,
-        f"Custom Paged Attention not available. Complete error: {e}",
+
+
+def _use_rocm_custom_paged_attention(
+    qtype: torch.dtype,
+    head_size: int,
+    block_size: int,
+    gqa_ratio: int,
+    max_seq_len: int,
+) -> bool:
+    # rocm custom page attention not support on navi (gfx1*)
+    return (
+        use_rocm_custom_paged_attn
+        and _ON_MI250_MI300
+        and (qtype == torch.half or qtype == torch.bfloat16)
+        and (head_size == 64 or head_size == 128)
+        and (block_size == 16 or block_size == 32)
+        and (gqa_ratio >= 1 and gqa_ratio <= 16)
+        and max_seq_len <= 131072
     )
-    use_rocm_custom_paged_attn = False
 
 
 def paged_attention(
@@ -66,13 +82,8 @@ def paged_attention(
 
     num_kv_heads = kv_cache.key.shape[1]
     gqa_ratio = num_heads // num_kv_heads
-    use_custom = (
-        use_rocm_custom_paged_attn
-        and (query.dtype == torch.half or query.dtype == torch.bfloat16)
-        and (head_size == 128 or head_size == 64)
-        and (block_size == 16 or block_size == 32)
-        and (gqa_ratio >= 1 and gqa_ratio <= 16)
-        and max_s <= 32768
+    use_custom = _use_rocm_custom_paged_attention(
+        query.dtype, head_size, block_size, gqa_ratio, max_s
     )
 
     if not use_custom:
@@ -90,8 +101,6 @@ def paged_attention(
     # V1 to avoid the overhead of reduction. Also, if the number of
     # sequences or heads is large, we use V1 since there is enough work
     # to parallelize.
-    import vllm._custom_ops as ops
-
     use_v1 = (
         max_s <= 8192
         and (max_num_partitions == 1 or num_seqs * num_heads > 512)
@@ -103,7 +112,7 @@ def paged_attention(
             query,
             kv_cache.key,
             kv_cache.value,
-            kv_head_mapping,
+            num_kv_heads,
             softmax_scale,
             block_tables,
             input_lengths,
@@ -111,6 +120,7 @@ def paged_attention(
             max_s,
             None,
             "auto",
+            1.0,
             1.0,
         )
     else:
@@ -137,7 +147,7 @@ def paged_attention(
                 query,
                 kv_cache.key,
                 kv_cache.value,
-                kv_head_mapping,
+                num_kv_heads,
                 softmax_scale,
                 block_tables,
                 input_lengths,
@@ -146,9 +156,10 @@ def paged_attention(
                 None,
                 "auto",
                 1.0,
+                1.0,
             )
         else:
-            paged_attention_custom(
+            ops.paged_attention_rocm(
                 out,
                 exp_sums,
                 max_logits,
@@ -164,6 +175,10 @@ def paged_attention(
                 max_s,
                 None,
                 "auto",
+                1.0,
+                1.0,
+                None,
+                _PARTITION_SIZE,
             )
 
     return out
