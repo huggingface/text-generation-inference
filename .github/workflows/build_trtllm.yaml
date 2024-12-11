@@ -29,7 +29,13 @@ jobs:
       group: aws-highmemory-32-plus-priv
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      #- uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install Rust Stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          override: true
 
       - name: "Configure AWS Credentials"
         uses: aws-actions/configure-aws-credentials@v4
