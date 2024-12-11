@@ -196,14 +196,26 @@ Detailed blogpost by Adyen on TGI inner workings: [LLM inference at scale with T
 
 You can also opt to install `text-generation-inference` locally.
 
-First [install Rust](https://rustup.rs/) and create a Python virtual environment with at least
-Python 3.9, e.g. using `conda`:
+First clone the repository and change directoy into it:
+
+```shell
+git clone https://github.com/huggingface/text-generation-inference
+cd text-generation-inference
+```
+
+Then [install Rust](https://rustup.rs/) and create a Python virtual environment with at least
+Python 3.9, e.g. using `conda` or `python venv`:
 
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
+#using conda
 conda create -n text-generation-inference python=3.11
 conda activate text-generation-inference
+
+#using pyton venv
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 You may also need to install Protoc.
