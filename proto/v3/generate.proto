@@ -74,8 +74,11 @@ message Video {
   /// Video width
   uint32 width = 3;
 
+  /// Video height
+  uint32 height = 4;
+
   /// Total number of frames
-  uint32 frames = 4;
+  uint32 frames = 5;
 }
 
 message InputChunk {

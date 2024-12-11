@@ -443,6 +443,7 @@ impl State {
                                     data: video.data,
                                     mimetype: video.mimetype,
                                     width: video.width,
+                                    height: video.height,
                                     frames: video.num_frames,
                                 }),
                             }),
