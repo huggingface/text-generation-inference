@@ -99,7 +99,7 @@ class OPTLearnedPositionalEmbedding(nn.Module):
         self.offset = 2
         self.weight = nn.Parameter(
             weights.get_tensor(
-                f"{prefix + '.' if prefix else ''}decoder.embed_positions.weight"
+                f"{prefix if prefix else ''}decoder.embed_positions.weight"
             )
         )
 
@@ -317,7 +317,7 @@ class OPTDecoderLayer(nn.Module):
         super().__init__()
         self.process_group = weights.process_group
         self.hidden_size = config.hidden_size
-        prefix = f"{prefix + '.' if prefix else ''}decoder.layers.{layer_id}"
+        prefix = f"{prefix if prefix else ''}decoder.layers.{layer_id}"
         self.self_attn = OPTAttention(
             config,
             prefix=f"{prefix}.self_attn",
@@ -755,6 +755,8 @@ class OPTModel(OPTPreTrainedModel):
 class OPTForCausalLM(OPTPreTrainedModel):
     def __init__(self, prefix, config, weights):
         super().__init__(config)
+        if not prefix and any(s.startswith("model") for s in weights.routing.keys()):
+            prefix = "model"
 
         self.model = OPTModel(prefix, config, weights)
 
