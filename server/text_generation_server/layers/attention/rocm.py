@@ -139,7 +139,6 @@ def paged_attention(
         max_logits = torch.empty_like(exp_sums)
 
         if not use_custom:
-            logger.info("Using PagedAttention V2")
             ops.paged_attention_v2(
                 out,
                 exp_sums,
