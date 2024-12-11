@@ -1,0 +1,30 @@
+name: Setup S3 Cache Storage
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - s3-cache
+
+  workflow_call:
+    inputs:
+      # Identify on which runner this workflow should work
+      runner-group:
+        required: true
+        type: string
+
+
+permissions:
+  contents: read # Required to check out repository.
+  id-token: write # Required to authenticate via OIDC.
+
+jobs:
+  setup-cache:
+    runs-on:
+      group: ${{ inputs.runner-group }}
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
