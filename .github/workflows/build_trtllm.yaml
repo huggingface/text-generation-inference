@@ -19,18 +19,10 @@ on:
       - "main"
 
 jobs:
-  checkout:
-    runs-on:
-      group: aws-highmemory-32-plus-priv
-    steps:
-      - name: Checking out code
-        uses: actions/checkout@v4
-
   call-setup-aws-s3-cache:
-    needs: checkout
     uses: ./.github/workflows/s3-cache.yaml@s3-cache  # TODO: Change @s3-cache to @main when merged
     with:
-      runner-group: "aws-highmemory-32-plus-priv"
+      runner-group: aws-highmemory-32-plus-priv
     secrets: inherit
 
   build:
@@ -38,8 +30,8 @@ jobs:
       group: aws-highmemory-32-plus-priv
     needs: call-setup-aws-s3-cache
     steps:
-      - name: "Setup sccache"
-        run: apt update && apt upgrade -y
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
 
 
