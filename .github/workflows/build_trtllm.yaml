@@ -19,8 +19,8 @@ on:
     branches:
       - "main"
 
-
 permissions:
+  contents: read # Required to check out repository.
   id-token: write # Required to authenticate via OIDC.
   
 jobs:
