@@ -1,4 +1,4 @@
-flash_att_v2_commit_cuda := v2.7.2.post1
+flash_att_v2_commit_cuda := v2.6.1
 flash_att_v2_commit_rocm := 2092111b9f975b3347c652ff7fabd431130256c4
 
 build-flash-attention-v2-cuda:
