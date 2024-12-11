@@ -52,7 +52,8 @@ jobs:
           SCCACHE_REGION: "us-east-1"
           SCCACHE_S3_USE_SSL: false
           SCCACHE_S3_KEY_PREFIX: "tgi+trtllm"
-        run: sccache build --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
+          RUSTC_WRAPPER: sccache
+        run: cargo build --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
 
 
 
