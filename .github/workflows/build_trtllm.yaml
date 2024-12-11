@@ -30,7 +30,7 @@ jobs:
     needs: checkout
     uses: ./.github/workflows/s3-cache.yaml@s3-cache  # TODO: Change @s3-cache to @main when merged
     with:
-      runner-group: aws-highmemory-32-plus-priv
+      runner-group: "aws-highmemory-32-plus-priv"
     secrets: inherit
 
   build:
