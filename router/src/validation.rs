@@ -629,7 +629,7 @@ pub fn fetch_video(
 
                 // Copy each row without padding
                 for y in 0..rgb_frame.height() as usize {
-                    let start = y * rgb_frame.stride(0) as usize;
+                    let start = y * rgb_frame.stride(0);
                     let end = start + row_size;
                     frame_data.extend_from_slice(&src_data[start..end]);
                 }
