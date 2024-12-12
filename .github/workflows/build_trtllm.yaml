@@ -29,13 +29,6 @@ jobs:
       group: aws-highmemory-32-plus-priv
     steps:
       - uses: actions/checkout@v4
-      #- uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: Install Rust Stable
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
-          override: true
 
       - name: "Configure AWS Credentials"
         id: aws-creds
@@ -61,13 +54,15 @@ jobs:
           push: false
           platforms: 'linux/amd64'
           build-args: |
-            AWS_ACCESS_KEY_ID: ${{ steps.aws-creds.outputs.aws-access-key-id }}
-            AWS_SECRET_ACCESS_KEY: ${{ steps.aws-creds.outputs.aws-secret-access-key }}
             BUILD_TYPE=debug
-            SCCACHE_BUCKET: ${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
             SCCACHE_REGION: us-east-1
             SCCACHE_S3_USE_SSL: false
             SCCACHE_S3_KEY_PREFIX: trtllm
+          secrets:
+            AWS_ACCESS_KEY_ID=${{ steps.aws-creds.outputs.aws-access-key-id }}
+            AWS_SECRET_ACCESS_KEY=${{ steps.aws-creds.outputs.aws-secret-access-key }}
+            SCCACHE_BUCKET=${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+
 
 
 
