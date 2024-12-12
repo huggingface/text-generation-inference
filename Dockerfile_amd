@@ -330,6 +330,10 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/loca
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/conda/lib/"
 
+# Copy the ffmpeg libraries
+COPY --from=builder /usr/lib/x86_64-linux-gnu/* /usr/lib/x86_64-linux-gnu-copy/
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu-copy"
+
 # AWS Sagemaker compatible image
 FROM base AS sagemaker
 
