@@ -43,19 +43,29 @@ jobs:
           aws-region: us-east-1
           role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
 
-      - name: "Install OS dependencies"
-        run: apt update && apt install -y cmake gcc g++ ninja-build openmpi-devel
-      - name: "Install sccache"
-        run: cargo install sccache --locked
+      - name: Initialize Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+          buildkitd-config: /tmp/buildkitd.toml
 
-      - name: "Build TensorRT-LLM Backend"
-        env:
-          SCCACHE_BUCKET: ${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
-          SCCACHE_REGION: "us-east-1"
-          SCCACHE_S3_USE_SSL: false
-          SCCACHE_S3_KEY_PREFIX: "tgi+trtllm"
-          RUSTC_WRAPPER: sccache
-        run: cargo build --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile_trtllm
+          target: runtime
+          push: false
+          platforms: 'linux/amd64'
+          build-args: |
+            BUILD_TYPE=debug
+            SCCACHE_BUCKET: ${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+            SCCACHE_REGION: "us-east-1"
+            SCCACHE_S3_USE_SSL: false
+            SCCACHE_S3_KEY_PREFIX: "tgi+trtllm"
+            RUSTC_WRAPPER: sccache
+
 
 
 
