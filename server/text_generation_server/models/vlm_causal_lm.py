@@ -244,14 +244,16 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         )
                         num_bytes = len(video_frame_buf)
                         bytes_per_frame = num_bytes // chunk.video.frames
-                        
+
                         # iterate over with a stride the size of a frame
                         frames = []
                         for i in range(chunk.video.frames):
                             frame = video_frame_buf[
                                 i * bytes_per_frame : (i + 1) * bytes_per_frame
                             ]
-                            frame = frame.reshape(chunk.video.height, chunk.video.width, 3)
+                            frame = frame.reshape(
+                                chunk.video.height, chunk.video.width, 3
+                            )
                             frames.append(frame)
 
                         video_frame_buf = np.stack(frames)
