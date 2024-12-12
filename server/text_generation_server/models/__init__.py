@@ -375,7 +375,8 @@ def get_model(
     )
     model_type = config_dict.get("model_type", None)
 
-    transformers_causal_lm_class = CausalLM
+    # transformers_causal_lm_class = CausalLM
+    transformers_causal_lm_class = TransformersFlashCausalLM
     if (
         not USE_CUSTOM_MODELING
         and model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
