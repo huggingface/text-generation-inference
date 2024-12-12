@@ -38,6 +38,7 @@ jobs:
           override: true
 
       - name: "Configure AWS Credentials"
+        id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
@@ -59,12 +60,14 @@ jobs:
           push: false
           platforms: 'linux/amd64'
           build-args: |
+            AWS_ACCESS_KEY_ID: ${{ steps.aws-creds.outputs.aws-access-key-id }}
+            AWS_SECRET_ACCESS_KEY: ${{ steps.aws-creds.outputs.aws-secret-access-key }}
             BUILD_TYPE=debug
             SCCACHE_BUCKET: ${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
-            SCCACHE_REGION: "us-east-1"
+            SCCACHE_REGION: us-east-1
             SCCACHE_S3_USE_SSL: false
-            SCCACHE_S3_KEY_PREFIX: "tgi+trtllm"
-            RUSTC_WRAPPER: sccache
+            SCCACHE_S3_KEY_PREFIX: trtllm
+
 
 
 
