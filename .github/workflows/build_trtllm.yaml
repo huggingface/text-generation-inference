@@ -59,7 +59,6 @@ jobs:
           build-args: |
             BUILD_TYPE=dev
             SCCACHE_REGION: us-east-1
-            SCCACHE_S3_USE_SSL: false
             SCCACHE_S3_KEY_PREFIX: trtllm
           secrets:
             AWS_ACCESS_KEY_ID=${{ steps.aws-creds.outputs.aws-access-key-id }}
