@@ -3,43 +3,7 @@
     "best_of_sequences": null,
     "finish_reason": "length",
     "generated_tokens": 10,
-    "prefill": [
-      {
-        "id": 1,
-        "logprob": null,
-        "text": "<s>"
-      },
-      {
-        "id": 806,
-        "logprob": -11.890625,
-        "text": "Wh"
-      },
-      {
-        "id": 1446,
-        "logprob": -3.6699219,
-        "text": "ats"
-      },
-      {
-        "id": 2921,
-        "logprob": -7.8203125,
-        "text": "Go"
-      },
-      {
-        "id": 468,
-        "logprob": -8.0703125,
-        "text": "og"
-      },
-      {
-        "id": 793,
-        "logprob": -2.1875,
-        "text": "les"
-      },
-      {
-        "id": 16332,
-        "logprob": -9.7109375,
-        "text": "DNS"
-      }
-    ],
+    "prefill": [],
     "seed": null,
     "tokens": [
       {

@@ -1,0 +1,23 @@
+{
+  "choices": [
+    {
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": " the royal mouse? It is a little more slender and only weighs around 1.5 pounds for males and 1.3 pounds",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1732541190,
+  "id": "",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "object": "chat.completion",
+  "system_fingerprint": "2.4.1-dev0-native",
+  "usage": {
+    "completion_tokens": 30,
+    "prompt_tokens": 73,
+    "total_tokens": 103
+  }
+}

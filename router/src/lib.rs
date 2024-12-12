@@ -332,8 +332,8 @@ pub(crate) struct GenerateParameters {
     pub do_sample: bool,
 
     /// Maximum number of tokens to generate.
-    #[serde(default = "default_max_new_tokens")]
-    #[schema(nullable = true, default = "100", example = "20")]
+    #[serde(default)]
+    #[schema(nullable = true, default = "1024", example = "20")]
     pub max_new_tokens: Option<u32>,
 
     /// Whether to prepend the prompt to the generated text
@@ -392,10 +392,6 @@ pub(crate) struct GenerateParameters {
     pub adapter_id: Option<String>,
 }
 
-fn default_max_new_tokens() -> Option<u32> {
-    Some(100)
-}
-
 fn default_parameters() -> GenerateParameters {
     GenerateParameters {
         best_of: None,
@@ -406,7 +402,7 @@ fn default_parameters() -> GenerateParameters {
         top_p: None,
         typical_p: None,
         do_sample: true,
-        max_new_tokens: default_max_new_tokens(),
+        max_new_tokens: None,
         return_full_text: None,
         stop: Vec::new(),
         truncate: None,
@@ -464,7 +460,7 @@ pub struct CompletionRequest {
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]
-    #[schema(default = "32")]
+    #[schema(default = "1024", example = "32")]
     pub max_tokens: Option<u32>,
 
     /// What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while
@@ -651,6 +647,7 @@ enum CompletionType {
 }
 
 impl ChatCompletion {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         model: String,
         system_fingerprint: String,
@@ -659,6 +656,7 @@ impl ChatCompletion {
         details: Details,
         return_logprobs: bool,
         tool_calls: Option<Vec<ToolCall>>,
+        prompt_tokens: u32,
     ) -> Self {
         let message = match (output, tool_calls) {
             (Some(content), None) => OutputMessage::ChatMessage(TextMessage {
@@ -697,9 +695,9 @@ impl ChatCompletion {
                 finish_reason: details.finish_reason.format(true),
             }],
             usage: Usage {
-                prompt_tokens: details.prefill.len() as u32,
+                prompt_tokens,
                 completion_tokens: details.generated_tokens,
-                total_tokens: details.prefill.len() as u32 + details.generated_tokens,
+                total_tokens: prompt_tokens + details.generated_tokens,
             },
         }
     }
@@ -842,7 +840,7 @@ pub(crate) struct ChatRequest {
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]
-    #[schema(example = "32")]
+    #[schema(default = "1024", example = "32")]
     pub max_tokens: Option<u32>,
 
     /// UNUSED
@@ -923,7 +921,6 @@ impl ChatRequest {
             messages,
             seed,
             stop,
-            stream,
             tools,
             tool_choice,
             tool_prompt,
@@ -937,7 +934,7 @@ impl ChatRequest {
         } = self;
 
         let repetition_penalty = presence_penalty.map(|x| x + 2.0);
-        let max_new_tokens = max_tokens.or(Some(100));
+        let max_new_tokens = max_tokens;
         let tool_prompt = tool_prompt
             .filter(|s| !s.is_empty())
             .unwrap_or_else(default_tool_prompt);
@@ -1003,7 +1000,7 @@ impl ChatRequest {
                     truncate: None,
                     watermark: false,
                     details: true,
-                    decoder_input_details: !stream,
+                    decoder_input_details: false,
                     seed,
                     top_n_tokens: top_logprobs,
                     grammar,
@@ -1328,7 +1325,7 @@ pub struct SimpleToken {
     stop: usize,
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema, Clone)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
 pub enum FinishReason {

@@ -86,9 +86,7 @@ class Model(ABC):
             )
             support_chunking = False
 
-        log_master(
-            logger.info, f"Using experimental prefill chunking = {support_chunking}"
-        )
+        log_master(logger.info, f"Using prefill chunking = {support_chunking}")
 
         self.support_chunking = support_chunking
         set_support_chunking(support_chunking)

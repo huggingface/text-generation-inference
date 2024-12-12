@@ -4,23 +4,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 4321,
-          "logprob": -9.8828125,
-          "text": "Test"
-        },
-        {
-          "id": 2009,
-          "logprob": -9.5859375,
-          "text": "request"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -93,23 +77,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 4321,
-          "logprob": -9.796875,
-          "text": "Test"
-        },
-        {
-          "id": 2009,
-          "logprob": -9.625,
-          "text": "request"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -182,23 +150,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 4321,
-          "logprob": -9.9296875,
-          "text": "Test"
-        },
-        {
-          "id": 2009,
-          "logprob": -9.5703125,
-          "text": "request"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {
@@ -271,23 +223,7 @@
       "best_of_sequences": null,
       "finish_reason": "length",
       "generated_tokens": 10,
-      "prefill": [
-        {
-          "id": 1,
-          "logprob": null,
-          "text": "<s>"
-        },
-        {
-          "id": 4321,
-          "logprob": -9.84375,
-          "text": "Test"
-        },
-        {
-          "id": 2009,
-          "logprob": -9.6171875,
-          "text": "request"
-        }
-      ],
+      "prefill": [],
       "seed": null,
       "tokens": [
         {

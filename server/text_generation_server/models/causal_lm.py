@@ -630,7 +630,9 @@ class CausalLM(Model):
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:
                 tokenizer.pad_token_id = model.config.pad_token_id
-            elif model.config.eos_token_id is not None:
+            elif model.config.eos_token_id is not None and isinstance(
+                model.config.eos_token_id, int
+            ):
                 tokenizer.pad_token_id = model.config.eos_token_id
             elif tokenizer.eos_token_id is not None:
                 tokenizer.pad_token_id = tokenizer.eos_token_id

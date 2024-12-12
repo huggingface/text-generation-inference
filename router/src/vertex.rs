@@ -128,7 +128,7 @@ pub(crate) async fn vertex_compatibility(
                 span_clone,
             )
             .await
-            .map(|(_, Json(generation))| generation.generated_text)
+            .map(|(_, _, Json(generation))| generation.generated_text)
             .map_err(|_| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,

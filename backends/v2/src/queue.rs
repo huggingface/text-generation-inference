@@ -436,6 +436,7 @@ mod tests {
                 stopping_parameters: ValidStoppingParameters {
                     ignore_eos_token: false,
                     max_new_tokens: 1,
+                    max_total_new_tokens: 1024,
                     stop_sequences: vec![],
                 },
                 top_n_tokens: 0,

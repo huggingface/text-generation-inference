@@ -3,33 +3,7 @@
     "best_of_sequences": null,
     "finish_reason": "length",
     "generated_tokens": 10,
-    "prefill": [
-      {
-        "id": 2,
-        "logprob": null,
-        "text": "<bos>"
-      },
-      {
-        "id": 1841,
-        "logprob": -5.46875,
-        "text": "What"
-      },
-      {
-        "id": 603,
-        "logprob": -0.69140625,
-        "text": " is"
-      },
-      {
-        "id": 5271,
-        "logprob": -12.0,
-        "text": " deep"
-      },
-      {
-        "id": 6044,
-        "logprob": -0.32226562,
-        "text": " learning"
-      }
-    ],
+    "prefill": [],
     "seed": 0,
     "tokens": [
       {
