@@ -52,6 +52,7 @@ jobs:
           file: Dockerfile_trtllm
           target: runtime
           push: false
+          load: true
           platforms: 'linux/amd64'
           build-args: |
             BUILD_TYPE=debug
