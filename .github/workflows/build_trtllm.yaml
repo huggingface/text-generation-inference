@@ -1,0 +1,62 @@
+name: Build TensorRT-LLM
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'trtllm/ci'
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - "backends/trtllm"
+      - "server/**"
+      - "proto/**"
+      - "router/**"
+      - "launcher/**"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+    branches:
+      - "main"
+
+permissions:
+  contents: read # Required to check out repository.
+  id-token: write # Required to authenticate via OIDC.
+
+jobs:
+  build:
+    runs-on:
+      group: aws-highmemory-32-plus-priv
+    steps:
+      - uses: actions/checkout@v4
+      #- uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install Rust Stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+          override: true
+
+      - name: "Configure AWS Credentials"
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
+
+      - name: "Install OS dependencies"
+        run: apt update && apt install -y cmake gcc g++ ninja-build openmpi-devel
+      - name: "Install sccache"
+        run: cargo install sccache --locked
+
+      - name: "Build TensorRT-LLM Backend"
+        env:
+          SCCACHE_BUCKET: ${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+          SCCACHE_REGION: "us-east-1"
+          SCCACHE_S3_USE_SSL: false
+          SCCACHE_S3_KEY_PREFIX: "tgi+trtllm"
+          RUSTC_WRAPPER: sccache
+        run: cargo build --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
+
+
+
+
