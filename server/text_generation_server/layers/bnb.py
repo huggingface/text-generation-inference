@@ -20,23 +20,16 @@ class Linear8bitLt(torch.nn.Module):
         weight,
         bias,
         has_fp16_weights=True,
-        memory_efficient_backward=False,
         threshold=0.0,
         index=None,
     ):
         super().__init__()
-        assert (
-            not memory_efficient_backward
-        ), "memory_efficient_backward is no longer required and the argument is deprecated in 0.37.0 and will be removed in 0.39.0"
         self.state = bnb.MatmulLtState()
         self.index = index
 
         # Necessary for stacked layers
         self.state.threshold = threshold
         self.state.has_fp16_weights = has_fp16_weights
-        self.state.memory_efficient_backward = memory_efficient_backward
-        if threshold > 0.0 and not has_fp16_weights:
-            self.state.use_pool = True
 
         self.weight = Int8Params(
             weight.data,
@@ -63,12 +56,9 @@ class Linear8bitLt(torch.nn.Module):
 
         out = bnb.matmul(x, self.weight, bias=self.bias, state=self.state)
 
-        if not self.state.has_fp16_weights:
-            if self.state.CB is not None and self.state.CxB is not None:
-                # we converted 8-bit row major to turing/ampere format in the first inference pass
-                # we no longer need the row-major weight
-                del self.state.CB
-                self.weight.data = self.state.CxB
+        if not self.state.has_fp16_weights and self.state.CB is not None:
+            self.weight.data = self.state.CB
+
         return out
 
 
@@ -106,19 +96,12 @@ class Linear4bit(torch.nn.Module):
         if self.bias is not None and self.bias.dtype != x.dtype:
             self.bias.data = self.bias.data.to(x.dtype)
 
-        if getattr(self.weight, "quant_state", None) is None:
-            print(
-                "FP4 quantization state not initialized. Please call .cuda() or .to(device) on the LinearFP4 layer first."
-            )
         inp_dtype = x.dtype
         if self.compute_dtype is not None:
             x = x.to(self.compute_dtype)
 
         bias = None if self.bias is None else self.bias.to(self.compute_dtype)
-        out = bnb.matmul_4bit(
+
+        return bnb.matmul_4bit(
             x, self.weight.t(), bias=bias, quant_state=self.weight.quant_state
-        )
-
-        out = out.to(inp_dtype)
-
-        return out
+        ).to(inp_dtype)
