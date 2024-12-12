@@ -148,7 +148,8 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         if image_inputs is not None:
             assert len(image_indices) == image_inputs["pixel_values"].shape[0]
 
-        return batch_tokenized_inputs, image_inputs
+        video_inputs = None
+        return batch_tokenized_inputs, image_inputs, video_inputs
 
     @classmethod
     def from_pb_processor(
