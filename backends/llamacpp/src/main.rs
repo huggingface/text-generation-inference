@@ -118,7 +118,7 @@ async fn main() -> Result<(), RouterError> {
         use utoipa::OpenApi;
         let api_doc = ApiDoc::openapi().to_pretty_json().unwrap();
         println!("{}", api_doc);
-        std::process::exit(0);
+        return Ok(());
     };
     text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
 
