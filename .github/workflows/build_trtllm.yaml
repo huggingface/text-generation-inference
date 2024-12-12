@@ -43,6 +43,7 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
+          output-credentials: true
 
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
