@@ -46,6 +46,8 @@ jobs:
 
       - name: Build and push Docker image
         id: build-and-push
+        env:
+          LABEL: "trtllm"
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -63,6 +65,8 @@ jobs:
             AWS_ACCESS_KEY_ID=${{ steps.aws-creds.outputs.aws-access-key-id }}
             AWS_SECRET_ACCESS_KEY=${{ steps.aws-creds.outputs.aws-secret-access-key }}
             SCCACHE_BUCKET=${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-trtllm-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-trtllm-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
 
 
 
