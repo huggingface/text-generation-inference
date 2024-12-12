@@ -58,6 +58,7 @@ jobs:
           platforms: 'linux/amd64'
           build-args: |
             SCCACHE_LOG=debug
+            SCCACHE_NO_DAEMON=1
             BUILD_TYPE=dev
             SCCACHE_REGION: us-east-1
             SCCACHE_S3_KEY_PREFIX: trtllm
