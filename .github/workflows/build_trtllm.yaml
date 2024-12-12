@@ -57,7 +57,7 @@ jobs:
           load: true
           platforms: 'linux/amd64'
           build-args: |
-            SCCACHE_DEBUG=1
+            SCCACHE_LOG=debug
             BUILD_TYPE=dev
             SCCACHE_REGION: us-east-1
             SCCACHE_S3_KEY_PREFIX: trtllm
