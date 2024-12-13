@@ -22,9 +22,14 @@ use tokio::sync::oneshot;
 use tracing::{instrument, Span};
 use {once_cell::sync::Lazy, regex::Regex};
 // video processing
-use ffmpeg_next::format::Pixel;
-use ffmpeg_next::media::Type;
-use ffmpeg_next::software::scaling::{context::Context, flag::Flags};
+
+#[cfg(feature = "video")]
+use ffmpeg_next::{
+    format::Pixel,
+    media::Type,
+    software::scaling::{context::Context, flag::Flags},
+};
+#[cfg(feature = "video")]
 use std::io::Write;
 
 static DEFAULT_GENERATION_LENGTH: u32 = 1024;
@@ -541,6 +546,16 @@ fn format_to_mimetype(format: ImageFormat) -> String {
     .to_string()
 }
 
+#[cfg(not(feature = "video"))]
+pub fn fetch_video(
+    _input: &str,
+    _target_width: u32,
+    _target_height: u32,
+) -> Result<ProcessedVideo, ValidationError> {
+    Err(ValidationError::VideoNotSupported)
+}
+
+#[cfg(feature = "video")]
 pub fn fetch_video(
     input: &str,
     target_width: u32,
@@ -1091,6 +1106,8 @@ pub enum ValidationError {
     IoError(#[from] std::io::Error),
     #[error("ffmpeg error")]
     FFmpegError,
+    #[error("video not supported")]
+    VideoNotSupported,
 }
 
 #[cfg(test)]
