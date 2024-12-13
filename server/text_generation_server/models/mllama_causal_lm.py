@@ -161,7 +161,7 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "VlmCausalLMBatch":
-        batch_tokenized_inputs, image_inputs = cls.batch_tokenized_inputs(
+        batch_tokenized_inputs, image_inputs, _video_inputs = cls.batch_tokenized_inputs(
             pb.requests, tokenizer, processor, config
         )
         batch = cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
