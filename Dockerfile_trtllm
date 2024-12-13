@@ -25,13 +25,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libssl-dev \
     libucx-dev \
     ninja-build \
-    ffmpeg \
-    libavcodec-dev \
-    libavfilter-dev \
-    libavdevice-dev \
-    libavformat-dev \
-    libavutil-dev \
-    libswscale-dev \
     pkg-config \
     pipx \
     python3 \
@@ -110,9 +103,6 @@ COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=tgi-builder /usr/local/tgi /usr/local/tgi
 COPY --from=tgi-builder /usr/src/text-generation-inference/target/release/text-generation-backends-trtllm /usr/local/tgi/bin/text-generation-launcher
-# Copy the ffmpeg libraries
-COPY --from=cuda-builder /usr/lib/x86_64-linux-gnu/* /usr/lib/x86_64-linux-gnu-copy/
-ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu-copy"
 
 FROM runtime
 

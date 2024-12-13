@@ -54,7 +54,7 @@ COPY benchmark benchmark
 COPY router router
 COPY backends backends
 COPY launcher launcher
-RUN cargo build --profile release-opt --frozen
+RUN cargo build --profile release-opt --frozen --features video
 
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
