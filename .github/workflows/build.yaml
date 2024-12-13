@@ -8,6 +8,7 @@ on:
         description: Hardware
           # options:
           # - cuda
+          # - cuda-trtllm
           # - rocm
           # - intel
         required: true
@@ -49,6 +50,15 @@ jobs:
                 export docker_volume="/mnt/cache"
                 export docker_devices=""
                 export runs_on="aws-g6-12xl-plus-priv-cache"
+                export platform=""
+                export extra_pytest=""
+                ;;
+            cuda-trtllm)
+                export dockerfile="Dockerfile_trtllm"
+                export label_extension="-trtllm"
+                export docker_volume="/mnt/cache"
+                export docker_devices=""
+                export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest=""
                 ;;
