@@ -70,4 +70,4 @@ def get_adapter_to_index():
 
 
 USE_CUSTOM_MODELING = os.getenv("USE_CUSTOM_MODELING", "true")
-USE_CUSTOM_MODELING = USE_CUSTOM_MODELING == "true" or USE_CUSTOM_MODELING == "1"
+USE_CUSTOM_MODELING = USE_CUSTOM_MODELING.lower() == "true" or USE_CUSTOM_MODELING == "1"
