@@ -41,7 +41,7 @@ RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     rm -f $PROTOC_ZIP
 
 COPY --from=planner /usr/src/recipe.json recipe.json
-RUN cargo chef cook --profile release-opt --recipe-path recipe.json
+RUN cargo chef cook --profile release-opt --features video --recipe-path recipe.json
 
 ARG GIT_SHA
 ARG DOCKER_LABEL
