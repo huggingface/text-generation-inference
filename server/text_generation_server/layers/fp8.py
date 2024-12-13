@@ -395,6 +395,13 @@ class Fp8Linear(torch.nn.Module):
                 qinput, self.qweight.t(), scale, self.scale, input.dtype, self.bias
             )
 
+        batched = False
+        input_shape = input.shape
+
+        if input.dim() == 3:
+            input = input.view(-1, input_shape[-1])
+            batched = True
+
         qinput, scale = fp8_quantize(
             input,
             self.input_scale,
@@ -437,6 +444,9 @@ class Fp8Linear(torch.nn.Module):
                 output = output + self.bias
 
             output = output.to(dtype=self.dtype)
+
+        if batched:
+            output = output.view(*input_shape[:-1], output.shape[-1])
 
         return output
 
