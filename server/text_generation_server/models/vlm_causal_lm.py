@@ -68,7 +68,8 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
     elif config.model_type == "paligemma":
         return "<image>" * config.text_config.num_image_tokens
     elif config.model_type == "qwen2_vl":
-        num_pads = image_input.pixel_values.shape[0] // 4
+        grid_t, grid_h, grid_w = image_input["image_grid_thw"][image_id]
+        num_pads = grid_t * grid_h * grid_w // 4
         padding = "<|image_pad|>" * num_pads
         return f"<|vision_start|>{padding}<|vision_end|>"
     else:
