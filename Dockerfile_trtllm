@@ -82,6 +82,7 @@ COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 RUN --mount=type=secret,id=AWS_ACCESS_KEY_ID,env=AWS_ACCESS_KEY_ID \
     --mount=type=secret,id=AWS_SECRET_ACCESS_KEY,env=AWS_SECRET_ACCESS_KEY \
     --mount=type=secret,id=SCCACHE_BUCKET,env=SCCACHE_BUCKET \
+    echo "AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
     mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     RUSTC_WRAPPER=sccache CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --profile ${BUILD_TYPE} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
 
