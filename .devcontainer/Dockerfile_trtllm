@@ -10,16 +10,16 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 # CUDA dependent dependencies resolver stage
-FROM nvidia/cuda:12.6.1-cudnn-devel-ubuntu24.04 AS cuda-builder
+FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS cuda-builder
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
+    apt update && apt install -y \
     build-essential \
     cmake \
     curl \
-    gcc  \
-    g++ \
+    gcc-14  \
+    g++-14 \
     git \
     git-lfs \
     libssl-dev \
@@ -57,7 +57,7 @@ COPY backends/trtllm/scripts/install_tensorrt.sh /opt/install_tensorrt.sh
 RUN chmod +x /opt/install_tensorrt.sh && \
     /opt/install_tensorrt.sh
 
-# Prepare build Backend
+# Build Backend
 FROM cuda-builder AS tgi-builder
 WORKDIR /usr/src/text-generation-inference
 
