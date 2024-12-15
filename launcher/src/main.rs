@@ -578,7 +578,7 @@ fn shard_manager(
 
     // Parse Inference API token
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
-        envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        envs.push(("HF_TOKEN".into(), api_token.into()))
     };
 
     // Detect rope scaling
@@ -912,7 +912,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 
     // Parse Inference API token
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
-        envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        envs.push(("HF_TOKEN".into(), api_token.into()))
     };
 
     // If args.weights_cache_override is some, pass it to the download process
@@ -1212,7 +1212,7 @@ fn spawn_webserver(
 
     // Parse Inference API token
     if let Ok(api_token) = env::var("HF_API_TOKEN") {
-        envs.push(("HUGGING_FACE_HUB_TOKEN".into(), api_token.into()))
+        envs.push(("HF_TOKEN".into(), api_token.into()))
     };
 
     // Parse Compute type

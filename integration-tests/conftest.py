@@ -31,7 +31,7 @@ from text_generation.types import (
 )
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
-HUGGING_FACE_HUB_TOKEN = os.getenv("HUGGING_FACE_HUB_TOKEN", None)
+HUGGING_FACE_HUB_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
 DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
 
 
@@ -427,7 +427,7 @@ def launcher(event_loop):
             env["USE_FLASH_ATTENTION"] = "false"
 
         if HUGGING_FACE_HUB_TOKEN is not None:
-            env["HUGGING_FACE_HUB_TOKEN"] = HUGGING_FACE_HUB_TOKEN
+            env["HF_TOKEN"] = HUGGING_FACE_HUB_TOKEN
 
         volumes = []
         if DOCKER_VOLUME:
