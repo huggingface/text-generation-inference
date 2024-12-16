@@ -133,13 +133,16 @@ fn executor_status_looper(
                                 Ok(decoded_token) => {
                                     post_process_decoded_token(&tokenizer, ctx, decoded_token)
                                 }
-                                Err(err) => Err(err)
+                                Err(err) => Err(err),
                             };
 
                             // Attempt to send back the response to the client
                             if let Err(_) = ctx.streamer.send(response) {
                                 // Client has dropped, remove from tracked requests
-                                debug!("Client dropped - removing request {} from tracked requests", step.request_id);
+                                debug!(
+                                    "Client dropped - removing request {} from tracked requests",
+                                    step.request_id
+                                );
                                 backend.as_mut().cancel(step.request_id);
                                 let _ = in_flights.remove(&step.request_id);
                             }
@@ -160,11 +163,14 @@ fn executor_status_looper(
     }
 }
 
-fn post_process_decoded_token(tokenizer: &Tokenizer, ctx: &mut GenerationContext, decoded_token: DecodedToken) -> InferResult<InferStreamResponse> {
+fn post_process_decoded_token(
+    tokenizer: &Tokenizer,
+    ctx: &mut GenerationContext,
+    decoded_token: DecodedToken,
+) -> InferResult<InferStreamResponse> {
     match tokenizer.decode(&[decoded_token.id], false) {
         Ok(text) => {
-            let is_special =
-                tokenizer.get_added_vocabulary().is_special_token(&text);
+            let is_special = tokenizer.get_added_vocabulary().is_special_token(&text);
             let token = Token {
                 id: decoded_token.id,
                 text,
@@ -186,7 +192,7 @@ fn post_process_decoded_token(tokenizer: &Tokenizer, ctx: &mut GenerationContext
                 let generated_text = GeneratedText {
                     text: text.unwrap(),
                     generated_tokens: ctx.tokens.len() as u32,
-                    finish_reason: FinishReason::EndOfSequenceToken,  // TODO : Map FinishReason
+                    finish_reason: FinishReason::EndOfSequenceToken, // TODO : Map FinishReason
                     seed: None,
                 };
 
@@ -248,7 +254,6 @@ unsafe impl Send for TensorRtLlmBackendImpl {}
 
 pub struct TensorRtLlmBackendV2(UnboundedSender<GenerationContext>);
 
-
 impl TensorRtLlmBackendV2 {
     pub fn new<P: AsRef<Path> + Send, PP: AsRef<Path> + Send>(
         tokenizer: Tokenizer,
@@ -268,12 +273,7 @@ impl TensorRtLlmBackendV2 {
 
         // Executor looper is responsible for scheduling and pulling requests state at regular interval
         spawn_blocking(move || {
-            executor_status_looper(
-                max_inflight_requests,
-                tokenizer,
-                backend,
-                executor_receiver,
-            )
+            executor_status_looper(max_inflight_requests, tokenizer, backend, executor_receiver)
         });
 
         Ok(TensorRtLlmBackendV2(executor_sender))

@@ -44,7 +44,8 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
     }
 
     let mut config = cmake::Config::new(".");
-    config.uses_cxx11()
+    config
+        .uses_cxx11()
         .generator("Ninja")
         .profile(match is_debug {
             true => "Debug",
@@ -57,12 +58,12 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
         .define("TGI_TRTLLM_BACKEND_TARGET_CUDA_ARCH_LIST", cuda_arch_list)
         .define("TGI_TRTLLM_BACKEND_TRT_ROOT", tensorrt_path);
 
-        // Allow to override which Python to use ...
-        if let Some(python3) = option_env!("Python3_EXECUTABLE") {
-            config.define("Python3_EXECUTABLE", python3);
-        }
+    // Allow to override which Python to use ...
+    if let Some(python3) = option_env!("Python3_EXECUTABLE") {
+        config.define("Python3_EXECUTABLE", python3);
+    }
 
-        config.build();
+    config.build();
 
     // Additional transitive CMake dependencies
     let deps_folder = out_dir.join("build").join("_deps");
