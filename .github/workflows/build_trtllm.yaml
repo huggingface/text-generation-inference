@@ -34,11 +34,11 @@ jobs:
         run: |
           echo "TENSORT_LLM_VERSION=$(grep -oP '([a-z,0-9]{40})' backends/trtllm/cmake/trtllm.cmake)" >> $GITHUB_ENV
 
-      - name: Setup Github Actions Caching Layer
-        uses: actions/cache@v7
-        with:
-          path: .sccache
-          key: trtllm_${{ env.TENSORRT_LLM_VERSION }}_linux-gnu-x86_64-gcc14
+      #      - name: Setup Github Actions Caching Layer
+      #        uses: actions/cache@v7
+      #        with:
+      #          path: .sccache
+      #          key: trtllm_${{ env.TENSORRT_LLM_VERSION }}_linux-gnu-x86_64-gcc14
 
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,7 +63,7 @@ jobs:
             SCCACHE_NO_DAEMON=1
             BUILD_TYPE=dev
             SCCACHE_REGION: us-east-1
-            SCCACHE_S3_KEY_PREFIX: x86_64
+            SCCACHE_S3_KEY_PREFIX: ${{ env.TENSORT_LLM_VERSION }}
           #            SCCACHE_GHA_ENABLED=true
 
           secrets:
