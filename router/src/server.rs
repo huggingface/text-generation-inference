@@ -608,7 +608,6 @@ async fn completions(
         ..
     } = req;
 
-    let max_new_tokens = max_tokens.or(Some(100));
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
     let (do_sample, temperature) = match temperature {
@@ -657,7 +656,7 @@ async fn completions(
                 top_p: req.top_p,
                 typical_p: None,
                 do_sample,
-                max_new_tokens,
+                max_new_tokens: max_tokens,
                 return_full_text: None,
                 stop: stop.clone(),
                 truncate: None,
@@ -1019,7 +1018,6 @@ async fn chat_completions(
     } = req;
 
     let repetition_penalty = presence_penalty.map(|x| x + 2.0);
-    let max_new_tokens = max_tokens.or(Some(100));
     let logprobs = logprobs.unwrap_or(false);
     let tool_prompt = tool_prompt.unwrap_or_default();
     let stop = stop.unwrap_or_default();
@@ -1081,7 +1079,7 @@ async fn chat_completions(
             top_p: req.top_p,
             typical_p: None,
             do_sample,
-            max_new_tokens,
+            max_new_tokens: max_tokens,
             return_full_text: None,
             stop,
             truncate: None,
