@@ -65,14 +65,12 @@ jobs:
             SCCACHE_REGION: us-east-1
             SCCACHE_S3_KEY_PREFIX: ${{ env.TENSORT_LLM_VERSION }}
           #            SCCACHE_GHA_ENABLED=true
-
           secrets:
             #            ACTIONS_CACHE_URL=${{}}
             #            ACTIONS_RUNTIME_TOKEN=${{}}
-
-            AWS_ACCESS_KEY_ID=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }}
-            AWS_SECRET_ACCESS_KEY=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }}
-            SCCACHE_BUCKET=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}
+            aws_access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }}
+            aws_secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }}
+            sccache_aws_bucket_name=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
 
