@@ -459,7 +459,7 @@ pub struct CompletionRequest {
     pub prompt: Prompt,
 
     /// The maximum number of tokens that can be generated in the chat completion.
-    #[serde(default)]
+    #[serde(default, alias = "max_completion_tokens")]
     #[schema(default = "1024", example = "32")]
     pub max_tokens: Option<u32>,
 
