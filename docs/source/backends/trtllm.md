@@ -17,7 +17,7 @@ supported.
 You can use [Optimum-NVIDIA](https://github.com/huggingface/optimum-nvidia) to compile engines for the models you
 want to use.
 
-```bash 
+```bash
 MODEL_NAME="meta-llama/Llama-3.1-8B-Instruct"
 
 # Install huggingface_cli
@@ -32,7 +32,7 @@ mkdir -p /tmp/models/$MODEL_NAME
 # Create a directory to store the compiled engine
 mkdir -p /tmp/engines/$MODEL_NAME
 
-# Download the model 
+# Download the model
 HF_HUB_ENABLE_HF_TRANSFER=1 huggingface-cli download --local-dir /tmp/models/$MODEL_NAME $MODEL_NAME
 
 # Compile the engine using Optimum-NVIDIA
@@ -69,7 +69,7 @@ docker run \
   -e MODEL=$MODEL_NAME \
   -e PORT=3000 \
   -e HF_TOKEN='hf_XXX' \
-  -v /tmp/engines/$MODEL_NAME:/data \ 
+  -v /tmp/engines/$MODEL_NAME:/data \
   ghcr.io/huggingface/text-generation-inference:latest-trtllm \
   --executor-worker executorWorker \
   --model-id /data/$MODEL_NAME
