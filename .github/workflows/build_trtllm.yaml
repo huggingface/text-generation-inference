@@ -62,7 +62,7 @@ jobs:
             SCCACHE_LOG=debug
             SCCACHE_NO_DAEMON=1
             BUILD_TYPE=dev
-            SCCACHE_GHA_ENABLED=true
+            IS_GHA_BUILD=true
           secrets:
             gha_cache_url=${{ env.ACTIONS_CACHE_URL }}
             gha_cache_token=${{ env.ACTIONS_CACHE_TOKEN }}
