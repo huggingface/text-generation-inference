@@ -1,10 +1,7 @@
 ARG CUDA_ARCH_LIST="75-real;80-real;86-real;89-real;90-real"
 ARG OMPI_VERSION="4.1.7rc1"
 ARG BUILD_TYPE=release
-
-# Additional arguments if we enable sccache in the CI/CD
-ARG SCCACHE_REGION=""
-ARG SCCACHE_S3_KEY_PREFIX=""
+ARG IS_GHA_BUILD=false
 
 # Build dependencies resolver stage
 FROM lukemathwalker/cargo-chef:latest-rust-1.84.0 AS chef
@@ -79,13 +76,11 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y &&
 # Build actual TGI
 ARG BUILD_TYPE
 ARG CUDA_ARCH_LIST
+ARG IS_GHA_BUILD
 ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
 ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
 ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
-
-# Retrieve potential build arg for S3 caching
-ENV SCCACHE_REGION ${SCCACHE_REGION}
-ENV SCCACHE_S3_KEY_PREFIX ${SCCACHE_S3_KEY_PREFIX}
+ENV SCCACHE_GHA_ENABLED=${IS_GHA_BUILD}
 
 COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
@@ -94,9 +89,8 @@ COPY router router
 COPY backends/trtllm backends/trtllm
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
-RUN --mount=type=secret,id=aws_access_key_id,env=AWS_ACCESS_KEY_ID \
-    --mount=type=secret,id=aws_secret_access_key,env=AWS_SECRET_ACCESS_KEY \
-    --mount=type=secret,id=sccache_aws_bucket_name,env=SCCACHE_BUCKET \
+RUN --mount=type=secret,id=gha_cache_url,env=ACTIONS_CACHE_URL  \
+    --mount=type=secret,id=gha_cache_token,env=ACTIONS_RUNTIME_TOKEN \
     mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     RUSTC_WRAPPER=sccache CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --profile ${BUILD_TYPE} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
 
