@@ -91,6 +91,7 @@ COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 RUN --mount=type=secret,id=gha_cache_url,env=ACTIONS_CACHE_URL  \
     --mount=type=secret,id=gha_cache_token,env=ACTIONS_RUNTIME_TOKEN \
+    echo "CACHE_URL: ${ACTIONS_CACHE_URL}" && \
     mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     RUSTC_WRAPPER=sccache CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --profile ${BUILD_TYPE} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
 
