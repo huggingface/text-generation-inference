@@ -22,22 +22,12 @@ limitations under the License.
   - [Table of contents](#table-of-contents)
   - [Tested Models and Configurations](#tested-models-and-configurations)
   - [Running TGI on Gaudi](#running-tgi-on-gaudi)
-    - [TGI-Gaudi Benchmark](#tgi-gaudi-benchmark)
-      - [Static Batching Benchmark](#static-batching-benchmark)
-      - [Continuous Batching Benchmark](#continuous-batching-benchmark)
-    - [Tested Models and Configurations](#tested-models-and-configurations)
   - [Running TGI with BF16 Precision](#running-tgi-with-bf16-precision)
-    - [Llama2-7B on 1 Card](#llama2-7b-on-1-card)
-    - [Llama2-70B on 8 cards](#llama2-70b-on-8-cards)
-    - [Llama3.1-8B on 1 card](#llama31-8b-on-1-card)
-    - [Llama3.1-70B 8 cards](#llama31-70b-8-cards)
-    - [Llava-v1.6-Mistral-7B on 1 card](#llava-v16-mistral-7b-on-1-card)
   - [Running TGI with FP8 Precision](#running-tgi-with-fp8-precision)
   - [TGI-Gaudi Benchmark](#tgi-gaudi-benchmark)
   - [Adjusting TGI Parameters](#adjusting-tgi-parameters)
   - [Environment Variables](#environment-variables)
   - [Profiler](#profiler)
-  - [License](#license)
 
 
 ## Tested Models and Configurations

@@ -104,14 +104,6 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
         max_supported_total_tokens = self.model.warmup(request)
         return generate_pb2.WarmupResponse(max_supported_total_tokens=max_supported_total_tokens)
-        # else:
-        #     batch = self.model.batch_type.from_pb(
-        #         request.batch, self.model.tokenizer, self.model.dtype, self.model.device
-        #     )
-
-        #     max_supported_total_tokens = self.model.warmup(batch)
-        #     return generate_pb2.WarmupResponse(max_supported_total_tokens=max_supported_total_tokens)
-
 
     async def Prefill(self, request, context):
         start = time.time_ns()
