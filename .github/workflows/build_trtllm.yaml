@@ -30,12 +30,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract TensorRT-LLM version
+        run: |
+          echo "TENSORRT_LLM_VERSION=$(grep -oP '([a-z,0-9]{40})' backends/trtllm/cmake/trtllm.cmake)" >> $GITHUB_ENV
+          echo "TensorRT-LLM version: ${{ env.TENSORRT_LLM_VERSION }}"
+
       - name: "Configure AWS Credentials"
         id: aws-creds
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
           role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
+          role-duration-seconds: 7200
           output-credentials: true
 
       - name: Initialize Docker Buildx
@@ -59,18 +65,15 @@ jobs:
           build-args: |
             BUILD_TYPE=dev
             IS_GHA_BUILD=true
-            SCCACHE_LOG=debug
-            SCCACHE_NO_DAEMON=1
-            SCCACHE_S3_USE_SSL: false
-            SCCACHE_S3_KEY_PREFIX: trtllm
           secrets: |
             aws_access_key_id=${{ steps.aws-creds.outputs.aws-access-key-id }}
             aws_secret_access_key=${{ steps.aws-creds.outputs.aws-secret-access-key }}
             aws_session_token=${{ steps.aws-creds.outputs.aws-session-token }}
             sccache_s3_bucket=${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+            sccache_s3_key_prefix="trtllm-${{ env.TENSORRT_LLM_VERSION }}"
             sccache_s3_region=us-east-1
-          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
-          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}-trtllm,mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}-trtllm,mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
 
 
 
