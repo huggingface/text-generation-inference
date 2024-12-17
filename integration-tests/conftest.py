@@ -32,7 +32,7 @@ from text_generation.types import (
 )
 
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", None)
-HF_TOKEN = os.getenv("HF_TOKEN", None)
+HUGGING_FACE_HUB_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
 DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", "/data")
 DOCKER_DEVICES = os.getenv("DOCKER_DEVICES")
 
@@ -498,8 +498,8 @@ def launcher(event_loop):
         if attention is not None:
             env["ATTENTION"] = attention
 
-        if HF_TOKEN is not None:
-            env["HF_TOKEN"] = HF_TOKEN
+        if HUGGING_FACE_HUB_TOKEN is not None:
+            env["HF_TOKEN"] = HUGGING_FACE_HUB_TOKEN
 
         volumes = []
         if DOCKER_VOLUME:

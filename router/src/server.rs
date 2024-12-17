@@ -689,7 +689,6 @@ async fn completions(
         ..
     } = req;
 
-    let max_new_tokens = max_tokens.or(Some(100));
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
     let (do_sample, temperature) = match temperature {
@@ -740,7 +739,7 @@ async fn completions(
                 top_p: req.top_p,
                 typical_p: None,
                 do_sample,
-                max_new_tokens,
+                max_new_tokens: max_tokens,
                 return_full_text: None,
                 stop: stop.clone(),
                 truncate: None,
