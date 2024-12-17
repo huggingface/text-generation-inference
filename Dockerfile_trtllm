@@ -91,6 +91,7 @@ COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 RUN --mount=type=secret,id=aws_access_key_id,env=AWS_ACCESS_KEY_ID  \
     --mount=type=secret,id=aws_secret_access_key,env=AWS_SECRET_ACCESS_KEY \
+    --mount=type=secret,id=aws_session_token,env=AWS_SESSION_TOKEN \
     --mount=type=secret,id=sccache_s3_bucket,env=SCCACHE_BUCKET \
     --mount=type=secret,id=sccache_s3_region,env=SCCACHE_REGION \
     echo "AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}" && \
