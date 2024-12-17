@@ -64,8 +64,8 @@ jobs:
             BUILD_TYPE=dev
             SCCACHE_GHA_ENABLED=true
           secrets:
-            gha_cache_url=${{ACTIONS_CACHE_URL}}
-            gha_cache_token=${{ACTIONS_CACHE_TOKEN}}
+            gha_cache_url=${{ env.ACTIONS_CACHE_URL }}
+            gha_cache_token=${{ env.ACTIONS_CACHE_TOKEN }}
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
 
