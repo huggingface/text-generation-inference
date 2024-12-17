@@ -534,7 +534,7 @@ class FlashLlamaModel(torch.nn.Module):
                         prefix=(
                             f"model.layers.{layer_id}"
                             if not prefix
-                            else f"{prefix}.model.layers.{layer_id}"
+                            else f"{prefix}.layers.{layer_id}"
                         ),
                         config=config,
                         weights=weights,
@@ -547,7 +547,7 @@ class FlashLlamaModel(torch.nn.Module):
                         prefix=(
                             f"model.layers.{layer_id}"
                             if not prefix
-                            else f"{prefix}.model.layers.{layer_id}"
+                            else f"{prefix}.layers.{layer_id}"
                         ),
                         config=config,
                         weights=weights,

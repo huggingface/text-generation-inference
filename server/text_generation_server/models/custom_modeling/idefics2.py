@@ -774,7 +774,7 @@ class Idefics3ForConditionalGeneration(nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -783,6 +783,10 @@ class Idefics3ForConditionalGeneration(nn.Module):
         # Unused here
         image_sizes: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
+        video_grid_thw: Optional[torch.LongTensor] = None,
+        cross_attention_states: Optional[torch.Tensor] = None,
+        image_indices=None,
     ):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         if pixel_values is not None:
@@ -872,7 +876,7 @@ class Idefics3ForConditionalGeneration(nn.Module):
             kv_cache=kv_cache,
             block_tables=block_tables,
             slots=slots,
-            input_lengths=input_lengths,
+            seqlen=seqlen,
             max_s=max_s,
             true_max_s=max_s,
             prefill_cache_indices=None,
