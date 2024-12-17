@@ -41,7 +41,7 @@ jobs:
         with:
           aws-region: us-east-1
           role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
-          role-duration-seconds: 5400
+          role-duration-seconds: 3600
           output-credentials: true
 
       - name: Initialize Docker Buildx
