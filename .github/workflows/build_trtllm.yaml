@@ -50,7 +50,7 @@ jobs:
         id: build-and-push
         env:
           LABEL: "trtllm"
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile_trtllm
@@ -63,9 +63,9 @@ jobs:
             SCCACHE_NO_DAEMON=1
             BUILD_TYPE=dev
             IS_GHA_BUILD=true
-          secrets:
-            gha_cache_url=${{ env.ACTIONS_CACHE_URL }}
-            gha_cache_token=${{ env.ACTIONS_CACHE_TOKEN }}
+          secrets: |
+            "gha_cache_url=${{ env.ACTIONS_CACHE_URL }}"
+            "gha_cache_token=${{ env.ACTIONS_CACHE_TOKEN }}"
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
 
