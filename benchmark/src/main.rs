@@ -155,7 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // We need to download it outside of the Tokio runtime
             let params = FromPretrainedParameters {
                 revision,
-                token: auth_token,
+                auth_token,
                 ..Default::default()
             };
             Tokenizer::from_pretrained(tokenizer_name.clone(), Some(params)).unwrap()
