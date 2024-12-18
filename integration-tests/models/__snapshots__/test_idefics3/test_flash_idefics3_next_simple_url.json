@@ -1,73 +1,67 @@
 {
   "details": {
     "best_of_sequences": null,
-    "finish_reason": "length",
-    "generated_tokens": 10,
+    "finish_reason": "eos_token",
+    "generated_tokens": 9,
     "prefill": [],
     "seed": null,
     "tokens": [
       {
-        "id": 578,
-        "logprob": -0.2475586,
+        "id": 2684,
+        "logprob": -0.24902344,
         "special": false,
-        "text": " The"
+        "text": " There"
       },
       {
-        "id": 2217,
-        "logprob": -0.017303467,
+        "id": 374,
+        "logprob": -0.0703125,
         "special": false,
-        "text": " image"
-      },
-      {
-        "id": 62991,
-        "logprob": -0.7368164,
-        "special": false,
-        "text": " depicts"
-      },
-      {
-        "id": 279,
-        "logprob": -0.39990234,
-        "special": false,
-        "text": " the"
-      },
-      {
-        "id": 89675,
-        "logprob": -0.34350586,
-        "special": false,
-        "text": " Statue"
-      },
-      {
-        "id": 315,
-        "logprob": -0.0002901554,
-        "special": false,
-        "text": " of"
-      },
-      {
-        "id": 32492,
-        "logprob": -0.0009598732,
-        "special": false,
-        "text": " Liberty"
-      },
-      {
-        "id": 11,
-        "logprob": -0.2355957,
-        "special": false,
-        "text": ","
+        "text": " is"
       },
       {
         "id": 264,
-        "logprob": -0.66503906,
+        "logprob": -0.23535156,
         "special": false,
         "text": " a"
       },
       {
-        "id": 97937,
-        "logprob": -0.9199219,
+        "id": 35372,
+        "logprob": -0.125,
         "special": false,
-        "text": " colossal"
+        "text": " statue"
+      },
+      {
+        "id": 304,
+        "logprob": -0.30273438,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 279,
+        "logprob": -0.20507812,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 2217,
+        "logprob": -0.076171875,
+        "special": false,
+        "text": " image"
+      },
+      {
+        "id": 13,
+        "logprob": -0.053710938,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 128258,
+        "logprob": -0.011352539,
+        "special": true,
+        "text": "<end_of_utterance>"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": " The image depicts the Statue of Liberty, a colossal"
+  "generated_text": " There is a statue in the image."
 }
