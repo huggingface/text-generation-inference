@@ -80,7 +80,8 @@ target_link_libraries(tgi_trtllm_backend_impl PUBLIC nlohmann_json::nlohmann_jso
 target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tensorrt_llm_nvrtc_wrapper)
 
 # This install all the artifacts in CMAKE_INSTALL_PREFIX under include/ lib/ bin/ to make easy to link / find it back
-install(TARGETS tgi_trtllm_backend_impl tensorrt_llm nvinfer_plugin_tensorrt_llm decoder_attention executorWorker)
+install(TARGETS tgi_trtllm_backend_impl)
+install(TARGETS tensorrt_llm nvinfer_plugin_tensorrt_llm decoder_attention executorWorker)
 install(FILES ${TRTLLM_NVRTC_WRAPPER_LIBRARY_PATH} TYPE LIB)
 if (NOT ${TGI_TRTLLM_BACKEND_DEBUG})
     install(FILES ${TRTLLM_EXECUTOR_STATIC_LIBRARY_PATH} TYPE LIB)
@@ -108,9 +109,9 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     target_link_libraries(tgi_trtllm_backend_tests PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tensorrt_llm_nvrtc_wrapper)
 
     if (CMAKE_BUILD_TYPE MATCHES "Debug")
-        #        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -fsanitize=address -fsanitize=undefined")
-        #        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=undefined")
-        #        target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -fsanitize=address -fsanitize=undefined")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=undefined")
+        target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address)
     endif ()
 
     if(CMAKE_BUILD_TYPE MATCHES "Debug")
