@@ -63,15 +63,14 @@ jobs:
           load: true
           platforms: 'linux/amd64'
           build-args: |
-            BUILD_TYPE=dev
-            IS_GHA_BUILD=true
-          secrets: |
+            build_type=dev
+            is_gha_build=true
             aws_access_key_id=${{ steps.aws-creds.outputs.aws-access-key-id }}
             aws_secret_access_key=${{ steps.aws-creds.outputs.aws-secret-access-key }}
             aws_session_token=${{ steps.aws-creds.outputs.aws-session-token }}
-            sccache_s3_bucket=${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+            sccache_bucket=${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
             sccache_s3_key_prefix=trtllm-${{ env.TENSORRT_LLM_VERSION }}
-            sccache_s3_region=us-east-1
+            sccache_region=us-east-1
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}-trtllm,mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}-trtllm,mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
 
