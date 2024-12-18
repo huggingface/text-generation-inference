@@ -723,7 +723,7 @@ class Idefics3ForConditionalGeneration(nn.Module):
 
         vision_config = config.vision_config
         self.text_model = load_text_model(
-            prefix="model" if not prefix else f"{prefix}.model",
+            prefix=f"{prefix}.model.text_model" if prefix else "model.text_model",
             config=config.text_config,
             weights=weights,
             name="text_model",
