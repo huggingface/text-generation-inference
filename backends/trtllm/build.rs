@@ -13,7 +13,7 @@ const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
 const NCCL_ROOT_DIR: Option<&str> = option_env!("NCCL_ROOT_DIR");
 
 // Dependencies
-const BACKEND_DEPS: [&str; 2] = ["tgi_trtllm_backend_impl", "tgi_trtllm_backend"];
+const BACKEND_DEPS: &str = "tgi_trtllm_backend_impl";
 const CUDA_TRANSITIVE_DEPS: [&str; 4] = ["cuda", "cudart", "cublas", "nvidia-ml"];
 const TENSORRT_LLM_TRANSITIVE_DEPS: [(&str, &str); 4] = [
     ("dylib", "tensorrt_llm"),
@@ -40,16 +40,6 @@ fn get_compiler_flag(
         true => true_case,
         false => false_case,
     }
-}
-
-#[cfg(target_arch = "x86_64")]
-fn get_system_install_path(install_path: &PathBuf) -> PathBuf {
-    install_path.join("lib64")
-}
-
-#[cfg(not(target_arch = "x86_64"))]
-fn get_system_install_path(install_path: &PathBuf) -> PathBuf {
-    install_path.join("lib")
 }
 
 fn get_library_architecture() -> &'static str {
@@ -113,6 +103,11 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
         )
         .define("TGI_TRTLLM_BACKEND_TRT_ROOT", tensorrt_path);
 
+    if option_env!("USE_LLD_LINKER").is_some() {
+        println!("cargo:warning=Using lld linker");
+        config.define("TGI_TRTLLM_BACKEND_BUILD_USE_LLD", "ON");
+    }
+
     if let Some(nvcc_host_compiler) = option_env!("CMAKE_CUDA_HOST_COMPILER") {
         config.define("CMAKE_CUDA_HOST_COMPILER", nvcc_host_compiler);
     }
@@ -141,15 +136,14 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
     }
 
     // Emit linkage information from the artifacts we just built
-
-    let install_lib_path = get_system_install_path(&install_path);
-
-    println!(
-        r"cargo:warning=Adding link search path: {}",
-        install_lib_path.display()
-    );
-    println!(r"cargo:rustc-link-search={}", install_lib_path.display());
-
+    for path in ["lib", "lib64"] {
+        let install_lib_path = install_path.join(path);
+        println!(
+            r"cargo:warning=Adding link search path: {}",
+            install_lib_path.display()
+        );
+        println!(r"cargo:rustc-link-search={}", install_lib_path.display());
+    }
     (PathBuf::from(install_path), deps_folder)
 }
 
@@ -223,7 +217,5 @@ fn main() {
         });
 
     // Backend
-    BACKEND_DEPS.iter().for_each(|name| {
-        println!("cargo:rustc-link-lib=static={}", name);
-    });
+    println!("cargo:rustc-link-lib=static={}", &BACKEND_DEPS);
 }
