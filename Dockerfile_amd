@@ -234,6 +234,7 @@ FROM kernel-builder AS vllm-builder
 WORKDIR /usr/src
 
 COPY server/Makefile-vllm Makefile
+RUN pip install setuptools_scm
 
 # Build specific version of vllm
 RUN make build-vllm-rocm
@@ -267,6 +268,15 @@ COPY server/exllamav2_kernels/ .
 
 RUN python setup.py build
 
+FROM kernel-builder AS moe-kernels
+WORKDIR /usr/src
+ENV MOE_KERNELS_BRANCH=a67b35841774b2056a73806c36661134b5054edd
+ENV VLLM_TARGET_DEVICE=rocm
+RUN git clone https://github.com/danieldk/moe-kernels.git && \
+    cd moe-kernels && \
+    git checkout ${MOE_KERNELS_BRANCH} && \
+    python setup.py install
+
 FROM install_deps AS base-copy
 
 # Text Generation Inference base env
@@ -288,6 +298,9 @@ COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 
 
 # Copy build artifacts from exllamav2 kernels builder
 COPY --from=exllamav2-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
+
+# Copy build artifacts from moe kernels
+COPY --from=moe-kernels /usr/src/moe-kernels/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
 
 # Install server
 COPY proto proto
