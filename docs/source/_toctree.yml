@@ -17,6 +17,8 @@
     title: Using TGI with Intel GPUs
   - local: installation
     title: Installation from source
+  - local: multi_backend_support
+    title: Multi-backend support
 
   - local: architecture
     title: Internal Architecture
@@ -46,6 +48,10 @@
     title: Train Medusa
   title: Tutorials
 - sections:
+  - local: backends/trtllm
+    title: TensorRT-LLM
+  title: Backends
+- sections:
   - local: reference/launcher
     title: All TGI CLI options
   - local: reference/metrics
@@ -54,6 +60,8 @@
     title: API Reference
   title: Reference
 - sections:
+  - local: conceptual/chunking
+    title: V3 update, caching and chunking
   - local: conceptual/streaming
     title: Streaming
   - local: conceptual/quantization

@@ -270,9 +270,9 @@ RUN python setup.py build
 
 FROM kernel-builder AS moe-kernels
 WORKDIR /usr/src
-ENV MOE_KERNELS_BRANCH=b74b163a2e28042068ac8355e07e6dde926a967a
+ENV MOE_KERNELS_BRANCH=a67b35841774b2056a73806c36661134b5054edd
 ENV VLLM_TARGET_DEVICE=rocm
-RUN git clone https://github.com/mht-sharma/moe-kernels.git && \
+RUN git clone https://github.com/danieldk/moe-kernels.git && \
     cd moe-kernels && \
     git checkout ${MOE_KERNELS_BRANCH} && \
     python setup.py install
