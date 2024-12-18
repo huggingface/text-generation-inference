@@ -3,48 +3,7 @@
     "best_of_sequences": null,
     "finish_reason": "length",
     "generated_tokens": 10,
-    "prefill": [
-      {
-        "id": 1,
-        "logprob": null,
-        "text": "<s>"
-      },
-      {
-        "id": 1824,
-        "logprob": -6.1445312,
-        "text": "What"
-      },
-      {
-        "id": 349,
-        "logprob": -1.4648438,
-        "text": "is"
-      },
-      {
-        "id": 21135,
-        "logprob": -13.6875,
-        "text": "gradient"
-      },
-      {
-        "id": 24871,
-        "logprob": -1.6005859,
-        "text": "descent"
-      },
-      {
-        "id": 28804,
-        "logprob": -0.39526367,
-        "text": "?"
-      },
-      {
-        "id": 13,
-        "logprob": -0.640625,
-        "text": "\n"
-      },
-      {
-        "id": 13,
-        "logprob": -0.18774414,
-        "text": "\n"
-      }
-    ],
+    "prefill": [],
     "seed": null,
     "tokens": [
       {

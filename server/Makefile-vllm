@@ -1,4 +1,4 @@
-commit_rocm := 4e0929e6e4fa0a3d09d358715c288020ea9dc247
+commit_rocm := de990cd12537f78f74e40b5c8ee1a62d63d734dd
 
 build-vllm-rocm:
 	if [ ! -d 'vllm' ]; then \

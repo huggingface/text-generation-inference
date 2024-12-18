@@ -104,6 +104,10 @@ impl Backend for BackendV2 {
         }
         .is_ok()
     }
+
+    fn start_health(&self) -> bool {
+        true
+    }
 }
 
 /// Batching logic

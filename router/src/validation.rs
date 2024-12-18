@@ -1,4 +1,3 @@
-/// Payload validation logic
 use crate::config::Config;
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{
@@ -12,6 +11,8 @@ use jsonschema::{Draft, JSONSchema};
 use outlines_core::json_schema::to_regex as json_schema_to_regex;
 use rand::{thread_rng, Rng};
 use serde_json::Value;
+/// Payload validation logic
+use std::cmp::min;
 use std::io::Cursor;
 use std::iter;
 use std::sync::Arc;
@@ -20,6 +21,8 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
 use {once_cell::sync::Lazy, regex::Regex};
+
+static DEFAULT_GENERATION_LENGTH: u32 = 1024;
 
 /// Validation
 #[derive(Debug, Clone)]
@@ -131,7 +134,7 @@ impl Validation {
         add_special_tokens: bool,
         truncate: Option<usize>,
         max_new_tokens: Option<u32>,
-    ) -> Result<(Vec<Chunk>, Option<Vec<u32>>, usize, u32), ValidationError> {
+    ) -> Result<(Vec<Chunk>, Option<Vec<u32>>, usize, u32, u32), ValidationError> {
         // If we have a fast tokenizer
         let (encoding, inputs) = self
             .tokenize(inputs.clone(), add_special_tokens, truncate)
@@ -144,10 +147,17 @@ impl Validation {
         };
 
         // Get total tokens
-        let max_new_tokens: u32 = if let Some(max_new_tokens) = max_new_tokens {
-            max_new_tokens
+        let (max_new_tokens, max_total_new_tokens) = if let Some(max_new_tokens) = max_new_tokens {
+            (max_new_tokens, max_new_tokens)
         } else {
-            self.max_total_tokens.saturating_sub(input_length) as u32
+            // Use the maximum possible number of tokens as default
+            // However, the system will re-queue the request everytime it completes
+            // `DEFAULT_GENERATION_LENGTH` tokens.
+            let max_new_tokens = self.max_total_tokens.saturating_sub(input_length) as u32;
+            (
+                min(max_new_tokens, DEFAULT_GENERATION_LENGTH),
+                max_new_tokens,
+            )
         };
         let total_tokens = input_length + max_new_tokens as usize;
 
@@ -172,7 +182,13 @@ impl Validation {
         let input_ids = ids[ids.len().saturating_sub(input_length)..].to_owned();
 
         metrics::histogram!("tgi_request_input_length").record(input_length as f64);
-        Ok((inputs, Some(input_ids), input_length, max_new_tokens))
+        Ok((
+            inputs,
+            Some(input_ids),
+            input_length,
+            max_new_tokens,
+            max_total_new_tokens,
+        ))
     }
 
     /// Validate a payload and get the number of tokens in the input
@@ -305,7 +321,7 @@ impl Validation {
             .unwrap_or(Ok(None))?;
 
         // Validate inputs
-        let (inputs, input_ids, input_length, max_new_tokens) = self
+        let (inputs, input_ids, input_length, max_new_tokens, max_total_new_tokens) = self
             .validate_input(
                 request.inputs,
                 request.add_special_tokens,
@@ -381,6 +397,7 @@ impl Validation {
         };
         let stopping_parameters = ValidStoppingParameters {
             max_new_tokens,
+            max_total_new_tokens,
             stop_sequences,
             ignore_eos_token: false,
         };
@@ -740,6 +757,8 @@ pub struct ValidParameters {
 pub struct ValidStoppingParameters {
     /// / Maximum number of generated tokens
     pub max_new_tokens: u32,
+    /// Maximum number of generated tokens before being re-queued by the system
+    pub max_total_new_tokens: u32,
     /// / Optional stopping sequences
     pub stop_sequences: Vec<String>,
     /// / Ignore end of sequence token
