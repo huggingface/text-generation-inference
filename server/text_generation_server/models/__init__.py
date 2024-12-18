@@ -1269,11 +1269,12 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
                 # XXX: Extremely important to cap resolution in order to limit
                 # VRAM usage.
-                processor_kwargs={"size": {"longest_edge": 448, "shortest_edge": 378}},
+                processor_kwargs={"size": {"longest_edge": 1456}},
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
