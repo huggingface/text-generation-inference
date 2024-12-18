@@ -16,8 +16,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     g++-14 \
     git \
     git-lfs \
+    lld \
     libssl-dev \
     libucx-dev \
+    libasan8 \
+    libubsan1 \
     ninja-build \
     pkg-config \
     pipx \
@@ -79,12 +82,13 @@ ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
 ENV CUDA_ARCH_LIST=${cuda_arch_list}
 ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
 ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
+ENV USE_LLD_LINKER=ON
 
 COPY . .
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
-    python3 scripts/setup_sccache.py --is-gha-build ${is_gha_build} -k ${aws_access_key_id} -s ${aws_secret_key_id} -t ${aws_session_token} -b ${sccache_bucket} -r ${sscache_region} -p ${sccache_s3_key_prefix }&& \
+    python3 scripts/setup_sccache.py --is-gha-build ${is_gha_build} -k ${aws_access_key_id} -s ${aws_secret_key_id} -t ${aws_session_token} -b ${sccache_bucket} -r ${sscache_region} -p ${sccache_s3_key_prefix } && \
     RUSTC_WRAPPER=sccache CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
 
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS runtime
