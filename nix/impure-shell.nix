@@ -5,9 +5,11 @@
   cmake,
   isort,
   ninja,
+  rustPlatform,
   which,
   cudaPackages,
   openssl,
+  ffmpeg,
   pkg-config,
   poetry,
   protobuf,
@@ -26,6 +28,7 @@
 mkShell {
   nativeBuildInputs =
     [
+      rustPlatform.bindgenHook
       black
       isort
       pkg-config
@@ -53,6 +56,7 @@ mkShell {
   buildInputs =
     [
       openssl.dev
+      ffmpeg
     ]
     ++ (with python3.pkgs; [
       venvShellHook
