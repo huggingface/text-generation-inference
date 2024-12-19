@@ -16,10 +16,12 @@ from typing import List, Optional
 
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
-from text_generation_server.models import Model, get_model
+from text_generation_server.models import Model, get_model_with_lora_adapters
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
 from text_generation_server.models.globals import set_model_id
+from text_generation_server.models.globals import set_adapter_to_index
+from text_generation_server.utils.adapter import AdapterInfo
 
 try:
     from text_generation_server.models.pali_gemma import PaliGemmaBatch
@@ -28,7 +30,11 @@ try:
     )
     from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
 
-    VLM_BATCH_TYPES = {PaliGemmaBatch, VlmCausalLMBatch, IdeficsCausalLMBatch}
+    VLM_BATCH_TYPES = {
+        PaliGemmaBatch,
+        VlmCausalLMBatch,
+        IdeficsCausalLMBatch,
+    }
 except (ImportError, NotImplementedError):
     # These imports can fail on CPU/Non flash.
     VLM_BATCH_TYPES = set()
@@ -56,6 +62,8 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     ):
         self.cache = cache
         self.model = model
+        # Quantize is resolved during model loading
+        self.quantize = model.quantize
         self.server_urls = server_urls
         # For some reason, inference_mode does not work well with GLOO which we use on CPU
         # TODO: The inferecemode set messes up the autograd op dispatch. And results in aten::matmul
@@ -93,19 +101,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
-        def batch_from_pb(batch):
-            return self.model.batch_type.from_pb(
-                batch, self.model.tokenizer, self.model.dtype, self.model.device
-            )
 
-        if self.model.batch_type in VLM_BATCH_TYPES :
-            max_supported_total_tokens = self.model.warmup(request)
-            return generate_pb2.WarmupResponse(max_supported_total_tokens=max_supported_total_tokens)
-        else:
-            batches = [batch_from_pb(batch) for batch in request.batches]
-            self.model.warmup(batches)
-            return generate_pb2.WarmupResponse()
-
+        max_supported_total_tokens = self.model.warmup(request)
+        return generate_pb2.WarmupResponse(max_supported_total_tokens=max_supported_total_tokens)
 
     async def Prefill(self, request, context):
         start = time.time_ns()
@@ -124,7 +122,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
             batch = self.model.batch_type.from_pb(
                 request.batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
-     
+
         generations, next_batch, timings = self.model.generate_token([batch])
         self.cache.set(next_batch)
 
@@ -157,7 +155,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.DecodeResponse(
             generations=[generation.to_pb() for generation in generations],
             batch=next_batch.to_pb() if next_batch else None,
-            concat_ns=None, # TODO: measure concat time
+            concat_ns=None,
             forward_ns=timings[0],
             decode_ns=timings[1],
             total_ns=time.time_ns() - start,
@@ -166,29 +164,22 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
 
 def serve(
     model_id: str,
+    lora_adapters: Optional[List[AdapterInfo]],
     revision: Optional[str],
     sharded: bool,
+    quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
+    max_input_tokens: int,
 ):
-    # Remove default handler
-    #logger.remove()
-    logger.add(
-        sys.stdout,
-        format="{message}",
-        filter="text_generation_server",
-        level="INFO",
-        serialize=False,
-        backtrace=True,
-        diagnose=False,
-    )
-
     async def serve_inner(
         model_id: str,
+        lora_adapters: Optional[List[AdapterInfo]],
         revision: Optional[str],
         sharded: bool = False,
+        quantize: Optional[str] = None,
         speculate: Optional[int] = None,
         dtype: Optional[str] = None,
         trust_remote_code: bool = False,
@@ -197,6 +188,7 @@ def serve(
             logger.warning(f"Current Synapse version is lower than the minimum version supported: {MIN_TGI_GAUDI_SYNAPSE_VERSION}, this could result in failures")
 
         unix_socket_template = "unix://{}-{}"
+        adapter_to_index = {}
         logger.info("Server:server_inner: sharded ={}".format(sharded))
 
         if sharded:
@@ -218,22 +210,33 @@ def serve(
         if revision == "None":
             revision = None
         try:
-            model = get_model(
+            model = get_model_with_lora_adapters(
                 model_id,
+                lora_adapters,
                 revision,
+                sharded,
+                quantize,
                 speculate,
                 data_type,
-                trust_remote_code
+                trust_remote_code,
+                max_input_tokens,
+                adapter_to_index,
             )
+
         except Exception:
             logger.exception("Error when initializing model")
             raise
 
+        set_adapter_to_index(adapter_to_index)
         server = aio.server(
             interceptors=[
                 ExceptionInterceptor(),
                 UDSOpenTelemetryAioServerInterceptor(),
-            ]
+            ],
+            options=[
+                # Set the maximum possible message length: i32::MAX
+                ("grpc.max_receive_message_length", (1 << 31) - 1)
+            ],
         )
         generate_pb2_grpc.add_TextGenerationServiceServicer_to_server(
             TextGenerationService(model, Cache(), server_urls), server
@@ -255,6 +258,13 @@ def serve(
     set_model_id(model_id)
     asyncio.run(
         serve_inner(
-            model_id, revision, sharded, speculate, dtype, trust_remote_code
+            model_id,
+            lora_adapters,
+            revision,
+            sharded,
+            quantize,
+            speculate,
+            dtype,
+            trust_remote_code,
         )
     )

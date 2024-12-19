@@ -13,6 +13,7 @@ async def flash_falcon(flash_falcon_handle):
     return flash_falcon_handle.client
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_falcon(flash_falcon, response_snapshot):
@@ -26,6 +27,7 @@ async def test_flash_falcon(flash_falcon, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_falcon_all_params(flash_falcon, response_snapshot):
@@ -49,6 +51,7 @@ async def test_flash_falcon_all_params(flash_falcon, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_falcon_load(flash_falcon, generate_load, response_snapshot):

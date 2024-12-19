@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_gemma_handle(launcher):
-    with launcher("gg-hf/gemma-2b", num_shard=1) as handle:
+    with launcher("google/gemma-2b", num_shard=1) as handle:
         yield handle
 
 
@@ -13,7 +13,7 @@ async def flash_gemma(flash_gemma_handle):
     return flash_gemma_handle.client
 
 
-@pytest.mark.skip
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_gemma(flash_gemma, response_snapshot):
@@ -25,7 +25,7 @@ async def test_flash_gemma(flash_gemma, response_snapshot):
     assert response == response_snapshot
 
 
-@pytest.mark.skip
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_gemma_all_params(flash_gemma, response_snapshot):
@@ -49,7 +49,7 @@ async def test_flash_gemma_all_params(flash_gemma, response_snapshot):
     assert response == response_snapshot
 
 
-@pytest.mark.skip
+@pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_gemma_load(flash_gemma, generate_load, response_snapshot):

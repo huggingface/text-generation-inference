@@ -11,12 +11,12 @@
       },
       {
         "id": 2015,
-        "logprob": -10.0,
+        "logprob": -10.0625,
         "text": "Test"
       },
       {
         "id": 3853,
-        "logprob": -10.875,
+        "logprob": -11.0,
         "text": " request"
       }
     ],
@@ -24,7 +24,7 @@
     "tokens": [
       {
         "id": 7539,
-        "logprob": -0.73046875,
+        "logprob": -0.609375,
         "special": false,
         "text": " forms"
       },
@@ -36,7 +36,7 @@
       },
       {
         "id": 671,
-        "logprob": -1.703125,
+        "logprob": -1.5546875,
         "special": false,
         "text": " an"
       },
@@ -66,24 +66,24 @@
       },
       {
         "id": 11859,
-        "logprob": -1.6953125,
+        "logprob": -1.953125,
         "special": false,
         "text": " lab"
       },
       {
         "id": 2185,
-        "logprob": -1.3125,
+        "logprob": -1.7734375,
         "special": false,
         "text": " process"
       },
       {
-        "id": 578,
-        "logprob": -1.5,
+        "id": 235265,
+        "logprob": 0.0,
         "special": false,
-        "text": " and"
+        "text": "."
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "Test request forms are an essential part of the lab process and"
+  "generated_text": "Test request forms are an essential part of the lab process."
 }

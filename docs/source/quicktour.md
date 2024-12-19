@@ -11,17 +11,26 @@ model=teknium/OpenHermes-2.5-Mistral-7B
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:2.0.3 \
+    ghcr.io/huggingface/text-generation-inference:2.3.1 \
     --model-id $model
 ```
 
+<Tip>
+
+If you want to serve gated or private models, which provide
+controlled access to sensitive or proprietary content, refer to
+[this guide](https://huggingface.co/docs/text-generation-inference/en/basic_tutorials/gated_model_access)
+for detailed instructions.
+
+</Tip>
+
 ### Supported hardware
 
-TGI supports various hardware. Make sure to check the [Using TGI with Nvidia GPUs](./installation_nvidia), [Using TGI with AMD GPUs](./installation_amd), [Using TGI with Gaudi](./installation_gaudi), [Using TGI with Inferentia](./installation_inferentia) guides depending on which hardware you would like to deploy TGI on.
+TGI supports various hardware. Make sure to check the [Using TGI with Nvidia GPUs](./installation_nvidia), [Using TGI with AMD GPUs](./installation_amd), [Using TGI with Intel GPUs](./installation_intel), [Using TGI with Gaudi](./installation_gaudi), [Using TGI with Inferentia](./installation_inferentia) guides depending on which hardware you would like to deploy TGI on.
 
 ## Consuming TGI
 
-Once TGI is running, you can use the `generate` endpoint by doing requests. To learn more about how to query the endpoints, check the [Consuming TGI](./basic_tutorials/consuming_tgi) section, where we show examples with utility libraries and UIs. Below you can see a simple snippet to query the endpoint.
+Once TGI is running, you can use the `generate` endpoint or the Open AI Chat Completion API compatible [Messages API](https://huggingface.co/docs/text-generation-inference/en/messages_api) by doing requests. To learn more about how to query the endpoints, check the [Consuming TGI](./basic_tutorials/consuming_tgi) section, where we show examples with utility libraries and UIs. Below you can see a simple snippet to query the endpoint.
 
 <inferencesnippet>
 <python>
@@ -88,7 +97,7 @@ curl 127.0.0.1:8080/generate \
 To see all possible deploy flags and options, you can use the `--help` flag. It's possible to configure the number of shards, quantization, generation parameters, and more.
 
 ```bash
-docker run ghcr.io/huggingface/text-generation-inference:2.0.3 --help
+docker run ghcr.io/huggingface/text-generation-inference:2.2.0 --help
 ```
 
 </Tip>

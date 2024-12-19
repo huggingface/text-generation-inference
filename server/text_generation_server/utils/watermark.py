@@ -39,12 +39,16 @@ class WatermarkLogitsProcessor(LogitsProcessor):
 
     def _seed_rng(self, input_ids: Union[List[int], torch.LongTensor]):
         if isinstance(input_ids, list):
-            assert len(input_ids) >= 1, "requires at least a 1 token prefix sequence to seed rng"
+            assert (
+                len(input_ids) >= 1
+            ), "requires at least a 1 token prefix sequence to seed rng"
             prev_token = input_ids[-1]
         else:
             assert len(input_ids) == 1
             input_ids = input_ids[0]
-            assert input_ids.shape[-1] >= 1, "requires at least a 1 token prefix sequence to seed rng"
+            assert (
+                input_ids.shape[-1] >= 1
+            ), "requires at least a 1 token prefix sequence to seed rng"
             prev_token = input_ids[-1].item()
         self.rng.manual_seed(self.hash_key * prev_token)
 
@@ -63,7 +67,9 @@ class WatermarkLogitsProcessor(LogitsProcessor):
         return greenlist_ids
 
     @staticmethod
-    def _calc_greenlist_mask(scores: torch.FloatTensor, greenlist_token_ids) -> torch.BoolTensor:
+    def _calc_greenlist_mask(
+        scores: torch.FloatTensor, greenlist_token_ids
+    ) -> torch.BoolTensor:
         green_tokens_mask = torch.zeros_like(scores)
         green_tokens_mask[-1, greenlist_token_ids] = 1
         final_mask = green_tokens_mask.bool()
@@ -76,9 +82,15 @@ class WatermarkLogitsProcessor(LogitsProcessor):
         scores[greenlist_mask] = scores[greenlist_mask] + greenlist_bias
         return scores
 
-    def __call__(self, input_ids: Union[List[int], torch.LongTensor], scores: torch.FloatTensor) -> torch.FloatTensor:
-        greenlist_ids = self._get_greenlist_ids(input_ids, scores.shape[-1], scores.device)
-        green_tokens_mask = self._calc_greenlist_mask(scores=scores, greenlist_token_ids=greenlist_ids)
+    def __call__(
+        self, input_ids: Union[List[int], torch.LongTensor], scores: torch.FloatTensor
+    ) -> torch.FloatTensor:
+        greenlist_ids = self._get_greenlist_ids(
+            input_ids, scores.shape[-1], scores.device
+        )
+        green_tokens_mask = self._calc_greenlist_mask(
+            scores=scores, greenlist_token_ids=greenlist_ids
+        )
 
         scores = self._bias_greenlist_logits(
             scores=scores, greenlist_mask=green_tokens_mask, greenlist_bias=self.delta

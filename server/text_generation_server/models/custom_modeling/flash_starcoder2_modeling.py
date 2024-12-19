@@ -26,7 +26,12 @@ from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+    Seqlen,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -34,6 +39,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
     FastRMSNorm,
@@ -41,6 +47,7 @@ from text_generation_server.layers.layernorm import (
 from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
+from text_generation_server.utils.weights import UnquantizedWeight
 
 
 class Starcoder2Config(PretrainedConfig):
@@ -122,20 +129,19 @@ def _load_gqa(config, prefix: str, weights):
 
     weight = weights.get_multi_weights_col(
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
     )
 
-    if config.quantize not in ["gptq", "awq"]:
-        weight = weight.to(dtype=weights.dtype).to(device=weights.device)
+    if isinstance(weight, UnquantizedWeight):
+        weight.weight = weight.weight.to(dtype=weights.dtype).to(device=weights.device)
 
         head_size = config.hidden_size // config.num_attention_heads
         num_heads = config.num_attention_heads // weights.process_group.size()
         num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
-        assert list(weight.shape) == [
+        assert list(weight.weight.shape) == [
             (num_heads + 2 * num_key_value_heads) * head_size,
             config.hidden_size,
-        ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
+        ], f"{list(weight.weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
     if config.use_bias:
         w = [
@@ -146,9 +152,7 @@ def _load_gqa(config, prefix: str, weights):
     else:
         bias = None
 
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=bias, quantize=config.quantize)
-    )
+    return TensorParallelColumnLinear(get_linear(weight, bias=bias))
 
 
 class Starcoder2Attention(torch.nn.Module):
@@ -207,7 +211,7 @@ class Starcoder2Attention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
         prefill_cache_indices,
     ):
@@ -229,37 +233,32 @@ class Starcoder2Attention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        paged_attention.reshape_and_cache(
+        reshape_and_cache(
             kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
-
-        # output tensor
-        attn_output = torch.empty_like(query)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attn_output = attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
-                attn_output,
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
                 window_size_left=self.max_past,
             )
         # Decode
         else:
-            paged_attention.attention(
-                attn_output,
+            attn_output = paged_attention(
                 query,
                 kv_cache[0],
                 kv_cache[1],
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -382,7 +381,7 @@ class Starcoder2Layer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
         prefill_cache_indices,
     ):
@@ -397,7 +396,7 @@ class Starcoder2Layer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             prefill_cache_indices,
         )
@@ -413,14 +412,14 @@ class Starcoder2Layer(nn.Module):
 
 
 class Starcoder2Model(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
 
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
+            prefix=f"{prefix}.embed_tokens", weights=weights
         )
         self.layers = nn.ModuleList(
             [
@@ -433,7 +432,7 @@ class Starcoder2Model(torch.nn.Module):
             ]
         )
         self.norm = STARCODER2_NORMALIZATION_CLASSES[config.norm_type].load(
-            prefix="model.norm", weights=weights, eps=config.norm_epsilon
+            prefix=f"{prefix}.norm", weights=weights, eps=config.norm_epsilon
         )
 
         self.gradient_checkpointing = False
@@ -450,7 +449,7 @@ class Starcoder2Model(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
@@ -474,7 +473,7 @@ class Starcoder2Model(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
                 prefill_cache_indices,
             )
@@ -485,10 +484,15 @@ class Starcoder2Model(torch.nn.Module):
 
 
 class FlashStarcoder2ForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
 
-        self.model = Starcoder2Model(config, weights)
+        if not prefix:
+            prefix = "model"
+        else:
+            prefix = f"{prefix}.model"
+
+        self.model = Starcoder2Model(prefix, config, weights)
         try:
             self.lm_head = SpeculativeHead.load(
                 config,
@@ -498,7 +502,7 @@ class FlashStarcoder2ForCausalLM(torch.nn.Module):
         except RuntimeError:
             self.lm_head = SpeculativeHead.load(
                 config,
-                prefix="model.embed_tokens",
+                prefix=f"{prefix}.embed_tokens",
                 weights=weights,
             )
 
@@ -517,10 +521,11 @@ class FlashStarcoder2ForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         true_max_s = max_s
         if prefill_cache_indices is not None:
@@ -529,7 +534,7 @@ class FlashStarcoder2ForCausalLM(torch.nn.Module):
         elif self.max_past is not None:
             # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
             # kernel requires the true values
-            input_lengths = torch.clamp(input_lengths, max=self.max_past_tensor)
+            seqlen = seqlen.clamp(max=self.max_past_tensor)
 
         hidden_states = self.model(
             input_ids,
@@ -538,7 +543,7 @@ class FlashStarcoder2ForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             true_max_s,
             prefill_cache_indices,

@@ -1,0 +1,22 @@
+[package]
+name = "text-generation-client"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+
+[dependencies]
+async-trait = "^0.1"
+base64 = { workspace = true }
+futures = "^0.3"
+grpc-metadata = { path = "../grpc-metadata" }
+prost = "^0.12"
+thiserror = "^1.0"
+tokio = { version = "^1.32", features = ["sync"] }
+tonic = "^0.10"
+tower = "^0.4"
+tracing = "^0.1"
+
+[build-dependencies]
+tonic-build = "0.10.1"
+prost-build = "0.12.1"

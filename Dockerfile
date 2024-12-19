@@ -1,18 +1,24 @@
 # Rust builder
-FROM lukemathwalker/cargo-chef:latest-rust-1.78 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.80 AS chef
 WORKDIR /usr/src
 
-FROM chef as planner
+ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+FROM chef AS planner
+COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
 COPY benchmark benchmark
 COPY router router
+COPY backends backends
 COPY launcher launcher
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    python3.11-dev
 RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
     unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
@@ -20,22 +26,29 @@ RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     rm -f $PROTOC_ZIP
 
 COPY --from=planner /usr/src/recipe.json recipe.json
-COPY Cargo.lock Cargo.lock
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN cargo chef cook --profile release-opt --recipe-path recipe.json
+
+ARG GIT_SHA
+ARG DOCKER_LABEL
 
 COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
 COPY benchmark benchmark
 COPY router router
+COPY backends backends
 COPY launcher launcher
-RUN cargo build --release
+RUN cargo build --profile release-opt
 
 # Text Generation Inference base image
 FROM vault.habana.ai/gaudi-docker/1.18.0/ubuntu22.04/habanalabs/pytorch-installer-2.4.0:latest as base
 
+ENV ATTENTION=default
+ENV PREFIX_CACHING=0
+ENV PREFILL_CHUNKING=0
+
 # Text Generation Inference base env
-ENV HUGGINGFACE_HUB_CACHE=/data \
+ENV HF_HOME=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     PORT=80
 
@@ -51,6 +64,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         make \
         curl \
         git \
+        python3.11-dev \
         && rm -rf /var/lib/apt/lists/*
 
 # Install server
@@ -59,21 +73,33 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements.txt && \
+    pip install --no-deps -r requirements.txt && \
     bash ./dill-0.3.8-patch.sh && \
     pip install git+https://github.com/HabanaAI/DeepSpeed.git@1.18.0 && \
     BUILD_CUDA_EXT=0 pip install git+https://github.com/AutoGPTQ/AutoGPTQ.git@097dd04e --no-build-isolation && \
     pip install . --no-cache-dir
 
 # Install benchmarker
-COPY --from=builder /usr/src/target/release/text-generation-benchmark /usr/local/bin/text-generation-benchmark
+COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router
-COPY --from=builder /usr/src/target/release/text-generation-router /usr/local/bin/text-generation-router
+COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher
-COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
+COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
+
+
+# AWS Sagemaker compatible image
+FROM base AS sagemaker
+
+COPY sagemaker-entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]
 
 # Final image
 FROM base
 
-ENTRYPOINT ["text-generation-launcher"]
+COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
+RUN chmod +x /tgi-entrypoint.sh
+
+ENTRYPOINT ["/tgi-entrypoint.sh"]
 CMD ["--json-output"]

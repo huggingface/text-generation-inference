@@ -20,13 +20,18 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple, Any
-from loguru import logger
 from text_generation_server.utils.import_utils import SYSTEM
 
-if SYSTEM != "xpu":
+if SYSTEM != "ipex":
     from vllm.model_executor.layers.fused_moe import fused_moe
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+    Seqlen,
+    PREFILL_IN_KV_CACHE,
+)
 from text_generation_server.layers import (
     FastLinear,
     TensorParallelRowLinear,
@@ -41,7 +46,6 @@ from text_generation_server.layers.rotary import (
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
-from text_generation_server.utils.log import log_once
 
 
 class DbrxAttentionConfig(PretrainedConfig):
@@ -102,6 +106,12 @@ class DbrxFFNConfig(PretrainedConfig):
 
 
 class DbrxConfig(PretrainedConfig):
+    attribute_map = {
+        "hidden_size": "d_model",
+        "num_attention_heads": "n_heads",
+        "num_hidden_layers": "n_layers",
+    }
+
     def __init__(
         self,
         d_model: int = 2048,
@@ -154,120 +164,25 @@ class DbrxConfig(PretrainedConfig):
             **kwargs,
         )
 
+    @property
+    def num_key_value_heads(self):
+        # We can't use the attribute map, since this the number of KV
+        # heads is not top-level.
+        return self.attn_config.kv_n_heads
+
 
 def promote_scalar(x: torch.Tensor) -> torch.Tensor:
     return x.view(1) if len(x.size()) == 0 else x
 
 
 def load_attention(config, prefix, weights):
-    if config.n_heads != config.attn_config.kv_n_heads:
-        return _load_gqa(config, prefix, weights)
-    else:
-        return TensorParallelColumnLinear.load_qkv(
-            config,
-            prefix=f"{prefix}.Wqkv",
-            weights=weights,
-            bias=False,
-        )
-
-
-def _load_gqa(config, prefix: str, weights):
-    assert config.d_model % config.n_heads == 0
-    assert config.n_heads % weights.process_group.size() == 0
-
-    head_dim = config.d_model // config.n_heads
-    world_size = weights.process_group.size()
-    rank = weights.process_group.rank()
-
-    q_block_size = config.d_model // world_size
-    q_start = rank * q_block_size
-    q_stop = (rank + 1) * q_block_size
-
-    kv_block_size = (config.attn_config.kv_n_heads * head_dim) // world_size
-    k_offset = config.d_model
-    k_start = k_offset + rank * kv_block_size
-    k_stop = k_offset + (rank + 1) * kv_block_size
-
-    v_offset = config.d_model + config.attn_config.kv_n_heads * head_dim
-    v_start = v_offset + rank * kv_block_size
-    v_stop = v_offset + (rank + 1) * kv_block_size
-
-    if config.quantize in ["gptq", "awq"]:
-        try:
-            qweight_slice = weights._get_slice(f"{prefix}.qweight")
-            q_qweight = qweight_slice[:, q_start:q_stop]
-            k_qweight = qweight_slice[:, k_start:k_stop]
-            v_qweight = qweight_slice[:, v_start:v_stop]
-
-            qweight = torch.cat([q_qweight, k_qweight, v_qweight], dim=1)
-        except RuntimeError:
-            raise RuntimeError(
-                f"Cannot load `{config.quantize}` weight, make sure the model is already quantized"
-            )
-
-        qzeros_slice = weights._get_slice(f"{prefix}.qzeros")
-        q_qzeros = qzeros_slice[:, q_start:q_stop]
-        k_qzeros = qzeros_slice[:, k_start:k_stop]
-        v_qzeros = qzeros_slice[:, v_start:v_stop]
-
-        qzeros = torch.cat([q_qzeros, k_qzeros, v_qzeros], dim=1)
-
-        scales_slice = weights._get_slice(f"{prefix}.scales")
-        q_scales = scales_slice[:, q_start:q_stop]
-        k_scales = scales_slice[:, k_start:k_stop]
-        v_scales = scales_slice[:, v_start:v_stop]
-
-        scales = torch.cat([q_scales, k_scales, v_scales], dim=1)
-
-        bits, groupsize, desc_act, quant_method = weights._get_gptq_params()
-
-        from text_generation_server.layers import HAS_EXLLAMA
-
-        use_exllama = (
-            bits == 4 and HAS_EXLLAMA and config.quantize == "gptq" and not desc_act
-        )
-
-        if config.quantize == "gptq" and quant_method == "gptq":
-            g_idx_slice = weights._get_slice(f"{prefix}.g_idx")
-            q_g_idx = g_idx_slice[:, q_start:q_stop]
-            k_g_idx = g_idx_slice[:, k_start:k_stop]
-            v_g_idx = g_idx_slice[:, v_start:v_stop]
-
-            w = [q_g_idx, k_g_idx, v_g_idx]
-            for w2 in w[1:]:
-                torch.testing.assert_close(w2, w[0])
-            g_idx = w[0]
-        elif config.quantize == "gptq" and quant_method == "awq":
-            log_once(
-                logger.info, "Converting AWQ model to Exllama/GPTQ packing format."
-            )
-            from text_generation_server.layers.awq.conveersion_utils import (
-                fast_awq_to_gptq,
-            )
-
-            qweight, qzeros = fast_awq_to_gptq(qweight, qzeros)
-            if use_exllama:
-                g_idx = None
-            else:
-                g_idx = (
-                    torch.arange(qweight.shape[0] * (32 // bits), device=qweight.device)
-                    // groupsize
-                ).to(dtype=torch.int32)
-        else:
-            g_idx = None
-
-        weight = (qweight, qzeros, scales, g_idx, bits, groupsize, use_exllama)
-    else:
-        qkv_slice = weights._get_slice(f"{prefix}.Wqkv.weight")
-        q = qkv_slice[q_start:q_stop]
-        k = qkv_slice[k_start:k_stop]
-        v = qkv_slice[v_start:v_stop]
-
-        weight = torch.cat([q, k, v], dim=0)
-        weight = weight.to(dtype=weights.dtype).to(device=weights.device)
-
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=None, quantize=config.quantize)
+    return TensorParallelColumnLinear.load_qkv(
+        config,
+        prefix=f"{prefix}.Wqkv",
+        weights=weights,
+        bias=False,
+        num_heads=config.n_heads,
+        num_key_value_heads=config.attn_config.kv_n_heads,
     )
 
 
@@ -333,10 +248,10 @@ def _load_experts_quantized(config, prefix, weights, cls):
 
         if cls == TensorParallelRowLinear:
             expert_slice = expert_slice.t().contiguous()
-            linear = get_linear(expert_slice, None, config.quantize)
+            linear = get_linear(expert_slice, None)
             experts.append(cls(linear, weights.process_group))
         else:
-            linear = get_linear(expert_slice, None, config.quantize)
+            linear = get_linear(expert_slice, None)
             experts.append(cls(linear))
 
     return experts
@@ -396,7 +311,7 @@ class DbrxAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -415,36 +330,29 @@ class DbrxAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        paged_attention.reshape_and_cache(
-            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
-        )
-
-        # output tensor
-        attn_output = torch.empty_like(query)
+        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attn_output = attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
-                attn_output,
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
         else:
-            paged_attention.attention(
-                attn_output,
+            attn_output = paged_attention(
                 query,
                 kv_cache[0],
                 kv_cache[1],
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -481,7 +389,7 @@ class DbrxNormAttentionNorm(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         normed_hidden_states, res = self.norm_1(hidden_states, residual)
@@ -495,7 +403,7 @@ class DbrxNormAttentionNorm(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -693,9 +601,9 @@ class DenseMoE(nn.Module):
 
 
 class DbrxLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights):
         super().__init__()
-        prefix = f"transformer.blocks.{layer_id}"
+        prefix = f"{prefix}.blocks.{layer_id}"
 
         self.attn = DbrxNormAttentionNorm(
             prefix=f"{prefix}.norm_attn_norm", config=config, weights=weights
@@ -714,7 +622,7 @@ class DbrxLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         # Self Attention
@@ -727,7 +635,7 @@ class DbrxLayer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -737,16 +645,17 @@ class DbrxLayer(nn.Module):
 
 
 class DbrxModel(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="transformer.wte", weights=weights
+            prefix=f"{prefix}.wte", weights=weights
         )
 
         self.layers = nn.ModuleList(
             [
                 DbrxLayer(
+                    prefix,
                     layer_id,
                     config,
                     weights,
@@ -755,7 +664,7 @@ class DbrxModel(torch.nn.Module):
             ]
         )
         self.norm = FastLayerNorm.load_no_bias(
-            prefix="transformer.norm_f", weights=weights, eps=1e-5
+            prefix=f"{prefix}.norm_f", weights=weights, eps=1e-5
         )
 
         self.head_size = self.layers[0].attn.self_attn.head_size
@@ -770,7 +679,7 @@ class DbrxModel(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
@@ -792,7 +701,7 @@ class DbrxModel(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -802,10 +711,15 @@ class DbrxModel(torch.nn.Module):
 
 
 class FlashDbrxForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
-        self.model = DbrxModel(config, weights)
+        if not prefix:
+            prefix = "transformer"
+        else:
+            prefix = f"{prefix}.transformer"
+
+        self.model = DbrxModel(prefix, config, weights)
         self.lm_head = SpeculativeHead.load(
             config,
             prefix="lm_head",
@@ -820,9 +734,11 @@ class FlashDbrxForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         hidden_states = self.model(
             input_ids,
@@ -831,7 +747,7 @@ class FlashDbrxForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
         if lm_head_indices is not None:

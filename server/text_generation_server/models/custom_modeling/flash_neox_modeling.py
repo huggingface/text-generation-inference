@@ -24,11 +24,14 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 from transformers.modeling_utils import PreTrainedModel
-from transformers.models.gpt_neox import GPTNeoXConfig
+from transformers.models.gpt_neox import GPTNeoXConfig as TransformersGPTNeoXConfig
 from typing import Optional, List, Tuple
-
-from text_generation_server.utils import paged_attention, flash_attn
-from text_generation_server.utils.flash_attn import attention
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+    Seqlen,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -36,16 +39,24 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
 from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
+from text_generation_server.utils.weights import UnquantizedWeight
+
+
+class GPTNeoXConfig(TransformersGPTNeoXConfig):
+    attribute_map = {
+        "num_key_value_heads": "num_attention_heads",
+    }
 
 
 def load_row(config, prefix: str, weights, bias: bool):
-    weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+    weight = weights.get_weights_row(prefix)
 
     if bias and weights.process_group.rank() == 0:
         # Rank is only on the first rank process
@@ -53,7 +64,7 @@ def load_row(config, prefix: str, weights, bias: bool):
     else:
         bias = None
 
-    linear = get_linear(weight, bias, config.quantize)
+    linear = get_linear(weight, bias)
     if config.use_parallel_residual:
         return linear
     else:
@@ -61,11 +72,11 @@ def load_row(config, prefix: str, weights, bias: bool):
 
 
 def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
-    weight = weights.get_multi_weights_col([prefix], quantize=config.quantize, dim=0)
-    if isinstance(weight, torch.Tensor):
+    weight = weights.get_multi_weights_col([prefix], dim=0)
+    if isinstance(weight, UnquantizedWeight):
         # Only on non quantized versions
-        weight = (
-            weight.view(
+        weight.weight = (
+            weight.weight.view(
                 num_heads,
                 3,
                 head_size,
@@ -78,7 +89,7 @@ def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
     bias = weights.get_sharded(f"{prefix}.bias", dim=0)
     bias = bias.view(num_heads, 3, head_size).permute(1, 0, 2).reshape(-1)
 
-    linear = get_linear(weight, bias, config.quantize)
+    linear = get_linear(weight, bias)
     if config.use_parallel_residual:
         return linear
     else:
@@ -137,45 +148,46 @@ class FlashNeoxAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
 
+        # Compute rotary embeddings on rotary_ndims
+        query_rot = qkv[:, 0][..., : self.rotary_dim]
+        query_pass = qkv[:, 0][..., self.rotary_dim :]
+        key_rot = qkv[:, 1][..., : self.rotary_dim]
+        key_pass = qkv[:, 1][..., self.rotary_dim :]
+
         # Inplace rotary
-        self.rotary_emb(qkv[:, 0], qkv[:, 1], cos, sin)
+        self.rotary_emb(query_rot, key_rot, cos, sin)
+        qkv[:, 0] = torch.cat((query_rot, query_pass), dim=-1)
+        qkv[:, 1] = torch.cat((key_rot, key_pass), dim=-1)
 
-        paged_attention.reshape_and_cache(
-            qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots
-        )
-
-        # output tensor
-        attn_output = torch.empty_like(qkv[:, 0])
+        reshape_and_cache(qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attn_output = attention(
                 qkv[:, 0],
-                qkv[:, 1],
-                qkv[:, 2],
-                attn_output,
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if PREFILL_IN_KV_CACHE else qkv[:, 1],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else qkv[:, 2],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
         else:
-            paged_attention.attention(
-                attn_output,
+            attn_output = paged_attention(
                 qkv[:, 0],
                 kv_cache[0],
                 kv_cache[1],
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -245,7 +257,7 @@ class FlashNeoXLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         if self.use_parallel_residual:
@@ -259,7 +271,7 @@ class FlashNeoXLayer(nn.Module):
                 kv_cache,
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -283,7 +295,7 @@ class FlashNeoXLayer(nn.Module):
                 kv_cache,
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -304,12 +316,12 @@ class FlashGPTNeoXPreTrainedModel(PreTrainedModel):
 
 
 class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__(config)
         self.config = config
 
         self.embed_in = TensorParallelEmbedding(
-            prefix="gpt_neox.embed_in", weights=weights
+            prefix=f"{prefix}.embed_in", weights=weights
         )
 
         self.layers = nn.ModuleList(
@@ -319,7 +331,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             ]
         )
         self.final_layer_norm = FastLayerNorm.load(
-            prefix="gpt_neox.final_layer_norm",
+            prefix=f"{prefix}.final_layer_norm",
             weights=weights,
             eps=config.layer_norm_eps,
         )
@@ -337,7 +349,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = self.embed_in(input_ids)
@@ -359,7 +371,7 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -369,9 +381,15 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
 
 
 class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__(config)
-        self.gpt_neox = FlashGPTNeoXModel(config, weights)
+
+        if not prefix:
+            prefix = "gpt_neox"
+        else:
+            prefix = f"{prefix}.gpt_neox"
+
+        self.gpt_neox = FlashGPTNeoXModel(prefix, config, weights)
 
         self.embed_out = SpeculativeHead.load(
             config, prefix="embed_out", weights=weights
@@ -385,9 +403,11 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         hidden_states = self.gpt_neox(
             input_ids,
@@ -396,7 +416,7 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
         if lm_head_indices is not None:

@@ -32,6 +32,8 @@ class MedusaModel(torch.nn.Module):
         )
 
     def forward(self, x):
+        if not self.heads:
+            return None
         speculative_logits = torch.stack([head(x) for head in self.heads], dim=1)
         return speculative_logits
 

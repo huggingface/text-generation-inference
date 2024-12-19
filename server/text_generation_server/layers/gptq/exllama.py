@@ -1,3 +1,4 @@
+from text_generation_server.layers.gptq import GPTQWeight
 import torch
 from exllama_kernels import make_q4, q4_matmul, prepare_buffers, set_tuning_params
 
@@ -65,24 +66,25 @@ def create_exllama_buffers(max_total_tokens: int):
 class Ex4bitLinear(torch.nn.Module):
     """Linear layer implementation with per-group 4-bit quantization of the weights"""
 
-    def __init__(self, qweight, qzeros, scales, g_idx, bias, bits, groupsize):
+    def __init__(self, weight: GPTQWeight, bias):
         super().__init__()
         global MAX_DQ, MAX_INNER, ACT_ORDER, DEVICE
-        assert bits == 4
+        assert weight.bits == 4
 
-        self.device = qweight.device
-        self.qweight = qweight
-        self.qzeros = qzeros
-        self.scales = scales
-        self.g_idx = g_idx.cpu() if g_idx is not None else None
+        self.device = weight.qweight.device
+        self.qweight = weight.qweight
+        self.qzeros = weight.qzeros
+        self.scales = weight.scales
+        self.g_idx = weight.g_idx.cpu() if weight.g_idx is not None else None
         self.bias = bias if bias is not None else None
 
         if self.g_idx is not None and (
             (self.g_idx == 0).all()
             or torch.equal(
-                g_idx.cpu(),
+                weight.g_idx.cpu(),
                 torch.tensor(
-                    [i // groupsize for i in range(g_idx.shape[0])], dtype=torch.int32
+                    [i // weight.groupsize for i in range(weight.g_idx.shape[0])],
+                    dtype=torch.int32,
                 ),
             )
         ):
@@ -96,8 +98,8 @@ class Ex4bitLinear(torch.nn.Module):
             self.qweight, self.qzeros, self.scales, self.g_idx, self.device.index
         )
 
-        self.height = qweight.shape[0] * 8
-        self.width = qweight.shape[1]
+        self.height = weight.qweight.shape[0] * 8
+        self.width = weight.qweight.shape[1]
 
         # Infer groupsize from height of qzeros
         self.groupsize = None
@@ -105,7 +107,7 @@ class Ex4bitLinear(torch.nn.Module):
             self.groupsize = (self.qweight.shape[0] * 8) // (self.qzeros.shape[0])
 
         if self.groupsize is not None:
-            assert groupsize == self.groupsize
+            assert weight.groupsize == self.groupsize
 
         # Handle act-order matrix
         if self.g_idx is not None:

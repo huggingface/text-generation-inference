@@ -9,7 +9,7 @@ import base64
 import numpy
 from opentelemetry import trace
 from loguru import logger
-from typing import Optional, Tuple, List, Type, Dict
+from typing import Iterable, Optional, Tuple, List, Type, Dict
 import itertools
 import tempfile
 import copy
@@ -32,9 +32,6 @@ from transformers.models.llava_next.modeling_llava_next import (
 from transformers import AutoProcessor
 import text_generation_server.habana_quantization_env as hq_env
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
-from text_generation_server.models.cache_manager import (
-    get_cache_manager,
-)
 from text_generation_server.utils import (
     HeterogeneousNextTokenChooser,
     StoppingCriteria,
@@ -71,6 +68,10 @@ from text_generation_server.utils.debug import dbg_trace
 
 tracer = trace.get_tracer(__name__)
 
+IDEFICS2_FAKE_TOKEN = "<fake_token_around_image>"
+IDEFICS2_IMAGE_TOKEN = "<image>"
+
+
 IMAGES = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
 BASE_IMAGE_TOKENS = int(os.environ.get('BASE_IMAGE_TOKENS', 2048))
 MAX_TOTAL_TOKENS = int(os.environ.get('MAX_TOTAL_TOKENS', 8192))
@@ -105,19 +106,17 @@ def split(string) -> List[Dict[str, str]]:
 
     return parts
 
-def image_text_replacement(image_input, config, image_id) -> str:
+def image_text_replacement(processor, image_input, config, image_id: int) -> str:
     if config.model_type == "idefics2":
-        # TODO technically depends on image splitting which is not implemented.
-        num_features = 320
-        return (
-            "<fake_token_around_image>"
-            + "<image>" * num_features
-            + "<fake_token_around_image>"
-        )
+        image_seq_len = 64
+        image_str = f"{IDEFICS2_FAKE_TOKEN}{IDEFICS2_IMAGE_TOKEN * image_seq_len}{IDEFICS2_FAKE_TOKEN}"
+        if processor.image_processor.do_image_splitting:
+            image_str *= 5
+        return image_str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
-
+        from loguru import logger
         return "<image>" * num_features
 
     elif config.model_type == "paligemma":
@@ -126,20 +125,35 @@ def image_text_replacement(image_input, config, image_id) -> str:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
 
+def image_text_replacement_fixup(config, text: str) -> str:
+    if config.model_type == "idefics2":
+        return text.replace(
+            f"{IDEFICS2_FAKE_TOKEN}{IDEFICS2_FAKE_TOKEN}", IDEFICS2_FAKE_TOKEN
+        )
+    return text
+
+
 def get_unpadded_features(
-    height: int, width: int, npatches: int, num_patch_height: int, num_patch_width: int
+    original_height: int,
+    original_width: int,
+    npatches: int,
+    num_patch_height: int,
+    num_patch_width: int,
 ) -> Tuple[int, int]:
     current_height = npatches * num_patch_height
     current_width = npatches * num_patch_width
 
-    aspect_ratio: float = width / height
+    aspect_ratio: float = original_width / original_height
     current_aspect_ratio: float = current_width / current_height
+
     if aspect_ratio > current_aspect_ratio:
-        new_height = (height * current_width) // width
-        current_height = new_height
+        new_height = (original_height * current_width) // original_width
+        padding = (current_height - new_height) // 2
+        current_height = current_height - (2 * padding)
     else:
-        new_width = (width * current_height) // height
-        current_width = new_width
+        new_width = (original_width * current_height) // original_height
+        padding = (current_width - new_width) // 2
+        current_width = current_width - (2 * padding)
 
     unpadded_features = current_height * current_width
     newline_features = current_height
@@ -158,7 +172,9 @@ def get_number_of_features(height: int, width: int, config) -> int:
 
     npatches = image_size // patch_size
 
-    num_patch_height, num_patch_width = get_anyres_image_grid_shape(
+    # Dimensions are intentionally swapped to be bug-compatible with
+    # upstream: https://github.com/LLaVA-VL/LLaVA-NeXT/issues/59
+    num_patch_width, num_patch_height = get_anyres_image_grid_shape(
         [height, width],
         image_grid_pinpoints,
         image_size,
@@ -171,12 +187,6 @@ def get_number_of_features(height: int, width: int, config) -> int:
     base_features = npatches**2
     return unpadded_features + newline_features + base_features
 
-
-def load_data_uri(image_uri: str) -> Image.Image:
-    image_uri = image_uri.split(",")[-1]
-    content = base64.b64decode(image_uri)
-    image = Image.open(BytesIO(content))
-    return image
 
 class VlmCausalLMBatch(CausalLMBatch):
     pixel_values: Optional[List[torch.Tensor]]
@@ -274,76 +284,99 @@ class VlmCausalLMBatch(CausalLMBatch):
             input_length=input_len,
         )
 
+
     @classmethod
-    def batch_tokenized_inputs(cls, requests, tokenizer, processor, config, is_warmup):
-        batch_inputs = []
-        image_inputs = []
-        max_truncation = 0
+    def batch_tokenized_inputs(
+        cls, requests: Iterable[generate_pb2.Request], tokenizer, processor, config, is_warmup
+    ):
+        # Process images first. We need all of them so that the processor
+        # can make the image splits the same size. And we need the final
+        # sizes to insert correct number of image tokens.
+        images = []
         for r in requests:
-            chunks = split(r.inputs)
-            full_text = ""
-            image_id = 0
-            for chunk in chunks:
-                if chunk["type"] == "text":
-                    full_text += chunk["content"]
-                elif chunk["type"] == "image":
-                    image = chunk["content"]
-                    # Should never receive URLs anymore, processing should be done
-                    # On the rust layer.
-                    # This avoid making n queries per TP
-                    # if image.startswith("https://") or image.startswith("http://"):
-                    #     image = processor.image_processor.fetch_images(image)
-                    if image.startswith("data:"):
-                        image = load_data_uri(image)
+            for chunk in r.input_chunks.chunks:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    pass
+                elif chunk_type == "image":
+                    image = Image.open(BytesIO(chunk.image.data))
+                    if config.model_type == "llava_next":
+                        images.append(image)
                     else:
-                        raise RuntimeError(
-                            "Cannot process input image not starting with data:"
-                        )
-                    image_input = processor.image_processor(image, return_tensors="pt")
-                    full_text += image_text_replacement(image_input, config, image_id)
-                    image_inputs.append(image_input)
+                        images.append([image])
                 else:
-                    raise RuntimeError(f"Invalid chunk type {chunk['type']}")
+                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
+
+        image_inputs = None
+        if images:
+            image_inputs = processor.image_processor(images, return_tensors="pt")
+
+        batch_inputs = []
+        max_truncation = 0
+        image_id = 0
+        for r in requests:
+            full_text = ""
+            for chunk in r.input_chunks.chunks:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    full_text += chunk.text
+                elif chunk_type == "image":
+                    full_text += image_text_replacement(
+                        processor, image_inputs, config, image_id
+                    )
+                    image_id += 1
+            full_text = image_text_replacement_fixup(config, full_text)
+
             batch_inputs.append(full_text)
             max_truncation = max(max_truncation, r.truncate)
 
+        missing_inputs = 0
+        dummy_images = None
         if is_warmup is False:
             new_bs = round_up(PREFILL_WARMUP_BATCH_SIZE_LIST, len(requests))
             missing_inputs = new_bs - len(requests)
-            dummy_images = []
-            dummy_inputs = []
-            if len(batch_inputs) > 0 and len(image_inputs) > 0:
-                dummy_inputs = [batch_inputs[0]] * missing_inputs
-                dummy_images = [image_inputs[0]] * missing_inputs
-            image_inputs += dummy_images
-            batch_inputs += dummy_inputs
+            if missing_inputs > 0:
+                dummy_inputs = []
+                if len(batch_inputs) > 0:
+                    dummy_inputs = [batch_inputs[0]] * missing_inputs
+
+                batch_inputs += dummy_inputs
 
         batch_tokenized_inputs = tokenizer(
             batch_inputs,
             truncation=True,
             max_length=max_truncation,
+            add_special_tokens=not config.model_type == "paligemma",
             return_tensors="pt",
             padding="longest",
             return_token_type_ids=False,
         )
-        if image_inputs:
-            image_input = image_inputs[0]
+
+        if missing_inputs > 0 and image_inputs is not None:
+            dummy_shape = list(image_inputs['pixel_values'].shape)
+            dummy_shape[0] = missing_inputs
+            dummy_images = torch.rand(dummy_shape)
             new_image_inputs = {
                 "pixel_values": torch.cat(
-                    [img["pixel_values"] for img in image_inputs], dim=0
+                    (image_inputs['pixel_values'], dummy_images), dim=0
                 ),
             }
-            if "pixel_attention_mask" in image_input:
+            if "pixel_attention_mask" in image_inputs:
+                dummy_shape = list(image_inputs['pixel_attention_mask'].shape)
+                dummy_shape[0] = missing_inputs
+                dummy_attention = torch.zeros(dummy_shape)
                 new_image_inputs["pixel_attention_mask"] = torch.cat(
-                    [img["pixel_attention_mask"] for img in image_inputs], dim=0
+                    (image_inputs["pixel_attention_mask"], dummy_attention), dim=0
                 )
-            if "image_sizes" in image_input:
+            if "image_sizes" in image_inputs:
+                dummy_shape = list(list(image_inputs['image_sizes'])[0])
+                dummy_shape = missing_inputs*[dummy_shape]
+                dummy_sizes = torch.IntTensor(dummy_shape)
                 new_image_inputs["image_sizes"] = torch.cat(
-                    [img["image_sizes"] for img in image_inputs], dim=0
+                    (image_inputs["image_sizes"], dummy_sizes), dim=0
                 )
             image_inputs = new_image_inputs
-        else:
-            image_inputs = None
+
         return batch_tokenized_inputs, image_inputs
 
     @classmethod
@@ -498,6 +531,7 @@ class VlmCausalLM(Model):
         processor_kwargs=None,
         batch_class=VlmCausalLMBatch,
         revision,
+        quantize: Optional[str] = None,
         dtype,
         trust_remote_code: bool,
         **kwargs,
@@ -513,6 +547,7 @@ class VlmCausalLM(Model):
         )
         self.batch_class = batch_class
         self.prev_bs = 0
+        self.quantize = quantize
 
         # Create tokenizer
         tokenizer = AutoTokenizer.from_pretrained(
@@ -522,6 +557,7 @@ class VlmCausalLM(Model):
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
+        make_tokenizer_optional(tokenizer)
 
         # Create model
         world_size = int(os.getenv("WORLD_SIZE", "1"))
@@ -580,35 +616,42 @@ class VlmCausalLM(Model):
             if model.config.pad_token_id is not None:
                 tokenizer.pad_token_id = model.config.pad_token_id
             elif model.config.eos_token_id is not None:
-                tokenizer.pad_token_id = model.config.eos_token_id
+                if isinstance(model.config.eos_token_id, int):
+                    tokenizer.pad_token_id = model.config.eos_token_id
+                elif isinstance(model.config.eos_token_id, list):
+                    tokenizer.pad_token_id = model.config.eos_token_id[0]
+                else:
+                    raise ValueError(
+                        f"{type(model.config.eos_token_id)} type of eos_token_id in the model's config is not supported for tokenizer.pad_token_id"
+                    )
             elif tokenizer.eos_token_id is not None:
                 tokenizer.pad_token_id = tokenizer.eos_token_id
             else:
                 tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
-        kwargs = {
+        self.kwargs = {
             "use_cache": True,
             "return_dict": True,
         }
 
-        if model.config.model_type in ["llama", "mistral", "llava_next"]:
-            kwargs["attn_softmax_bf16"] = True
-            kwargs["trim_logits"] = True
+        if model.config.model_type in ["llava_next"]:
+            self.kwargs["attn_softmax_bf16"] = True
+            self.kwargs["trim_logits"] = True
 
             if os.getenv("USE_FLASH_ATTENTION", "false").lower() == "true":
-                kwargs["use_flash_attention"] = True
+                self.kwargs["use_flash_attention"] = True
             if os.getenv("FLASH_ATTENTION_RECOMPUTE", "false").lower() == "true":
-                kwargs["flash_attention_recompute"] = True
+                self.kwargs["flash_attention_recompute"] = True
 
         self.speculate = get_speculate()
         super(VlmCausalLM, self).__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,
             dtype=dtype,
             device=device,
             rank=rank,
-            kwargs=kwargs,
         )
 
         # Create profiler
@@ -1059,7 +1102,7 @@ class VlmCausalLM(Model):
         )
 
     def generate_warmup_batch(self, request, seq_len, batch_size, is_warmup):
-        batch = copy.deepcopy(request.batches[0])
+        batch = copy.deepcopy(request.batch)
         for req in batch.requests:
             req.truncate = seq_len
 
@@ -1070,20 +1113,20 @@ class VlmCausalLM(Model):
 
     def warmup(self, request) -> None:
         is_warmup = True
-        batches = [self.batch_from_pb(batch, is_warmup) for batch in request.batches]
+        batch = self.batch_from_pb(request.batch, is_warmup)
 
         try:
             # max prefill batch size warmup
-            _, prefill_batch, _ = self.generate_token([batches[0]], is_warmup)
+            _, prefill_batch, _ = self.generate_token([batch], is_warmup)
         except:
             raise RuntimeError(
-                f"Not enough memory to handle {len(batches[0].input_ids)} prefill tokens. "
+                f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
                 f"You need to decrease `--max-batch-prefill-tokens`"
             )
 
         global BASE_IMAGE_TOKENS, MAX_TOTAL_TOKENS, MAX_BATCH_TOTAL_TOKENS, PREFILL_WARMUP_BATCH_SIZE_LIST, PREFILL_WARMUP_SEQLEN_LIST, DECODE_WARMUP_BATCH_SIZE_LIST
-        max_input_length =  batches[0].input_ids.shape[1]
-        max_prefill_batch_size = batches[0].input_ids.shape[0]
+        max_input_length =  batch.input_ids.shape[1]
+        max_prefill_batch_size = batch.input_ids.shape[0]
         PREFILL_WARMUP_BATCH_SIZE_LIST = []
         batch_size = 1
         while batch_size <= max_prefill_batch_size:

@@ -1,5 +1,3 @@
-# Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 import pytest
 import torch
 
@@ -7,9 +5,12 @@ from copy import copy
 from transformers import AutoTokenizer
 
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.causal_lm import CausalLMBatch, PAD_SEQUENCE_TO_MULTIPLE_OF
+from text_generation_server.models.causal_lm import CausalLMBatch
 from text_generation_server.utils import weight_hub_files, download_weights
-from text_generation_server.models.bloom import BloomCausalLMBatch, BLOOM
+from text_generation_server.models.bloom import BloomCausalLMBatch, BLOOMSharded
+from text_generation_server.models.custom_modeling.bloom_modeling import (
+    BloomForCausalLM,
+)
 
 
 @pytest.fixture(scope="session")
@@ -18,7 +19,10 @@ def default_bloom():
     revision = "main"
     filenames = weight_hub_files(model_id, revision, ".safetensors")
     download_weights(filenames, model_id, revision)
-    return BLOOM(model_id)
+    return BLOOMSharded(
+        model_id,
+        model_class=BloomForCausalLM,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -31,8 +35,9 @@ def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="Test",
+        input_chunks=generate_pb2.Input(chunks=[generate_pb2.InputChunk(text="Test")]),
         prefill_logprobs=True,
-        truncate=PAD_SEQUENCE_TO_MULTIPLE_OF,
+        truncate=100,
         parameters=default_pb_parameters,
         stopping_parameters=default_pb_stop_parameters,
     )
@@ -46,7 +51,7 @@ def default_pb_batch(default_pb_request):
 @pytest.fixture
 def default_bloom_batch(default_pb_batch, bloom_560m_tokenizer):
     return BloomCausalLMBatch.from_pb(
-        default_pb_batch, bloom_560m_tokenizer, torch.float32, torch.device("hpu")
+        default_pb_batch, bloom_560m_tokenizer, torch.float32, torch.device("cpu")
     )
 
 
@@ -60,7 +65,7 @@ def default_multi_requests_bloom_batch(default_pb_request, bloom_560m_tokenizer)
 
     batch_pb = generate_pb2.Batch(id=0, requests=[req_0, req_1], size=2)
     return BloomCausalLMBatch.from_pb(
-        batch_pb, bloom_560m_tokenizer, torch.float32, torch.device("hpu")
+        batch_pb, bloom_560m_tokenizer, torch.float32, torch.device("cpu")
     )
 
 
@@ -68,29 +73,30 @@ def test_batch_from_pb(default_pb_batch, default_bloom_batch):
     batch = default_bloom_batch
 
     assert batch.batch_id == default_pb_batch.id
-    assert len(batch.requests) == len(default_pb_batch.requests) == default_pb_batch.size
-    for request, pb_request in zip(batch.requests, default_pb_batch.requests):
-        assert request.data == pb_request
+    assert batch.requests == default_pb_batch.requests
 
-    assert batch.input_ids[0][-1] == 3
-    assert batch.input_ids[0][-2] == 10264
-    assert torch.all(batch.input_ids[0][:-2] == 3)
+    assert len(batch.input_ids) == default_pb_batch.size
+    assert batch.input_ids[0][-1] == 10264
+    assert torch.all(batch.input_ids[0][:-1] == 3)
 
-    assert batch.attention_mask[0][-1] == 0
-    assert batch.attention_mask[0][-2] == 1
-    assert torch.all(batch.attention_mask[0][:-2] == 0)
+    assert batch.attention_mask[0][0] == 1
+    assert torch.all(batch.attention_mask[0][1:] == 0)
 
     assert batch.past_key_values is None
 
     assert all(
         [
-            torch.equal(input_ids, request.all_input_ids[:batch.input_length+1, 0])
-            for input_ids, request in zip(batch.input_ids, batch.requests)
+            torch.equal(input_ids, all_input_ids[:, 0])
+            for input_ids, all_input_ids in zip(batch.input_ids, batch.all_input_ids)
         ]
     )
 
+    assert batch.input_lengths == [1]
+
     assert len(batch) == default_pb_batch.size
-    assert batch.max_input_length == batch.input_length == PAD_SEQUENCE_TO_MULTIPLE_OF - 1
+    assert len(batch.next_token_choosers) == len(batch.stopping_criterias) == len(batch)
+
+    assert batch.max_input_length == batch.input_lengths[0]
 
 
 def test_batch_concatenate_no_prefill(default_bloom_batch):
@@ -102,7 +108,6 @@ def test_causal_lm_batch_type(default_bloom):
     assert default_bloom.batch_type == BloomCausalLMBatch
 
 
-@pytest.mark.skip
 def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
     sequence_length = len(default_bloom_batch.all_input_ids[0])
     generations, next_batch, _ = default_bloom.generate_token(default_bloom_batch)
@@ -152,7 +157,6 @@ def test_causal_lm_generate_token(default_bloom, default_bloom_batch):
     assert generations[0].request_id == 0
 
 
-@pytest.mark.skip
 def test_causal_lm_generate_token_completion(default_bloom, default_bloom_batch):
     next_batch = default_bloom_batch
     for _ in range(default_bloom_batch.stopping_criterias[0].max_new_tokens - 1):
@@ -173,7 +177,6 @@ def test_causal_lm_generate_token_completion(default_bloom, default_bloom_batch)
     )
 
 
-@pytest.mark.skip
 def test_causal_lm_generate_token_completion_multi(
     default_bloom, default_multi_requests_bloom_batch
 ):
@@ -224,7 +227,6 @@ def test_causal_lm_generate_token_completion_multi(
     )
 
 
-@pytest.mark.skip
 def test_batch_concatenate(
     default_bloom, default_bloom_batch, default_multi_requests_bloom_batch
 ):
@@ -265,7 +267,7 @@ def test_batch_concatenate(
     assert next_batch.max_input_length == 3
 
     assert next_batch.requests[0] == next_batch_0.requests[0]
-    assert next_batch.requests[1:] == next_batch_1.requests
+    assert next_batch.requests[1:] == list(next_batch_1.requests)
 
     assert next_batch.next_token_choosers[0] == next_batch_0.next_token_choosers[0]
     assert next_batch.next_token_choosers[1:] == next_batch_1.next_token_choosers

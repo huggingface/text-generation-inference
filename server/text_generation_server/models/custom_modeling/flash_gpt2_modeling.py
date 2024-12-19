@@ -24,8 +24,13 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
-
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+    Seqlen,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -42,6 +47,10 @@ def load_qkv(config, prefix: str, weights, head_size, num_heads):
             prefix,
             weights,
         )
+    elif config.quantize == "marlin":
+        raise RuntimeError(
+            "GPT-2 models with marlin quantization are not yet supported"
+        )
     else:
         return _load_qkv(config, prefix, weights, head_size, num_heads)
 
@@ -51,7 +60,11 @@ def _load_qkv_gptq(config, prefix: str, weights):
     rank = weights.process_group.rank()
 
     # Weights
-    weight = weights.get_weights_col_packed_qkv(f"{prefix}.c_attn", config.quantize)
+    weight = weights.get_weights_col_packed_qkv(
+        f"{prefix}.c_attn",
+        config.num_attention_heads,
+        config.num_attention_heads,
+    )
 
     # Bias
     slice_ = weights._get_slice(f"{prefix}.c_attn.bias")
@@ -70,7 +83,7 @@ def _load_qkv_gptq(config, prefix: str, weights):
     bias = torch.cat(tensors, dim=0)
     bias = bias.to(device=weights.device)
 
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 def _load_qkv(config, prefix: str, weights, head_size, num_heads):
@@ -117,14 +130,14 @@ def _load_qkv(config, prefix: str, weights, head_size, num_heads):
         3 * num_heads * head_size
     ], f"{weight.shape} != {[3 * num_heads * head_size]}"
 
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 def load_row(config, prefix: str, weights, bias: bool):
     """load_row, but with transposed weight matrices."""
 
     if config.quantize == "gptq":
-        weight = weights.get_multi_weights_row(prefix, quantize=config.quantize)
+        weight = weights.get_weights_row(prefix)
     else:
         weight = weights.get_sharded(f"{prefix}.weight", dim=0).T
 
@@ -135,16 +148,14 @@ def load_row(config, prefix: str, weights, bias: bool):
         bias = None
 
     return TensorParallelRowLinear(
-        get_linear(weight, bias, config.quantize), process_group=weights.process_group
+        get_linear(weight, bias), process_group=weights.process_group
     )
 
 
 def load_col(config, prefix: str, weights, bias: bool):
     """load_col, but with transposed weight matrices."""
     if config.quantize == "gptq":
-        weight = weights.get_multi_weights_col(
-            [prefix], quantize=config.quantize, dim=1
-        )
+        weight = weights.get_multi_weights_col([prefix], dim=1)
     else:
         weight = weights.get_sharded(f"{prefix}.weight", dim=1).T
 
@@ -153,7 +164,7 @@ def load_col(config, prefix: str, weights, bias: bool):
     else:
         bias = None
 
-    return TensorParallelColumnLinear(get_linear(weight, bias, config.quantize))
+    return TensorParallelColumnLinear(get_linear(weight, bias))
 
 
 class FlashGPT2Attention(torch.nn.Module):
@@ -203,7 +214,7 @@ class FlashGPT2Attention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         query, key, value = self.query_key_value(hidden_states).split(
@@ -213,34 +224,29 @@ class FlashGPT2Attention(torch.nn.Module):
         key = key.view(-1, self.num_heads, self.head_size)
         value = value.view(-1, self.num_heads, self.head_size)
 
-        paged_attention.reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
-
-        # output tensor
-        attn_output = torch.empty_like(query)
+        reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attn_output = attention(
                 query,
-                key,
-                value,
-                attn_output,
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if PREFILL_IN_KV_CACHE else key,
+                kv_cache[1] if PREFILL_IN_KV_CACHE else value,
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
         else:
-            paged_attention.attention(
-                attn_output,
+            attn_output = paged_attention(
                 query,
                 kv_cache[0],
                 kv_cache[1],
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -248,7 +254,7 @@ class FlashGPT2Attention(torch.nn.Module):
 
 
 class GPT2MLP(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         act = config.activation_function
         self.act = (
@@ -285,7 +291,7 @@ class GPT2MLP(nn.Module):
 
 
 class FlashGPT2Layer(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         self.self_attn = FlashGPT2Attention(
             prefix=f"{prefix}.attn", config=config, weights=weights
@@ -309,7 +315,7 @@ class FlashGPT2Layer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         residual = hidden_states
@@ -322,7 +328,7 @@ class FlashGPT2Layer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -337,7 +343,7 @@ class FlashGPT2Layer(nn.Module):
 
 
 class FlashGPT2Model(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         process_group = weights.process_group
@@ -375,7 +381,7 @@ class FlashGPT2Model(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
@@ -391,7 +397,7 @@ class FlashGPT2Model(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -401,7 +407,7 @@ class FlashGPT2Model(torch.nn.Module):
 
 
 class FlashGPT2ForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
@@ -428,10 +434,11 @@ class FlashGPT2ForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         token_embeds = self.embed_tokens(input_ids)
         position_embeds = self.embed_positions(position_ids)
@@ -443,7 +450,7 @@ class FlashGPT2ForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,

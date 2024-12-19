@@ -94,11 +94,13 @@ class OPTLearnedPositionalEmbedding(nn.Module):
     This module learns positional embeddings up to a fixed maximum size.
     """
 
-    def __init__(self, weights):
+    def __init__(self, prefix: str, weights):
         super().__init__()
         self.offset = 2
         self.weight = nn.Parameter(
-            weights.get_tensor("model.decoder.embed_positions.weight")
+            weights.get_tensor(
+                f"{prefix + '.' if prefix else ''}decoder.embed_positions.weight"
+            )
         )
 
     def forward(
@@ -311,11 +313,11 @@ class OPTAttention(nn.Module):
 
 
 class OPTDecoderLayer(nn.Module):
-    def __init__(self, layer_id: int, config: OPTConfig, weights):
+    def __init__(self, layer_id: int, prefix: str, config: OPTConfig, weights):
         super().__init__()
         self.process_group = weights.process_group
         self.hidden_size = config.hidden_size
-        prefix = f"model.decoder.layers.{layer_id}"
+        prefix = f"{prefix + '.' if prefix else ''}decoder.layers.{layer_id}"
         self.self_attn = OPTAttention(
             config,
             prefix=f"{prefix}.self_attn",
@@ -429,7 +431,7 @@ class OPTPreTrainedModel(PreTrainedModel):
 
 
 class OPTDecoder(OPTPreTrainedModel):
-    def __init__(self, config: OPTConfig, weights):
+    def __init__(self, prefix: str, config: OPTConfig, weights):
         super().__init__(config)
         self.dropout = config.dropout
         self.layerdrop = config.layerdrop
@@ -437,21 +439,29 @@ class OPTDecoder(OPTPreTrainedModel):
         self.max_target_positions = config.max_position_embeddings
         self.vocab_size = config.vocab_size
 
+        prefix = prefix + "." if prefix else ""
+
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.decoder.embed_tokens", weights=weights
+            prefix=f"{prefix}decoder.embed_tokens", weights=weights
         )
-        self.embed_positions = OPTLearnedPositionalEmbedding(weights)
+        self.embed_positions = OPTLearnedPositionalEmbedding(prefix, weights)
 
         if config.word_embed_proj_dim != config.hidden_size:
             self.project_out = FastLinear.load(
-                config, prefix="model.decoder.project_out", weights=weights, bias=False
+                config,
+                prefix=f"{prefix}decoder.project_out",
+                weights=weights,
+                bias=False,
             )
         else:
             self.project_out = None
 
         if config.word_embed_proj_dim != config.hidden_size:
             self.project_in = FastLinear.load(
-                config, prefix="model.decoder.project_in", weights=weights, bias=False
+                config,
+                prefix=f"{prefix}decoder.project_in",
+                weights=weights,
+                bias=False,
             )
         else:
             self.project_in = None
@@ -461,14 +471,14 @@ class OPTDecoder(OPTPreTrainedModel):
         # see https://github.com/facebookresearch/metaseq/pull/164
         if config.do_layer_norm_before and not config._remove_final_layer_norm:
             self.final_layer_norm = nn.LayerNorm.load(
-                prefix="model.decoder.final_layer_norm", weights=weights, eps=EPS
+                prefix=f"{prefix}decoder.final_layer_norm", weights=weights, eps=EPS
             )
         else:
             self.final_layer_norm = None
 
         self.layers = nn.ModuleList(
             [
-                OPTDecoderLayer(layer_id, config, weights)
+                OPTDecoderLayer(layer_id, prefix, config, weights)
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
@@ -686,9 +696,9 @@ class OPTDecoder(OPTPreTrainedModel):
 
 
 class OPTModel(OPTPreTrainedModel):
-    def __init__(self, config: OPTConfig, weights):
+    def __init__(self, prefix: str, config: OPTConfig, weights):
         super().__init__(config)
-        self.decoder = OPTDecoder(config, weights)
+        self.decoder = OPTDecoder(prefix, config, weights)
         # Initialize weights and apply final processing
 
     def forward(
@@ -743,13 +753,15 @@ class OPTModel(OPTPreTrainedModel):
 
 
 class OPTForCausalLM(OPTPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__(config)
 
-        self.model = OPTModel(config, weights)
+        self.model = OPTModel(prefix, config, weights)
 
         self.lm_head = SpeculativeHead.load(
-            config, prefix="model.decoder.embed_tokens", weights=weights
+            config,
+            prefix=f"{prefix + '.' if prefix else ''}decoder.embed_tokens",
+            weights=weights,
         )
 
     def forward(
@@ -792,7 +804,7 @@ class OPTForCausalLM(OPTPreTrainedModel):
             return_dict=return_dict,
         )
 
-        logits, speculative_logits = self.lm_head(outputs)
+        logits, speculative_logits = self.lm_head(outputs.last_hidden_state)
 
         loss = None
 

@@ -1,0 +1,99 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 24871,
+        "logprob": -17.234375,
+        "text": "descent"
+      },
+      {
+        "id": 28804,
+        "logprob": -7.4375,
+        "text": "?"
+      },
+      {
+        "id": 13,
+        "logprob": -0.8046875,
+        "text": "\n"
+      },
+      {
+        "id": 13,
+        "logprob": -0.33032227,
+        "text": "\n"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 1313,
+        "logprob": -2.3613281,
+        "special": false,
+        "text": "It"
+      },
+      {
+        "id": 3969,
+        "logprob": -0.7285156,
+        "special": false,
+        "text": " seems"
+      },
+      {
+        "id": 298,
+        "logprob": -1.3466797,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 528,
+        "logprob": 0.0,
+        "special": false,
+        "text": " me"
+      },
+      {
+        "id": 28725,
+        "logprob": -1.6757812,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 369,
+        "logprob": 0.0,
+        "special": false,
+        "text": " that"
+      },
+      {
+        "id": 513,
+        "logprob": -1.1269531,
+        "special": false,
+        "text": " if"
+      },
+      {
+        "id": 368,
+        "logprob": 0.0,
+        "special": false,
+        "text": " you"
+      },
+      {
+        "id": 28742,
+        "logprob": -2.4921875,
+        "special": false,
+        "text": "'"
+      },
+      {
+        "id": 267,
+        "logprob": 0.0,
+        "special": false,
+        "text": "re"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "What is gradient descent?\n\nIt seems to me, that if you're"
+}

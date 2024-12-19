@@ -1,44 +1,63 @@
-pub mod config;
-mod health;
 /// Text Generation Inference Webserver
-mod infer;
-mod queue;
+pub mod config;
+pub mod infer;
 pub mod server;
-mod validation;
+pub mod validation;
 
-use infer::{Infer, InferError, InferStreamResponse};
-use queue::{Entry, Queue};
+#[cfg(feature = "kserve")]
+mod kserve;
+pub mod logging;
+
+pub mod usage_stats;
+mod vertex;
+
+use crate::infer::{Infer, InferError};
+use crate::server::prepare_chat_input;
 use serde::{Deserialize, Serialize};
-use tokio::sync::OwnedSemaphorePermit;
-use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
 
-/// Type alias for generation responses
-pub(crate) type GenerateStreamResponse = (
-    OwnedSemaphorePermit,
-    u32, // input_length
-    UnboundedReceiverStream<Result<InferStreamResponse, InferError>>,
-);
-
-#[derive(Clone, Deserialize, ToSchema)]
-pub(crate) struct VertexInstance {
-    #[schema(example = "What is Deep Learning?")]
-    pub inputs: String,
-    #[schema(nullable = true, default = "null", example = "null")]
-    pub parameters: Option<GenerateParameters>,
+#[derive(PartialEq)]
+pub enum Attention {
+    Paged,
+    FlashDecoding,
+    FlashInfer,
+    Default,
 }
 
-#[derive(Deserialize, ToSchema)]
-pub(crate) struct VertexRequest {
-    #[serde(rename = "instances")]
-    pub instances: Vec<VertexInstance>,
+impl Attention {
+    pub fn block_size(&self) -> u32 {
+        match self {
+            Attention::FlashDecoding => 256,
+            Attention::FlashInfer => 1,
+            Attention::Paged => 16,
+            Attention::Default => 16,
+        }
+    }
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
-pub(crate) struct VertexResponse {
-    pub predictions: Vec<String>,
+#[derive(Debug)]
+pub struct ParseError;
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Cannot parse attention value")
+    }
+}
+impl std::error::Error for ParseError {}
+
+impl std::str::FromStr for Attention {
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "paged" => Ok(Attention::Paged),
+            "flashdecoding" => Ok(Attention::FlashDecoding),
+            "flashinfer" => Ok(Attention::FlashInfer),
+            "default" => Ok(Attention::Default),
+            _ => Err(ParseError),
+        }
+    }
 }
 
 /// Hub type
@@ -50,37 +69,92 @@ pub struct HubModelInfo {
     pub pipeline_tag: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChatTemplate {
     name: String,
     template: String,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum ChatTemplateVersions {
     Single(String),
     Multiple(Vec<ChatTemplate>),
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+use std::path::Path;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HubTokenizerConfig {
     pub chat_template: Option<ChatTemplateVersions>,
     pub completion_template: Option<String>,
-    #[serde(deserialize_with = "token_serde::deserialize")]
-    pub bos_token: Option<String>,
-    #[serde(deserialize_with = "token_serde::deserialize")]
-    pub eos_token: Option<String>,
+    pub bos_token: Option<TokenizerConfigToken>,
+    pub eos_token: Option<TokenizerConfigToken>,
+    pub tokenizer_class: Option<String>,
+    pub add_bos_token: Option<bool>,
+    pub add_eos_token: Option<bool>,
 }
 
 impl HubTokenizerConfig {
+    pub fn from_file<P: AsRef<Path>>(filename: P) -> Option<Self> {
+        std::fs::read_to_string(filename)
+            .ok()
+            .and_then(|content| serde_json::from_str(&content).ok())
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(untagged)]
+pub enum TokenizerConfigToken {
+    String(String),
+    Object { content: String },
+}
+
+impl TokenizerConfigToken {
+    pub fn as_str(&self) -> &str {
+        match self {
+            TokenizerConfigToken::String(s) => s,
+            TokenizerConfigToken::Object { content } => content,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "processor_class")]
+pub enum HubPreprocessorConfig {
+    Idefics2Processor(Idefics2Preprocessor),
+}
+
+impl HubPreprocessorConfig {
     pub fn from_file<P: AsRef<std::path::Path>>(filename: P) -> Option<Self> {
         let content = std::fs::read_to_string(filename).ok()?;
         serde_json::from_str(&content).ok()
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Idefics2Preprocessor {
+    #[serde(default)]
+    do_image_splitting: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct HubProcessorConfig {
+    pub chat_template: Option<ChatTemplateVersions>,
+    pub image_seq_len: usize,
+    pub processor_class: Option<String>,
+}
+
+impl HubProcessorConfig {
+    pub fn from_file<P: AsRef<Path>>(filename: P) -> Option<Self> {
+        std::fs::read_to_string(filename)
+            .ok()
+            .and_then(|content| serde_json::from_str(&content).ok())
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(tag = "type", content = "value")]
 pub(crate) enum GrammarType {
     /// A string that represents a [JSON Schema](https://json-schema.org/).
@@ -88,39 +162,11 @@ pub(crate) enum GrammarType {
     /// JSON Schema is a declarative language that allows to annotate JSON documents
     /// with types and descriptions.
     #[serde(rename = "json")]
+    #[serde(alias = "json_object")]
     #[schema(example = json ! ({"properties": {"location":{"type": "string"}}}))]
     Json(serde_json::Value),
     #[serde(rename = "regex")]
     Regex(String),
-}
-
-mod token_serde {
-    use super::*;
-    use serde::de;
-    use serde::Deserializer;
-    use serde_json::Value;
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
-
-        match value {
-            Value::String(s) => Ok(Some(s)),
-            Value::Object(map) => {
-                if let Some(content) = map.get("content").and_then(|v| v.as_str()) {
-                    Ok(Some(content.to_string()))
-                } else {
-                    Err(de::Error::custom(
-                        "content key not found in structured token",
-                    ))
-                }
-            }
-            Value::Null => Ok(None),
-            _ => Err(de::Error::custom("invalid token format")),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
@@ -130,12 +176,13 @@ pub struct Info {
     pub model_id: String,
     #[schema(nullable = true, example = "e985a63cdc139290c5f700ff1929f0b5942cced2")]
     pub model_sha: Option<String>,
-    #[schema(example = "torch.float16")]
-    pub model_dtype: String,
-    #[schema(example = "cuda")]
-    pub model_device_type: String,
+    // #[schema(example = "torch.float16")]
+    // pub model_dtype: String,
+    // #[schema(example = "cuda")]
+    // pub model_device_type: String,
     #[schema(nullable = true, example = "text-generation")]
     pub model_pipeline_tag: Option<String>,
+
     /// Router Parameters
     #[schema(example = "128")]
     pub max_concurrent_requests: usize,
@@ -144,21 +191,14 @@ pub struct Info {
     #[schema(example = "4")]
     pub max_stop_sequences: usize,
     #[schema(example = "1024")]
-    pub max_input_length: usize,
+    pub max_input_tokens: usize,
     #[schema(example = "2048")]
     pub max_total_tokens: usize,
-    #[schema(example = "1.2")]
-    pub waiting_served_ratio: f32,
-    #[schema(example = "32000")]
-    pub max_batch_total_tokens: u32,
-    #[schema(example = "20")]
-    pub max_waiting_tokens: usize,
-    #[schema(nullable = true, example = "null")]
-    pub max_batch_size: Option<usize>,
     #[schema(example = "2")]
     pub validation_workers: usize,
     #[schema(example = "32")]
     pub max_client_batch_size: usize,
+
     /// Router Info
     #[schema(example = "text-generation-router")]
     pub router: &'static str,
@@ -171,6 +211,7 @@ pub struct Info {
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema, Default)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct GenerateParameters {
     /// Generate best_of sequences and return the one if the highest token logprobs.
     #[serde(default)]
@@ -297,6 +338,11 @@ pub(crate) struct GenerateParameters {
     #[serde(default)]
     #[schema(nullable = true, default = "null", example = "null")]
     pub grammar: Option<GrammarType>,
+
+    /// Lora adapter id
+    #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
+    pub adapter_id: Option<String>,
 }
 
 fn default_max_new_tokens() -> Option<u32> {
@@ -323,33 +369,37 @@ fn default_parameters() -> GenerateParameters {
         seed: None,
         top_n_tokens: None,
         grammar: None,
+        adapter_id: None,
     }
 }
 
-mod prompt_serde {
-    use serde::{self, Deserialize, Deserializer};
-    use serde_json::Value;
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug)]
+#[serde(try_from = "PromptDeserializer")]
+pub struct Prompt(pub Vec<String>);
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum PromptDeserializer {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+impl TryFrom<PromptDeserializer> for Prompt {
+    type Error = String;
+
+    fn try_from(value: PromptDeserializer) -> Result<Self, Self::Error> {
         match value {
-            Value::String(s) => Ok(vec![s]),
-            Value::Array(arr) if arr.is_empty() => Err(serde::de::Error::custom(
-                "Empty array detected. Do not use an empty array for the prompt.",
-            )),
-            Value::Array(arr) => arr
-                .iter()
-                .map(|v| match v {
-                    Value::String(s) => Ok(s.to_owned()),
-                    _ => Err(serde::de::Error::custom("Expected a string")),
-                })
-                .collect(),
-            _ => Err(serde::de::Error::custom(
-                "Expected a string or an array of strings",
-            )),
+            PromptDeserializer::Single(s) => Ok(Prompt(vec![s])),
+            PromptDeserializer::Multiple(v) => {
+                if v.is_empty() {
+                    Err(
+                        "Empty array detected. Do not use an empty array for the prompt."
+                            .to_string(),
+                    )
+                } else {
+                    Ok(Prompt(v))
+                }
+            }
         }
     }
 }
@@ -359,12 +409,11 @@ pub struct CompletionRequest {
     /// UNUSED
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     /// ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
-    pub model: String,
+    pub model: Option<String>,
 
     /// The prompt to generate completions for.
     #[schema(example = "What is Deep Learning?")]
-    #[serde(deserialize_with = "prompt_serde::deserialize")]
-    pub prompt: Vec<String>,
+    pub prompt: Prompt,
 
     /// The maximum number of tokens that can be generated in the chat completion.
     #[serde(default)]
@@ -409,10 +458,18 @@ pub struct CompletionRequest {
     pub stop: Option<Vec<String>>,
 }
 
+#[derive(Clone, Serialize, ToSchema)]
+#[serde(tag = "object")]
+enum Completion {
+    #[serde(rename = "text_completion")]
+    Chunk(Chunk),
+    #[serde(rename = "text_completion")]
+    Final(CompletionFinal),
+}
+
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
-pub(crate) struct Completion {
+pub(crate) struct CompletionFinal {
     pub id: String,
-    pub object: String,
     #[schema(example = "1706270835")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -431,9 +488,17 @@ pub(crate) struct CompletionComplete {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+pub(crate) struct Chunk {
+    pub id: String,
+    pub created: u64,
+    pub choices: Vec<CompletionComplete>,
+    pub model: String,
+    pub system_fingerprint: String,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema)]
 pub(crate) struct ChatCompletion {
     pub id: String,
-    pub object: String,
     #[schema(example = "1706270835")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
@@ -529,6 +594,15 @@ pub(crate) struct Usage {
     pub total_tokens: u32,
 }
 
+#[derive(Clone, Serialize, ToSchema)]
+#[serde(tag = "object")]
+enum CompletionType {
+    #[serde(rename = "chat.completion.chunk")]
+    ChatCompletionChunk(ChatCompletionChunk),
+    #[serde(rename = "chat.completion")]
+    ChatCompletion(ChatCompletion),
+}
+
 impl ChatCompletion {
     pub(crate) fn new(
         model: String,
@@ -565,7 +639,6 @@ impl ChatCompletion {
         };
         Self {
             id: String::new(),
-            object: "text_completion".into(),
             created,
             model,
             system_fingerprint,
@@ -574,7 +647,7 @@ impl ChatCompletion {
                 message,
                 logprobs: return_logprobs
                     .then(|| ChatCompletionLogprobs::from((details.tokens, details.top_tokens))),
-                finish_reason: details.finish_reason.to_string(),
+                finish_reason: details.finish_reason.format(true),
             }],
             usage: Usage {
                 prompt_tokens: details.prefill.len() as u32,
@@ -584,26 +657,16 @@ impl ChatCompletion {
         }
     }
 }
-#[derive(Clone, Deserialize, Serialize, ToSchema)]
-pub(crate) struct CompletionCompleteChunk {
-    pub id: String,
-    pub object: String,
-    pub created: u64,
-    pub choices: Vec<CompletionComplete>,
-    pub model: String,
-    pub system_fingerprint: String,
-}
-
 #[derive(Clone, Serialize, ToSchema)]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,
-    pub object: String,
     #[schema(example = "1706270978")]
     pub created: u64,
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     pub model: String,
     pub system_fingerprint: String,
     pub choices: Vec<ChatCompletionChoice>,
+    pub usage: Option<Usage>,
 }
 
 #[derive(Clone, Serialize, ToSchema)]
@@ -652,6 +715,7 @@ impl ChatCompletionChunk {
         created: u64,
         logprobs: Option<ChatCompletionLogprobs>,
         finish_reason: Option<String>,
+        usage: Option<Usage>,
     ) -> Self {
         let delta = match (delta, tool_calls) {
             (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
@@ -677,7 +741,6 @@ impl ChatCompletionChunk {
         };
         Self {
             id: String::new(),
-            object: "text_completion".to_string(),
             created,
             model,
             system_fingerprint,
@@ -687,15 +750,17 @@ impl ChatCompletionChunk {
                 logprobs,
                 finish_reason,
             }],
+            usage,
         }
     }
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
+#[cfg_attr(test, derive(Debug, PartialEq, Default))]
 pub(crate) struct ChatRequest {
     #[schema(example = "mistralai/Mistral-7B-Instruct-v0.2")]
     /// [UNUSED] ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
-    pub model: String,
+    pub model: Option<String>,
 
     /// A list of messages comprising the conversation so far.
     #[schema(example = "[{\"role\": \"user\", \"content\": \"What is Deep Learning?\"}]")]
@@ -778,69 +843,162 @@ pub(crate) struct ChatRequest {
     pub tools: Option<Vec<Tool>>,
 
     /// A prompt to be appended before the tools
-    #[serde(default = "default_tool_prompt")]
+    #[serde(default)]
     #[schema(
         nullable = true,
-        example = "\"You will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n\""
+        example = "Given the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables."
     )]
     pub tool_prompt: Option<String>,
 
     /// A specific tool to use. If not provided, the model will default to use any of the tools provided in the tools parameter.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
-    #[serde(deserialize_with = "deserialize_tool_choice::deserialize")]
-    pub tool_choice: Option<ToolType>,
+    pub tool_choice: ToolChoice,
+
+    /// Response format constraints for the generation.
+    ///
+    /// NOTE: A request can use `response_format` OR `tools` but not both.
+    #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
+    pub response_format: Option<GrammarType>,
+
+    /// A guideline to be used in the chat_template
+    #[serde(default)]
+    #[schema(nullable = true, default = "null", example = "null")]
+    pub guideline: Option<String>,
+
+    /// Options for streaming response. Only set this when you set stream: true.
+    #[serde(default)]
+    #[schema(nullable = true, example = "null")]
+    pub stream_options: Option<StreamOptions>,
 }
 
-fn default_tool_prompt() -> Option<String> {
-    Some(
-        "\nYou will be presented with a JSON schema representing a set of tools.\nIf the user request lacks of sufficient information to make a precise tool selection: Do not invent any tool's properties, instead notify with an error message.\n\nJSON Schema:\n".to_string(),
-    )
-}
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
-enum ToolType {
-    FunctionName(String),
-    OneOf,
-}
+impl ChatRequest {
+    fn try_into_generate(self, infer: &Infer) -> Result<(GenerateRequest, bool), InferError> {
+        let ChatRequest {
+            model,
+            max_tokens,
+            messages,
+            seed,
+            stop,
+            stream,
+            tools,
+            tool_choice,
+            tool_prompt,
+            temperature,
+            response_format,
+            guideline,
+            presence_penalty,
+            frequency_penalty,
+            top_p,
+            top_logprobs,
+            ..
+        } = self;
 
-/// Deserialize the tool choice from the JSON input or from the function name ("none" is allowed but mapped to None)
-mod deserialize_tool_choice {
-    use super::*;
-    use serde::de;
-    use serde::Deserializer;
-    use serde_json::Value;
+        let repetition_penalty = presence_penalty.map(|x| x + 2.0);
+        let max_new_tokens = max_tokens.or(Some(100));
+        let tool_prompt = tool_prompt
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(default_tool_prompt);
+        let stop = stop.unwrap_or_default();
+        // enable greedy only when temperature is 0
+        let (do_sample, temperature) = match temperature {
+            Some(temperature) if temperature == 0.0 => (false, None),
+            other => (true, other),
+        };
+        let (inputs, grammar, using_tools) = prepare_chat_input(
+            infer,
+            response_format,
+            tools,
+            tool_choice,
+            &tool_prompt,
+            guideline,
+            messages,
+        )?;
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<ToolType>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = Value::deserialize(deserializer)?;
-
-        match value {
-            Value::String(s) => match s.as_str() {
-                "none" => Ok(None),
-                "auto" => Ok(Some(ToolType::OneOf)),
-                _ => Ok(Some(ToolType::FunctionName(s))),
+        Ok((
+            GenerateRequest {
+                inputs: inputs.to_string(),
+                add_special_tokens: false,
+                parameters: GenerateParameters {
+                    best_of: None,
+                    temperature,
+                    repetition_penalty,
+                    frequency_penalty,
+                    top_k: None,
+                    top_p,
+                    typical_p: None,
+                    do_sample,
+                    max_new_tokens,
+                    return_full_text: None,
+                    stop,
+                    truncate: None,
+                    watermark: false,
+                    details: true,
+                    decoder_input_details: !stream,
+                    seed,
+                    top_n_tokens: top_logprobs,
+                    grammar,
+                    adapter_id: model.filter(|m| *m != "tgi").map(String::from),
+                },
             },
-            Value::Object(map) => {
-                if let Some(content) = map
-                    .get("function")
-                    .and_then(|v| v.get("name"))
-                    .and_then(|v| v.as_str())
-                {
-                    Ok(Some(ToolType::FunctionName(content.to_string())))
-                } else {
-                    Err(de::Error::custom("function key not found in tool choice"))
-                }
-            }
-            Value::Null => Ok(Some(ToolType::OneOf)),
-            _ => Err(de::Error::custom("invalid token format")),
+            using_tools,
+        ))
+    }
+}
+
+#[derive(Clone, Deserialize, ToSchema, Serialize)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
+struct StreamOptions {
+    /// If set, an additional chunk will be streamed before the data: [DONE] message. The usage field on this chunk shows the token usage statistics for the entire request, and the choices field will always be an empty array. All other chunks will also include a usage field, but with a null value.
+    #[schema(example = "true")]
+    include_usage: bool,
+}
+
+pub fn default_tool_prompt() -> String {
+    "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[serde(untagged)]
+pub enum ToolType {
+    OneOf,
+    FunctionName(String),
+    Function { function: FunctionName },
+    NoTool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+pub struct FunctionName {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default, ToSchema)]
+#[serde(from = "ToolTypeDeserializer")]
+pub struct ToolChoice(pub Option<ToolType>);
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ToolTypeDeserializer {
+    String(String),
+    ToolType(ToolType),
+}
+
+impl From<ToolTypeDeserializer> for ToolChoice {
+    fn from(value: ToolTypeDeserializer) -> Self {
+        match value {
+            ToolTypeDeserializer::String(s) => match s.as_str() {
+                "none" => ToolChoice(Some(ToolType::NoTool)),
+                "auto" => ToolChoice(Some(ToolType::OneOf)),
+                _ => ToolChoice(Some(ToolType::FunctionName(s))),
+            },
+            ToolTypeDeserializer::ToolType(tool_type) => ToolChoice(Some(tool_type)),
         }
     }
 }
 
 #[derive(Debug, Deserialize, Serialize, ToSchema, PartialEq)]
-pub struct Tools {
+pub struct JsonSchemaTool {
     #[serde(flatten)]
     functions_map: FunctionsMap,
     properties: Properties,
@@ -884,6 +1042,7 @@ pub(crate) struct FunctionDefinition {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Tool {
     // The type of the tool. Currently, only 'function' is supported.
     #[schema(example = "function")]
@@ -898,8 +1057,8 @@ pub(crate) struct ChatTemplateInputs<'a> {
     bos_token: Option<&'a str>,
     eos_token: Option<&'a str>,
     add_generation_prompt: bool,
-    tools: Option<&'a str>,
-    tools_prompt: Option<&'a str>,
+    tools: Option<Vec<Tool>>,
+    guideline: Option<&'a str>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug, PartialEq)]
@@ -910,26 +1069,16 @@ pub(crate) struct ToolCall {
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
-struct Url {
+pub struct Url {
     url: String,
-}
-
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
-struct ImageUrl {
-    image_url: Url,
-}
-
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
-struct Text {
-    text: String,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
-enum MessageChunk {
-    Text(Text),
-    ImageUrl(ImageUrl),
+pub enum MessageChunk {
+    Text { text: String },
+    ImageUrl { image_url: Url },
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
@@ -937,35 +1086,33 @@ pub struct Message {
     #[schema(example = "user")]
     role: String,
     #[schema(example = "My name is David and I")]
-    #[serde(deserialize_with = "message_content_serde::deserialize")]
-    content: Vec<MessageChunk>,
+    pub content: MessageContent,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     name: Option<String>,
 }
 
-mod message_content_serde {
-    use super::*;
-    use serde::{Deserialize, Deserializer};
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum MessageContent {
+    SingleText(String),
+    MultipleChunks(Vec<MessageChunk>),
+}
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<MessageChunk>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Message {
-            Text(String),
-            Chunks(Vec<MessageChunk>),
-        }
-        let message: Message = Deserialize::deserialize(deserializer)?;
-        let chunks = match message {
-            Message::Text(text) => {
-                vec![MessageChunk::Text(Text { text })]
+// Pushing a chunk to a single text message will convert it to a multiple chunks message
+impl MessageContent {
+    pub fn push(&mut self, chunk: MessageChunk) {
+        match self {
+            MessageContent::SingleText(text) => {
+                *self = MessageContent::MultipleChunks(vec![
+                    MessageChunk::Text { text: text.clone() },
+                    chunk,
+                ]);
             }
-            Message::Chunks(s) => s,
-        };
-        Ok(chunks)
+            MessageContent::MultipleChunks(chunks) => {
+                chunks.push(chunk);
+            }
+        }
     }
 }
 
@@ -981,18 +1128,17 @@ impl From<Message> for TextMessage {
     fn from(value: Message) -> Self {
         TextMessage {
             role: value.role,
-            content: value
-                .content
-                .into_iter()
-                .map(|c| match c {
-                    MessageChunk::Text(Text { text }) => text,
-                    MessageChunk::ImageUrl(image) => {
-                        let url = image.image_url.url;
-                        format!("![]({url})")
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(""),
+            content: match value.content {
+                MessageContent::SingleText(text) => text,
+                MessageContent::MultipleChunks(chunks) => chunks
+                    .into_iter()
+                    .map(|chunk| match chunk {
+                        MessageChunk::Text { text } => text,
+                        MessageChunk::ImageUrl { image_url } => format!("![]({})", image_url.url),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(""),
+            },
         }
     }
 }
@@ -1017,6 +1163,16 @@ pub(crate) struct GenerateRequest {
     pub inputs: String,
     #[serde(default = "default_parameters")]
     pub parameters: GenerateParameters,
+
+    /// This is used internally because some requests
+    /// already contain the templated input therefore
+    /// we shouldn't add the special tokens.
+    #[serde(default = "default_true", skip)]
+    pub add_special_tokens: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, Deserialize, ToSchema)]
@@ -1034,6 +1190,7 @@ impl From<CompatGenerateRequest> for GenerateRequest {
     fn from(req: CompatGenerateRequest) -> Self {
         Self {
             inputs: req.inputs,
+            add_special_tokens: true,
             parameters: req.parameters,
         }
     }
@@ -1042,23 +1199,23 @@ impl From<CompatGenerateRequest> for GenerateRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct PrefillToken {
     #[schema(example = 0)]
-    id: u32,
+    pub id: u32,
     #[schema(example = "test")]
-    text: String,
+    pub text: String,
     #[schema(nullable = true, example = - 0.34)]
-    logprob: f32,
+    pub logprob: f32,
 }
 
 #[derive(Debug, Serialize, ToSchema, Clone)]
 pub struct Token {
     #[schema(example = 0)]
-    id: u32,
+    pub id: u32,
     #[schema(example = "test")]
-    text: String,
+    pub text: String,
     #[schema(nullable = true, example = - 0.34)]
-    logprob: f32,
+    pub logprob: f32,
     #[schema(example = "false")]
-    special: bool,
+    pub special: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -1073,10 +1230,10 @@ pub struct SimpleToken {
     stop: usize,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
-pub(crate) enum FinishReason {
+pub enum FinishReason {
     #[schema(rename = "length")]
     Length,
     #[serde(rename = "eos_token")]
@@ -1092,6 +1249,15 @@ impl std::fmt::Display for FinishReason {
             FinishReason::Length => write!(f, "length"),
             FinishReason::EndOfSequenceToken => write!(f, "eos_token"),
             FinishReason::StopSequence => write!(f, "stop_sequence"),
+        }
+    }
+}
+
+impl FinishReason {
+    pub fn format(&self, use_stop: bool) -> String {
+        match self {
+            FinishReason::EndOfSequenceToken if use_stop => "stop".to_string(),
+            _ => self.to_string(),
         }
     }
 }
@@ -1137,6 +1303,12 @@ pub(crate) struct GenerateResponse {
 }
 
 #[derive(Serialize, ToSchema)]
+pub(crate) struct ChatTokenizeResponse {
+    pub(crate) tokenize_response: TokenizeResponse,
+    pub(crate) templated_text: String,
+}
+
+#[derive(Serialize, ToSchema)]
 #[serde(transparent)]
 pub(crate) struct TokenizeResponse(Vec<SimpleToken>);
 
@@ -1148,6 +1320,8 @@ pub(crate) struct StreamDetails {
     pub generated_tokens: u32,
     #[schema(nullable = true, example = 42)]
     pub seed: Option<u64>,
+    #[schema(example = 1)]
+    pub input_length: u32,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -1166,6 +1340,34 @@ pub(crate) struct StreamResponse {
 pub(crate) struct ErrorResponse {
     pub error: String,
     pub error_type: String,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub(crate) struct ModelInfo {
+    #[schema(example = "gpt2")]
+    pub id: String,
+    #[schema(example = "model")]
+    pub object: String,
+    #[schema(example = 1686935002)]
+    pub created: u64,
+    #[schema(example = "openai")]
+    pub owned_by: String,
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub(crate) struct ModelsInfo {
+    #[schema(example = "list")]
+    pub object: String,
+    pub data: Vec<ModelInfo>,
+}
+
+impl Default for ModelsInfo {
+    fn default() -> Self {
+        ModelsInfo {
+            object: "list".to_string(),
+            data: Vec::new(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1200,9 +1402,16 @@ mod tests {
         );
         assert_eq!(
             config.bos_token,
-            Some("<｜begin▁of▁sentence｜>".to_string())
+            Some(TokenizerConfigToken::String(
+                "<｜begin▁of▁sentence｜>".to_string()
+            ))
         );
-        assert_eq!(config.eos_token, Some("<｜end▁of▁sentence｜>".to_string()));
+        assert_eq!(
+            config.eos_token,
+            Some(TokenizerConfigToken::String(
+                "<｜end▁of▁sentence｜>".to_string()
+            ))
+        );
 
         // in this case we expect the tokens to be encoded as structured tokens
         // we want the content of the structured token
@@ -1235,9 +1444,16 @@ mod tests {
         );
         assert_eq!(
             config.bos_token,
-            Some("<｜begin▁of▁sentence｜>".to_string())
+            Some(TokenizerConfigToken::Object {
+                content: "<｜begin▁of▁sentence｜>".to_string()
+            })
         );
-        assert_eq!(config.eos_token, Some("<｜end▁of▁sentence｜>".to_string()));
+        assert_eq!(
+            config.eos_token,
+            Some(TokenizerConfigToken::Object {
+                content: "<｜end▁of▁sentence｜>".to_string()
+            })
+        );
     }
 
     #[test]
@@ -1255,12 +1471,39 @@ mod tests {
             request.messages[0],
             Message {
                 role: "user".to_string(),
-                content: vec![MessageChunk::Text(Text {
-                    text: "What is Deep Learning?".to_string()
-                }),],
+                content: MessageContent::SingleText("What is Deep Learning?".to_string()),
                 name: None
             }
         );
+    }
+
+    #[test]
+    fn test_message_content_append() {
+        let mut content = MessageContent::SingleText("Initial text".to_string());
+        let chunk = MessageChunk::Text {
+            text: "Additional text".to_string(),
+        };
+
+        content.push(chunk);
+
+        match content {
+            MessageContent::MultipleChunks(chunks) => {
+                assert_eq!(chunks.len(), 2);
+                assert_eq!(
+                    chunks[0],
+                    MessageChunk::Text {
+                        text: "Initial text".to_string()
+                    }
+                );
+                assert_eq!(
+                    chunks[1],
+                    MessageChunk::Text {
+                        text: "Additional text".to_string()
+                    }
+                );
+            }
+            _ => panic!("Expected MultipleChunks, but got a different variant"),
+        }
     }
 
     #[test]
@@ -1281,10 +1524,10 @@ mod tests {
             request.messages[0],
             Message{
                 role: "user".to_string(),
-                content: vec![
-                    MessageChunk::Text(Text { text: "Whats in this image?".to_string() }),
-                    MessageChunk::ImageUrl(ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } })
-                ],
+                content: MessageContent::MultipleChunks(vec![
+                    MessageChunk::Text { text: "Whats in this image?".to_string() },
+                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
+                ]),
                 name: None
             }
         );
@@ -1294,15 +1537,36 @@ mod tests {
     fn text_message_convert() {
         let message = Message{
                 role: "user".to_string(),
-                content: vec![
-                    MessageChunk::Text(Text { text: "Whats in this image?".to_string() }),
-                    MessageChunk::ImageUrl(ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } })
-                ],
+                content: MessageContent::MultipleChunks(vec![
+                    MessageChunk::Text { text: "Whats in this image?".to_string() },
+                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
+                ]),
                 name: None
             };
         let textmsg: TextMessage = message.into();
         assert_eq!(textmsg.content, "Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)");
     }
+
+    #[test]
+    fn test_chat_stream_options() {
+        let json = json!({
+            "model": "",
+            "stream_options": {"include_usage": true},
+            "messages": [{
+                "role": "user",
+                "content": "Hello"
+            }]
+        });
+        let request: ChatRequest = serde_json::from_str(json.to_string().as_str()).unwrap();
+
+        assert!(matches!(
+            request.stream_options,
+            Some(StreamOptions {
+                include_usage: true
+            })
+        ));
+    }
+
     #[test]
     fn openai_output() {
         let message = OutputMessage::ChatMessage(TextMessage {

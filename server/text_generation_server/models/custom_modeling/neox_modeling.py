@@ -21,25 +21,14 @@ import torch
 import torch.distributed
 import torch.utils.checkpoint
 from torch import nn
-from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
+from torch.nn import CrossEntropyLoss
 
 from transformers.activations import ACT2FN
-from transformers.file_utils import (
-    add_code_sample_docstrings,
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-    replace_return_docstrings,
-)
 from transformers.modeling_outputs import (
     BaseModelOutputWithPast,
     CausalLMOutputWithPast,
-    QuestionAnsweringModelOutput,
-    SequenceClassifierOutputWithPast,
-    TokenClassifierOutput,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers import GPTNeoXConfig
-from loguru import logger
 from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
@@ -133,7 +122,6 @@ class GPTNeoXAttention(nn.Module):
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_attention_heads
         self.rotary_ndims = int(self.head_size * config.rotary_pct)
-        max_positions = config.max_position_embeddings
         # ??? TODO
         # self.register_buffer(
         #     "bias",
@@ -404,24 +392,24 @@ class GPTNeoXMLP(nn.Module):
 
 
 class GPTNeoXLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, layer_id, prefix: str, config, weights):
         super().__init__()
         self.use_parallel_residual = config.use_parallel_residual
         self.input_layernorm = nn.LayerNorm.load(
-            prefix=f"gpt_neox.layers.{layer_id}.input_layernorm",
+            prefix=f"{prefix}.layers.{layer_id}.input_layernorm",
             weights=weights,
             eps=config.layer_norm_eps,
         )
         self.post_attention_layernorm = nn.LayerNorm.load(
-            prefix=f"gpt_neox.layers.{layer_id}.post_attention_layernorm",
+            prefix=f"{prefix}.layers.{layer_id}.post_attention_layernorm",
             weights=weights,
             eps=config.layer_norm_eps,
         )
         self.attention = GPTNeoXAttention(
-            config, prefix=f"gpt_neox.layers.{layer_id}.attention", weights=weights
+            config, prefix=f"{prefix}.layers.{layer_id}.attention", weights=weights
         )
         self.mlp = GPTNeoXMLP(
-            config, prefix=f"gpt_neox.layers.{layer_id}.mlp", weights=weights
+            config, prefix=f"{prefix}.layers.{layer_id}.mlp", weights=weights
         )
 
     def forward(
@@ -472,23 +460,23 @@ class GPTNeoXLayer(nn.Module):
 
 
 class GPTNeoXModel(GPTNeoXPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__(config)
         self.config = config
 
         self.num_attention_heads = config.num_attention_heads
 
         self.embed_in = TensorParallelEmbedding(
-            prefix="gpt_neox.embed_in", weights=weights
+            prefix=f"{prefix}.embed_in", weights=weights
         )
         self.layers = nn.ModuleList(
             [
-                GPTNeoXLayer(layer_id, config, weights)
+                GPTNeoXLayer(layer_id, prefix, config, weights)
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
         self.final_layer_norm = nn.LayerNorm.load(
-            prefix="gpt_neox.final_layer_norm",
+            prefix=f"{prefix}.final_layer_norm",
             weights=weights,
             eps=config.layer_norm_eps,
         )
@@ -640,9 +628,15 @@ class GPTNeoXModel(GPTNeoXPreTrainedModel):
 class GPTNeoxForCausalLM(GPTNeoXPreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"position_ids", r"predictions.decoder.bias"]
 
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__(config)
-        self.gpt_neox = GPTNeoXModel(config, weights)
+
+        if not prefix:
+            prefix = "gpt_neox"
+        else:
+            prefix = f"{prefix}.gpt_neox"
+
+        self.gpt_neox = GPTNeoXModel(prefix, config, weights)
         self.embed_out = SpeculativeHead.load(
             config, prefix="embed_out", weights=weights
         )

@@ -21,10 +21,8 @@
 from typing import List, Optional, Tuple, Union
 
 import torch
-import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch import nn
-from torch.nn import CrossEntropyLoss
 
 from transformers import PreTrainedModel
 from transformers.activations import ACT2FN
@@ -32,13 +30,6 @@ from transformers.modeling_outputs import (
     BaseModelOutputWithPast,
     CausalLMOutputWithPast,
     dataclass,
-)
-from transformers.modeling_utils import PretrainedConfig
-from transformers.utils import (
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-    logging,
-    replace_return_docstrings,
 )
 from text_generation_server.models.custom_modeling.idefics_config import IdeficsConfig
 from text_generation_server.models.custom_modeling.idefics_vision import (
@@ -56,6 +47,7 @@ from text_generation_server.layers import (
 )
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.utils.import_utils import SYSTEM
+from loguru import logger
 
 if SYSTEM == "cuda":
     import dropout_layer_norm
@@ -237,7 +229,7 @@ class IdeficsDecoupledPartialTPEmbedding(nn.Module):
             prefix="model.embed_tokens", weights=weights
         )
         self.additional_weight = nn.Parameter(
-            weights.get_tensor(f"model.embed_tokens.additional_embedding.weight")
+            weights.get_tensor("model.embed_tokens.additional_embedding.weight")
         )
 
     def forward(self, input_ids):
@@ -359,7 +351,19 @@ class IdeficsRMSNorm(nn.Module):
         self.variance_epsilon = eps
 
     def forward(self, hidden_states, residual=None):
-        if hidden_states.shape[-1] > 8192:
+        if SYSTEM == "ipex":
+            import intel_extension_for_pytorch as ipex
+
+            out = ipex.llm.functional.add_rms_norm(
+                residual,
+                hidden_states,
+                self.weight,
+                None,
+                self.variance_epsilon,
+                residual is not None,
+            )
+            return out
+        elif hidden_states.shape[-1] > 8192:
             if residual is not None:
                 hidden_states += residual
             residual = hidden_states
@@ -499,7 +503,6 @@ class IdeficsAttention(nn.Module):
         # if not hasattr(nn.functional, "scaled_dot_product_attention"):
         #     raise ValueError("this model requires pytorch 2.0 or higher")
 
-        process_group = weights.process_group
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
                 f"`num_heads` must be divisible by `num_shards` (got `num_heads`: {self.num_heads} "
@@ -1024,7 +1027,7 @@ class IdeficsModel(IdeficsPreTrainedModel):
         if config.use_resampler:
             perceiver_config = config.perceiver_config
             self.perceiver_resampler = IdeficsPerceiverResampler(
-                prefix=f"model.perceiver_resampler",
+                prefix="model.perceiver_resampler",
                 config=config,
                 embed_dim=config.vision_config.embed_dim,
                 depth=perceiver_config.resampler_depth,
@@ -1052,7 +1055,7 @@ class IdeficsModel(IdeficsPreTrainedModel):
         # self.gradient_checkpointing = False
 
         self.norm = IdeficsRMSNorm(
-            prefix=f"model.norm", weights=weights, eps=config.rms_norm_eps
+            prefix="model.norm", weights=weights, eps=config.rms_norm_eps
         )
 
         # self.gradient_checkpointing = False

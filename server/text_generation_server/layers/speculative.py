@@ -33,7 +33,7 @@ class SpeculativeHead(torch.nn.Module):
             except KeyError:
                 try:
                     speculator = MedusaHeadV1.load(config, prefix, weights)
-                except:
+                except Exception:
                     speculator = MedusaHeadV2(config, prefix, weights)
             lm_head = None
         else:

@@ -14,7 +14,7 @@
 # limitations under the License.
 """ PyTorch Idefics2 model."""
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import torch
 import torch.utils.checkpoint
@@ -22,11 +22,10 @@ from torch import nn
 import math
 
 from transformers.activations import ACT2FN
-from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
-    load_vision_model,
 )
+from text_generation_server.layers.attention import Seqlen
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 
 from text_generation_server.layers import (
@@ -34,6 +33,7 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     TensorParallelRowLinear,
 )
+from text_generation_server.utils.weights import DefaultWeightsLoader, UnquantizedWeight
 
 
 def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -682,7 +682,7 @@ class Idefics2Connector(nn.Module):
 class Idefics2ForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
-        config.vision_config.quantize = config.quantize
+        config.vision_config.quantize = None
         config.vision_config.speculator = config.speculator
         config.text_config.quantize = config.quantize
         config.text_config.speculator = config.speculator
@@ -695,16 +695,24 @@ class Idefics2ForConditionalGeneration(nn.Module):
             name="text_model",
         )
         self.dtype = weights.dtype
-        self.vision_model = Idefics2VisionTransformer(
-            prefix=f"{prefix}.model.vision_model" if prefix else "model.vision_model",
-            config=vision_config,
-            weights=weights,
-        )
-        self.connector = Idefics2Connector(
-            prefix=f"{prefix}.model.connector" if prefix else "model.connector",
-            config=config,
-            weights=weights,
-        )
+
+        # The vision and connector models are not quantized.
+        with weights.use_loader(DefaultWeightsLoader(UnquantizedWeight)):
+            self.vision_model = Idefics2VisionTransformer(
+                prefix=(
+                    f"{prefix}.model.vision_model" if prefix else "model.vision_model"
+                ),
+                config=vision_config,
+                weights=weights,
+            )
+
+            config.quantize = None
+            self.connector = Idefics2Connector(
+                prefix=f"{prefix}.model.connector" if prefix else "model.connector",
+                config=config,
+                weights=weights,
+            )
+
         self.config = config
         self.image_seq_len = config.perceiver_config.resampler_n_latents
         self.image_token_id = config.image_token_id
@@ -733,7 +741,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
@@ -741,6 +749,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
         pixel_attention_mask: Optional[torch.BoolTensor] = None,
         # Unused here
         image_sizes: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         if pixel_values is not None:
@@ -818,10 +827,11 @@ class Idefics2ForConditionalGeneration(nn.Module):
             kv_cache=kv_cache,
             block_tables=block_tables,
             slots=slots,
-            input_lengths=input_lengths,
+            seqlen=seqlen,
             max_s=max_s,
             true_max_s=max_s,
             prefill_cache_indices=None,
+            adapter_data=adapter_data,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

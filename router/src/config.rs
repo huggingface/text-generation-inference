@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
 pub struct LlavaNext {
-    text_config: TextConfig,
-    vision_config: VisionConfig,
-    image_grid_pinpoints: Vec<(usize, usize)>,
+    pub(crate) text_config: TextConfig,
+    pub(crate) vision_config: VisionConfig,
+    pub(crate) image_grid_pinpoints: Vec<(usize, usize)>,
 }
 
 fn get_anyres_image_grid_shape(
@@ -71,10 +71,12 @@ fn get_unpadded_features(
     let current_aspect_ratio: f64 = current_width as f64 / current_height as f64;
     let (current_height, current_width) = if aspect_ratio > current_aspect_ratio {
         let new_height = (height * current_width) / width;
-        (new_height, current_width)
+        let padding = (current_height - new_height) / 2;
+        (current_height - (2 * padding), current_width)
     } else {
         let new_width = (width * current_height) / height;
-        (current_height, new_width)
+        let padding = (current_width - new_width) / 2;
+        (current_height, current_width - (2 * padding))
     };
 
     let unpadded_features = current_height * current_width;
@@ -88,7 +90,9 @@ impl LlavaNext {
         let patch_size = self.vision_config.patch_size;
         assert!(image_size % patch_size == 0);
         let npatches = image_size / patch_size;
-        let (num_patch_height, num_patch_width) =
+        // Dimensions are intentionally swapped to be bug-compatible with
+        // upstream: https://github.com/LLaVA-VL/LLaVA-NeXT/issues/59
+        let (num_patch_width, num_patch_height) =
             get_anyres_image_grid_shape(height, width, &self.image_grid_pinpoints, image_size);
 
         let (unpadded_features, newline_features) =
@@ -112,20 +116,20 @@ pub struct Idefics2 {}
 
 impl Idefics2 {
     pub fn get_number_of_features(&self, _height: usize, _width: usize) -> usize {
-        320
+        64
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct PaliTextConfig {
-    num_image_tokens: usize,
+    pub(crate) num_image_tokens: usize,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Paligemma {
-    text_config: PaliTextConfig,
+    pub(crate) text_config: PaliTextConfig,
 }
 
 impl Paligemma {
@@ -142,6 +146,7 @@ pub enum Config {
     ClipVisionModel(ClipVisionModel),
     Mistral,
     Idefics,
+    Mllama,
     Idefics2(Idefics2),
     Ssm,
     GptBigcode,
@@ -149,15 +154,18 @@ pub enum Config {
     Bloom,
     Mpt,
     Gpt2,
+    Gptj,
     GptNeox,
     Phi,
     #[serde(rename = "phi-msft")]
     PhiMsft,
     Phi3,
+    PhiMoe,
     Llama,
     Baichuan,
     Paligemma(Paligemma),
     Gemma,
+    Gemma2,
     Cohere,
     Drbx,
     Falcon,
@@ -175,8 +183,8 @@ pub struct TextConfig {}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct VisionConfig {
-    image_size: usize,
-    patch_size: usize,
+    pub(crate) image_size: usize,
+    pub(crate) patch_size: usize,
 }
 
 #[cfg(test)]

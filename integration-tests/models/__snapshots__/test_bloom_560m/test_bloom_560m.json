@@ -11,42 +11,42 @@
       },
       {
         "id": 49833,
-        "logprob": -10.5625,
+        "logprob": -10.5703125,
         "text": " dég"
       },
       {
         "id": 21543,
-        "logprob": -0.14770508,
+        "logprob": -0.14746094,
         "text": "uster"
       },
       {
         "id": 447,
-        "logprob": -1.9287109,
+        "logprob": -1.9277344,
         "text": " un"
       },
       {
         "id": 46341,
-        "logprob": -15.4609375,
+        "logprob": -15.421875,
         "text": " ort"
       },
       {
         "id": 35567,
-        "logprob": -7.5585938,
+        "logprob": -7.5820312,
         "text": "olan"
       },
       {
         "id": 15,
-        "logprob": -1.4003906,
+        "logprob": -1.4013672,
         "text": ","
       },
       {
         "id": 1669,
-        "logprob": -1.5673828,
+        "logprob": -1.5595703,
         "text": " il"
       },
       {
         "id": 11580,
-        "logprob": -0.94628906,
+        "logprob": -0.9428711,
         "text": " faut"
       },
       {
@@ -56,7 +56,7 @@
       },
       {
         "id": 39261,
-        "logprob": -1.5732422,
+        "logprob": -1.7763672,
         "text": " d'abord"
       }
     ],
@@ -64,65 +64,66 @@
     "tokens": [
       {
         "id": 578,
-        "logprob": -1.6591797,
+        "logprob": -1.7822266,
         "special": false,
         "text": " le"
       },
       {
         "id": 5608,
-        "logprob": -2.4492188,
+        "logprob": -2.4882812,
         "special": false,
         "text": " faire"
       },
       {
-        "id": 159570,
-        "logprob": -6.6835938,
+        "id": 7735,
+        "logprob": -2.4199219,
         "special": false,
-        "text": " réch"
+        "text": " fond"
       },
       {
-        "id": 810,
+        "id": 289,
         "logprob": 0.0,
         "special": false,
-        "text": "au"
+        "text": "re"
       },
       {
-        "id": 12736,
+        "id": 693,
+        "logprob": -2.4628906,
+        "special": false,
+        "text": " à"
+      },
+      {
+        "id": 366,
+        "logprob": -1.1308594,
+        "special": false,
+        "text": " la"
+      },
+      {
+        "id": 48844,
+        "logprob": -1.7900391,
+        "special": false,
+        "text": " cass"
+      },
+      {
+        "id": 1744,
         "logprob": 0.0,
         "special": false,
-        "text": "ffer"
+        "text": "ero"
       },
       {
-        "id": 1742,
-        "logprob": -2.5175781,
-        "special": false,
-        "text": " au"
-      },
-      {
-        "id": 6105,
-        "logprob": -2.0078125,
-        "special": false,
-        "text": " bain"
-      },
-      {
-        "id": 88254,
-        "logprob": -0.12695312,
-        "special": false,
-        "text": "-mar"
-      },
-      {
-        "id": 641,
+        "id": 327,
         "logprob": 0.0,
         "special": false,
-        "text": "ie"
+        "text": "le"
       },
       {
         "id": 2940,
-        "logprob": -3.5175781,
+        "logprob": -1.9306641,
         "special": false,
         "text": " avec"
       }
-    ]
+    ],
+    "top_tokens": null
   },
-  "generated_text": " le faire réchauffer au bain-marie avec"
+  "generated_text": " le faire fondre à la casserole avec"
 }

@@ -4,7 +4,6 @@ import os
 import re
 from typing import List, Optional, Tuple, Set, Union
 
-import math
 import torch
 from text_generation_server.pb import generate_pb2
 from text_generation_server.pb.generate_pb2 import FinishReason, GrammarType
@@ -23,22 +22,21 @@ from text_generation_server.utils.logits_process import (
 )
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcessor
-from transformers.utils import to_py_obj
 
 
 class NextTokenChooser:
     def __init__(
         self,
-        watermark=False,
-        temperature=1.0,
-        repetition_penalty=1.0,
-        frequency_penalty=0.0,
-        top_k=None,
-        top_p=None,
-        typical_p=None,
-        do_sample=False,
-        seed=0,
-        device="cpu",
+        watermark: bool = False,
+        temperature: float = 1.0,
+        repetition_penalty: float = 1.0,
+        frequency_penalty: float = 0.0,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        typical_p: Optional[float] = None,
+        do_sample: bool = False,
+        seed: int = 0,
+        device: str = "cpu",
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         grammar: str = "",
         grammar_type: GrammarType = GrammarType.GRAMMAR_TYPE_NONE,
@@ -71,7 +69,9 @@ class NextTokenChooser:
             or (typical_p is not None and typical_p < 1.0)
         )
         if has_warpers:
-            self.static_warper = static_warper(temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p)
+            self.static_warper = static_warper(
+                temperature=temperature, top_k=top_k, top_p=top_p, typical_p=typical_p
+            )
         else:
             self.static_warper = None
 
@@ -254,7 +254,7 @@ class HeterogeneousNextTokenChooser:
         tokenizer: PreTrainedTokenizerBase,
         grammars: List[str],
         grammar_types: List[int],
-        fsm_grammar_states: List[int],
+        fsm_grammar_states:List[int],
         quantization_enabled: bool,
     ):
         warpers = []
@@ -650,8 +650,9 @@ def batch_top_tokens(
     top_n_indices = (logprobs >= nth_highest).nonzero()
     _, top_n_ishes = torch.unique_consecutive(top_n_indices[:, 0], return_counts=True)
 
+    k = 1 if top_n_ishes.numel() == 0 else top_n_ishes.max()
     # Take a new topk for these new max n values
-    top_k = torch.topk(logprobs, k=top_n_ishes.max(), dim=1, sorted=True)
+    top_k = torch.topk(logprobs, k=k, dim=1, sorted=True)
 
     top_n_ishes = top_n_ishes.tolist()
     top_indices = top_k.indices.tolist()

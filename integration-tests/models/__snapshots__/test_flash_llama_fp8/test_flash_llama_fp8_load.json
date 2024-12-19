@@ -1,0 +1,358 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 128000,
+          "logprob": null,
+          "text": "<|begin_of_text|>"
+        },
+        {
+          "id": 2323,
+          "logprob": -9.5625,
+          "text": "Test"
+        },
+        {
+          "id": 1715,
+          "logprob": -10.375,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 369,
+          "logprob": -2.15625,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 279,
+          "logprob": -2.703125,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 220,
+          "logprob": -3.640625,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 679,
+          "logprob": -1.703125,
+          "special": false,
+          "text": "201"
+        },
+        {
+          "id": 24,
+          "logprob": -1.421875,
+          "special": false,
+          "text": "9"
+        },
+        {
+          "id": 12,
+          "logprob": -2.03125,
+          "special": false,
+          "text": "-"
+        },
+        {
+          "id": 2366,
+          "logprob": -0.49023438,
+          "special": false,
+          "text": "202"
+        },
+        {
+          "id": 15,
+          "logprob": -0.041503906,
+          "special": false,
+          "text": "0"
+        },
+        {
+          "id": 2978,
+          "logprob": -0.87109375,
+          "special": false,
+          "text": " school"
+        },
+        {
+          "id": 1060,
+          "logprob": -0.012939453,
+          "special": false,
+          "text": " year"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " for the 2019-2020 school year"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 128000,
+          "logprob": null,
+          "text": "<|begin_of_text|>"
+        },
+        {
+          "id": 2323,
+          "logprob": -9.5625,
+          "text": "Test"
+        },
+        {
+          "id": 1715,
+          "logprob": -10.375,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 369,
+          "logprob": -2.15625,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 279,
+          "logprob": -2.703125,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 220,
+          "logprob": -3.640625,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 679,
+          "logprob": -1.703125,
+          "special": false,
+          "text": "201"
+        },
+        {
+          "id": 24,
+          "logprob": -1.421875,
+          "special": false,
+          "text": "9"
+        },
+        {
+          "id": 12,
+          "logprob": -2.03125,
+          "special": false,
+          "text": "-"
+        },
+        {
+          "id": 2366,
+          "logprob": -0.49023438,
+          "special": false,
+          "text": "202"
+        },
+        {
+          "id": 15,
+          "logprob": -0.041503906,
+          "special": false,
+          "text": "0"
+        },
+        {
+          "id": 2978,
+          "logprob": -0.87109375,
+          "special": false,
+          "text": " school"
+        },
+        {
+          "id": 1060,
+          "logprob": -0.012939453,
+          "special": false,
+          "text": " year"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " for the 2019-2020 school year"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 128000,
+          "logprob": null,
+          "text": "<|begin_of_text|>"
+        },
+        {
+          "id": 2323,
+          "logprob": -9.5625,
+          "text": "Test"
+        },
+        {
+          "id": 1715,
+          "logprob": -10.375,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 369,
+          "logprob": -2.15625,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 279,
+          "logprob": -2.703125,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 220,
+          "logprob": -3.640625,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 679,
+          "logprob": -1.703125,
+          "special": false,
+          "text": "201"
+        },
+        {
+          "id": 24,
+          "logprob": -1.421875,
+          "special": false,
+          "text": "9"
+        },
+        {
+          "id": 12,
+          "logprob": -2.03125,
+          "special": false,
+          "text": "-"
+        },
+        {
+          "id": 2366,
+          "logprob": -0.49023438,
+          "special": false,
+          "text": "202"
+        },
+        {
+          "id": 15,
+          "logprob": -0.041503906,
+          "special": false,
+          "text": "0"
+        },
+        {
+          "id": 2978,
+          "logprob": -0.87109375,
+          "special": false,
+          "text": " school"
+        },
+        {
+          "id": 1060,
+          "logprob": -0.012939453,
+          "special": false,
+          "text": " year"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " for the 2019-2020 school year"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [
+        {
+          "id": 128000,
+          "logprob": null,
+          "text": "<|begin_of_text|>"
+        },
+        {
+          "id": 2323,
+          "logprob": -9.5625,
+          "text": "Test"
+        },
+        {
+          "id": 1715,
+          "logprob": -10.375,
+          "text": " request"
+        }
+      ],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 369,
+          "logprob": -2.15625,
+          "special": false,
+          "text": " for"
+        },
+        {
+          "id": 279,
+          "logprob": -2.703125,
+          "special": false,
+          "text": " the"
+        },
+        {
+          "id": 220,
+          "logprob": -3.640625,
+          "special": false,
+          "text": " "
+        },
+        {
+          "id": 679,
+          "logprob": -1.703125,
+          "special": false,
+          "text": "201"
+        },
+        {
+          "id": 24,
+          "logprob": -1.421875,
+          "special": false,
+          "text": "9"
+        },
+        {
+          "id": 12,
+          "logprob": -2.03125,
+          "special": false,
+          "text": "-"
+        },
+        {
+          "id": 2366,
+          "logprob": -0.49023438,
+          "special": false,
+          "text": "202"
+        },
+        {
+          "id": 15,
+          "logprob": -0.041503906,
+          "special": false,
+          "text": "0"
+        },
+        {
+          "id": 2978,
+          "logprob": -0.87109375,
+          "special": false,
+          "text": " school"
+        },
+        {
+          "id": 1060,
+          "logprob": -0.012939453,
+          "special": false,
+          "text": " year"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": " for the 2019-2020 school year"
+  }
+]

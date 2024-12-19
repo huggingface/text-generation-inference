@@ -18,36 +18,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional, Tuple, Type
+
 import torch
 import torch.distributed
-
-import numpy as np
-
 from torch import nn
-from text_generation_server.utils.import_utils import SYSTEM
-
-if SYSTEM != "xpu":
-    from vllm.model_executor.layers.fused_moe import fused_moe
-from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
-from typing import Optional, List, Tuple
-from loguru import logger
 
-from text_generation_server.utils import paged_attention, flash_attn
 from text_generation_server.layers import (
     FastLinear,
-    TensorParallelRowLinear,
+    SpeculativeHead,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
-    SpeculativeHead,
+    TensorParallelRowLinear,
     get_linear,
 )
-from text_generation_server.layers.layernorm import (
-    FastRMSNorm,
+from text_generation_server.layers.attention import (
+    Seqlen,
+    attention,
+    paged_attention,
+    reshape_and_cache,
 )
-from text_generation_server.layers.rotary import (
-    PositionRotaryEmbedding,
-)
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.layernorm import FastRMSNorm
+from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
+from text_generation_server.layers.rotary import PositionRotaryEmbedding
+from text_generation_server.utils.weights import UnquantizedWeight
 
 
 class MixtralConfig(PretrainedConfig):
@@ -112,7 +108,7 @@ def promote_scalar(x: torch.Tensor) -> torch.Tensor:
     return x.view(1) if len(x.size()) == 0 else x
 
 
-def load_attention(config, prefix, weights):
+def load_attention(config, prefix: str, weights):
     if config.num_attention_heads != config.num_key_value_heads:
         return _load_gqa(config, prefix, weights)
     else:
@@ -131,27 +127,24 @@ def _load_gqa(config, prefix: str, weights):
 
     weight = weights.get_multi_weights_col(
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
     )
 
-    if config.quantize not in ["gptq", "awq"]:
-        weight = weight.to(dtype=weights.dtype).to(device=weights.device)
+    if isinstance(weight, UnquantizedWeight):
+        weight.weight = weight.weight.to(dtype=weights.dtype).to(device=weights.device)
 
         head_size = config.hidden_size // config.num_attention_heads
         num_heads = config.num_attention_heads // weights.process_group.size()
         num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
-        assert list(weight.shape) == [
+        assert list(weight.weight.shape) == [
             (num_heads + 2 * num_key_value_heads) * head_size,
             config.hidden_size,
-        ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
+        ], f"{list(weight.weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=None, quantize=config.quantize)
-    )
+    return TensorParallelColumnLinear(get_linear(weight, bias=None))
 
 
-def _load_experts(config, prefix, mat, weights):
+def _load_experts(config, prefix: str, mat, weights):
     if config.quantize is not None:
         raise NotImplementedError("Mixtral does not support weight quantization yet.")
 
@@ -243,7 +236,7 @@ class MixtralAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
         prefill_cache_indices,
     ):
@@ -265,37 +258,32 @@ class MixtralAttention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        paged_attention.reshape_and_cache(
+        reshape_and_cache(
             kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
         )
-
-        # output tensor
-        attn_output = torch.empty_like(query)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attn_output = attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
-                attn_output,
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
                 window_size_left=self.max_past,
             )
         # Decode
         else:
-            paged_attention.attention(
-                attn_output,
+            attn_output = paged_attention(
                 query,
                 kv_cache[0],
                 kv_cache[1],
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -320,59 +308,35 @@ def round_up(x: torch.Tensor, value: int):
     return torch.div(x + (value - 1), value, rounding_mode="trunc") * value
 
 
-class BlockSparseMoE(nn.Module):
-    def __init__(self, prefix, config: MixtralConfig, weights):
+class MixtralMoE(nn.Module):
+    def __init__(
+        self, prefix, config: MixtralConfig, moe_layer_cls: Type[MoELayer], weights
+    ):
         super().__init__()
-        self.hidden_dim = config.hidden_size
-        self.ffn_dim = config.intermediate_size // weights.process_group.size()
-        self.num_experts = config.num_local_experts
-        self.top_k = config.num_experts_per_tok
-
-        act = config.hidden_act
-        if "gelu" in act:
-            self.act = lambda x: torch.nn.functional.gelu(
-                x,
-                approximate=(
-                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
-                ),
-            )
-        elif "silu" in act:
-            self.act = torch.nn.functional.silu
-        else:
-            self.act = ACT2FN[act]
 
         # gating
         self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
 
-        # merged expert weights, all of size  (n_experts * ffn_dim, hidden_dim)
-        w1 = _load_experts(config, f"{prefix}.experts", "w1", weights).view(
-            self.num_experts, self.ffn_dim, self.hidden_dim
+        self.moe = moe_layer_cls(
+            n_expert_group=None,
+            n_experts=config.num_local_experts,
+            prefix=f"{prefix}.experts",
+            renormalize=True,
+            topk=config.num_experts_per_tok,
+            topk_group=None,
+            weights=weights,
+            gate_proj_name="w1",
+            up_proj_name="w3",
+            down_proj_name="w2",
         )
-        w3 = _load_experts(config, f"{prefix}.experts", "w3", weights).view(
-            self.num_experts, self.ffn_dim, self.hidden_dim
-        )
-        self.w13 = torch.cat([w1, w3], dim=1)
-        self.w2 = (
-            _load_experts(config, f"{prefix}.experts", "w2", weights)
-            .view(self.num_experts, self.ffn_dim, self.hidden_dim)
-            .transpose(1, 2)
-            .contiguous()
-        )
+        assert isinstance(self.moe, MoELayer)
 
         self.process_group = weights.process_group
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # router_logits: (num_tokens, n_experts)
         router_logits = self.gate(x)
-        out = fused_moe(
-            x,
-            self.w13,
-            self.w2,
-            router_logits,
-            self.top_k,
-            renormalize=True,
-            inplace=True,
-        )
+        out = self.moe(x, gating_output=router_logits)
 
         # Reduce sum
         if self.process_group.size() > 1:
@@ -381,97 +345,8 @@ class BlockSparseMoE(nn.Module):
         return out.view(*x.shape)
 
 
-class DenseMoE(nn.Module):
-    def __init__(self, prefix, config: MixtralConfig, weights):
-        super().__init__()
-        self.hidden_dim = config.hidden_size
-        self.ffn_dim = config.intermediate_size // weights.process_group.size()
-        self.num_experts = config.num_local_experts
-        self.top_k = config.num_experts_per_tok
-
-        act = config.hidden_act
-        if "gelu" in act:
-            self.act = lambda x: torch.nn.functional.gelu(
-                x,
-                approximate=(
-                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
-                ),
-            )
-        elif "silu" in act:
-            self.act = torch.nn.functional.silu
-        else:
-            self.act = ACT2FN[act]
-
-        # gating
-        self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
-
-        self.w1 = [
-            TensorParallelColumnLinear.load(
-                config, prefix=f"{prefix}.experts.{i}.w1", weights=weights, bias=False
-            )
-            for i in range(self.num_experts)
-        ]
-        self.w3 = [
-            TensorParallelColumnLinear.load(
-                config, prefix=f"{prefix}.experts.{i}.w3", weights=weights, bias=False
-            )
-            for i in range(self.num_experts)
-        ]
-        self.w2 = [
-            TensorParallelRowLinear.load(
-                config, prefix=f"{prefix}.experts.{i}.w2", weights=weights, bias=False
-            )
-            for i in range(self.num_experts)
-        ]
-
-        self.process_group = weights.process_group
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        x: (sequence_length, model_dim)
-        gate_logits: (sequence_length, n_experts)
-        """
-        # optional reshape
-        input_shape = x.shape
-        x = x.view(-1, input_shape[-1])
-
-        # gate_logits: (sequence_length, n_experts)
-        gate_logits = self.gate(x)
-        # all_probs: (sequence_length, n_experts) and upcast for softmax
-        all_probs = torch.nn.functional.softmax(gate_logits, dim=1, dtype=torch.float)
-
-        if self.top_k < self.num_experts:
-            _, not_selected_experts = torch.topk(
-                all_probs,
-                self.num_experts - self.top_k,
-                largest=False,
-                sorted=False,
-                dim=1,
-            )
-            # Mask not selected experts
-            all_probs.scatter_(1, not_selected_experts, 0)
-
-        # Re-normalize
-        weights = all_probs / all_probs.sum(dim=1, keepdim=True)
-        weights = weights.to(x.dtype)
-
-        # Final output tensor
-        out = x.new_zeros(x.shape[0], self.hidden_dim)
-        for i in range(self.num_experts):
-            h = self.act(self.w1[i](x)) * self.w3[i](x)
-            h = self.w2[i](h, reduce=False)
-            # Add expert output to out with masking
-            out += h * weights[:, i].view(-1, 1)
-
-        # Reduce sum
-        if self.process_group.size() > 1:
-            torch.distributed.all_reduce(out, group=self.process_group)
-
-        return out
-
-
 class MixtralLayer(nn.Module):
-    def __init__(self, prefix, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights):
         super().__init__()
         prefix = f"{prefix}.layers.{layer_id}"
 
@@ -479,8 +354,12 @@ class MixtralLayer(nn.Module):
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
 
-        moe_cls = BlockSparseMoE if config.quantize is None else DenseMoE
-        self.moe = moe_cls(f"{prefix}.block_sparse_moe", config, weights)
+        moe_layer_cls = (
+            SparseMoELayer if SparseMoELayer.is_supported(weights) else DenseMoELayer
+        )
+        self.moe = MixtralMoE(
+            f"{prefix}.block_sparse_moe", config, moe_layer_cls, weights
+        )
 
         self.input_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm", weights=weights, eps=config.rms_norm_eps
@@ -501,7 +380,7 @@ class MixtralLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
         prefill_cache_indices,
     ):
@@ -516,7 +395,7 @@ class MixtralLayer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             prefill_cache_indices,
         )
@@ -532,7 +411,7 @@ class MixtralLayer(nn.Module):
 
 
 class MixtralModel(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         self.embed_tokens = TensorParallelEmbedding(
@@ -571,7 +450,7 @@ class MixtralModel(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
@@ -595,7 +474,7 @@ class MixtralModel(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
                 prefill_cache_indices,
             )
@@ -606,7 +485,7 @@ class MixtralModel(torch.nn.Module):
 
 
 class FlashMixtralForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         self.model = MixtralModel(prefix, config, weights)
@@ -630,10 +509,11 @@ class FlashMixtralForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         true_max_s = max_s
         if prefill_cache_indices is not None:
@@ -642,7 +522,7 @@ class FlashMixtralForCausalLM(torch.nn.Module):
         elif self.max_past is not None:
             # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
             # kernel requires the true values
-            input_lengths = torch.clamp(input_lengths, max=self.max_past_tensor)
+            seqlen = seqlen.clamp(max=self.max_past_tensor)
 
         hidden_states = self.model(
             input_ids,
@@ -651,7 +531,7 @@ class FlashMixtralForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
             true_max_s,
             prefill_cache_indices,

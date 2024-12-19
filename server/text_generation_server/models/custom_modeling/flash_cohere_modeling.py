@@ -25,7 +25,12 @@ from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
 
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+    Seqlen,
+)
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -34,12 +39,14 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
+from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
 from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
+from text_generation_server.utils.weights import UnquantizedWeight
 
 if SYSTEM == "cuda":
     import dropout_layer_norm
@@ -78,6 +85,12 @@ class CohereRotary(PositionRotaryEmbedding):
 
             # Inplace operation, updating query and key.
             ops.rotary_embedding(query, key, head_size, cos, sin, False)
+        elif SYSTEM == "ipex":
+            import intel_extension_for_pytorch as ipex
+
+            ipex.llm.functional.rotary_embedding(
+                query, key, sin, cos, query.size(-1), False
+            )
         else:
             raise ValueError(
                 "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
@@ -94,7 +107,7 @@ class CohereLayerNorm(nn.Module):
         self.eps = eps
 
     def forward(self, hidden_states):
-        if hidden_states.shape[-1] > 8192 or SYSTEM == "rocm":
+        if hidden_states.shape[-1] > 8192 or SYSTEM != "cuda":
             hidden_states = hidden_states.reshape(
                 -1, self.weight.shape[0], self.weight.shape[1]
             )
@@ -158,20 +171,19 @@ def _load_gqa(config, prefix: str, weights):
 
     weight = weights.get_multi_weights_col(
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
     )
 
-    if config.quantize not in ["gptq", "awq"]:
-        weight = weight.to(dtype=weights.dtype).to(device=weights.device)
+    if isinstance(weight, UnquantizedWeight):
+        weight.weight = weight.weight.to(dtype=weights.dtype).to(device=weights.device)
 
         head_size = config.hidden_size // config.num_attention_heads
         num_heads = config.num_attention_heads // weights.process_group.size()
         num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
-        assert list(weight.shape) == [
+        assert list(weight.weight.shape) == [
             (num_heads + 2 * num_key_value_heads) * head_size,
             config.hidden_size,
-        ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
+        ], f"{list(weight.weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
     if config.attention_bias:
         w = [
@@ -182,9 +194,7 @@ def _load_gqa(config, prefix: str, weights):
     else:
         bias = None
 
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=bias, quantize=config.quantize)
-    )
+    return TensorParallelColumnLinear(get_linear(weight, bias=bias))
 
 
 class FlashCohereAttention(torch.nn.Module):
@@ -256,7 +266,7 @@ class FlashCohereAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -281,34 +291,29 @@ class FlashCohereAttention(torch.nn.Module):
 
         self.rotary_emb(query, key, cos, sin)
 
-        paged_attention.reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
-
-        # output tensor
-        attn_output = torch.empty_like(query)
+        reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attn_output = attention(
                 query,
-                key,
-                value,
-                attn_output,
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if PREFILL_IN_KV_CACHE else key,
+                kv_cache[1] if PREFILL_IN_KV_CACHE else value,
+                seqlen,
+                block_tables,
                 self.softmax_scale,
             )
         # Decode
         else:
-            paged_attention.attention(
-                attn_output,
+            attn_output = paged_attention(
                 query,
                 kv_cache[0],
                 kv_cache[1],
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -358,9 +363,9 @@ class CohereMLP(nn.Module):
 
 
 class FlashCohereLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights):
         super().__init__()
-        prefix = f"model.layers.{layer_id}"
+        prefix = f"{prefix}.layers.{layer_id}"
         self.self_attn = FlashCohereAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
@@ -383,7 +388,7 @@ class FlashCohereLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -397,7 +402,7 @@ class FlashCohereLayer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -411,18 +416,19 @@ class FlashCohereLayer(nn.Module):
 
 
 class FlashCohereModel(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
         self.embed_tokens = TensorParallelEmbedding(
-            prefix="model.embed_tokens", weights=weights
+            prefix=f"{prefix}.embed_tokens", weights=weights
         )
         self.layers = nn.ModuleList(
             [
                 FlashCohereLayer(
+                    prefix,
                     layer_id,
                     config,
                     weights,
@@ -431,7 +437,7 @@ class FlashCohereModel(torch.nn.Module):
             ]
         )
         self.norm = FastLayerNorm.load_no_bias(
-            prefix="model.norm", weights=weights, eps=config.layer_norm_eps
+            prefix=f"{prefix}.norm", weights=weights, eps=config.layer_norm_eps
         )
 
         self.gradient_checkpointing = False
@@ -448,7 +454,7 @@ class FlashCohereModel(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: torch.Tensor,
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
@@ -460,6 +466,7 @@ class FlashCohereModel(torch.nn.Module):
         )
 
         residual = None
+
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -470,7 +477,7 @@ class FlashCohereModel(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -480,10 +487,15 @@ class FlashCohereModel(torch.nn.Module):
 
 
 class FlashCohereForCausalLM(torch.nn.Module):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
 
-        self.model = FlashCohereModel(config, weights)
+        if not prefix:
+            prefix = "model"
+        else:
+            prefix = f"{prefix}.model"
+
+        self.model = FlashCohereModel(prefix, config, weights)
         try:
             self.lm_head = SpeculativeHead.load(
                 config,
@@ -493,7 +505,7 @@ class FlashCohereForCausalLM(torch.nn.Module):
         except RuntimeError:
             self.lm_head = SpeculativeHead.load(
                 config,
-                prefix="model.embed_tokens",
+                prefix=f"{prefix}.embed_tokens",
                 weights=weights,
             )
         self.logit_scale = config.logit_scale
@@ -506,9 +518,11 @@ class FlashCohereForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         hidden_states = self.model(
             input_ids,
@@ -517,7 +531,7 @@ class FlashCohereForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
         if lm_head_indices is not None:

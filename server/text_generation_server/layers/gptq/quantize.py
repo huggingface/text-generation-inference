@@ -12,9 +12,12 @@ from huggingface_hub import HfApi
 from accelerate import init_empty_weights
 from text_generation_server.utils import initialize_torch_distributed, Weights
 from text_generation_server.utils.hub import weight_files
-from text_generation_server.utils.gptq.quant_linear import QuantLinear
+from text_generation_server.layers.gptq.quant_linear import QuantLinear
 from loguru import logger
 from typing import Optional
+from text_generation_server.layers.gptq.utils import torch_snr_error
+
+from text_generation_server.utils.weights import DefaultWeightsLoader, UnquantizedWeight
 
 DEV = torch.device("cuda:0")
 
@@ -370,7 +373,7 @@ def get_wikitext2(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -402,7 +405,7 @@ def get_ptb(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -446,7 +449,7 @@ def get_c4(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -502,7 +505,7 @@ def get_ptb_new(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -544,7 +547,7 @@ def get_c4_new(nsamples, seed, seqlen, model_id, trust_remote_code):
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=False, trust_remote_code=trust_remote_code
         )
-    except:
+    except Exception:
         tokenizer = AutoTokenizer.from_pretrained(
             model_id, use_fast=True, trust_remote_code=trust_remote_code
         )
@@ -698,6 +701,8 @@ def sequential(
                 pass
 
             def add_batch(name):
+                nonlocal gptq
+
                 def tmp(_, inp, out):
                     gptq[name].add_batch(inp[0].data, out.data)
 
@@ -869,6 +874,7 @@ def quantize(
     upload_to_model_id: Optional[str],
     percdamp: float,
     act_order: bool,
+    sym: bool,
 ):
     print("loading model")
     config = AutoConfig.from_pretrained(
@@ -891,6 +897,7 @@ def quantize(
         dtype=torch.float16,
         process_group=process_group,
         aliases={"embed_tokens.weight": ["lm_head.weight"]},
+        weights_loader=DefaultWeightsLoader(UnquantizedWeight),
     )
     hooks = []
     for name, module in model.named_modules():
@@ -943,6 +950,7 @@ def quantize(
         percdamp=percdamp,
         act_order=act_order,
         hooks=hooks,
+        sym=sym,
     )
     print(time.time() - tick)
 
@@ -952,8 +960,6 @@ def quantize(
 
     state_dict = model.state_dict()
     state_dict = {k: v.cpu().contiguous() for k, v in state_dict.items()}
-    state_dict["gptq_bits"] = torch.LongTensor([bits])
-    state_dict["gptq_groupsize"] = torch.LongTensor([groupsize])
 
     max_shard_size = "10GB"
     shards, index = shard_checkpoint(
@@ -985,6 +991,15 @@ def quantize(
             f"index located at {save_index_file}."
         )
     config = AutoConfig.from_pretrained(model_id, trust_remote_code=trust_remote_code)
+    config.quantization_config = {
+        "bits": bits,
+        "group_size": groupsize,
+        "damp_percent": percdamp,
+        "desc_act": act_order,
+        "static_groups": False,
+        "sym": sym,
+        "quant_method": "gptq",
+    }
     config.save_pretrained(output_dir)
     logger.info("Saved config")
     logger.info("Saving tokenizer")

@@ -2,7 +2,6 @@ import torch
 import torch.distributed
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from typing import Optional
-import os
 from text_generation_server.models.custom_modeling.mamba_modeling import (
     MambaConfig,
 )
@@ -20,16 +19,18 @@ from text_generation_server.models.custom_modeling.mamba_modeling import (
     InferenceParams,
 )
 from text_generation_server.models import Model
-from typing import Any, List, Optional, Tuple, Type, Dict
+from typing import Any, List, Tuple, Type, Dict
 from text_generation_server.models.types import (
     Batch,
     Tokens,
     Generation,
     GeneratedText,
 )
+from text_generation_server.utils.chunks import concat_text_chunks
+from text_generation_server.utils.quantization import get_loader
 from text_generation_server.utils.tokens import batch_top_tokens, Sampling
 from dataclasses import dataclass
-from text_generation_server.utils import NextTokenChooser, StoppingCriteria, Sampling
+from text_generation_server.utils import NextTokenChooser, StoppingCriteria
 
 
 def new_inference_params(
@@ -139,7 +140,7 @@ class MambaBatch(Batch):
         max_decode_tokens = 0
         for i, r in enumerate(pb.requests):
             requests_idx_mapping[r.id] = i
-            inputs.append(r.inputs)
+            inputs.append(concat_text_chunks(r.input_chunks.chunks))
             next_token_choosers.append(
                 NextTokenChooser.from_pb(r.parameters, device, tokenizer)
             )
@@ -297,7 +298,6 @@ class MambaBatch(Batch):
         stopping_criterias = []
         top_n_tokens = []
         max_tokens = 0
-        max_seqlen = 0
         seqlen_offset = 0
 
         (n_blocks, _, d_inner, d_conv) = batches[0].inference_params.conv_states.shape
@@ -412,6 +412,7 @@ class Mamba(Model):
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
     ):
+        self.quantize = quantize
         self.process_group, _rank, world_size = initialize_torch_distributed()
         if world_size > 1:
             raise RuntimeError("Mamba does not support Tensor Parallelism (TP)")
@@ -447,11 +448,21 @@ class Mamba(Model):
         config.quantize = quantize
         config.speculator = speculator
         torch.distributed.barrier(group=self.process_group)
+        weights_loader = get_loader(
+            quantize=quantize, model_id=model_id, revision=revision
+        )
         filenames = weight_files(model_id, revision=revision, extension=".safetensors")
-        weights = Weights(filenames, device, dtype, process_group=self.process_group)
+        weights = Weights(
+            filenames,
+            device,
+            dtype,
+            process_group=self.process_group,
+            weights_loader=weights_loader,
+        )
         model = MambaModel(config, weights)
         torch.distributed.barrier(group=self.process_group)
         super(Mamba, self).__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=True,
@@ -473,7 +484,7 @@ class Mamba(Model):
                     for bs in CUDA_GRAPHS:
                         self.cuda_graph_warmup(bs)
                 except Exception:
-                    logger.exception(f"Decode cuda graph warmup failed")
+                    logger.exception("Decode cuda graph warmup failed")
         else:
             logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
@@ -522,7 +533,7 @@ class Mamba(Model):
         }
         self.cuda_graphs[batch_size] = graph_dict
 
-    def tunableop_warmup(self, seqlen: int):
+    def tunableop_warmup(self, batch_size: int, seqlen: int):
         input_ids = torch.zeros((batch_size, 1), dtype=torch.int64, device=self.device)
         n_blocks = len(self.model.blocks)
 

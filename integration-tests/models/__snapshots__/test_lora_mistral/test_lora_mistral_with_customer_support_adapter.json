@@ -1,0 +1,251 @@
+{
+  "details": {
+    "finish_reason": "length",
+    "generated_tokens": 40,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": -0.27416992,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 13,
+        "logprob": -0.17016602,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 28737,
+        "logprob": -2.7109375,
+        "special": false,
+        "text": "I"
+      },
+      {
+        "id": 28809,
+        "logprob": -1.5,
+        "special": false,
+        "text": "’"
+      },
+      {
+        "id": 28719,
+        "logprob": -0.34204102,
+        "special": false,
+        "text": "m"
+      },
+      {
+        "id": 459,
+        "logprob": -1.6914062,
+        "special": false,
+        "text": " not"
+      },
+      {
+        "id": 1864,
+        "logprob": -0.69140625,
+        "special": false,
+        "text": " sure"
+      },
+      {
+        "id": 513,
+        "logprob": -1.6171875,
+        "special": false,
+        "text": " if"
+      },
+      {
+        "id": 315,
+        "logprob": -1.3837891,
+        "special": false,
+        "text": " I"
+      },
+      {
+        "id": 541,
+        "logprob": -1.2226562,
+        "special": false,
+        "text": " can"
+      },
+      {
+        "id": 1567,
+        "logprob": -1.8652344,
+        "special": false,
+        "text": " come"
+      },
+      {
+        "id": 582,
+        "logprob": -0.0070228577,
+        "special": false,
+        "text": " up"
+      },
+      {
+        "id": 395,
+        "logprob": -0.0054092407,
+        "special": false,
+        "text": " with"
+      },
+      {
+        "id": 28705,
+        "logprob": -0.62597656,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 28770,
+        "logprob": -0.0035572052,
+        "special": false,
+        "text": "3"
+      },
+      {
+        "id": 4842,
+        "logprob": -0.93603516,
+        "special": false,
+        "text": " unique"
+      },
+      {
+        "id": 3085,
+        "logprob": -0.028411865,
+        "special": false,
+        "text": " words"
+      },
+      {
+        "id": 369,
+        "logprob": -1.0400391,
+        "special": false,
+        "text": " that"
+      },
+      {
+        "id": 6685,
+        "logprob": -0.09710693,
+        "special": false,
+        "text": " describe"
+      },
+      {
+        "id": 528,
+        "logprob": -0.066467285,
+        "special": false,
+        "text": " me"
+      },
+      {
+        "id": 28725,
+        "logprob": -1.0722656,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 562,
+        "logprob": -0.33422852,
+        "special": false,
+        "text": " but"
+      },
+      {
+        "id": 315,
+        "logprob": -0.5136719,
+        "special": false,
+        "text": " I"
+      },
+      {
+        "id": 28809,
+        "logprob": -0.8989258,
+        "special": false,
+        "text": "’"
+      },
+      {
+        "id": 584,
+        "logprob": -0.2076416,
+        "special": false,
+        "text": "ll"
+      },
+      {
+        "id": 1464,
+        "logprob": -0.8808594,
+        "special": false,
+        "text": " try"
+      },
+      {
+        "id": 28723,
+        "logprob": -0.88427734,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 13,
+        "logprob": -0.91064453,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 13,
+        "logprob": -0.08105469,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 28740,
+        "logprob": -1.8486328,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 28723,
+        "logprob": -0.111572266,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 23626,
+        "logprob": -3.15625,
+        "special": false,
+        "text": " Creative"
+      },
+      {
+        "id": 13,
+        "logprob": -0.9194336,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 28750,
+        "logprob": -0.24841309,
+        "special": false,
+        "text": "2"
+      },
+      {
+        "id": 28723,
+        "logprob": -9.393692e-05,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 6785,
+        "logprob": -3.1386719,
+        "special": false,
+        "text": " Fun"
+      },
+      {
+        "id": 1780,
+        "logprob": -0.53564453,
+        "special": false,
+        "text": "ny"
+      },
+      {
+        "id": 13,
+        "logprob": -0.09033203,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 28770,
+        "logprob": -0.00466156,
+        "special": false,
+        "text": "3"
+      },
+      {
+        "id": 28723,
+        "logprob": -0.00016450882,
+        "special": false,
+        "text": "."
+      }
+    ]
+  },
+  "generated_text": "\n\nI’m not sure if I can come up with 3 unique words that describe me, but I’ll try.\n\n1. Creative\n2. Funny\n3."
+}

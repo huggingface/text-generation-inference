@@ -1,0 +1,53 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 4,
+    "prefill": [
+      {
+        "id": 100000,
+        "logprob": null,
+        "text": "<｜begin▁of▁sentence｜>"
+      },
+      {
+        "id": 3533,
+        "logprob": -9.625,
+        "text": "Test"
+      },
+      {
+        "id": 3102,
+        "logprob": -11.25,
+        "text": " request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 2143,
+        "logprob": -1.828125,
+        "special": false,
+        "text": " sent"
+      },
+      {
+        "id": 10081,
+        "logprob": -0.41210938,
+        "special": false,
+        "text": " successfully"
+      },
+      {
+        "id": 13,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 100001,
+        "logprob": -0.16015625,
+        "special": true,
+        "text": "<｜end▁of▁sentence｜>"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request sent successfully."
+}

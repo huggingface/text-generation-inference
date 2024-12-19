@@ -4,7 +4,7 @@ Text Generation Inference (TGI) now supports [JSON and regex grammars](#grammar-
 
 These feature are available starting from version `1.4.3`. They are accessible via the [`huggingface_hub`](https://pypi.org/project/huggingface-hub/) library. The tool support is compatible with OpenAI's client libraries. The following guide will walk you through the new features and how to use them!
 
-_note: guidance is supported as grammar in the `/generate` endpoint and as tools in the `/chat/completions` endpoint._
+_note: guidance is supported as grammar in the `/generate` endpoint and as tools in the `v1/chat/completions` endpoint._
 
 ## How it works
 
@@ -157,7 +157,12 @@ from huggingface_hub import InferenceClient
 
 client = InferenceClient("http://localhost:3000")
 
-regexp = "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)"
+section_regex = "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+regexp = f"HELLO\.{section_regex}\.WORLD\.{section_regex}"
+
+# This is a more realistic example of an ip address regex
+# regexp = f"{section_regex}\.{section_regex}\.{section_regex}\.{section_regex}"
+
 
 resp = client.text_generation(
     f"Whats Googles DNS? Please use the following regex: {regexp}",
@@ -170,7 +175,7 @@ resp = client.text_generation(
 
 
 print(resp)
-# 7.1.1.1
+# HELLO.255.WORLD.255
 
 ```
 
@@ -306,11 +311,13 @@ print(chat.choices[0].message.tool_calls)
 
 ```
 
-### OpenAI integration
+### OpenAI Integration
 
-TGI exposes an OpenAI-compatible API, which means you can use OpenAI's client libraries to interact with TGI's Messages API and Tool functions.
+Text Generation Inference (TGI) offers seamless integration with OpenAI's client libraries, allowing developers to interact with TGI's Messages API and Tool functions in a familiar way. This compatibility simplifies the implementation of advanced features, such as tools and grammar, within your applications using OpenAI’s client.
 
-However there are some minor differences in the API, for example `tool_choice="auto"` will ALWAYS choose the tool for you. This is different from OpenAI's API where `tool_choice="auto"` will choose a tool if the model thinks it's necessary.
+Previously, TGI handled tool selection differently than OpenAI’s API—`tool_choice="auto"` would always pick a tool for you. However, as of the latest version, TGI now mimics OpenAI’s behavior more closely: `tool_choice="auto"` selects a tool only when the model deems it necessary, aligning with how OpenAI's API works. This enhancement ensures a smoother and more predictable integration experience.
+
+Additionally, error notifications like `notify_error`, which previously indicated that no tool was chosen, are no longer returned. Instead, TGI will proceed with generating a response as if no tool was selected, further improving consistency with OpenAI's API.
 
 ```python
 from openai import OpenAI

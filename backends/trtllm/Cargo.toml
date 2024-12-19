@@ -1,0 +1,27 @@
+[package]
+name = "text-generation-backends-trtllm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+
+[dependencies]
+async-trait = "0.1"
+async-stream = "0.3"
+clap = { version = "4.5", features = ["derive"] }
+cxx = "1.0"
+log = { version = "0.4", features = [] }
+text-generation-router = { path = "../../router" }
+tokenizers = { version = "0.19", features = ["hf-hub"] }
+tokio = { version = "1.38", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
+tokio-stream = "0.1.15"
+thiserror = "1.0.62"
+tracing = "0.1"
+tracing-opentelemetry = "0.24"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+parking_lot = "0.12"
+
+[build-dependencies]
+cmake = "0.1"
+cxx-build = { version = "1.0", features = ["parallel"] }
+pkg-config = "0.3"

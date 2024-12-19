@@ -1,8 +1,9 @@
 use std::time::{Duration, Instant};
-use text_generation_client::{
-    Batch, CachedBatch, ClientError, NextTokenChooserParameters, Request, ShardedClient,
+use text_generation_client::v3::{
+    Batch, CachedBatch, NextTokenChooserParameters, Request, ShardedClient,
     StoppingCriteriaParameters,
 };
+use text_generation_client::{Chunk, ClientError, Input};
 use tokenizers::{Tokenizer, TruncationDirection};
 use tokio::sync::{broadcast, mpsc};
 
@@ -142,8 +143,12 @@ async fn prefill(
         .map(|id| Request {
             id: id.into(),
             prefill_logprobs: false,
+            input_chunks: Some(Input {
+                chunks: vec![Chunk::Text(sequence.clone()).into()],
+            }),
             inputs: sequence.clone(),
             truncate: sequence_length,
+            add_special_tokens: true,
             parameters: Some(parameters.clone()),
             stopping_parameters: Some(StoppingCriteriaParameters {
                 max_new_tokens: decode_length,
@@ -151,6 +156,10 @@ async fn prefill(
                 ignore_eos_token: true, // Will not stop even if a eos token is generated
             }),
             top_n_tokens: top_n_tokens.unwrap_or(0),
+            blocks: vec![],
+            slots: vec![],
+            prefix_len: 0,
+            adapter_id: None,
         })
         .collect();
 
@@ -159,14 +168,12 @@ async fn prefill(
         requests,
         size: batch_size,
         max_tokens: batch_size * (sequence_length + decode_length),
+        max_blocks: 0,
     };
 
     // Run prefill
     let start_time = Instant::now();
-
     let (_, decode_batch, _) = client.prefill(batch.clone()).await?;
-
-    let (_, decode_batch, _) = client.decode(vec![decode_batch.clone().unwrap()]).await?;
 
     // Get latency
     let latency = start_time.elapsed();
@@ -183,12 +190,11 @@ async fn prefill(
     };
 
     Ok((step, decode_batch))
-
 }
 
 /// Run a full decode
 async fn decode(batch: CachedBatch, client: &mut ShardedClient) -> Result<Decode, ClientError> {
-    let mut decode_length = 1; // 1 decode step was already scheduled in prefill with speculative scheduling
+    let mut decode_length = 0;
     let batch_size = batch.size;
 
     let start_time = Instant::now();

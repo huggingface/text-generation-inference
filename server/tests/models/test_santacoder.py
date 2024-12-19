@@ -1,13 +1,12 @@
 import pytest
 
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.causal_lm import CausalLMBatch
-from text_generation_server.models.santacoder import SantaCoder
+from text_generation_server.models.causal_lm import CausalLMBatch, CausalLM
 
 
 @pytest.fixture(scope="session")
 def default_santacoder():
-    return SantaCoder("bigcode/santacoder")
+    return CausalLM.fallback(model_id="bigcode/santacoder")
 
 
 @pytest.fixture
@@ -15,6 +14,7 @@ def default_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="def",
+        input_chunks=generate_pb2.Input(chunks=[generate_pb2.InputChunk(text="def")]),
         prefill_logprobs=True,
         truncate=100,
         parameters=default_pb_parameters,
@@ -32,6 +32,13 @@ def default_fim_pb_request(default_pb_parameters, default_pb_stop_parameters):
     return generate_pb2.Request(
         id=0,
         inputs="<fim-prefix>def<fim-suffix>world<fim-middle>",
+        input_chunks=generate_pb2.Input(
+            chunks=[
+                generate_pb2.InputChunk(
+                    text="<fim-prefix>def<fim-suffix>world<fim-middle>"
+                )
+            ]
+        ),
         prefill_logprobs=True,
         truncate=100,
         parameters=default_pb_parameters,

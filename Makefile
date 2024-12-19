@@ -1,20 +1,22 @@
 install-server:
 	cd server && make install
 
-install-integration-tests:
-	cd integration-tests && pip install -r requirements.txt
-	cd clients/python && pip install .
+install-server-cpu:
+	cd server && make install-server
 
 install-router:
-	cd router && cargo install --locked --path .
+	cargo install --path backends/v3/
 
 install-launcher:
-	cd launcher && cargo install --locked --path .
+	cargo install --path launcher/
 
 install-benchmark:
-	cd benchmark && cargo install --locked --path .
+	cargo install --path benchmark/
 
-install: install-server install-router install-launcher install-custom-kernels
+install: install-server install-router install-launcher
+
+
+install-cpu: install-server-cpu install-router install-launcher
 
 server-dev:
 	cd server && make run-dev
@@ -24,6 +26,10 @@ router-dev:
 
 rust-tests: install-router install-launcher
 	cargo test
+
+install-integration-tests:
+	cd integration-tests && pip install -r requirements.txt
+	cd clients/python && pip install .
 
 integration-tests: install-integration-tests
 	pytest -s -vv -m "not private" integration-tests
@@ -44,6 +50,3 @@ run-falcon-7b-instruct:
 
 clean:
 	rm -rf target aml
-
-debug_image_build:
-	docker build --no-cache --progress=plain -t debug_tgi .

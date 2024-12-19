@@ -1,5 +1,5 @@
 /// Inspired by https://github.com/orhun/rust-tui-template/blob/472aa515119d4c94903eac12d9784417281dc7f5/src/event.rs
-use crossterm::event;
+use ratatui::crossterm::event;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc};
 

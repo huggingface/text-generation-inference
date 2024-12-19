@@ -1,5 +1,23 @@
+from dataclasses import dataclass
+
 import torch
 from EETQ import quant_weights, w8_a16_gemm
+from text_generation_server.utils.weights import UnquantizedWeight
+
+
+@dataclass
+class EETQWeight(UnquantizedWeight):
+    weight: torch.Tensor
+
+    def get_linear(self, bias: torch.Tensor):
+        try:
+            from text_generation_server.layers.eetq import EETQLinear
+
+            return EETQLinear(self.weight, bias)
+        except ImportError:
+            raise ImportError(
+                "Please install EETQ from https://github.com/NetEase-FuXi/EETQ"
+            )
 
 
 class EETQLinear(torch.nn.Module):

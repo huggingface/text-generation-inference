@@ -1,7 +1,7 @@
+from contextlib import nullcontext
 import math
 import os
 import time
-import itertools
 import torch
 import torch.distributed
 
@@ -10,31 +10,47 @@ import numpy as np
 from loguru import logger
 from dataclasses import dataclass
 from opentelemetry import trace
-from transformers import PreTrainedTokenizerBase
-from typing import Optional, Tuple, List, Type, Dict
+from transformers import (
+    PreTrainedTokenizerBase,
+    AutoConfig,
+    AutoTokenizer,
+    GenerationConfig,
+)
+from typing import Any, ContextManager, Iterable, Optional, Tuple, List, Type, Dict
 
+from text_generation_server.adapters import AdapterBatchData, AdapterBatchMetadata
 from huggingface_hub.constants import HUGGINGFACE_HUB_CACHE
+from text_generation_server.utils.chunks import concat_text_chunks
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.models import Model
+from text_generation_server.utils.log import log_master
 from text_generation_server.utils.tokens import batch_top_tokens
-from text_generation_server.utils.dist import RANK
 from text_generation_server.utils.speculate import get_speculate
+from text_generation_server.utils import (
+    initialize_torch_distributed,
+    weight_files,
+    Weights,
+)
 from text_generation_server.models.types import (
     Batch,
     Tokens,
     Generation,
     GeneratedText,
 )
-from text_generation_server.models.cache_manager import (
-    get_cache_manager,
-    set_cache_manager,
-    BLOCK_SIZE,
-)
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.globals import MEM_POOL, CUDA_GRAPHS
-import text_generation_server.models.globals as tgi_globals
+from text_generation_server.models.globals import (
+    MEM_POOL,
+    ATTENTION,
+    BLOCK_SIZE,
+    CUDA_GRAPHS,
+    TGI_WIGGLE_ROOM,
+    get_adapter_to_index,
+)
+from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils import StoppingCriteria, HeterogeneousNextTokenChooser
 from text_generation_server.utils.dist import MEMORY_FRACTION
+from text_generation_server.utils.quantization import get_loader
+from text_generation_server.utils.segments import SegmentConcatBuilder, find_segments
 
 from text_generation_server.utils.import_utils import (
     empty_cache,
@@ -43,6 +59,54 @@ from text_generation_server.utils.import_utils import (
 )
 
 tracer = trace.get_tracer(__name__)
+
+
+# Will be set in init
+SLIDING_WINDOW: Optional[int] = None
+
+
+def set_sliding_window(sliding_window: int):
+    global SLIDING_WINDOW
+    SLIDING_WINDOW = sliding_window
+
+
+def get_sliding_windows() -> int:
+    global SLIDING_WINDOW
+    return SLIDING_WINDOW
+
+
+def init_cpu_threads_env(rank_id: int, world_size: int):
+    import importlib.util
+
+    if importlib.util.find_spec("numa") is not None:
+        import numa
+        import psutil
+
+        nodes = numa.info.get_max_node() + 1
+        rank_per_node = math.ceil(world_size / nodes)
+        num_cpus_per_nodes = int(psutil.cpu_count(logical=False) / nodes)
+        node_id = int(rank_id / rank_per_node)
+        rank_offset_per_node = rank_id % rank_per_node
+        if os.getenv("OMP_NUM_THREADS") is None:
+            num_cpus_per_rank = max(int(num_cpus_per_nodes / rank_per_node), 1)
+        else:
+            num_cpus_per_rank = int(os.getenv("OMP_NUM_THREADS"))
+        if len(numa.memory.get_membind_nodes()) == nodes:
+            numa.memory.set_membind_nodes((node_id))
+        torch.set_num_threads(num_cpus_per_rank)
+        if len(numa.schedule.get_affinitive_cpus(0)) == psutil.cpu_count(logical=True):
+            cpu_start = num_cpus_per_rank * rank_offset_per_node
+            numa.schedule.run_on_cpus(
+                0,
+                *(
+                    numa.info.node_to_cpus(node_id)[
+                        cpu_start : cpu_start + num_cpus_per_rank
+                    ]
+                ),
+            )
+        logger.info(
+            f"affinity={numa.schedule.get_affinitive_cpus(0)}, membind = {numa.memory.get_membind_nodes()}"
+        )
 
 
 @dataclass
@@ -55,12 +119,15 @@ class FlashCausalLMBatch(Batch):
     # Decoder values
     input_ids: torch.Tensor
     position_ids: torch.Tensor
-    speculative_ids: torch.Tensor
+    speculative_ids: Optional[torch.Tensor]
 
     # Flash Attention values
 
     # tensor of length b containing the cumulative sequence lengths of the sequences in the batch, only used in prefill
     cu_seqlen_prefill: Optional[torch.Tensor]
+    # Prefill cache indices is used to slice into the kv tensor before caching it into the paged attention buffers
+    # as we only keep SLIDING_WINDOW values instead of the whole tensor
+    prefill_cache_indices: Optional[torch.Tensor]
 
     # Paged Attention values
 
@@ -69,16 +136,16 @@ class FlashCausalLMBatch(Batch):
     start_slots: torch.Tensor
     # tensor of indices of the currently used slots, length = \sum_{i=0}^{b} s_i in prefill, length = b in decode
     slot_indices: torch.Tensor
-    # List of tuple of ints representing the number of blocks and slots needed by each sequence
-    needed_blocks_slots: Optional[List[Tuple[int, int]]]
 
-    # Set in prefill by the CacheManager
     # list of length b of list of length s_i // block_size
-    block_tables: Optional[List[List[int]]]
+    block_tables: List[List[int]]
     # tensor of size [b, max_total_seqlen // block_size] holding the paged attention block tables for all sequences
-    block_tables_tensor: Optional[torch.Tensor]
+    block_tables_tensor: torch.Tensor
     # tensor of length \sum_{i=0}^{b} max_s_i  holding the paged attention slots for all sequences
-    slots: Optional[torch.Tensor]
+    slots: torch.Tensor
+    # size [b], containing the number of blocks that can be retrieved from the cache
+    prefix_lens: List[int]
+    prefix_lens_tensor: torch.Tensor
 
     max_seqlen: int
 
@@ -86,6 +153,9 @@ class FlashCausalLMBatch(Batch):
     prefill_head_indices: Optional[torch.Tensor]
     prefill_next_token_indices: Optional[torch.tensor]
     prefill_cu_outlens: Optional[List[int]]
+
+    # Prefixes
+    prefix_ids: List[List[int]]
 
     # All tokens
     all_input_ids: List[List[int]]
@@ -103,8 +173,11 @@ class FlashCausalLMBatch(Batch):
     top_n_tokens: List[int]
     top_n_tokens_tensor: torch.Tensor
 
+    # Adapter metadata for each request
+    adapter_meta: AdapterBatchMetadata
+
     # Number of blocks in this batch
-    blocks: int
+    num_blocks: int
     # Maximum number of blocks
     max_blocks: int
 
@@ -113,32 +186,28 @@ class FlashCausalLMBatch(Batch):
             id=self.batch_id,
             request_ids=[r.id for r in self.requests],
             size=len(self),
-            max_tokens=self.blocks * BLOCK_SIZE,
+            max_tokens=self.num_blocks * BLOCK_SIZE,
         )
 
     @classmethod
-    def batch_tokenized_inputs(cls, requests, tokenizer):
-        batch_inputs = []
-        max_truncation = 0
+    def batch_tokenized_inputs(
+        cls, requests: Iterable[generate_pb2.Request], tokenizer
+    ):
+        max_length = 0
+        all_input_ids = []
+        batch_size = 0
         for r in requests:
-            batch_inputs.append(r.inputs)
-            max_truncation = max(max_truncation, r.truncate)
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs, truncation=True, max_length=max_truncation
-        )["input_ids"]
-        return batch_tokenized_inputs
-
-    @classmethod
-    def from_pb(
-        cls,
-        pb: generate_pb2.Batch,
-        tokenizer: PreTrainedTokenizerBase,
-        dtype: torch.dtype,
-        device: torch.device,
-    ) -> "FlashCausalLMBatch":
-        batch_tokenized_inputs = cls.batch_tokenized_inputs(pb.requests, tokenizer)
-        return cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
+            batch_size += 1
+            inputs = concat_text_chunks(r.input_chunks.chunks)
+            input_ids = tokenizer(
+                inputs,
+                truncation=True,
+                max_length=r.truncate,
+                add_special_tokens=r.add_special_tokens,
+            )["input_ids"]
+            max_length = max(max_length, len(input_ids))
+            all_input_ids.append(input_ids)
+        return all_input_ids
 
     @classmethod
     def from_tokenized(
@@ -149,17 +218,18 @@ class FlashCausalLMBatch(Batch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "FlashCausalLMBatch":
+        sliding_window = get_sliding_windows()
         position_ids = []
-        speculative_ids = []
         cu_seqlen_prefill = [0]
-        needed_blocks_slots = []
         start_slots = []
         slot_indices = []
+        prefill_cache_indices = []
 
         input_lengths = []
         prefix_offsets = []
         read_offsets = []
         all_input_ids = []
+        prefix_ids = []
         requests_idx_mapping = {}
 
         all_prefill_logprobs = True
@@ -172,15 +242,22 @@ class FlashCausalLMBatch(Batch):
         stopping_criterias = []
         top_n_tokens = []
 
+        adapter_indices_list = []
+        adapter_set = set()
+
         # Cumulative length
         cumulative_length = 0
-        cumulative_max_length = 0
+        cumulative_slot_tokens = 0
         prefill_out_cumulative_length = 0
 
-        blocks = 0
+        num_blocks = 0
         max_seqlen = 0
         max_length = 0
         max_blocks = 0
+
+        block_tables = []
+        slots = []
+        prefix_lens = []
 
         # Parse batch
         for i, (r, tokenized_input) in enumerate(
@@ -189,12 +266,20 @@ class FlashCausalLMBatch(Batch):
             # request id -> idx in list mapping
             requests_idx_mapping[r.id] = i
 
-            tokenized_input = tokenized_input[-r.truncate :]
-            if (
-                tokenized_input[0] == tokenizer.bos_token_id
-                and tokenized_input[1] == tokenizer.bos_token_id
-            ):
-                tokenized_input = tokenized_input[1:]
+            orig_input_length = len(tokenized_input)
+
+            prefix_len = r.prefix_len
+            assert (
+                prefix_len <= orig_input_length
+            ), f"Prefix {prefix_len} vs input {orig_input_length}"
+            if prefix_len == orig_input_length:
+                assert prefix_len > 0
+                prefix_len -= 1
+
+            # Commented as it's costly.
+            # log_master(logger.debug, "Tokenized input ids {tokenized_input}")
+            prefix_ids.append(tokenized_input[:prefix_len])
+            tokenized_input = tokenized_input[prefix_len:]
 
             input_length = len(tokenized_input)
             input_lengths.append(input_length)
@@ -205,7 +290,9 @@ class FlashCausalLMBatch(Batch):
             all_input_ids.append(tokenized_input)
 
             # Position ids
-            request_position_ids = torch.arange(0, input_length, dtype=torch.int32)
+            request_position_ids = torch.arange(
+                prefix_len, orig_input_length, dtype=torch.int32
+            )
             position_ids.append(request_position_ids)
 
             # Add cumulative lengths of all previous inputs
@@ -220,22 +307,62 @@ class FlashCausalLMBatch(Batch):
             stopping_criterias.append(stopping_criteria)
             top_n_tokens.append(r.top_n_tokens)
 
+            ADAPTER_TO_INDEX = get_adapter_to_index()
+            adapter_index = ADAPTER_TO_INDEX.get(r.adapter_id, 0)
+            adapter_indices_list.append(torch.full((input_length,), adapter_index))
+            adapter_set.add(adapter_index)
+
             # Paged attention
             # Remove one as the first token des not have a past
             speculative_length = get_speculate()
             speculative_length = 0 if speculative_length is None else speculative_length
-            total_tokens = input_length + max_new_tokens - 1 + speculative_length
-            needed_blocks = math.ceil(total_tokens / BLOCK_SIZE)
-            blocks += needed_blocks
-            needed_blocks_slots.append((needed_blocks, total_tokens))
-            start_slots.append(cumulative_max_length)
+
+            # Tokens that need to be mapped to blocks.
+            block_tokens = orig_input_length + max_new_tokens - 1 + speculative_length
+
+            # Tokens that need to be mapped to slots. We don't need slots for the
+            # cached prefix (if present).
+            slot_tokens = input_length + max_new_tokens - 1 + speculative_length
+
+            # blocks and slots can be empty (for example in warmup)
+            if not r.blocks:
+                needed_blocks = math.ceil(block_tokens / BLOCK_SIZE)
+                request_blocks = [
+                    b for b in range(num_blocks, num_blocks + needed_blocks)
+                ]
+                request_slots = [
+                    s
+                    for b in request_blocks
+                    for s in range(b * BLOCK_SIZE, (b + 1) * BLOCK_SIZE)
+                ]
+            else:
+                request_blocks = r.blocks
+                request_slots = r.slots[
+                    prefix_len:  #: orig_input_length + max_new_tokens + speculative_length
+                ]
+
+            block_tables.append(request_blocks)
+
+            slots.extend(request_slots)
+            prefix_lens.append(prefix_len)
+            num_blocks += len(request_blocks)
+            start_slots.append(cumulative_slot_tokens)
 
             request_slot_indices = torch.arange(
-                cumulative_max_length,
-                cumulative_max_length + input_length,
+                cumulative_slot_tokens,
+                cumulative_slot_tokens + input_length,
                 dtype=torch.int64,
             )
             slot_indices.append(request_slot_indices)
+
+            # Create tensor to slice into the kv tensor in prefill
+            if sliding_window is not None:
+                request_prefill_cache_indices = torch.arange(
+                    cumulative_length + max(0, input_length - sliding_window),
+                    cumulative_length + input_length,
+                    dtype=torch.int64,
+                )
+                prefill_cache_indices.append(request_prefill_cache_indices)
 
             all_prefill_logprobs = all_prefill_logprobs and r.prefill_logprobs
             no_prefill_logprobs = no_prefill_logprobs and not r.prefill_logprobs
@@ -259,12 +386,16 @@ class FlashCausalLMBatch(Batch):
 
             # Update
             cumulative_length += input_length
-            cumulative_max_length += total_tokens
+            cumulative_slot_tokens += slot_tokens
             max_seqlen = max(max_seqlen, input_length)
-            max_blocks = max(max_blocks, needed_blocks)
+            max_blocks = max(max_blocks, len(request_blocks))
             max_length = max(
                 max_length, input_length + max_new_tokens + speculative_length
             )
+
+        adapter_indices = torch.cat(adapter_indices_list).to(
+            dtype=torch.int64, device=device
+        )
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             next_token_chooser_parameters, dtype, device, tokenizer
@@ -287,19 +418,31 @@ class FlashCausalLMBatch(Batch):
             input_ids = np.concatenate(all_input_ids, dtype=np.int64)
             position_ids = torch.cat(position_ids)
             slot_indices = torch.cat(slot_indices)
+            if sliding_window is not None:
+                prefill_cache_indices = torch.cat(prefill_cache_indices)
         else:
             input_ids = all_input_ids[0]
             position_ids = position_ids[0]
             slot_indices = slot_indices[0]
+            if sliding_window is not None:
+                prefill_cache_indices = prefill_cache_indices[0]
 
         cu_seqlen_prefill = torch.tensor(
             cu_seqlen_prefill, device=device, dtype=torch.int32
         )
         position_ids = position_ids.to(device)
         slot_indices = slot_indices.to(device)
+        prefill_cache_indices = (
+            prefill_cache_indices.to(device) if sliding_window is not None else None
+        )
         input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         input_lengths_tensor = torch.tensor(
             input_lengths, dtype=torch.int32, device=device
+        )
+
+        adapter_segments, adapter_segment_indices = find_segments(adapter_indices)
+        adapter_segments = torch.tensor(
+            adapter_segments, dtype=torch.int32, device=device
         )
 
         if all_prefill_logprobs:
@@ -319,6 +462,16 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens, device=device, dtype=torch.int64
         )
 
+        slots = torch.tensor(slots, dtype=torch.int64, device=device)
+
+        block_tables_tensor = torch.zeros(
+            (len(block_tables), max_blocks), dtype=torch.int32, device="cpu"
+        )
+        for i, request_blocks in enumerate(block_tables):
+            block_tables_tensor[i, : len(request_blocks)] = torch.tensor(request_blocks)
+        block_tables_tensor = block_tables_tensor.to(device)
+        prefix_lens_tensor = torch.tensor(prefix_lens, dtype=torch.int32, device=device)
+
         return cls(
             batch_id=pb.id,
             requests=pb.requests,
@@ -326,12 +479,14 @@ class FlashCausalLMBatch(Batch):
             input_ids=input_ids,
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
+            prefill_cache_indices=prefill_cache_indices,
             start_slots=start_slots,
             slot_indices=slot_indices,
-            needed_blocks_slots=needed_blocks_slots,
-            block_tables=None,
-            block_tables_tensor=None,
-            slots=None,
+            block_tables=block_tables,
+            block_tables_tensor=block_tables_tensor,
+            slots=slots,
+            prefix_lens=prefix_lens,
+            prefix_lens_tensor=prefix_lens_tensor,
             max_seqlen=max_seqlen,
             prefill_head_indices=prefill_head_indices,
             prefill_next_token_indices=prefill_next_token_indices,
@@ -342,14 +497,33 @@ class FlashCausalLMBatch(Batch):
             read_offsets=read_offsets,
             all_input_ids=all_input_ids,
             all_input_ids_tensor=all_input_ids_tensor,
+            prefix_ids=prefix_ids,
             next_token_chooser=next_token_chooser,
             stopping_criterias=stopping_criterias,
             top_n_tokens=top_n_tokens,
             top_n_tokens_tensor=top_n_tokens_tensor,
-            blocks=blocks,
+            num_blocks=num_blocks,
             max_blocks=max_blocks,
+            adapter_meta=AdapterBatchMetadata(
+                adapter_indices=adapter_indices,
+                adapter_set=adapter_set,
+                adapter_segments=adapter_segments,
+                segment_indices=adapter_segment_indices,
+            ),
             speculative_ids=None,
         )
+
+    @classmethod
+    def from_pb(
+        cls,
+        pb: generate_pb2.Batch,
+        tokenizer: PreTrainedTokenizerBase,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> "FlashCausalLMBatch":
+        assert len(pb.requests) > 0
+        batch_tokenized_inputs = cls.batch_tokenized_inputs(pb.requests, tokenizer)
+        return cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
 
     @tracer.start_as_current_span("filter")
     def filter(self, request_ids: List[int]) -> "FlashCausalLMBatch":
@@ -380,15 +554,18 @@ class FlashCausalLMBatch(Batch):
         start_slots = []
         block_tables = []
         all_input_ids = []
+        prefix_ids = []
 
         input_lengths = []
+        prefix_lens = []
         prefix_offsets = []
         read_offsets = []
 
         stopping_criterias = []
         top_n_tokens = []
+        adapter_set = set()
 
-        blocks = 0
+        num_blocks = 0
         max_blocks = 0
         # Cumulative length
         cumulative_max_length = 0
@@ -402,11 +579,14 @@ class FlashCausalLMBatch(Batch):
 
             # Get length
             request_input_length = self.input_lengths[idx]
+            prefix_len = self.prefix_lens[idx]
             max_seqlen = max(max_seqlen, request_input_length)
 
             all_input_ids.append(self.all_input_ids[idx])
+            prefix_ids.append(self.prefix_ids[idx])
 
             input_lengths.append(request_input_length)
+            prefix_lens.append(prefix_len)
             prefix_offsets.append(self.prefix_offsets[idx])
             read_offsets.append(self.read_offsets[idx])
 
@@ -415,12 +595,16 @@ class FlashCausalLMBatch(Batch):
 
             top_n_tokens.append(self.top_n_tokens[idx])
 
+            ADAPTER_TO_INDEX = get_adapter_to_index()
+            adapter_index = ADAPTER_TO_INDEX.get(self.requests[idx].adapter_id, 0)
+            adapter_set.add(adapter_index)
+
             remaining_tokens = (
                 stopping_criteria.max_new_tokens - stopping_criteria.current_tokens
             )
 
             request_block_table = self.block_tables[idx]
-            blocks += len(request_block_table)
+            num_blocks += len(request_block_table)
             block_tables.append(request_block_table)
             start_slots.append(cumulative_max_length)
 
@@ -439,24 +623,15 @@ class FlashCausalLMBatch(Batch):
 
             max_blocks = max(max_blocks, len(request_block_table))
 
-        block_indices_to_free = []
-        # Iterate on all requests
-        for i, r in enumerate(self.requests):
-            # Filter requests that are not part of the new batch
-            if r.id not in requests_idx_mapping.keys():
-                block_indices_to_free.extend(self.block_tables[i])
-        # Free blocks
-        get_cache_manager().free(block_indices_to_free)
-        # Needed to avoid dropping blocks when the batches will go out of scope
-        self.block_tables = None
-
         # Index into tensors
         input_ids = self.input_ids[indices]
         position_ids = self.position_ids[indices]
+        adapter_indices = self.adapter_meta.adapter_indices[indices]
         all_input_ids_tensor = self.all_input_ids_tensor[indices]
         block_tables_tensor = self.block_tables_tensor[indices]
         input_lengths_tensor = self.input_lengths_tensor[indices]
         slots = self.slots[slot_filtering_indices]
+        prefix_lens_tensor = self.prefix_lens_tensor[indices]
         next_token_chooser = self.next_token_chooser.filter(indices)
         top_n_tokens_tensor = self.top_n_tokens_tensor[indices]
         speculative_ids = (
@@ -468,6 +643,12 @@ class FlashCausalLMBatch(Batch):
         # Move to GPU now that we have the whole tensor
         slot_indices = slot_indices.to(device)
 
+        adapter_segments, adapter_segment_indices = find_segments(adapter_indices)
+        adapter_segments = torch.tensor(
+            adapter_segments, dtype=torch.int32, device=device
+        )
+        # assert sum(len(b) for b in block_tables) == (block_tables_tensor != 0).sum()
+
         return type(self)(
             batch_id=self.batch_id,
             requests=requests,
@@ -475,9 +656,9 @@ class FlashCausalLMBatch(Batch):
             input_ids=input_ids,
             position_ids=position_ids,
             cu_seqlen_prefill=None,
+            prefill_cache_indices=None,
             start_slots=start_slots,
             slot_indices=slot_indices,
-            needed_blocks_slots=None,
             block_tables=block_tables,
             block_tables_tensor=block_tables_tensor,
             slots=slots,
@@ -487,17 +668,26 @@ class FlashCausalLMBatch(Batch):
             prefill_cu_outlens=None,
             input_lengths=input_lengths,
             input_lengths_tensor=input_lengths_tensor,
+            prefix_lens=prefix_lens,
+            prefix_lens_tensor=prefix_lens_tensor,
             prefix_offsets=prefix_offsets,
             read_offsets=read_offsets,
             all_input_ids=all_input_ids,
             all_input_ids_tensor=all_input_ids_tensor,
+            prefix_ids=prefix_ids,
             next_token_chooser=next_token_chooser,
             stopping_criterias=stopping_criterias,
             top_n_tokens=top_n_tokens,
             top_n_tokens_tensor=top_n_tokens_tensor,
-            blocks=blocks,
+            num_blocks=num_blocks,
             max_blocks=max_blocks,
             speculative_ids=speculative_ids,
+            adapter_meta=AdapterBatchMetadata(
+                adapter_indices=adapter_indices,
+                adapter_set=adapter_set,
+                adapter_segments=adapter_segments,
+                segment_indices=adapter_segment_indices,
+            ),
         )
 
     @classmethod
@@ -507,7 +697,7 @@ class FlashCausalLMBatch(Batch):
         requests = []
         requests_idx_mapping = {}
 
-        blocks = 0
+        num_blocks = 0
         total_batch_size = 0
         total_slots = 0
         max_blocks = 0
@@ -516,7 +706,7 @@ class FlashCausalLMBatch(Batch):
         for b in batches:
             total_batch_size += len(b)
             total_slots += len(b.slots)
-            blocks += b.blocks
+            num_blocks += b.num_blocks
             speculative_length = (
                 b.speculative_ids.shape[1] if b.speculative_ids is not None else 0
             )
@@ -545,16 +735,27 @@ class FlashCausalLMBatch(Batch):
         block_tables_tensor = batches[0].block_tables_tensor.new_zeros(
             (total_batch_size, max_blocks)
         )
+        prefix_lens_tensor = batches[0].prefix_lens_tensor.new_empty(total_batch_size)
         all_input_ids_tensor = batches[0].all_input_ids_tensor.new_zeros(
             (total_batch_size, max_length)
         )
         top_n_tokens_tensor = batches[0].top_n_tokens_tensor.new_zeros(
             total_batch_size,
         )
+        total_indices_size = sum(
+            b.adapter_meta.adapter_indices.shape[0] for b in batches
+        )
+        adapter_indices = batches[0].adapter_meta.adapter_indices.new_empty(
+            total_indices_size
+        )
+        adapter_set = set()
+        adapter_segment_builder = SegmentConcatBuilder()
 
         start_slots = []
         block_tables = []
+        prefix_lens = []
         all_input_ids = []
+        prefix_ids = []
 
         input_lengths = []
         prefix_offsets = []
@@ -568,6 +769,7 @@ class FlashCausalLMBatch(Batch):
         # Cumulative length
         cumulative_batch_size = 0
         cumulative_slots = 0
+        cumulative_adapter_indices_size = 0
 
         for i, batch in enumerate(batches):
             requests.extend(batch.requests)
@@ -592,6 +794,21 @@ class FlashCausalLMBatch(Batch):
             top_n_tokens_tensor[start_index:end_index] = batch.top_n_tokens_tensor
             slots[slots_start_index:slots_end_index] = batch.slots
 
+            # Copy over adapter indices
+            adapter_start_index = cumulative_adapter_indices_size
+            adapter_end_index = (
+                cumulative_adapter_indices_size
+                + batch.adapter_meta.adapter_indices.shape[0]
+            )
+            adapter_indices[adapter_start_index:adapter_end_index] = (
+                batch.adapter_meta.adapter_indices
+            )
+            cumulative_adapter_indices_size = adapter_end_index
+            adapter_set.update(batch.adapter_meta.adapter_set)
+            adapter_segment_builder.concat(
+                batch.adapter_meta.adapter_segments, batch.adapter_meta.segment_indices
+            )
+
             all_input_ids_tensor[
                 start_index:end_index, : batch.all_input_ids_tensor.shape[1]
             ] = batch.all_input_ids_tensor[:, :max_length]
@@ -600,10 +817,14 @@ class FlashCausalLMBatch(Batch):
                 start_index:end_index, : batch.block_tables_tensor.shape[1]
             ] = batch.block_tables_tensor[:, :max_blocks]
 
+            prefix_lens_tensor[start_index:end_index] = batch.prefix_lens_tensor
+
             start_slots.append(batch.start_slots + cumulative_slots)
 
             block_tables.extend(batch.block_tables)
+            prefix_lens.extend(batch.prefix_lens)
             all_input_ids.extend(batch.all_input_ids)
+            prefix_ids.extend(batch.prefix_ids)
 
             input_lengths.extend(batch.input_lengths)
             prefix_offsets.extend(batch.prefix_offsets)
@@ -621,6 +842,8 @@ class FlashCausalLMBatch(Batch):
 
         start_slots = torch.concat(start_slots)
 
+        # assert sum(len(b) for b in block_tables) == (block_tables_tensor != 0).sum()
+
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             next_token_chooser_parameters,
             dtype=batches[0].next_token_chooser.dtype,
@@ -635,10 +858,7 @@ class FlashCausalLMBatch(Batch):
             else None
         )
 
-        # Needed to avoid dropping blocks when the batches will go out of scope
-        for b in batches:
-            b.block_tables = None
-            del b
+        adapter_segments, adapter_segment_indices = adapter_segment_builder.build()
 
         return cls(
             batch_id=batches[0].batch_id,
@@ -647,11 +867,13 @@ class FlashCausalLMBatch(Batch):
             input_ids=input_ids,
             position_ids=position_ids,
             cu_seqlen_prefill=None,
+            prefill_cache_indices=None,
             start_slots=start_slots,
             slot_indices=slot_indices,
-            needed_blocks_slots=None,
             block_tables=block_tables,
             block_tables_tensor=block_tables_tensor,
+            prefix_lens=prefix_lens,
+            prefix_lens_tensor=prefix_lens_tensor,
             slots=slots,
             max_seqlen=max_seqlen,
             prefill_head_indices=None,
@@ -663,47 +885,176 @@ class FlashCausalLMBatch(Batch):
             read_offsets=read_offsets,
             all_input_ids=all_input_ids,
             all_input_ids_tensor=all_input_ids_tensor,
+            prefix_ids=prefix_ids,
             next_token_chooser=next_token_chooser,
             stopping_criterias=stopping_criterias,
             top_n_tokens=top_n_tokens,
             top_n_tokens_tensor=top_n_tokens_tensor,
-            blocks=blocks,
+            num_blocks=num_blocks,
             max_blocks=max_blocks,
             speculative_ids=speculative_ids,
+            adapter_meta=AdapterBatchMetadata(
+                adapter_indices=adapter_indices,
+                adapter_set=adapter_set,
+                adapter_segments=adapter_segments,
+                segment_indices=adapter_segment_indices,
+            ),
         )
-
-    def __del__(self):
-        if self.block_tables is not None and self.block_tables:
-            # Free blocks
-            get_cache_manager().free(
-                list(itertools.chain.from_iterable(self.block_tables))
-            )
 
     def __len__(self):
         return len(self.requests)
 
 
+ADAPTER_LAYERS = [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
+]
+ROW_PARALLEL = {"o_proj", "down_proj", "lm_head"}
+
+
 class FlashCausalLM(Model):
     def __init__(
         self,
-        model: torch.nn.Module,
-        tokenizer: PreTrainedTokenizerBase,
-        num_layers: int,
-        num_kv_heads: int,
-        head_size: int,
-        dtype: torch.dtype,
-        device: torch.device,
-        rank: int = 0,
-        world_size: int = 1,
-        sliding_window: Optional[int] = None,
+        model_id: str,
+        model_class,
+        revision: Optional[str] = None,
+        quantize: Optional[str] = None,
+        speculator: Optional[str] = None,
+        dtype: Optional[torch.dtype] = None,
+        trust_remote_code: bool = False,
+        lora_adapter_ids: Optional[list] = [],
+        tokenizer_class: PreTrainedTokenizerBase = AutoTokenizer,
+        config_class: PreTrainedTokenizerBase = AutoConfig,
+        default_dtype=torch.float16,
+        aliases=None,
+        # Used for Santacoder override of config
+        num_kv_heads: Optional[int] = None,
+        # Deepseek V2 uses different QK and V dims.
+        head_size: Optional[int] = None,
+        skip_special_tokens: bool = True,
     ):
-        self.num_layers = num_layers
-        self.num_kv_heads = num_kv_heads
-        self.head_size = head_size
+        self.quantize = quantize
+        self.process_group, rank, world_size = initialize_torch_distributed()
+        if torch.cuda.is_available():
+            device = torch.device(f"cuda:{rank}")
+            dtype = default_dtype if dtype is None else dtype
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+                dtype = default_dtype if dtype is None else dtype
+            else:
+                device = torch.device("cpu")
+                # Float16 doesn't exist on target.
+                dtype = torch.bfloat16 if dtype is None else dtype
+                init_cpu_threads_env(rank_id=rank, world_size=world_size)
+        else:
+            raise NotImplementedError(f"{model_class} is only available on GPU")
+
+        tokenizer = tokenizer_class.from_pretrained(
+            model_id,
+            revision=revision,
+            padding_side="left",
+            truncation_side="left",
+            trust_remote_code=trust_remote_code,
+        )
+        try:
+            generation_config = GenerationConfig.from_pretrained(
+                model_id, revision=revision, trust_remote_code=trust_remote_code
+            )
+            if isinstance(generation_config.eos_token_id, (list, set)):
+                # TODO Huge hack
+                tokenizer._eos_token_ids = set(generation_config.eos_token_id)
+        except Exception:
+            pass
+
+        config = config_class.from_pretrained(
+            model_id, revision=revision, trust_remote_code=trust_remote_code
+        )
+        config.quantize = quantize
+        config.speculator = speculator
+
+        torch.distributed.barrier(group=self.process_group)
+
+        weights_loader = get_loader(quantize, model_id, revision)
+        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
+        weights = Weights(
+            filenames,
+            device,
+            dtype,
+            process_group=self.process_group,
+            aliases=aliases,
+            weights_loader=weights_loader,
+        )
+
+        prefix = ""
+        model = model_class(prefix, config, weights)
+        torch.distributed.barrier(group=self.process_group)
+
+        # VLM models define the config we care about in their text_config
+        text_config = getattr(config, "text_config", None)
+        if text_config is not None:
+            config = text_config
+
+        if getattr(config, "sliding_window", None) is not None:
+            set_sliding_window(config.sliding_window)
+        else:
+            config.sliding_window = None
+
+        self.num_layers = config.num_hidden_layers
+        self.num_heads = config.num_attention_heads // self.process_group.size()
+        # Validation is done in the model itself
+        if num_kv_heads is None:
+            num_kv_heads = getattr(config, "num_key_value_heads", None)
+            # GPT-2 workaround
+            if num_kv_heads is None:
+                num_kv_heads = getattr(config, "n_head", None)
+        if num_kv_heads is None:
+            raise ValueError("Cannot get the number of key/value heads")
+        self.num_kv_heads = (
+            num_kv_heads // self.process_group.size()
+            if num_kv_heads > 1
+            else num_kv_heads
+        )
+        assert self.num_kv_heads > 0
+
+        if head_size is None:
+            # Some models use GQA and different sizes for o_proj
+            # and q_proj, that allows for that.
+            if hasattr(config, "head_dim"):
+                self.head_size = config.head_dim
+            else:
+                self.head_size = config.hidden_size // config.num_attention_heads
+        else:
+            self.head_size = head_size
 
         self.cuda_graphs = {}
+        self.kv_cache = []
 
-        super(FlashCausalLM, self).__init__(
+        if ATTENTION == "flashinfer":
+            from text_generation_server.layers.attention.flashinfer import (
+                create_prefill_state,
+                create_decode_state,
+                create_prefill_with_paged_kv_state,
+            )
+
+            self.prefill_state = create_prefill_state(device=device)
+            self.prefill_with_paged_kv_state = create_prefill_with_paged_kv_state(
+                device=device
+            )
+
+            self.decode_state = create_decode_state(
+                device=device,
+                num_heads=self.num_heads,
+                num_kv_heads=self.num_kv_heads,
+            )
+
+        super().__init__(
+            model_id=model_id,
             model=model,
             tokenizer=tokenizer,
             requires_padding=False,
@@ -711,65 +1062,190 @@ class FlashCausalLM(Model):
             device=device,
             rank=rank,
             world_size=world_size,
-            sliding_window=sliding_window,
+            sliding_window=config.sliding_window,
         )
 
     @property
     def batch_type(self) -> Type[FlashCausalLMBatch]:
         return FlashCausalLMBatch
 
+    def max_past(self) -> int:
+        return getattr(self.model, "max_past", None)
+
+    def init_kv_cache(
+        self,
+        num_blocks: int,
+        num_layers: int,
+        num_heads: int,
+        head_size: int,
+        dtype: torch.dtype,
+        device: torch.device,
+    ):
+        self.kv_cache = []
+        empty_cache()
+
+        element_size = torch.tensor([], dtype=dtype).element_size()
+        if SYSTEM == "ipex" and device.type == "xpu":
+            x = 1
+        else:
+            x = BLOCK_SIZE // element_size
+
+        if ATTENTION in {"flashdecoding", "flashinfer"}:
+            self.kv_cache = [
+                (
+                    torch.empty(
+                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                    torch.empty(
+                        (num_blocks, BLOCK_SIZE, num_heads, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                )
+                for _ in range(num_layers)
+            ]
+        elif SYSTEM == "ipex" and device == torch.device("cpu"):
+            self.kv_cache = [
+                (
+                    torch.empty(
+                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                    torch.empty(
+                        (num_blocks, num_heads, BLOCK_SIZE, head_size),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                )
+                for _ in range(num_layers)
+            ]
+        else:
+            self.kv_cache = [
+                (
+                    torch.zeros(
+                        (num_blocks, num_heads, head_size // x, BLOCK_SIZE, x),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                    torch.zeros(
+                        (num_blocks, num_heads, head_size, BLOCK_SIZE),
+                        dtype=dtype,
+                        device=device,
+                    ),
+                )
+                for _ in range(num_layers)
+            ]
+
     def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
         input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
         position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
         slots = torch.arange(bs, dtype=torch.int64, device=self.device)
-        input_lengths = torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
-        block_tables = (
-            torch.arange(max_bt, dtype=torch.int32, device=self.device)
-            .repeat(bs)
-            .reshape((bs, max_bt))
+        input_lengths = [max_s] * bs
+        prefix_lengths = [0] * bs
+        input_lengths_tensor = (
+            torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
         )
-        kv_cache = get_cache_manager().kv_cache
+        prefix_lengths_tensor = torch.zeros(bs, dtype=torch.int32, device=self.device)
+        block_tables = torch.arange(
+            max_bt, dtype=torch.int32, device=self.device
+        ).repeat(bs)
+        block_tables = block_tables.reshape((bs, max_bt))
 
+        if ATTENTION == "flashinfer":
+            block_tables = block_tables_to_ragged(
+                block_tables=block_tables,
+                input_lengths=input_lengths,
+                prefix_lens=prefix_lengths,
+            )
+            from text_generation_server.layers.attention.flashinfer import (
+                create_decode_state_cuda_graphs,
+            )
+
+            block_tables_ptr = torch.zeros(
+                bs + 1, dtype=torch.int32, device=self.device
+            )
+            last_page_len = torch.ones(bs, dtype=torch.int32, device=self.device)
+            state = create_decode_state_cuda_graphs(
+                device=input_ids.device,
+                block_tables=block_tables,
+                block_tables_ptr=block_tables_ptr,
+                last_page_len=last_page_len,
+                num_heads=self.num_heads,
+                num_kv_heads=self.num_kv_heads,
+            )
+        else:
+            state = None
+
+        graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs] = {
             "input_ids": input_ids,
             "position_ids": position_ids,
-            "kv_cache": kv_cache,
+            "kv_cache": self.kv_cache,
             "block_tables": block_tables,
             "slots": slots,
-            "input_lengths": input_lengths,
+            "input_lengths": input_lengths_tensor,
+            "prefix_lengths": prefix_lengths_tensor,
+            "state": state,
+            "graph": graph,
         }
-        graph = torch.cuda.CUDAGraph()
-        self.cuda_graphs[bs]["graph"] = graph
 
         torch.cuda.synchronize()
         # Run once outside to warmup
-        self.model.forward(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            cu_seqlen_prefill=None,
-            kv_cache=kv_cache,
+        with self._forward_context(
             block_tables=block_tables,
-            slots=slots,
-            input_lengths=input_lengths,
-            max_s=max_s,
-            lm_head_indices=None,
-        )
-        torch.cuda.synchronize()
-
-        with torch.cuda.graph(graph, pool=MEM_POOL):
-            logits, speculative_logits = self.model.forward(
+            cu_seqlen_prefill=None,
+            input_lengths_tensor=input_lengths_tensor,
+            state=state,
+            prefix_lens_tensor=prefix_lengths_tensor,
+        ):
+            seqlen = Seqlen(
+                input_lengths=input_lengths_tensor,
+                prefix_lengths=prefix_lengths_tensor,
+                cu_seqlen_q=None,
+                max_q=1,
+                max_k=max_s,
+            )
+            self.model.forward(
                 input_ids=input_ids,
                 position_ids=position_ids,
                 cu_seqlen_prefill=None,
-                kv_cache=kv_cache,
+                kv_cache=self.kv_cache,
                 block_tables=block_tables,
                 slots=slots,
-                input_lengths=input_lengths,
+                seqlen=seqlen,
                 max_s=max_s,
+                prefill_cache_indices=None,
                 lm_head_indices=None,
             )
-            self.cuda_graphs[bs]["logits"] = logits
-            self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
+            del seqlen
+
+            torch.cuda.synchronize()
+
+            with torch.cuda.graph(graph, pool=MEM_POOL):
+                seqlen = Seqlen(
+                    input_lengths=input_lengths_tensor,
+                    prefix_lengths=prefix_lengths_tensor,
+                    cu_seqlen_q=None,
+                    max_q=1,
+                    max_k=max_s,
+                )
+                logits, speculative_logits = self.model.forward(
+                    input_ids=input_ids,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=None,
+                    kv_cache=self.kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    seqlen=seqlen,
+                    max_s=max_s,
+                    prefill_cache_indices=None,
+                    lm_head_indices=None,
+                )
+                self.cuda_graphs[bs]["logits"] = logits
+                self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
         torch.cuda.synchronize()
 
     def warmup(self, batch: FlashCausalLMBatch):
@@ -777,17 +1253,16 @@ class FlashCausalLM(Model):
         empty_cache()
 
         try:
-            cache_manager = set_cache_manager(
-                batch.blocks,
+            self.init_kv_cache(
+                batch.num_blocks,
                 self.num_layers,
                 self.num_kv_heads,
                 self.head_size,
-                self.sliding_window is not None,
                 self.dtype,
                 self.device,
             )
             max_bt = batch.max_blocks
-            max_s = max_bt * get_cache_manager().block_size
+            max_s = max_bt * BLOCK_SIZE
 
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
@@ -807,23 +1282,22 @@ class FlashCausalLM(Model):
         total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
 
         free_memory = get_free_memory(self.device, MEMORY_FRACTION)
+        batch_num_blocks = batch.num_blocks if batch is not None else 0
 
         num_blocks = (
             # Leave 5% for some wiggle room
-            int((free_memory * 0.95) // total_cache_size)
-            # Add batch.blocks as we allocated it above, so it is included in the peak memory.
-            + cache_manager.num_blocks
+            int((free_memory * TGI_WIGGLE_ROOM) // total_cache_size)
+            # Add batch.num_blocks as we allocated it above, so it is included in the peak memory.
+            + batch_num_blocks
         )
 
         del batch
-        del cache_manager
 
-        set_cache_manager(
+        self.init_kv_cache(
             num_blocks,
             self.num_layers,
             self.num_kv_heads,
             self.head_size,
-            self.sliding_window is not None,
             self.dtype,
             self.device,
         )
@@ -833,6 +1307,8 @@ class FlashCausalLM(Model):
                 os.environ.get("PYTORCH_TUNABLEOP_ENABLED") is None
                 or os.environ.get("PYTORCH_TUNABLEOP_ENABLED") == "1"
             ):
+                torch.cuda.tunable.enable()
+
                 if os.environ.get("PYTORCH_TUNABLEOP_TUNING") != "0":
                     torch.cuda.tunable.tuning_enable(True)
 
@@ -841,47 +1317,61 @@ class FlashCausalLM(Model):
                         int(val)
                         for val in os.environ["PYTORCH_TUNABLEOP_SEQLENS"].split(",")
                     ]
-                else:
+                elif CUDA_GRAPHS is not None:
                     tuning_sequences = CUDA_GRAPHS
+                else:
+                    tuning_sequences = [1, 2, 3, 4, 5, 6, 7]
 
                 tunableop_filepath = os.path.join(
                     HUGGINGFACE_HUB_CACHE,
-                    f"tunableop_{tgi_globals.MODEL_ID.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
+                    f"tunableop_{self.model_id.replace('/', '-')}_tp{self.world_size}_rank{self.rank}.csv",
                 )
 
-                logger.info(
-                    f"PyTorch TunableOp (https://github.com/fxmarty/pytorch/tree/2.3-patched/aten/src/ATen/cuda/tunable) is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`."
+                log_master(
+                    logger.info,
+                    f"PyTorch TunableOp is enabled. The warmup may take several minutes, picking the ROCm optimal matrix multiplication kernel for the target lengths {', '.join([str(seqlen) for seqlen in tuning_sequences])}, with typical 5-8% latency improvement for small sequence lengths. The picked GEMMs are saved in the file {tunableop_filepath}. To disable TunableOp, please launch TGI with `PYTORCH_TUNABLEOP_ENABLED=0`.",
+                )
+
+                torch.cuda.tunable.set_filename(
+                    tunableop_filepath, insert_device_ordinal=False
                 )
 
                 if os.path.isfile(tunableop_filepath):
-                    logger.info(
-                        f"The file {tunableop_filepath} already exists and will be reused."
+                    log_master(
+                        logger.info,
+                        f"The file {tunableop_filepath} already exists and will be reused.",
                     )
                     torch.cuda.tunable.read_file(tunableop_filepath)
 
                 os.makedirs(HUGGINGFACE_HUB_CACHE, exist_ok=True)
 
                 for seqlen in tuning_sequences:
-                    logger.info(f"Warming up TunableOp for seqlen={seqlen}")
+                    log_master(logger.info, f"Warming up TunableOp for seqlen={seqlen}")
                     self.tunableop_warmup(seqlen)
                     torch.cuda.tunable.write_file(tunableop_filepath)
-                torch.cuda.tunable.tuning_enable(False)
+                if os.environ.get("PYTORCH_TUNABLEOP_TUNING_AFTER_WARMUP") != "1":
+                    torch.cuda.tunable.tuning_enable(False)
             else:
-                logger.info(
-                    "PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp."
+                log_master(
+                    logger.info,
+                    "PyTorch ROCm TunableOp (https://github.com/pytorch/pytorch/tree/main/aten/src/ATen/cuda/tunable) is disabled. TunableOp brings an additional 5-8% latency improvement for small sequence lengths but requires a warmup. If necessary, please use the environment variable PYTORCH_TUNABLEOP_ENABLED=1 to enable TunableOp.",
                 )
 
         if CUDA_GRAPHS:
             try:
-                logger.info(f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}")
+                log_master(
+                    logger.info, f"Cuda Graphs are enabled for sizes {CUDA_GRAPHS}"
+                )
                 # Warmup cuda graphs
                 for bs in CUDA_GRAPHS:
                     if self.speculate is None or self.speculate + 1 <= bs:
                         self.cuda_graph_warmup(bs, max_s, max_bt)
             except torch.cuda.OutOfMemoryError:
-                logger.exception(f"Decode cuda graph warmup failed")
+                logger.exception("Decode cuda graph warmup failed")
         else:
-            logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
+            log_master(
+                logger.info, f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS})."
+            )
 
         return int(num_blocks * BLOCK_SIZE)
 
@@ -889,35 +1379,45 @@ class FlashCausalLM(Model):
         input_ids = torch.zeros(seqlen, dtype=torch.int64, device=self.device)
         position_ids = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
         slots = torch.arange(seqlen, dtype=torch.int64, device=self.device)
-        kv_cache = get_cache_manager().kv_cache
 
         # Dummy value, some models (starcoder2) don't accept `None`.
         input_lengths = torch.ones(seqlen, dtype=torch.int32, device=self.device)
+        prefix_lens_tensor = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
+        cu_seqlen_prefill = torch.tensor(
+            [0, seqlen], device=self.device, dtype=torch.int32
+        )
+        max_s = seqlen
+        seqlen = Seqlen(
+            input_lengths=input_lengths,
+            prefix_lengths=prefix_lens_tensor,
+            cu_seqlen_q=cu_seqlen_prefill,
+            max_q=1,
+            max_k=seqlen,
+        )
 
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,
-            cu_seqlen_prefill=torch.tensor(
-                [0, seqlen], device=self.device, dtype=torch.int32
-            ),
-            kv_cache=get_cache_manager().kv_cache,
+            cu_seqlen_prefill=cu_seqlen_prefill,
+            kv_cache=self.kv_cache,
             block_tables=None,
-            input_lengths=input_lengths,
+            seqlen=seqlen,
             slots=slots,
-            max_s=seqlen,
+            max_s=max_s,
             lm_head_indices=None,
+            prefill_cache_indices=None,
         )
 
     def forward(
-        self, batch: FlashCausalLMBatch
+        self, batch: FlashCausalLMBatch, adapter_data: AdapterBatchData
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # Model Forward
         if batch.speculative_ids is not None:
             input_ids = batch.input_ids
             position_ids = batch.position_ids
             cu_seqlen_prefill = batch.cu_seqlen_prefill
-            kv_cache = get_cache_manager().kv_cache
+            kv_cache = self.kv_cache
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
@@ -940,6 +1440,9 @@ class FlashCausalLM(Model):
             input_lengths = (
                 input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int
             ).view(-1)
+            prefix_lens_tensor = (
+                batch.prefix_lens_tensor.unsqueeze(-1).expand(B, new_length)
+            ).reshape(-1)
 
             # Add Copy the block tables for all members
             block_tables = (
@@ -956,12 +1459,19 @@ class FlashCausalLM(Model):
             input_ids = batch.input_ids
             position_ids = batch.position_ids
             cu_seqlen_prefill = batch.cu_seqlen_prefill
-            kv_cache = get_cache_manager().kv_cache
+            kv_cache = self.kv_cache
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
+            prefix_lens_tensor = batch.prefix_lens_tensor
             max_s = batch.max_seqlen
             lm_head_indices = batch.prefill_head_indices
+
+        if cu_seqlen_prefill is None and self.max_past() is not None:
+            # In decode, not prefill, we're actually overwriting the KV-cache
+            # in a circular buffer mode.
+            # This makes sure the max_s for the decode pass is correct.
+            max_s = min(self.max_past(), max_s)
 
         bs = input_ids.shape[0]
         sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
@@ -972,32 +1482,79 @@ class FlashCausalLM(Model):
             cuda_graph = None
 
         if cu_seqlen_prefill is not None or cuda_graph is None:
-            return self.model.forward(
-                input_ids=input_ids,
-                position_ids=position_ids,
-                cu_seqlen_prefill=cu_seqlen_prefill,
-                kv_cache=kv_cache,
+            if ATTENTION == "flashinfer":
+                block_tables = block_tables_to_ragged(
+                    block_tables=block_tables,
+                    input_lengths=batch.input_lengths,
+                    prefix_lens=batch.prefix_lens,
+                )
+            with self._forward_context(
                 block_tables=block_tables,
-                slots=slots,
-                input_lengths=input_lengths,
-                max_s=max_s,
-                lm_head_indices=lm_head_indices,
-            )
+                cu_seqlen_prefill=cu_seqlen_prefill,
+                input_lengths_tensor=input_lengths,
+                prefix_lens_tensor=prefix_lens_tensor,
+            ):
+                max_k = (input_lengths + prefix_lens_tensor).max().item()
+                seqlen = Seqlen(
+                    input_lengths=input_lengths,
+                    prefix_lengths=prefix_lens_tensor,
+                    cu_seqlen_q=cu_seqlen_prefill,
+                    max_q=max_s,
+                    max_k=max_k,
+                )
+                logits, speculative_logits = self.model.forward(
+                    input_ids=input_ids,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=cu_seqlen_prefill,
+                    kv_cache=kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    seqlen=seqlen,
+                    max_s=max_s,
+                    prefill_cache_indices=batch.prefill_cache_indices,
+                    lm_head_indices=lm_head_indices,
+                    adapter_data=adapter_data,
+                )
+                if batch.prefill_cache_indices is not None:
+                    batch.prefill_cache_indices = None
+                return logits, speculative_logits
 
         # Copy inputs to the static inputs of the cuda graph
         # Static inputs are potentially padded
         cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
         cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
-        cuda_graph["block_tables"][
-            : block_tables.shape[0], : block_tables.shape[1]
-        ] = block_tables
-        cuda_graph["slots"].fill_(-1)
+        if ATTENTION == "flashinfer":
+            block_tables = block_tables_to_ragged(
+                block_tables=block_tables,
+                input_lengths=batch.input_lengths,
+                prefix_lens=batch.prefix_lens,
+            )
+            # assert block_tables.shape[0] >= slots.shape[0]
+            cuda_graph["block_tables"][: block_tables.shape[0]] = block_tables
+        else:
+            cuda_graph["block_tables"][
+                : block_tables.shape[0], : block_tables.shape[1]
+            ] = block_tables
+
+        # XXX: This is working only because block 0 is reserved for the healthcheck
+        # so it doesn't matter if we override it with bogus values.
+        cuda_graph["slots"].fill_(0)
         cuda_graph["slots"][: slots.shape[0]] = slots
         cuda_graph["input_lengths"].zero_()
         cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
+        cuda_graph["prefix_lengths"].zero_()
+        cuda_graph["prefix_lengths"][: prefix_lens_tensor.shape[0]] = prefix_lens_tensor
 
-        # Replay the graph
-        cuda_graph["graph"].replay()
+        with self._forward_context(
+            block_tables=cuda_graph["block_tables"],
+            cu_seqlen_prefill=None,
+            input_lengths_tensor=cuda_graph["input_lengths"],
+            prefix_lens_tensor=cuda_graph["prefix_lengths"],
+            state=cuda_graph["state"],
+        ):
+            # Replay the graph
+            cuda_graph["graph"].replay()
+
         # Slice output to the correct shape
         speculative_logits = (
             cuda_graph["speculative_logits"][:bs]
@@ -1015,24 +1572,34 @@ class FlashCausalLM(Model):
         prefill = batch.cu_seqlen_prefill is not None
         prefill_logprobs = batch.prefill_next_token_indices is not None
 
-        if batch.needed_blocks_slots:
-            # Allocate blocks to this batch
-            block_tables, block_tables_tensor, slots = get_cache_manager().allocate(
-                batch.needed_blocks_slots,
-                batch.blocks,
-                batch.max_blocks,
-                batch.input_ids.device,
+        # Update adapter indices for speculative tokens (if present)
+        adapter_meta = batch.adapter_meta
+        if batch.speculative_ids is not None:
+            B, speculative_length = batch.speculative_ids.shape
+            new_length = speculative_length + 1
+            adapter_indices = (
+                adapter_meta.adapter_indices.unsqueeze(-1)
+                .expand(B, new_length)
+                .reshape(-1)
             )
-            batch.needed_blocks_slots = None
-            batch.block_tables = block_tables
-            batch.block_tables_tensor = block_tables_tensor
-            batch.slots = slots
+            adapter_segments = adapter_meta.adapter_segments * new_length
+            adapter_meta = AdapterBatchMetadata(
+                adapter_indices=adapter_indices,
+                adapter_set=adapter_meta.adapter_set,
+                adapter_segments=adapter_segments,
+                segment_indices=adapter_meta.segment_indices,
+            )
 
-        try:
-            out, speculative_logits = self.forward(batch)
-        except Exception as e:
-            del batch
-            raise e
+        # Assign pointers to adapter weights
+        # TODO(travis): don't update this if indices haven't changed
+        adapter_data = AdapterBatchData.from_meta(
+            adapter_meta,
+            self.layer_to_adapter_weights,
+            prefill,
+            batch.prefill_head_indices,
+        )
+
+        out, speculative_logits = self.forward(batch, adapter_data)
 
         if prefill:
             next_token_logits = (
@@ -1044,8 +1611,13 @@ class FlashCausalLM(Model):
                     if prefill_logprobs
                     else speculative_logits
                 )
+            next_adapter_indices = batch.adapter_meta.adapter_indices.new_empty(
+                len(batch)
+            )
+
         else:
             next_token_logits = out
+            next_adapter_indices = batch.adapter_meta.adapter_indices
 
         speculate = get_speculate()
         (
@@ -1111,6 +1683,12 @@ class FlashCausalLM(Model):
                 # In decode, we do not need this as we can just increment position ids
                 next_position_ids[i] = batch.position_ids[end_index - 1]
 
+                # Initialize adapter indices
+                # In decode, we only have one token per row in the batch, so grab last index
+                next_adapter_indices[i] = batch.adapter_meta.adapter_indices[
+                    end_index - 1
+                ]
+
                 # Used to gather prefill logprobs
                 # Copy batch.input_ids to prefill_token_indices
                 if prefill_logprobs:
@@ -1136,6 +1714,16 @@ class FlashCausalLM(Model):
         batch.position_ids = next_position_ids + accepted_ids
         batch.input_lengths_tensor += accepted_ids
         batch.slot_indices += accepted_ids
+        batch.adapter_meta.adapter_indices = next_adapter_indices
+
+        if prefill:
+            # adjust segment lengths to account for all request lengths being 1 during decoding
+            adapter_segments, _ = find_segments(batch.adapter_meta.adapter_indices)
+            batch.adapter_meta.adapter_segments = torch.tensor(
+                adapter_segments,
+                dtype=torch.int32,
+                device=batch.adapter_meta.adapter_segments.device,
+            )
 
         if prefill and prefill_logprobs:
             # Get prefill logprobs
@@ -1160,6 +1748,7 @@ class FlashCausalLM(Model):
             batch.read_offsets,
             batch.stopping_criterias,
             batch.all_input_ids,
+            batch.prefix_ids,
             batch.next_token_chooser.do_sample,
             batch.next_token_chooser.seeds,
             batch.top_n_tokens,
@@ -1177,6 +1766,7 @@ class FlashCausalLM(Model):
             read_offset,
             stopping_criteria,
             all_input_ids,
+            prefix_ids,
             do_sample,
             seed,
             top_n_tokens,
@@ -1189,8 +1779,7 @@ class FlashCausalLM(Model):
             left = 0
 
             if n_accepted_ids > 1:
-                if RANK == 0:
-                    logger.debug(f"Speculated ids {n_accepted_ids - 1}")
+                log_master(logger.debug, f"speculated ids {n_accepted_ids - 1}")
 
             current_stopped = False
             for j in range(index, index + n_accepted_ids):
@@ -1252,18 +1841,18 @@ class FlashCausalLM(Model):
                     out_end_index = batch.prefill_cu_outlens[i + 1]
 
                     # Remove generated token to only have prefill and add nan for first prompt token
-                    request_prefill_logprobs = [float("nan")] + prefill_logprobs[
-                        out_start_index : out_end_index - 1
-                    ]
+                    request_prefill_logprobs = (
+                        [float("nan")] * (len(prefix_ids) + 1)
+                    ) + prefill_logprobs[out_start_index : out_end_index - 1]
                     prefill_token_ids = all_input_ids[:-1]
                     prefill_texts = self.tokenizer.batch_decode(
-                        prefill_token_ids,
+                        prefix_ids + prefill_token_ids,
                         clean_up_tokenization_spaces=False,
                         skip_special_tokens=False,
                     )
 
                     prefill_tokens = Tokens(
-                        prefill_token_ids,
+                        prefix_ids + prefill_token_ids,
                         request_prefill_logprobs,
                         prefill_texts,
                         is_special=[],
@@ -1327,7 +1916,6 @@ class FlashCausalLM(Model):
             batch.all_input_ids[i] = all_input_ids
 
         if stopped:
-            del batch
             # No need to return a batch if we know that all requests stopped
             forward_ns = start_decode - start
             decode_ns = time.time_ns() - start_decode
@@ -1340,3 +1928,76 @@ class FlashCausalLM(Model):
         forward_ns = start_decode - start
         decode_ns = time.time_ns() - start_decode
         return generations, batch, (forward_ns, decode_ns)
+
+    def _forward_context(
+        self,
+        *,
+        block_tables: torch.Tensor,
+        cu_seqlen_prefill: Optional[torch.Tensor],
+        input_lengths_tensor: torch.Tensor,
+        prefix_lens_tensor: torch.Tensor,
+        state: Optional[Any] = None,
+    ) -> ContextManager:
+        if ATTENTION != "flashinfer":
+            return nullcontext()
+
+        from text_generation_server.layers.attention.flashinfer import (
+            use_decode_state,
+            use_prefill_with_paged_kv_state,
+        )
+
+        # has_prefix_lens = any(prefix_len > 0 for prefix_len in prefix_lens)
+
+        if cu_seqlen_prefill is not None:
+            return use_prefill_with_paged_kv_state(
+                state=(
+                    state if state is not None else self.prefill_with_paged_kv_state
+                ),
+                # block_tables=block_tables_to_ragged(
+                #     block_tables=block_tables,
+                #     input_lengths=input_lengths,
+                #     prefix_lens=prefix_lens,
+                # ),
+                block_tables=block_tables,
+                cu_seqlens=cu_seqlen_prefill,
+                input_lengths=input_lengths_tensor + prefix_lens_tensor,
+                num_heads=self.num_heads,
+                num_kv_heads=self.num_kv_heads,
+                head_size=self.head_size,
+                page_size=BLOCK_SIZE,
+                dtype=self.dtype,
+                window_left=self.sliding_window,
+            )
+        else:
+            assert input_lengths_tensor is not None
+            return use_decode_state(
+                state=state if state is not None else self.decode_state,
+                input_lengths=input_lengths_tensor + prefix_lens_tensor,
+                block_tables=block_tables,
+                num_heads=self.num_heads,
+                num_kv_heads=self.num_kv_heads,
+                head_size=self.head_size,
+                page_size=BLOCK_SIZE,
+                dtype=self.dtype,
+                window_left=self.sliding_window,
+            )
+
+
+def block_tables_to_ragged(
+    *, block_tables: torch.Tensor, input_lengths: List[int], prefix_lens: List[int]
+) -> torch.Tensor:
+    """Convert block table to ragged format compatible with FlashInfer."""
+    assert len(input_lengths) == len(prefix_lens)
+
+    total_len = sum(input_lengths) + sum(prefix_lens)
+    block_tables_ragged = torch.empty(
+        total_len, dtype=torch.int32, device=block_tables.device
+    )
+
+    offset = 0
+    for i, (input_length, prefix_len) in enumerate(zip(input_lengths, prefix_lens)):
+        seq_len = prefix_len + input_length
+        block_tables_ragged[offset : offset + seq_len] = block_tables[i][:seq_len]
+        offset += seq_len
+
+    return block_tables_ragged

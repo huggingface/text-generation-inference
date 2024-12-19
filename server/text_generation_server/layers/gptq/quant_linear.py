@@ -206,10 +206,13 @@ def matmul248(input, qweight, scales, qzeros, g_idx, bits, maxq):
         output = torch.empty(
             (input.shape[0], qweight.shape[1]), device=input.device, dtype=torch.float16
         )
-        grid = lambda META: (
-            triton.cdiv(input.shape[0], META["BLOCK_SIZE_M"])
-            * triton.cdiv(qweight.shape[1], META["BLOCK_SIZE_N"]),
-        )
+
+        def grid(META):
+            return (
+                triton.cdiv(input.shape[0], META["BLOCK_SIZE_M"])
+                * triton.cdiv(qweight.shape[1], META["BLOCK_SIZE_N"]),
+            )
+
         matmul_248_kernel[grid](
             input,
             qweight,

@@ -4,7 +4,7 @@
 /// and: https://github.com/orhun/rust-tui-template
 use clap::Parser;
 use std::path::Path;
-use text_generation_client::ShardedClient;
+use text_generation_client::v3::ShardedClient;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -51,7 +51,7 @@ struct Args {
     runs: usize,
 
     /// Number of warmup cycles
-    #[clap(default_value = "3", short, long, env)]
+    #[clap(default_value = "1", short, long, env)]
     warmups: usize,
 
     /// The location of the grpc socket. This benchmark tool bypasses the router
@@ -155,7 +155,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // We need to download it outside of the Tokio runtime
             let params = FromPretrainedParameters {
                 revision,
-                token: auth_token,
+                auth_token,
                 ..Default::default()
             };
             Tokenizer::from_pretrained(tokenizer_name.clone(), Some(params)).unwrap()

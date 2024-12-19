@@ -12,12 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 DEPRECATION_WARNING = (
     "`text_generation` clients are deprecated and will be removed in the near future. "
     "Please use the `InferenceClient` from the `huggingface_hub` package instead."
 )
 
-from text_generation.client import Client, AsyncClient
-from text_generation.inference_api import InferenceAPIClient, InferenceAPIAsyncClient
+from text_generation.client import Client, AsyncClient  # noqa E402
+from text_generation.inference_api import (  # noqa E402
+    InferenceAPIClient,
+    InferenceAPIAsyncClient,
+)
+
+__all__ = [
+    "Client",
+    "AsyncClient",
+    "InferenceAPIClient",
+    "InferenceAPIAsyncClient",
+]

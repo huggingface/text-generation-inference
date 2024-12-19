@@ -1,0 +1,59 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "stop_sequence",
+    "generated_tokens": 5,
+    "prefill": [
+      {
+        "id": 128000,
+        "logprob": null,
+        "text": "<|begin_of_text|>"
+      },
+      {
+        "id": 2323,
+        "logprob": -9.5625,
+        "text": "Test"
+      },
+      {
+        "id": 1715,
+        "logprob": -10.4375,
+        "text": " request"
+      }
+    ],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 25,
+        "logprob": -0.8984375,
+        "special": false,
+        "text": ":"
+      },
+      {
+        "id": 923,
+        "logprob": -2.84375,
+        "special": false,
+        "text": " add"
+      },
+      {
+        "id": 264,
+        "logprob": 0.0,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 330,
+        "logprob": -0.31640625,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 1985,
+        "logprob": 0.0,
+        "special": false,
+        "text": "test"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "Test request: add a \"test"
+}

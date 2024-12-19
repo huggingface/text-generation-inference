@@ -1,0 +1,82 @@
+# This file instructs Redocly's linter to ignore the rules contained for specific parts of your API.
+# See https://redoc.ly/docs/cli/ for more information.
+docs/openapi.json:
+  no-empty-servers:
+    - '#/openapi'
+  spec:
+    - >-
+      #/components/schemas/GenerateParameters/properties/best_of/exclusiveMinimum
+    - >-
+      #/components/schemas/GenerateParameters/properties/frequency_penalty/exclusiveMinimum
+    - '#/components/schemas/GenerateParameters/properties/grammar/nullable'
+    - >-
+      #/components/schemas/GenerateParameters/properties/repetition_penalty/exclusiveMinimum
+    - '#/components/schemas/GenerateParameters/properties/seed/exclusiveMinimum'
+    - >-
+      #/components/schemas/GenerateParameters/properties/temperature/exclusiveMinimum
+    - '#/components/schemas/GenerateParameters/properties/top_k/exclusiveMinimum'
+    - >-
+      #/components/schemas/GenerateParameters/properties/top_n_tokens/exclusiveMinimum
+    - '#/components/schemas/GenerateParameters/properties/top_p/exclusiveMinimum'
+    - >-
+      #/components/schemas/GenerateParameters/properties/typical_p/exclusiveMinimum
+    - '#/components/schemas/GenerateResponse/properties/details/nullable'
+    - '#/components/schemas/StreamResponse/properties/details/nullable'
+    - '#/components/schemas/ChatRequest/properties/response_format/nullable'
+    - '#/components/schemas/ChatRequest/properties/stream_options/nullable'
+    - '#/components/schemas/ChatRequest/properties/tool_choice/nullable'
+    - '#/components/schemas/ToolChoice/nullable'
+    - '#/components/schemas/ChatCompletionComplete/properties/logprobs/nullable'
+    - '#/components/schemas/ChatCompletionChunk/properties/usage/nullable'
+    - '#/components/schemas/ChatCompletionChoice/properties/logprobs/nullable'
+  no-invalid-media-type-examples:
+    - '#/paths/~1/post/responses/422/content/application~1json/example'
+    - '#/paths/~1/post/responses/424/content/application~1json/example'
+    - '#/paths/~1/post/responses/429/content/application~1json/example'
+    - '#/paths/~1/post/responses/500/content/application~1json/example'
+    - '#/paths/~1generate/post/responses/422/content/application~1json/example'
+    - '#/paths/~1generate/post/responses/424/content/application~1json/example'
+    - '#/paths/~1generate/post/responses/429/content/application~1json/example'
+    - '#/paths/~1generate/post/responses/500/content/application~1json/example'
+    - >-
+      #/paths/~1generate_stream/post/responses/422/content/text~1event-stream/example
+    - >-
+      #/paths/~1generate_stream/post/responses/424/content/text~1event-stream/example
+    - >-
+      #/paths/~1generate_stream/post/responses/429/content/text~1event-stream/example
+    - >-
+      #/paths/~1generate_stream/post/responses/500/content/text~1event-stream/example
+    - '#/paths/~1tokenize/post/responses/404/content/application~1json/example'
+    - >-
+      #/paths/~1v1~1chat~1completions/post/responses/422/content/application~1json/example
+    - >-
+      #/paths/~1v1~1chat~1completions/post/responses/424/content/application~1json/example
+    - >-
+      #/paths/~1v1~1chat~1completions/post/responses/429/content/application~1json/example
+    - >-
+      #/paths/~1v1~1chat~1completions/post/responses/500/content/application~1json/example
+    - >-
+      #/paths/~1v1~1completions/post/responses/422/content/application~1json/example
+    - >-
+      #/paths/~1v1~1completions/post/responses/424/content/application~1json/example
+    - >-
+      #/paths/~1v1~1completions/post/responses/429/content/application~1json/example
+    - >-
+      #/paths/~1v1~1completions/post/responses/500/content/application~1json/example
+  operation-4xx-response:
+    - '#/paths/~1health/get/responses'
+    - '#/paths/~1info/get/responses'
+    - '#/paths/~1metrics/get/responses'
+  no-unused-components:
+    - '#/components/schemas/Completion'
+  security-defined:
+    - '#/paths/~1/post'
+    - '#/paths/~1generate/post'
+    - '#/paths/~1generate_stream/post'
+    - '#/paths/~1health/get'
+    - '#/paths/~1info/get'
+    - '#/paths/~1metrics/get'
+    - '#/paths/~1tokenize/post'
+    - '#/paths/~1v1~1chat~1completions/post'
+    - '#/paths/~1v1~1completions/post'
+    - '#/paths/~1v1~1models/get'

@@ -1,6 +1,6 @@
 # Copied logic from https://github.com/mit-han-lab/llm-awq/blob/f084f40bd996f3cf3a0633c1ad7d9d476c318aaa/awq/quantize/qmodule.py
 
-import math
+from typing import Optional
 import torch
 import torch.nn as nn
 import awq_inference_engine  # with CUDA kernels
@@ -17,7 +17,9 @@ import awq_inference_engine  # with CUDA kernels
 
 
 class WQLinear(nn.Module):
-    def __init__(self, w_bit, group_size, qweight, qzeros, scales, bias):
+    def __init__(
+        self, w_bit, group_size, qweight, qzeros, scales, bias: Optional[torch.Tensor]
+    ):
         super().__init__()
 
         if w_bit not in [4]:
@@ -35,10 +37,7 @@ class WQLinear(nn.Module):
         self.qweight = qweight
         self.qzeros = qzeros
         self.scales = scales
-        if bias:
-            self.bias = bias
-        else:
-            self.bias = None
+        self.bias = bias
 
     @torch.no_grad()
     def forward(self, x):

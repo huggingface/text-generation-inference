@@ -1,5 +1,5 @@
 [toolchain]
-# Released on: 02 May, 2024
-# https://releases.rs/docs/1.78.0/
-channel = "1.78.0"
+# Released on: June 13, 2024
+# https://releases.rs/docs/1.79.0/
+channel = "1.80.0"
 components = ["rustfmt", "clippy"]

@@ -156,17 +156,17 @@ fn avg_min_max(data: &[f64]) -> (f64, f64, f64) {
     let min = data
         .iter()
         .min_by(|a, b| a.total_cmp(b))
-        .unwrap_or(&std::f64::NAN);
+        .unwrap_or(&f64::NAN);
     let max = data
         .iter()
         .max_by(|a, b| a.total_cmp(b))
-        .unwrap_or(&std::f64::NAN);
+        .unwrap_or(&f64::NAN);
     (average, *min, *max)
 }
 
 fn px(data: &[f64], p: u32) -> f64 {
     let i = (f64::from(p) / 100.0 * data.len() as f64) as usize;
-    *data.get(i).unwrap_or(&std::f64::NAN)
+    *data.get(i).unwrap_or(&f64::NAN)
 }
 
 fn format_value(value: f64, unit: &'static str) -> String {

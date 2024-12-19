@@ -816,7 +816,7 @@ class BloomModel(BloomPreTrainedModel):
 
 
 class BloomForCausalLM(BloomPreTrainedModel):
-    def __init__(self, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__(config)
         self.transformer = BloomModel(config, weights)
 
@@ -908,7 +908,7 @@ class BloomForCausalLM(BloomPreTrainedModel):
         loss = None
 
         if not return_dict:
-            output = (lm_logits,) + transformer_outputs[1:]
+            output = (logits,) + transformer_outputs[1:]
             return ((loss,) + output) if loss is not None else output
 
         return (

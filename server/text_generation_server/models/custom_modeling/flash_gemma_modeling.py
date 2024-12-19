@@ -25,8 +25,13 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple
-
-from text_generation_server.utils import paged_attention, flash_attn
+from text_generation_server.layers.attention import (
+    paged_attention,
+    attention,
+    reshape_and_cache,
+    Seqlen,
+    PREFILL_IN_KV_CACHE,
+)
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -38,6 +43,7 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
+from text_generation_server.utils.weights import UnquantizedWeight
 
 
 class GemmaConfig(PretrainedConfig):
@@ -98,7 +104,7 @@ class GemmaConfig(PretrainedConfig):
 
 class GemmaFastRMSNorm(FastRMSNorm):
     @classmethod
-    def load(cls, prefix, weights, eps=1e-6):
+    def load(cls, prefix: str, weights, eps=1e-6):
         dtype = weights.dtype
         weights.dtype = torch.float32
         weight = weights.get_tensor(f"{prefix}.weight") + 1
@@ -119,7 +125,7 @@ class GemmaFastRMSNorm(FastRMSNorm):
         return hidden_states.to(self.dtype), residual
 
 
-def load_attention(config, prefix, weights):
+def load_attention(config, prefix: str, weights):
     if config.num_attention_heads != config.num_key_value_heads:
         return _load_gqa(config, prefix, weights)
     else:
@@ -137,24 +143,21 @@ def _load_gqa(config, prefix: str, weights):
 
     weight = weights.get_multi_weights_col(
         prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        quantize=config.quantize,
         dim=0,
     )
 
-    if config.quantize not in ["gptq", "awq"]:
-        weight = weight.to(dtype=weights.dtype).to(device=weights.device)
+    if isinstance(weight, UnquantizedWeight):
+        weight.weight = weight.weight.to(dtype=weights.dtype).to(device=weights.device)
 
         head_size = config.head_dim
         num_heads = config.num_attention_heads // weights.process_group.size()
         num_key_value_heads = config.num_key_value_heads // weights.process_group.size()
-        assert list(weight.shape) == [
+        assert list(weight.weight.shape) == [
             (num_heads + 2 * num_key_value_heads) * head_size,
             config.hidden_size,
-        ], f"{list(weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
+        ], f"{list(weight.weight.shape)} != {[(num_heads + 2 * config.num_key_value_heads) * head_size, config.hidden_size]}"
 
-    return TensorParallelColumnLinear(
-        get_linear(weight, bias=None, quantize=config.quantize)
-    )
+    return TensorParallelColumnLinear(get_linear(weight, bias=None))
 
 
 class FlashGemmaAttention(torch.nn.Module):
@@ -205,7 +208,7 @@ class FlashGemmaAttention(torch.nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -221,37 +224,30 @@ class FlashGemmaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        paged_attention.reshape_and_cache(
-            kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots
-        )
-
-        # output tensor
-        attn_output = torch.empty_like(query)
+        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
-            flash_attn.attention(
+            attn_output = attention(
                 query,
-                torch.select(kv, dim=1, index=0),
-                torch.select(kv, dim=1, index=1),
-                attn_output,
-                cu_seqlen_prefill,
-                max_s,
+                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
+                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
+                seqlen,
+                block_tables,
                 self.softmax_scale,
                 causal=self.causal,
             )
         # Decode
         else:
-            paged_attention.attention(
-                attn_output,
+            attn_output = paged_attention(
                 query,
                 kv_cache[0],
                 kv_cache[1],
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -259,7 +255,7 @@ class FlashGemmaAttention(torch.nn.Module):
 
 
 class GemmaMLP(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix: str, config, weights):
         super().__init__()
         act = config.hidden_act
         self.act = (
@@ -297,7 +293,7 @@ class GemmaMLP(nn.Module):
 
 
 class FlashGemmaLayer(nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, causal: bool):
         super().__init__()
         self.self_attn = FlashGemmaAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights, causal=causal
@@ -323,7 +319,7 @@ class FlashGemmaLayer(nn.Module):
         kv_cache,
         block_tables,
         slots,
-        input_lengths,
+        seqlen,
         max_s,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -337,7 +333,7 @@ class FlashGemmaLayer(nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
 
@@ -352,7 +348,7 @@ class FlashGemmaLayer(nn.Module):
 
 
 class FlashGemmaModel(torch.nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, causal: bool):
         super().__init__()
 
         process_group = weights.process_group
@@ -373,8 +369,6 @@ class FlashGemmaModel(torch.nn.Module):
             prefix=f"{prefix}.norm", weights=weights, eps=config.rms_norm_eps
         )
 
-        self.gradient_checkpointing = False
-
         self.head_size = self.layers[0].self_attn.head_size
         self.num_heads = self.layers[0].self_attn.num_heads
         self.num_key_value_heads = self.layers[0].self_attn.num_key_value_heads
@@ -387,7 +381,7 @@ class FlashGemmaModel(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
@@ -409,7 +403,7 @@ class FlashGemmaModel(torch.nn.Module):
                 kv_cache[i],
                 block_tables,
                 slots,
-                input_lengths,
+                seqlen,
                 max_s,
             )
 
@@ -419,11 +413,11 @@ class FlashGemmaModel(torch.nn.Module):
 
 
 class FlashGemmaForCausalLM(torch.nn.Module):
-    def __init__(self, prefix, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, *, causal: bool = True):
         super().__init__()
 
         embed_norm = config.hidden_size**0.5
-        if prefix is None:
+        if not prefix:
             prefix = "model"
         else:
             prefix = f"{prefix}.model"
@@ -454,9 +448,11 @@ class FlashGemmaForCausalLM(torch.nn.Module):
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
         block_tables: torch.Tensor,
         slots: torch.Tensor,
-        input_lengths: torch.Tensor,
+        seqlen: Seqlen,
         max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         input_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
@@ -466,7 +462,7 @@ class FlashGemmaForCausalLM(torch.nn.Module):
             kv_cache,
             block_tables,
             slots,
-            input_lengths,
+            seqlen,
             max_s,
         )
         if lm_head_indices is not None:

@@ -1,13 +1,15 @@
-/// Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 use clap::{Parser, ValueEnum};
-use hf_hub::{api::sync::Api, Repo, RepoType};
+use hf_hub::{
+    api::sync::{Api, ApiBuilder},
+    Repo, RepoType,
+};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
+use regex::Regex;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Lines};
+use std::io::{BufRead, BufReader};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::{Child, Command, ExitStatus, Stdio};
@@ -17,22 +19,149 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
-use std::{fs, io};
+use std::{
+    fs, io,
+    io::{Read, Write},
+};
 use thiserror::Error;
 use tracing_subscriber::{filter::LevelFilter, EnvFilter};
 
 mod env_runtime;
+mod gpu;
+
+fn get_config(
+    model_id: &str,
+    revision: &Option<String>,
+) -> Result<Config, Box<dyn std::error::Error>> {
+    let mut path = std::path::Path::new(model_id).to_path_buf();
+    let model_id = model_id.to_string();
+    let filename = if !path.exists() {
+        // Assume it's a hub id
+
+        let api = if let Ok(token) = std::env::var("HF_TOKEN") {
+            // env variable has precedence over on file token.
+            ApiBuilder::new().with_token(Some(token)).build()?
+        } else {
+            Api::new()?
+        };
+        let repo = if let Some(ref revision) = revision {
+            api.repo(Repo::with_revision(
+                model_id,
+                RepoType::Model,
+                revision.to_string(),
+            ))
+        } else {
+            api.model(model_id)
+        };
+        repo.get("config.json")?
+    } else {
+        path.push("config.json");
+        path
+    };
+
+    let content = std::fs::read_to_string(filename)?;
+    let config: RawConfig = serde_json::from_str(&content)?;
+
+    let config: Config = config.into();
+    Ok(config)
+}
+
+fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) -> (String, String) {
+    let compute_capability = gpu::get_cuda_capability();
+    let mut prefix_caching: Option<String> = std::env::var("USE_PREFIX_CACHING").ok();
+    let mut attention: Option<String> = std::env::var("ATTENTION").ok();
+    if let Some(config) = config {
+        if prefix_caching.is_none() {
+            if config.vision_config.is_some() {
+                tracing::info!("Disabling prefix caching because of VLM model");
+                prefix_caching = Some("0".to_string());
+            } else if config.is_encoder_decoder {
+                tracing::info!("Disabling prefix caching because of seq2seq model");
+                prefix_caching = Some("0".to_string());
+            }
+        }
+
+        let fallback_attention = if matches!(compute_capability, Some((major, _)) if major < 8) {
+            "paged"
+        } else {
+            "flashdecoding"
+        };
+
+        match config.head_dim {
+            Some(h) if h == 64 || h == 128 || h == 256 => {
+                if lora_adapters.is_some() && prefix_caching.is_none() {
+                    tracing::info!("Disabling prefix caching because of lora adapters");
+                    prefix_caching = Some("0".to_string());
+                }
+                match config.model_type.as_deref() {
+                    Some("gemma2") | Some("falcon") | Some("deepseek_v2") => {
+                        // Required because gemma2 needs bfloat16 which is not supported by
+                        // flashinfer ?
+                        if attention.is_none() {
+                            tracing::info!(
+                                "Forcing attention to '{fallback_attention}' because model {} requires it",
+                                config.model_type.as_ref().unwrap()
+                            );
+                            attention = Some(fallback_attention.to_string());
+                        }
+                        if fallback_attention == "paged" && prefix_caching.is_none() {
+                            tracing::info!("Disabling prefix caching because it is not supported with 'paged' attention");
+                            prefix_caching = Some("0".to_string());
+                        }
+                    }
+                    Some("t5") => {}
+                    _ => {}
+                }
+            }
+            _ => {
+                if attention.is_none() {
+                    tracing::info!("Forcing attention to '{fallback_attention}' because head dim is not supported by flashinfer, also disabling prefix caching");
+                    attention = Some(fallback_attention.to_string());
+                }
+                if prefix_caching.is_none() {
+                    prefix_caching = Some("0".to_string());
+                }
+            }
+        }
+    }
+
+    let attention = attention.unwrap_or("flashinfer".to_string());
+    let prefix_caching = prefix_caching.unwrap_or("true".to_string());
+
+    (prefix_caching, attention)
+}
 
 #[derive(Deserialize)]
 struct RawConfig {
     max_position_embeddings: Option<usize>,
     n_positions: Option<usize>,
+    model_type: Option<String>,
     max_seq_len: Option<usize>,
+    quantization_config: Option<QuantizationConfig>,
+    n_embd: Option<usize>,
+    hidden_size: Option<usize>,
+    num_attention_heads: Option<usize>,
+    head_dim: Option<usize>,
+    vision_config: Option<VisionConfig>,
+    is_encoder_decoder: Option<bool>,
 }
+
+#[derive(Deserialize)]
+struct QuantizationConfig {
+    quant_method: Option<Quantization>,
+}
+
+#[derive(Deserialize)]
+struct VisionConfig {}
 
 #[derive(Deserialize)]
 struct Config {
     max_position_embeddings: Option<usize>,
+    quantize: Option<Quantization>,
+    head_dim: Option<usize>,
+    model_type: Option<String>,
+    vision_config: Option<VisionConfig>,
+    is_encoder_decoder: bool,
 }
 
 impl From<RawConfig> for Config {
@@ -41,13 +170,39 @@ impl From<RawConfig> for Config {
             .max_position_embeddings
             .or(other.max_seq_len)
             .or(other.n_positions);
+        let quantize = other.quantization_config.and_then(|q| q.quant_method);
+        let head_dim = other.head_dim.or_else(|| {
+            match (other.hidden_size, other.n_embd, other.num_attention_heads) {
+                (Some(hidden_size), _, Some(num_attention_heads))
+                    if hidden_size % num_attention_heads == 0 =>
+                {
+                    Some(hidden_size / num_attention_heads)
+                }
+                // Legacy
+                (_, Some(hidden_size), Some(num_attention_heads))
+                    if hidden_size % num_attention_heads == 0 =>
+                {
+                    Some(hidden_size / num_attention_heads)
+                }
+                _ => None,
+            }
+        });
+        let model_type = other.model_type;
+        let vision_config = other.vision_config;
+        let is_encoder_decoder = other.is_encoder_decoder.unwrap_or(false);
         Config {
             max_position_embeddings,
+            quantize,
+            head_dim,
+            model_type,
+            vision_config,
+            is_encoder_decoder,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
+#[derive(Clone, Copy, Debug, ValueEnum, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 enum Quantization {
     /// 4 bit quantization. Requires a specific AWQ quantized model:
     ///   <https://hf.co/models?search=awq>.
@@ -57,24 +212,30 @@ enum Quantization {
     /// Should be a drop-in replacement to bitsandbytes with much better performance.
     /// Kernels are from <https://github.com/NetEase-FuXi/EETQ.git>
     Eetq,
+    /// Variable bit quantization. Requires a specific EXL2 quantized model:
+    /// <https://hf.co/models?search=exl2>. Requires exllama2 kernels and does
+    /// not support tensor parallelism (num_shard > 1).
+    Exl2,
     /// 4 bit quantization. Requires a specific GTPQ quantized model: <https://hf.co/models?search=gptq>.
     /// text-generation-inference will use exllama (faster) kernels wherever possible, and use
     /// triton kernel (wider support) when it's not.
     /// AWQ has faster kernels.
     Gptq,
+    /// 4 bit quantization. Requires a specific Marlin quantized model: <https://hf.co/models?search=marlin>.
+    Marlin,
     /// Bitsandbytes 8bit. Can be applied on any model, will cut the memory requirement in half,
     /// but it is known that the model will be much slower to run than the native f16.
-    #[deprecated(
-        since = "1.1.0",
-        note = "Use `eetq` instead, which provides better latencies overall and is drop-in in most cases"
-    )]
+    // #[deprecated(
+    //     since = "1.1.0",
+    //     note = "Use `eetq` instead, which provides better latencies overall and is drop-in in most cases"
+    // )]
     Bitsandbytes,
     /// Bitsandbytes 4bit. Can be applied on any model, will cut the memory requirement by 4x,
     /// but it is known that the model will be much slower to run than the native f16.
-    BitsandbytesNF4,
+    BitsandbytesNf4,
     /// Bitsandbytes 4bit. nf4 should be preferred in most cases but maybe this one has better
     /// perplexity performance for you model
-    BitsandbytesFP4,
+    BitsandbytesFp4,
     /// [FP8](https://developer.nvidia.com/blog/nvidia-arm-and-intel-publish-fp8-specification-for-standardization-as-an-interchange-format-for-ai/) (e4m3) works on H100 and above
     /// This dtype has native ops should be the fastest if available.
     /// This is currently not the fastest because of local unpacking + padding to satisfy matrix
@@ -91,14 +252,20 @@ impl std::fmt::Display for Quantization {
             Quantization::Bitsandbytes => {
                 write!(f, "bitsandbytes")
             }
-            Quantization::BitsandbytesNF4 => {
+            Quantization::BitsandbytesNf4 => {
                 write!(f, "bitsandbytes-nf4")
             }
-            Quantization::BitsandbytesFP4 => {
+            Quantization::BitsandbytesFp4 => {
                 write!(f, "bitsandbytes-fp4")
+            }
+            Quantization::Exl2 => {
+                write!(f, "exl2")
             }
             Quantization::Gptq => {
                 write!(f, "gptq")
+            }
+            Quantization::Marlin => {
+                write!(f, "marlin")
             }
             Quantization::Awq => {
                 write!(f, "awq")
@@ -154,6 +321,33 @@ impl std::fmt::Display for RopeScaling {
     }
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum UsageStatsLevel {
+    /// Default option, usage statistics are collected anonymously
+    On,
+    /// Disables all collection of usage statistics
+    Off,
+    /// Doesn't send the error stack trace or error type, but allows sending a crash event
+    NoStack,
+}
+
+impl std::fmt::Display for UsageStatsLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // To keep in track with `server`.
+        match self {
+            UsageStatsLevel::On => {
+                write!(f, "on")
+            }
+            UsageStatsLevel::Off => {
+                write!(f, "off")
+            }
+            UsageStatsLevel::NoStack => {
+                write!(f, "no-stack")
+            }
+        }
+    }
+}
+
 /// App Configuration
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -189,7 +383,11 @@ struct Args {
     #[clap(long, env)]
     num_shard: Option<usize>,
 
-    /// Whether you want the model to be quantized.
+    /// Quantization method to use for the model. It is not necessary to specify this option
+    /// for pre-quantized models, since the quantization method is read from the model
+    /// configuration.
+    ///
+    /// Marlin kernels will be used automatically for GPTQ/AWQ models.
     #[clap(long, env, value_enum)]
     quantize: Option<Quantization>,
 
@@ -231,7 +429,7 @@ struct Args {
     max_stop_sequences: usize,
 
     /// This is the maximum allowed value for clients to set `top_n_tokens`.
-    /// `top_n_tokens is used to return information about the the `n` most likely
+    /// `top_n_tokens` is used to return information about the the `n` most likely
     /// tokens at each generation step, instead of just the sampled token. This
     /// information can be used for downstream tasks like for classification or
     /// ranking.
@@ -403,8 +601,15 @@ struct Args {
     #[clap(long, env)]
     otlp_endpoint: Option<String>,
 
+    #[clap(default_value = "text-generation-inference.router", long, env)]
+    otlp_service_name: String,
+
     #[clap(long, env)]
     cors_allow_origin: Vec<String>,
+
+    #[clap(long, env)]
+    api_key: Option<String>,
+
     #[clap(long, env)]
     watermark_gamma: Option<f32>,
     #[clap(long, env)]
@@ -439,6 +644,17 @@ struct Args {
     /// Control the maximum number of inputs that a client can send in a single request
     #[clap(default_value = "4", long, env)]
     max_client_batch_size: usize,
+
+    /// Lora Adapters a list of adapter ids i.e. `repo/adapter1,repo/adapter2` to load during
+    /// startup that will be available to callers via the `adapter_id` field in a request.
+    #[clap(long, env)]
+    lora_adapters: Option<String>,
+
+    /// Control if anonymous usage stats are collected.
+    /// Options are "on", "off" and "no-stack"
+    /// Defaul is on.
+    #[clap(default_value = "on", long, env)]
+    usage_stats: UsageStatsLevel,
 }
 
 #[derive(Debug)]
@@ -471,7 +687,10 @@ fn shard_manager(
     rope_factor: Option<f32>,
     max_total_tokens: usize,
     max_batch_size: Option<usize>,
+    max_input_tokens: usize,
+    lora_adapters: Option<String>,
     otlp_endpoint: Option<String>,
+    otlp_service_name: String,
     log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
@@ -521,12 +740,13 @@ fn shard_manager(
 
     if let Some(dtype) = dtype {
         shard_args.push("--dtype".to_string());
-        shard_args.push(dtype.to_string());
+        shard_args.push(dtype.to_string())
     }
+
     // Model optional revision
     if let Some(revision) = revision {
         shard_args.push("--revision".to_string());
-        shard_args.push(revision);
+        shard_args.push(revision)
     }
 
     let rope = match (rope_scaling, rope_factor) {
@@ -536,11 +756,19 @@ fn shard_manager(
         (None, Some(factor)) => Some((RopeScaling::Linear, factor)),
     };
 
-    // OpenTelemetry
+    // OpenTelemetry Endpoint
     if let Some(otlp_endpoint) = otlp_endpoint {
         shard_args.push("--otlp-endpoint".to_string());
         shard_args.push(otlp_endpoint);
     }
+
+    // OpenTelemetry Service Name
+    shard_args.push("--otlp-service-name".to_string());
+    shard_args.push(otlp_service_name);
+
+    // In case we use sliding window, we may ignore the sliding in flash for some backends depending on the parameter.
+    shard_args.push("--max-input-tokens".to_string());
+    shard_args.push(max_input_tokens.to_string());
 
     // Copy current process env
     let mut envs: Vec<(OsString, OsString)> = env::vars_os().collect();
@@ -598,6 +826,11 @@ fn shard_manager(
         envs.push(("MAX_BATCH_SIZE".into(), max_batch_size.to_string().into()));
     }
 
+    // Lora Adapters
+    if let Some(lora_adapters) = lora_adapters {
+        envs.push(("LORA_ADAPTERS".into(), lora_adapters.into()));
+    }
+
     // If huggingface_hub_cache is some, pass it to the shard
     // Useful when running inside a docker container
     if let Some(huggingface_hub_cache) = huggingface_hub_cache {
@@ -647,6 +880,7 @@ fn shard_manager(
         .args(shard_args)
         .env_clear()
         .envs(envs)
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .process_group(0)
@@ -668,18 +902,31 @@ fn shard_manager(
     };
 
     // Redirect STDOUT to the console
+    let mut pstdin = p.stdin.take().unwrap();
     let shard_stdout_reader = BufReader::new(p.stdout.take().unwrap());
     let shard_stderr_reader = BufReader::new(p.stderr.take().unwrap());
 
     //stdout tracing thread
     thread::spawn(move || {
-        log_lines(shard_stdout_reader.lines());
+        log_lines(shard_stdout_reader);
     });
     // We read stderr in another thread as it seems that lines() can block in some cases
     let (err_sender, err_receiver) = mpsc::channel();
     thread::spawn(move || {
         for line in shard_stderr_reader.lines().map_while(Result::ok) {
             err_sender.send(line).unwrap_or(());
+        }
+    });
+    // We read stdin in another thread as it seems that lines() can block in some cases
+    thread::spawn(move || {
+        let mut stdin = io::stdin(); // We get `Stdin` here.
+        loop {
+            let mut buffer = vec![0; 4096];
+            if let Ok(n) = stdin.read(&mut buffer) {
+                if n > 0 {
+                    let _ = pstdin.write_all(&buffer[..n]);
+                }
+            }
         }
     });
 
@@ -738,7 +985,10 @@ fn shutdown_shards(shutdown: Arc<AtomicBool>, shutdown_receiver: &mpsc::Receiver
 fn num_cuda_devices() -> Option<usize> {
     let devices = match env::var("CUDA_VISIBLE_DEVICES") {
         Ok(devices) => devices,
-        Err(_) => env::var("NVIDIA_VISIBLE_DEVICES").ok()?,
+        Err(_) => match env::var("NVIDIA_VISIBLE_DEVICES") {
+            Ok(devices) => devices,
+            Err(_) => env::var("ZE_AFFINITY_MASK").ok()?,
+        },
     };
     let n_devices = devices.split(',').count();
     Some(n_devices)
@@ -786,19 +1036,38 @@ impl PythonLogMessage {
     }
 }
 
-impl TryFrom<&String> for PythonLogMessage {
+impl TryFrom<&[u8]> for PythonLogMessage {
     type Error = serde_json::Error;
 
-    fn try_from(value: &String) -> Result<Self, Self::Error> {
-        serde_json::from_str::<Self>(value)
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        serde_json::from_slice::<Self>(value)
     }
 }
 
-fn log_lines<S: Sized + BufRead>(lines: Lines<S>) {
-    for line in lines.map_while(Result::ok) {
-        match PythonLogMessage::try_from(&line) {
-            Ok(log) => log.trace(),
-            Err(_) => tracing::debug!("{line}"),
+fn log_lines<R: Sized + Read>(mut bufread: BufReader<R>) {
+    let mut buffer = vec![0u8; 8 * 4096];
+    let mut stdout = std::io::stdout();
+    loop {
+        let n = bufread.read(&mut buffer);
+        if let Ok(n) = n {
+            if n > 0 {
+                let mut lines = buffer[..n].split(|i| *i == b'\n').peekable();
+                while let Some(line) = lines.next() {
+                    match PythonLogMessage::try_from(line) {
+                        Ok(log) => log.trace(),
+                        // For interactive debugging ?
+                        Err(_) => {
+                            if LevelFilter::current() >= tracing::Level::DEBUG {
+                                stdout.write_all(line).unwrap();
+                                if lines.peek().is_some() {
+                                    stdout.write_all(b"\n").unwrap();
+                                }
+                                stdout.flush().unwrap();
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -811,9 +1080,9 @@ fn find_num_shards(
     let num_shard = match (sharded, num_shard) {
         (Some(true), None) => {
             // try to default to the number of available GPUs
-            tracing::info!("Parsing num_shard from CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES");
+            tracing::info!("Parsing num_shard from CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES/ZE_AFFINITY_MASK");
             let n_devices = num_cuda_devices()
-                .expect("--num-shard and CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES are not set");
+                .expect("--num-shard and CUDA_VISIBLE_DEVICES/NVIDIA_VISIBLE_DEVICES/ZE_AFFINITY_MASK are not set");
             if n_devices <= 1 {
                 return Err(LauncherError::NotEnoughCUDADevices(format!(
                     "`sharded` is true but only found {n_devices} CUDA devices"
@@ -863,13 +1132,20 @@ enum LauncherError {
     WebserverCannotStart,
 }
 
-fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), LauncherError> {
+fn download_convert_model(
+    model_id: &str,
+    revision: Option<&str>,
+    trust_remote_code: bool,
+    huggingface_hub_cache: Option<&str>,
+    weights_cache_override: Option<&str>,
+    running: Arc<AtomicBool>,
+) -> Result<(), LauncherError> {
     // Enter download tracing span
     let _span = tracing::span!(tracing::Level::INFO, "download").entered();
 
     let mut download_args = vec![
         "download-weights".to_string(),
-        args.model_id.to_string(),
+        model_id.to_string(),
         "--extension".to_string(),
         ".safetensors".to_string(),
         "--logger-level".to_string(),
@@ -878,13 +1154,13 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     ];
 
     // Model optional revision
-    if let Some(revision) = &args.revision {
+    if let Some(revision) = &revision {
         download_args.push("--revision".to_string());
         download_args.push(revision.to_string())
     }
 
     // Trust remote code for automatic peft fusion
-    if args.trust_remote_code {
+    if trust_remote_code {
         download_args.push("--trust-remote-code".to_string());
     }
 
@@ -899,7 +1175,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 
     // If huggingface_hub_cache is set, pass it to the download process
     // Useful when running inside a docker container
-    if let Some(ref huggingface_hub_cache) = args.huggingface_hub_cache {
+    if let Some(ref huggingface_hub_cache) = huggingface_hub_cache {
         envs.push(("HUGGINGFACE_HUB_CACHE".into(), huggingface_hub_cache.into()));
     };
 
@@ -917,7 +1193,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
 
     // If args.weights_cache_override is some, pass it to the download process
     // Useful when running inside a HuggingFace Inference Endpoint
-    if let Some(weights_cache_override) = &args.weights_cache_override {
+    if let Some(weights_cache_override) = &weights_cache_override {
         envs.push((
             "WEIGHTS_CACHE_OVERRIDE".into(),
             weights_cache_override.into(),
@@ -925,7 +1201,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     };
 
     // Start process
-    tracing::info!("Starting download process.");
+    tracing::info!("Starting check and download process for {model_id}");
     let mut download_process = match Command::new("text-generation-server")
         .args(download_args)
         .env_clear()
@@ -951,7 +1227,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     let download_stdout = BufReader::new(download_process.stdout.take().unwrap());
 
     thread::spawn(move || {
-        log_lines(download_stdout.lines());
+        log_lines(download_stdout);
     });
 
     let download_stderr = BufReader::new(download_process.stderr.take().unwrap());
@@ -967,7 +1243,7 @@ fn download_convert_model(args: &Args, running: Arc<AtomicBool>) -> Result<(), L
     loop {
         if let Some(status) = download_process.try_wait().unwrap() {
             if status.success() {
-                tracing::info!("Successfully downloaded weights.");
+                tracing::info!("Successfully downloaded weights for {model_id}");
                 break;
             }
 
@@ -1001,6 +1277,8 @@ fn spawn_shards(
     args: &Args,
     cuda_graphs: Vec<usize>,
     max_total_tokens: usize,
+    max_input_tokens: usize,
+    quantize: Option<Quantization>,
     max_log_level: LevelFilter,
     shutdown: Arc<AtomicBool>,
     shutdown_receiver: &mpsc::Receiver<()>,
@@ -1021,7 +1299,7 @@ fn spawn_shards(
         let shutdown = shutdown.clone();
         let shutdown_sender = shutdown_sender.clone();
         let otlp_endpoint = args.otlp_endpoint.clone();
-        let quantize = args.quantize;
+        let otlp_service_name = args.otlp_service_name.clone();
         let speculate = args.speculate;
         let dtype = args.dtype;
         let trust_remote_code = args.trust_remote_code;
@@ -1034,6 +1312,7 @@ fn spawn_shards(
         let rope_scaling = args.rope_scaling;
         let rope_factor = args.rope_factor;
         let max_batch_size = args.max_batch_size;
+        let lora_adapters = args.lora_adapters.clone();
         thread::spawn(move || {
             shard_manager(
                 model_id,
@@ -1058,7 +1337,10 @@ fn spawn_shards(
                 rope_factor,
                 max_total_tokens,
                 max_batch_size,
+                max_input_tokens,
+                lora_adapters,
                 otlp_endpoint,
+                otlp_service_name,
                 max_log_level,
                 status_sender,
                 shutdown,
@@ -1153,6 +1435,10 @@ fn spawn_webserver(
         args.model_id,
     ];
 
+    // Pass usage stats flags to router
+    router_args.push("--usage-stats".to_string());
+    router_args.push(args.usage_stats.to_string());
+
     // Grammar support
     if args.disable_grammar_support {
         router_args.push("--disable-grammar-support".to_string());
@@ -1192,12 +1478,22 @@ fn spawn_webserver(
         router_args.push(otlp_endpoint);
     }
 
+    // OpenTelemetry
+    let otlp_service_name = args.otlp_service_name;
+    router_args.push("--otlp-service-name".to_string());
+    router_args.push(otlp_service_name);
+
     // CORS origins
     for origin in args.cors_allow_origin.into_iter() {
         router_args.push("--cors-allow-origin".to_string());
         router_args.push(origin);
     }
 
+    // API Key
+    if let Some(api_key) = args.api_key {
+        router_args.push("--api-key".to_string());
+        router_args.push(api_key);
+    }
     // Ngrok
     if args.ngrok {
         router_args.push("--ngrok".to_string());
@@ -1286,16 +1582,6 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
 }
 
 fn main() -> Result<(), LauncherError> {
-    match Command::new("ldconfig").spawn() {
-        Ok(_) => {}
-        Err(err) => {
-            tracing::warn!(
-                "Unable to refresh ldconfig cache. Skipping (useless in most cases). Details {:?}",
-                err
-            )
-        }
-    }
-
     // Pattern match configuration
     let args: Args = Args::parse();
 
@@ -1336,34 +1622,12 @@ fn main() -> Result<(), LauncherError> {
 
     tracing::info!("{:#?}", args);
 
-    let get_max_position_embeddings = || -> Result<usize, Box<dyn std::error::Error>> {
-        let model_id = args.model_id.clone();
-        let mut path = std::path::Path::new(&args.model_id).to_path_buf();
-        let filename = if !path.exists() {
-            // Assume it's a hub id
-            let api = Api::new()?;
-            let repo = if let Some(ref revision) = args.revision {
-                api.repo(Repo::with_revision(
-                    model_id,
-                    RepoType::Model,
-                    revision.to_string(),
-                ))
-            } else {
-                api.model(model_id)
-            };
-            repo.get("config.json")?
-        } else {
-            path.push("config.json");
-            path
-        };
+    let config: Option<Config> = get_config(&args.model_id, &args.revision).ok();
+    let quantize = config.as_ref().and_then(|c| c.quantize);
+    // Quantization usually means you're even more RAM constrained.
+    let max_default = 4096;
 
-        let content = std::fs::read_to_string(filename)?;
-        let config: RawConfig = serde_json::from_str(&content)?;
-        let config: Config = config.into();
-
-        // Quantization usually means you're even more RAM constrained.
-        let max_default = 4096;
-
+    let max_position_embeddings = if let Some(config) = &config {
         if let Some(max_position_embeddings) = config.max_position_embeddings {
             if max_position_embeddings > max_default {
                 let max = max_position_embeddings;
@@ -1373,17 +1637,20 @@ fn main() -> Result<(), LauncherError> {
                 {
                     tracing::info!("Model supports up to {max} but tgi will now set its default to {max_default} instead. This is to save VRAM by refusing large prompts in order to allow more users on the same hardware. You can increase that size using `--max-batch-prefill-tokens={} --max-total-tokens={max} --max-input-tokens={}`.", max + 50, max - 1);
                 }
-                Ok(max_default)
+                max_default
             } else {
-                Ok(max_position_embeddings)
+                max_position_embeddings
             }
         } else {
-            Err(Box::new(LauncherError::ArgumentValidation(
-                "no max defined".to_string(),
-            )))
+            max_default
         }
+    } else {
+        max_default
     };
-    let max_position_embeddings: usize = get_max_position_embeddings().unwrap_or(4096);
+    let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
+    tracing::info!("Using attention {attention} - Prefix caching {prefix_caching}");
+    std::env::set_var("USE_PREFIX_CACHING", prefix_caching);
+    std::env::set_var("ATTENTION", attention);
 
     let max_input_tokens = {
         match (args.max_input_tokens, args.max_input_length) {
@@ -1440,18 +1707,26 @@ fn main() -> Result<(), LauncherError> {
         )));
     }
 
-    let cuda_graphs = match (&args.cuda_graphs, &args.quantize) {
+    if matches!(args.quantize, Some(Quantization::Bitsandbytes)) {
+        tracing::warn!("Bitsandbytes is deprecated, use `eetq` instead, which provides better latencies overall and is drop-in in most cases.");
+    }
+    let quantize = args.quantize.or(quantize);
+    let cuda_graphs = match (&args.cuda_graphs, &quantize) {
         (Some(cuda_graphs), _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
         #[allow(deprecated)]
         (
             None,
             Some(
                 Quantization::Bitsandbytes
-                | Quantization::BitsandbytesNF4
-                | Quantization::BitsandbytesFP4,
+                | Quantization::BitsandbytesNf4
+                | Quantization::BitsandbytesFp4,
             ),
         ) => {
-            tracing::info!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
+            tracing::warn!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
+            vec![]
+        }
+        (None, Some(Quantization::Exl2)) => {
+            tracing::warn!("Exl2 doesn't work with cuda graphs, deactivating them");
             vec![]
         }
         _ => {
@@ -1475,6 +1750,11 @@ fn main() -> Result<(), LauncherError> {
 
     let num_shard = find_num_shards(args.sharded, args.num_shard)?;
     if num_shard > 1 {
+        if matches!(args.quantize, Some(Quantization::Exl2)) {
+            return Err(LauncherError::ArgumentValidation(
+                "Sharding is currently not supported with `exl2` quantization".into(),
+            ));
+        }
         tracing::info!("Sharding model on {num_shard} processes");
     }
 
@@ -1516,7 +1796,55 @@ fn main() -> Result<(), LauncherError> {
     .expect("Error setting Ctrl-C handler");
 
     // Download and convert model weights
-    download_convert_model(&args, running.clone())?;
+    download_convert_model(
+        &args.model_id,
+        args.revision.as_deref(),
+        args.trust_remote_code,
+        args.huggingface_hub_cache.as_deref(),
+        args.weights_cache_override.as_deref(),
+        running.clone(),
+    )?;
+
+    // Download and convert lora adapters if any
+    if let Some(lora_adapters) = &args.lora_adapters {
+        for adapter in lora_adapters.split(',') {
+            // skip download if a path is provided
+            if adapter.contains('=') {
+                continue;
+            }
+
+            let adapter = adapter.trim();
+
+            // check if adapter has more than 1 '@'
+            if adapter.matches('@').count() > 1 {
+                return Err(LauncherError::ArgumentValidation(format!(
+                    "Invalid LoRA adapter format: {}",
+                    adapter
+                )));
+            }
+
+            // capture adapter_id, path, revision in format of adapter_id=path@revision
+            let re = Regex::new(r"^([^=@]+)(?:=([^@]+))?(?:@(.+))?$").unwrap();
+            if let Some(caps) = re.captures(adapter) {
+                let adapter_id = caps.get(1).map_or("", |m| m.as_str());
+                let revision = caps.get(3).map(|m| m.as_str());
+
+                download_convert_model(
+                    adapter_id,
+                    revision,
+                    args.trust_remote_code,
+                    args.huggingface_hub_cache.as_deref(),
+                    args.weights_cache_override.as_deref(),
+                    running.clone(),
+                )?;
+            } else {
+                return Err(LauncherError::ArgumentValidation(format!(
+                    "Invalid LoRA adapter format: {}",
+                    adapter
+                )));
+            }
+        }
+    }
 
     if !running.load(Ordering::SeqCst) {
         // Launcher was asked to stop
@@ -1537,6 +1865,8 @@ fn main() -> Result<(), LauncherError> {
         &args,
         cuda_graphs,
         max_total_tokens,
+        max_input_tokens,
+        quantize,
         max_log_level,
         shutdown.clone(),
         &shutdown_receiver,
@@ -1561,9 +1891,8 @@ fn main() -> Result<(), LauncherError> {
         shutdown.clone(),
         &shutdown_receiver,
     )
-    .map_err(|err| {
+    .inspect_err(|_| {
         shutdown_shards(shutdown.clone(), &shutdown_receiver);
-        err
     })?;
 
     // Default exit code

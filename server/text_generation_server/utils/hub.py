@@ -54,7 +54,6 @@ def _weight_files_from_dir(d: Path, extension: str) -> List[str]:
         if f.endswith(extension)
         and "arguments" not in f
         and "args" not in f
-        and "adapter" not in f
         and "training" not in f
     ]
     return filenames

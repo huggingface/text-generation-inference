@@ -1,5 +1,3 @@
-# Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
-
 import os
 import psutil
 import signal
@@ -11,6 +9,7 @@ from loguru import logger
 from typing import Optional
 from enum import Enum
 from huggingface_hub import hf_hub_download
+from text_generation_server.utils.adapter import parse_lora_adapters
 
 
 app = typer.Typer()
@@ -18,10 +17,14 @@ app = typer.Typer()
 
 class Quantization(str, Enum):
     bitsandbytes = "bitsandbytes"
+    bitsandbytes_nf4 = "bitsandbytes-nf4"
+    bitsandbytes_fp4 = "bitsandbytes-fp4"
     gptq = "gptq"
     awq = "awq"
     eetq = "eetq"
+    exl2 = "exl2"
     fp8 = "fp8"
+    marlin = "marlin"
 
 
 class Dtype(str, Enum):
@@ -42,8 +45,13 @@ def serve(
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,
+    otlp_service_name: str = "text-generation-inference.server",
+    max_input_tokens: Optional[int] = None,
 ):
     if sharded:
+        # assert (
+        #     os.getenv("RANK", None) is not None
+        # ), "RANK must be set when sharded is True"
         assert (
             os.getenv("WORLD_SIZE", None) is not None
         ), "WORLD_SIZE must be set when sharded is True"
@@ -72,11 +80,35 @@ def serve(
 
     # Setup OpenTelemetry distributed tracing
     if otlp_endpoint is not None:
-        setup_tracing(shard=os.getenv("RANK", 0), otlp_endpoint=otlp_endpoint)
+        setup_tracing(otlp_service_name=otlp_service_name, otlp_endpoint=otlp_endpoint)
+
+    lora_adapters = parse_lora_adapters(os.getenv("LORA_ADAPTERS"))
+
+    # TODO: enable lora with cuda graphs. for now disable cuda graphs if lora is enabled
+    # and warn the user
+    if lora_adapters:
+        logger.warning("LoRA adapters enabled (experimental feature).")
+
+        if "CUDA_GRAPHS" in os.environ:
+            logger.warning(
+                "LoRA adapters incompatible with CUDA Graphs. Disabling CUDA Graphs."
+            )
+            global CUDA_GRAPHS
+            CUDA_GRAPHS = None
 
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = "bfloat16" if dtype is None else dtype.value
+    logger.info(f"quantize={quantize}")
+    if dtype is not None and quantize not in {
+        None,
+        "bitsandbytes",
+        "bitsandbytes-nf4",
+        "bitsandbytes-fp4",
+    }:
+        raise RuntimeError(
+            "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
+        )
 
     logger.info("CLI SHARDED = {} DTYPE = {}".format(sharded, dtype))
 
@@ -89,6 +121,7 @@ def serve(
         cmd = f"deepspeed --num_nodes 1 --num_gpus {num_shard} --no_local_rank {tgi_file}"
         cmd += f" --model_id {model_id} --revision {revision} --sharded {sharded}"
         cmd += f" --dtype {dtype} --trust_remote_code {trust_remote_code} --uds_path {uds_path}"
+        cmd += f" --quantize {quantize} --max_input_tokens {max_input_tokens}"
         if speculate is not None:
             cmd += f"--speculate {speculate}"
         logger.info("CLI server start deepspeed ={} ".format(cmd))
@@ -136,12 +169,15 @@ def serve(
     else:
         server.serve(
             model_id,
+            lora_adapters,
             revision,
             sharded,
+            quantize,
             speculate,
             dtype,
             trust_remote_code,
-            uds_path
+            uds_path,
+            max_input_tokens,
         )
 
 
@@ -154,6 +190,7 @@ def download_weights(
     logger_level: str = "INFO",
     json_output: bool = False,
     trust_remote_code: bool = False,
+    merge_lora: bool = False,
 ):
     # Remove default handler
     logger.remove()
@@ -184,18 +221,28 @@ def download_weights(
     ) is not None
 
     if not is_local_model:
-        try:
-            adapter_config_filename = hf_hub_download(
-                model_id, revision=revision, filename="adapter_config.json"
-            )
-            utils.download_and_unload_peft(
-                model_id, revision, trust_remote_code=trust_remote_code
-            )
-            is_local_model = True
-            utils.weight_files(model_id, revision, extension)
-            return
-        except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
-            pass
+        # TODO: maybe reverse the default value of merge_lora?
+        # currently by default we don't merge the weights with the base model
+        if merge_lora:
+            try:
+                hf_hub_download(
+                    model_id, revision=revision, filename="adapter_config.json"
+                )
+                utils.download_and_unload_peft(
+                    model_id, revision, trust_remote_code=trust_remote_code
+                )
+                is_local_model = True
+                utils.weight_files(model_id, revision, extension)
+                return
+            except (utils.LocalEntryNotFoundError, utils.EntryNotFoundError):
+                pass
+        else:
+            try:
+                utils.peft.download_peft(
+                    model_id, revision, trust_remote_code=trust_remote_code
+                )
+            except Exception:
+                pass
 
         try:
             import json
@@ -298,9 +345,9 @@ def download_weights(
     if auto_convert:
         if not trust_remote_code:
             logger.warning(
-                f"🚨🚨BREAKING CHANGE in 2.0🚨🚨: Safetensors conversion is disabled without `--trust-remote-code` because "
-                f"Pickle files are unsafe and can essentially contain remote code execution!"
-                f"Please check for more information here: https://huggingface.co/docs/text-generation-inference/basic_tutorials/safety",
+                "🚨🚨BREAKING CHANGE in 2.0🚨🚨: Safetensors conversion is disabled without `--trust-remote-code` because "
+                "Pickle files are unsafe and can essentially contain remote code execution!"
+                "Please check for more information here: https://huggingface.co/docs/text-generation-inference/basic_tutorials/safety",
             )
 
         logger.warning(
@@ -309,22 +356,28 @@ def download_weights(
         )
 
         # Safetensors final filenames
-        local_st_files = [p.parent / f"{p.stem.lstrip('pytorch_')}.safetensors" for p in local_pt_files]
+        local_st_files = [
+            p.parent / f"{p.stem.lstrip('pytorch_')}.safetensors"
+            for p in local_pt_files
+        ]
         try:
             import transformers
-            from transformers import AutoConfig
+            import json
 
-            config = AutoConfig.from_pretrained(
-                model_id,
-                revision=revision,
-            )
-            architecture = config.architectures[0]
+            if is_local_model:
+                config_filename = os.path.join(model_id, "config.json")
+            else:
+                config_filename = hf_hub_download(
+                    model_id, revision=revision, filename="config.json"
+                )
+            with open(config_filename, "r") as f:
+                config = json.load(f)
+            architecture = config["architectures"][0]
 
             class_ = getattr(transformers, architecture)
 
             # Name for this varible depends on transformers version.
             discard_names = getattr(class_, "_tied_weights_keys", [])
-            discard_names.extend(getattr(class_, "_keys_to_ignore_on_load_missing", []))
 
         except Exception:
             discard_names = []
@@ -343,24 +396,29 @@ def quantize(
     upload_to_model_id: Optional[str] = None,
     percdamp: float = 0.01,
     act_order: bool = False,
+    groupsize: int = 128,
 ):
+    if revision is None:
+        revision = "main"
     download_weights(
         model_id=model_id,
         revision=revision,
         logger_level=logger_level,
         json_output=json_output,
     )
-    from text_generation_server.utils.gptq.quantize import quantize
+    from text_generation_server.layers.gptq.quantize import quantize
 
     quantize(
         model_id=model_id,
         bits=4,
-        groupsize=128,
+        groupsize=groupsize,
         output_dir=output_dir,
+        revision=revision,
         trust_remote_code=trust_remote_code,
         upload_to_model_id=upload_to_model_id,
         percdamp=percdamp,
         act_order=act_order,
+        sym=True,
     )
 
 

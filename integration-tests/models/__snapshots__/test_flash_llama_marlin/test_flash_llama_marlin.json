@@ -1,0 +1,89 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 10,
+    "prefill": [
+      {
+        "id": 1,
+        "logprob": null,
+        "text": "<s>"
+      },
+      {
+        "id": 4321,
+        "logprob": -12.390625,
+        "text": "Test"
+      },
+      {
+        "id": 2009,
+        "logprob": -11.0625,
+        "text": "request"
+      }
+    ],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 13,
+        "logprob": -2.0507812,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 13,
+        "logprob": -2.3007812,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 29902,
+        "logprob": -2.0449219,
+        "special": false,
+        "text": "I"
+      },
+      {
+        "id": 505,
+        "logprob": -1.3242188,
+        "special": false,
+        "text": " have"
+      },
+      {
+        "id": 263,
+        "logprob": -0.2076416,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 1243,
+        "logprob": -2.0273438,
+        "special": false,
+        "text": " test"
+      },
+      {
+        "id": 2009,
+        "logprob": -0.6845703,
+        "special": false,
+        "text": " request"
+      },
+      {
+        "id": 515,
+        "logprob": -1.1748047,
+        "special": false,
+        "text": " from"
+      },
+      {
+        "id": 263,
+        "logprob": -1.0644531,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 1404,
+        "logprob": -1.5224609,
+        "special": false,
+        "text": " user"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "\n\nI have a test request from a user"
+}
