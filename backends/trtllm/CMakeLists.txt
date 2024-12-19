@@ -85,6 +85,10 @@ endif ()
 #### Unit Tests ####
 if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     message(STATUS "Building tests")
+    option(TGI_TRTLLM_BACKEND_ENABLE_ASAN "Enable AddressSanitizer")
+    option(TGI_TRTLLM_BACKEND_ENABLE_UBSAN "Enable UndefinedSanitizer")
+    option(TGI_TRTLLM_BACKEND_ENABLE_MSAN "Enable MemorySanitizer")
+
     FetchContent_Declare(
             Catch2
             URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.7.1.tar.gz
@@ -112,32 +116,20 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     target_link_libraries(tgi_trtllm_backend_tests PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tensorrt_llm_nvrtc_wrapper)
 
     if (CMAKE_BUILD_TYPE MATCHES "Debug")
-        if (NOT "${ASan_${CMAKE_C_COMPILER_ID}_FLAGS}" STREQUAL "")
+        if (${TGI_TRTLLM_BACKEND_ENABLE_ASAN})
+            message(STATUS "Enabled AddressSanitizer")
             target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=address)
         endif ()
 
-        if (NOT "${UBSan_${CMAKE_C_COMPILER_ID}_FLAGS}" STREQUAL "")
+        if (${TGI_TRTLLM_BACKEND_ENABLE_UBSAN})
+            message(STATUS "Enabled UndefinedSanitizer")
             target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined)
         endif ()
 
-        if (NOT "${MSan_${CMAKE_C_COMPILER_ID}_FLAGS}" STREQUAL "")
+        if (${TGI_TRTLLM_BACKEND_ENABLE_MSAN})
+            message(STATUS "Enabled MemorySanitizer")
             target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=memory)
         endif ()
-
-        #        execute_process(COMMAND CMAKE_C_COMPILER --print-file-name=libasan.so OUTPUT_VARIABLE LIBASAN_PATH OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE LIBASAN_FOUND)
-        #        execute_process(COMMAND CMAKE_C_COMPILER --print-file-name=libubsan.so OUTPUT_VARIABLE LIBUBSAN_PATH OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE LIBUBSAN_FOUND)
-
-        #        if (LIBASAN_FOUND)
-        #            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -fsanitize=address")
-        #            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
-        #            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=address)
-        #        endif ()
-
-        #        if (LIBUBSAN_FOUND)
-        #            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -fsanitize=undefined")
-        #            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
-        #            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined)
-        #        endif ()
     endif ()
 
     install(TARGETS tgi_trtllm_backend_tests)

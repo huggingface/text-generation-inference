@@ -3,6 +3,7 @@ use pkg_config;
 use std::env;
 use std::env::consts::ARCH;
 use std::path::{absolute, PathBuf};
+use std::sync::LazyLock;
 
 const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 1] = ["spdlog"];
 const CUDA_ARCH_LIST: Option<&str> = option_env!("CUDA_ARCH_LIST");
@@ -11,6 +12,15 @@ const MPI_REQUIRED_VERSION: &str = "4.1";
 const INSTALL_PREFIX: Option<&str> = option_env!("CMAKE_INSTALL_PREFIX");
 const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
 const NCCL_ROOT_DIR: Option<&str> = option_env!("NCCL_ROOT_DIR");
+
+const IS_GHA_BUILD: LazyLock<bool> = LazyLock::new(|| {
+    option_env!("IS_GHA_BUILD").map_or(false, |value| match value.to_lowercase().as_str() {
+        "on" => true,
+        "true" => true,
+        "1" => true,
+        _ => false,
+    })
+});
 
 // Dependencies
 const BACKEND_DEPS: &str = "tgi_trtllm_backend_impl";
@@ -110,6 +120,21 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
     if option_env!("USE_LLD_LINKER").is_some() {
         println!("cargo:warning=Using lld linker");
         config.define("TGI_TRTLLM_BACKEND_BUILD_USE_LLD", "ON");
+    }
+
+    if (is_debug && option_env!("ENABLE_ASAN").is_some()) || *IS_GHA_BUILD {
+        println!("cargo:warning=Enabling Address Sanitizer");
+        config.define("TGI_TRTLLM_BACKEND_ENABLE_ASAN", "ON");
+    }
+
+    if (is_debug && option_env!("ENABLE_UBSAN").is_some()) || *IS_GHA_BUILD {
+        println!("cargo:warning=Enabling Undefined Sanitizer");
+        config.define("TGI_TRTLLM_BACKEND_ENABLE_UBSAN", "ON");
+    }
+
+    if (is_debug && option_env!("ENABLE_MSAN").is_some()) || *IS_GHA_BUILD {
+        println!("cargo:warning=Enabling Memory Sanitizer");
+        config.define("TGI_TRTLLM_BACKEND_ENABLE_MSAN", "ON");
     }
 
     if let Some(nvcc_host_compiler) = option_env!("CMAKE_CUDA_HOST_COMPILER") {
