@@ -12,7 +12,7 @@ import os
 
 from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
-from transformers.models.auto import modeling_auto, modeling_task
+from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional, List, Dict
 from pathlib import Path
@@ -380,12 +380,14 @@ def get_model(
         logger.info(
             "TGI's flash enabled models could either not be loaded or are disabled, using Transformers fallback."
         )
-        try:
-            transformers_model_class = getattr(transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type])
-        except KeyError:
-            transformers_model_class = modeling_task.AutoForCausalLM
 
-        if transformers_model_class._supports_flash_attn_2:
+        transformers_model_class = getattr(transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type])
+        # Ugly check but works in the meantime
+        model_path = os.path.join(os.path.dirname(transformers.__file__), "models", model_type, f"modeling_{model_type}.py")
+        with open(model_path) as file:
+            has_fa2_class = f"FlashAttention2(" in file.read()
+
+        if transformers_model_class._supports_flash_attn_2 and not has_fa2_class:
             logger.info(
                 f"Transformers' {model_type} implementation supports ragged tensors format (single dimension for "
                 "batch and sequence length). All TGI's batching/caching optimizations are enabled."

@@ -52,12 +52,6 @@ def tgi_flash_attention_forward(
     key_states = key_states.transpose(1, 2).squeeze(dim=0)
     value_states = value_states.transpose(1, 2).squeeze(dim=0)
 
-    input_dtype = query_states.dtype
-    if input_dtype == torch.float32:
-        query_states = query_states.to(target_dtype)
-        key_states = key_states.to(target_dtype)
-        value_states = value_states.to(target_dtype)
-
     # Take care of updating the cache in-place
     kv_cache.store(
         key=key_states,
@@ -66,7 +60,6 @@ def tgi_flash_attention_forward(
         kv_scales=kv_scales
     )
 
-    
     _, num_heads, head_dim = query_states.shape
     softmax_scale = 1 / math.sqrt(head_dim) if softmax_scale is None else softmax_scale
     sliding_window = -1 if sliding_window is None else sliding_window
@@ -155,7 +148,8 @@ class TransformersFlashCausalLM(FlashCausalLM):
             device_map=("auto" if device_count > 1 else None),
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
-            attn_implementation="tgi"
+            attn_implementation="tgi",
+            tp_plan="auto" if world_size > 1 else None,
         )
 
         if device_count == 1 and quantize != "bitsandbytes":
