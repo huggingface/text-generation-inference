@@ -103,6 +103,10 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
         )
         .define("TGI_TRTLLM_BACKEND_TRT_ROOT", tensorrt_path);
 
+    if is_debug {
+        config.define("TGI_TRTLLM_BACKEND_BUILD_TESTS", "ON");
+    }
+
     if option_env!("USE_LLD_LINKER").is_some() {
         println!("cargo:warning=Using lld linker");
         config.define("TGI_TRTLLM_BACKEND_BUILD_USE_LLD", "ON");

@@ -115,6 +115,7 @@ FROM runtime
 
 LABEL co.huggingface.vendor="Hugging Face Inc."
 LABEL org.opencontainers.image.authors="hardware@hf.co"
+LABEL org.opencontainers.title="Text-Generation-Inference TensorRT-LLM Backend"
 
 ENTRYPOINT ["./text-generation-launcher"]
 CMD ["--executor-worker", "/usr/local/tgi/bin/executorWorker"]
@@ -139,3 +140,9 @@ COPY --from=tgi-builder /usr/local/tgi /usr/local/tgi
 
 # Basically we copy from target/debug instead of target/release
 COPY --from=tgi-builder /usr/src/text-generation-inference/target/debug/text-generation-backends-trtllm /usr/local/tgi/bin/text-generation-launcher
+
+FROM ci-runtime
+
+LABEL co.huggingface.vendor="Hugging Face Inc."
+LABEL org.opencontainers.image.authors="hardware@hf.co"
+LABEL org.opencontainers.title="Text-Generation-Inference TensorRT-LLM Backend CI/CD"
