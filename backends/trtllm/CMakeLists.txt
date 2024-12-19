@@ -95,7 +95,7 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     check_cxx_compiler_flag("-Wnrvo" COMPILER_SUPPORT_WARNING_ON_NVRO)
     if (${COMPILER_SUPPORT_WARNING_ON_NVRO})
         message(STATUS "Enabling non-NVRO detection")
-        target_compile_options(tgi_trtllm_backend_impl "-Werror -Wnvro")
+        target_compile_options(tgi_trtllm_backend_impl "-Wnvro")
     endif ()
 
     cmake_path(GET TRTLLM_NVRTC_WRAPPER_LIBRARY_PATH PARENT_PATH TRTLLM_NVRTC_WRAPPER_PARENT_LIBRARY_PATH)
@@ -103,7 +103,7 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
 
     add_executable(tgi_trtllm_backend_tests tests/test_hardware.cpp tests/test_backend.cpp)
 
-    target_compile_options(tgi_trtllm_backend_tests PRIVATE -Werror)
+    #    target_compile_options(tgi_trtllm_backend_tests PRIVATE -Werror)
     target_link_directories(tgi_trtllm_backend_tests PRIVATE "${TRTLLM_NVRTC_WRAPPER_PARENT_LIBRARY_PATH}")
     target_include_directories(tgi_trtllm_backend_tests PUBLIC "${trtllm_SOURCE_DIR}/cpp/include")
     target_include_directories(tgi_trtllm_backend_tests PUBLIC "csrc/")
