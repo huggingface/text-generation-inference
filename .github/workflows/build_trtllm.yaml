@@ -50,6 +50,49 @@ jobs:
           install: true
           buildkitd-config: /tmp/buildkitd.toml
 
+      - name: Login to internal Container Registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+          registry: registry.internal.huggingface.tech
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # If pull request
+      - name: Extract metadata (tags, labels) for Docker
+        if: ${{ github.event_name == 'pull_request' }}
+        id: meta-pr
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm
+          tags: |
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+
+      # If main, release or tag
+      - name: Extract metadata (tags, labels) for Docker
+        if: ${{ github.event_name != 'pull_request' }}
+        id: meta
+        uses: docker/metadata-action@v4.3.0
+        with:
+          flavor: |
+            latest=auto
+          images: |
+            registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm
+          #            ghcr.io/huggingface/text-generation-inference
+          tags: |
+            type=semver,pattern={{version}}${{ env.LABEL }}
+            type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
+            type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+
       - name: Build and push Docker image
         id: build-and-push
         env:
@@ -59,7 +102,7 @@ jobs:
           context: .
           file: Dockerfile_trtllm
           target: ci-runtime
-          push: false
+          push: true
           load: true
           platforms: 'linux/amd64'
           build-args: |
@@ -73,8 +116,6 @@ jobs:
             sccache_region=us-east-1
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}-trtllm,mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}-trtllm,mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
-
-
 
 
 
