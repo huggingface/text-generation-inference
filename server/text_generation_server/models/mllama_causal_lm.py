@@ -148,7 +148,8 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         if image_inputs is not None:
             assert len(image_indices) == image_inputs["pixel_values"].shape[0]
 
-        return batch_tokenized_inputs, image_inputs
+        video_inputs = None
+        return batch_tokenized_inputs, image_inputs, video_inputs
 
     @classmethod
     def from_pb_processor(
@@ -160,8 +161,8 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "VlmCausalLMBatch":
-        batch_tokenized_inputs, image_inputs = cls.batch_tokenized_inputs(
-            pb.requests, tokenizer, processor, config
+        batch_tokenized_inputs, image_inputs, _video_inputs = (
+            cls.batch_tokenized_inputs(pb.requests, tokenizer, processor, config)
         )
         batch = cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
         # XXX: <|image|> token is actually out of bounds and bugs out the logit processors.
