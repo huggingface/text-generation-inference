@@ -280,8 +280,13 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
         if images:
+            kwargs = {}
+            match processor.image_processor_class:
+                case "Idefics3ImageProcessor":
+                    kwargs["return_row_col_info"] = True
+
             image_inputs = processor.image_processor(
-                images, return_tensors="pt", return_row_col_info=True
+                images, return_tensors="pt", **kwargs
             )
         else:
             image_inputs = None

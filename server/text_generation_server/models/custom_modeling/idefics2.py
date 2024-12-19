@@ -916,7 +916,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
             )
 
             config.quantize = None
-            self.connector = Idefics3Connector(
+            self.connector = Idefics2Connector(
                 prefix=f"{prefix}.model.connector" if prefix else "model.connector",
                 config=config,
                 weights=weights,
