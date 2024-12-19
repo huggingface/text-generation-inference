@@ -515,9 +515,7 @@ class FlashLlamaModel(torch.nn.Module):
             self.layers.append(
                 FlashLlamaLayer(
                     index=0,
-                    prefix=(
-                        "model.layers.0" if not prefix else f"{prefix}.model.layers.0"
-                    ),
+                    prefix=f"{prefix}.layers.0" if prefix else "model.layers.0",
                     config=config,
                     weights=weights,
                 )
@@ -534,9 +532,9 @@ class FlashLlamaModel(torch.nn.Module):
                     FlashLlamaCrossLayer(
                         index=layer_id,
                         prefix=(
-                            f"model.layers.{layer_id}"
-                            if not prefix
-                            else f"{prefix}.model.layers.{layer_id}"
+                            f"{prefix}.layers.{layer_id}"
+                            if prefix
+                            else f"model.layers.{layer_id}"
                         ),
                         config=config,
                         weights=weights,
@@ -547,9 +545,9 @@ class FlashLlamaModel(torch.nn.Module):
                     FlashLlamaLayer(
                         index=layer_id,
                         prefix=(
-                            f"model.layers.{layer_id}"
-                            if not prefix
-                            else f"{prefix}.model.layers.{layer_id}"
+                            f"{prefix}.layers.{layer_id}"
+                            if prefix
+                            else f"model.layers.{layer_id}"
                         ),
                         config=config,
                         weights=weights,
@@ -562,9 +560,9 @@ class FlashLlamaModel(torch.nn.Module):
                 FlashLlamaLayer(
                     index=last_layer_id,
                     prefix=(
-                        f"model.layers.{last_layer_id}"
-                        if not prefix
-                        else f"{prefix}.model.layers.{last_layer_id}"
+                        f"{prefix}.layers.{last_layer_id}"
+                        if prefix
+                        else f"model.layers.{last_layer_id}"
                     ),
                     config=config,
                     weights=weights,
@@ -572,7 +570,7 @@ class FlashLlamaModel(torch.nn.Module):
             )
 
         self.norm = FastRMSNorm.load(
-            prefix="model.norm" if not prefix else f"{prefix}.model.norm",
+            prefix=f"{prefix}.norm" if prefix else "model.norm",
             weights=weights,
             eps=config.rms_norm_eps,
         )
@@ -632,13 +630,12 @@ class FlashLlamaForCausalLM(torch.nn.Module):
     def __init__(self, prefix: str, config, weights):
         super().__init__()
 
+        if config.model_type == "mllama_text_model":
+            prefix = f"{prefix}.model"
+
         with no_fp8(weights):
             self.embed_tokens = TensorParallelEmbedding(
-                prefix=(
-                    "model.embed_tokens"
-                    if not prefix
-                    else f"{prefix}.model.embed_tokens"
-                ),
+                prefix=(f"{prefix}.embed_tokens" if prefix else "model.embed_tokens"),
                 weights=weights,
             )
         self.model = FlashLlamaModel(prefix, config, weights)
@@ -652,10 +649,17 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         if embedding_multiplier is not None:
             self.embed_tokens.weight.data *= embedding_multiplier
 
+        if config.model_type == "mllama_text_model":
+            prefix = prefix.replace(".model", "")
+            suffix = f"{prefix}.{suffix}"
+
+        if config.model_type == "granite":
+            suffix = f"{prefix}.{suffix}"
+
         with no_fp8(weights):
             self.lm_head = SpeculativeHead.load(
                 config,
-                prefix=suffix if not prefix else f"{prefix}.{suffix}",
+                prefix=suffix,
                 weights=weights,
             )
 
