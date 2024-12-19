@@ -69,45 +69,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y &&
 ENV PATH="/root/.cargo/bin:$PATH"
 RUN cargo install cargo-chef
 
-# Cache dependencies
-COPY --from=planner /usr/src/text-generation-inference/backends/trtllm/recipe.json .
-RUN cargo chef cook --release --recipe-path recipe.json
-
-# Build actual TGI
-ARG CUDA_ARCH_LIST
-ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
-ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
-ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
-
-COPY . .
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
-RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
-    cd backends/trtllm && \
-    CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --release
 
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS runtime
-RUN apt update && apt install -y libucx0 pipx python3-minimal python3-dev python3-pip python3-venv && \
-    rm -rf /var/lib/{apt,dpkg,cache,log}/ && \
-    pipx ensurepath && \
-    pipx install --include-deps transformers tokenizers
-
-WORKDIR /usr/local/tgi/bin
-
-ENV PATH=/root/.local/share/pipx/venvs/transformers/bin/:$PATH
-ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/mpi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
-ENV TOKENIZERS_PARALLELISM=false
-ENV OMPI_MCA_plm_rsh_agent=""
-
-COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
-COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
-COPY --from=tgi-builder /usr/local/tgi /usr/local/tgi
-COPY --from=tgi-builder /usr/src/text-generation-inference/target/release/text-generation-backends-trtllm /usr/local/tgi/bin/text-generation-launcher
-
-FROM runtime
-
-LABEL co.huggingface.vendor="Hugging Face Inc."
-LABEL org.opencontainers.image.authors="hardware@hf.co"
-
-ENTRYPOINT ["./text-generation-launcher"]
-CMD ["--executor-worker", "/usr/local/tgi/bin/executorWorker"]
+ENV MPI_HOME=/usr/local/mpi

@@ -450,7 +450,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
                     width //= self.spatial_merge_size
 
                     # calculate the length of the text and image tokens
-                    text_length = next_image_pos - current_pos
+                    text_length = next_image_pos
                     start_idx = (
                         llm_pos_ids_list[-1].max() + 1 if llm_pos_ids_list else 0
                     )
@@ -480,7 +480,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
                     )
                     llm_pos_ids_list.append(image_pos_ids)
 
-                    current_pos = next_image_pos + time_steps * height * width
+                    current_pos += next_image_pos + time_steps * height * width
                     image_index += 1
 
             if current_pos < batch_input_ids.size(1):

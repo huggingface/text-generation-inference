@@ -3,14 +3,15 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 use hf_hub::api::tokio::{Api, ApiBuilder};
 use hf_hub::{Cache, Repo, RepoType};
-use tokenizers::Tokenizer;
 use tracing::info;
 
 use text_generation_backends_trtllm::errors::TensorRtLlmBackendError;
 use text_generation_backends_trtllm::TensorRtLlmBackendV2;
-use text_generation_router::server::get_base_tokenizer;
+use text_generation_router::server::{
+    get_hub_model_info, legacy_tokenizer_handle, py_resolve_tokenizer,
+};
 use text_generation_router::usage_stats::UsageStatsLevel;
-use text_generation_router::{server, HubTokenizerConfig};
+use text_generation_router::{server, HubTokenizerConfig, Tokenizer};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -61,7 +62,7 @@ struct Args {
     #[clap(long, env, help = "Path to the TensorRT-LLM Orchestrator worker")]
     executor_worker: PathBuf,
     #[clap(default_value = "on", long, env)]
-    usage_stats: usage_stats::UsageStatsLevel,
+    usage_stats: UsageStatsLevel,
     #[clap(default_value = "2000000", long, env)]
     payload_limit: usize,
 }
@@ -126,18 +127,18 @@ async fn get_tokenizer(
 
     // Load tokenizer and model info
     let (
-        tokenizer_filename,
-        _config_filename,
-        tokenizer_config_filename,
+        config_filename,
+        _tokenizer_config_filename,
         _preprocessor_config_filename,
         _processor_config_filename,
+        _model_info,
     ) = match api {
         Type::None => (
-            Some(local_path.join("tokenizer.json")),
             Some(local_path.join("config.json")),
             Some(local_path.join("tokenizer_config.json")),
             Some(local_path.join("preprocessor_config.json")),
             Some(local_path.join("processor_config.json")),
+            None,
         ),
         Type::Api(api) => {
             let api_repo = api.repo(Repo::with_revision(
@@ -146,21 +147,23 @@ async fn get_tokenizer(
                 revision.unwrap_or_else(|| "main").to_string(),
             ));
 
-            let tokenizer_filename = match api_repo.get("tokenizer.json").await {
-                Ok(tokenizer_filename) => Some(tokenizer_filename),
-                Err(_) => get_base_tokenizer(&api, &api_repo).await,
-            };
             let config_filename = api_repo.get("config.json").await.ok();
             let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
             let preprocessor_config_filename = api_repo.get("preprocessor_config.json").await.ok();
             let processor_config_filename = api_repo.get("processor_config.json").await.ok();
 
+            let model_info = if let Some(model_info) = get_hub_model_info(&api_repo).await {
+                Some(model_info)
+            } else {
+                tracing::warn!("Could not retrieve model info from the Hugging Face hub.");
+                None
+            };
             (
-                tokenizer_filename,
                 config_filename,
                 tokenizer_config_filename,
                 preprocessor_config_filename,
                 processor_config_filename,
+                model_info,
             )
         }
         Type::Cache(cache) => {
@@ -170,24 +173,55 @@ async fn get_tokenizer(
                 revision.clone().unwrap_or_else(|| "main").to_string(),
             ));
             (
-                repo.get("tokenizer.json"),
                 repo.get("config.json"),
                 repo.get("tokenizer_config.json"),
                 repo.get("preprocessor_config.json"),
                 repo.get("processor_config.json"),
+                None,
             )
         }
     };
 
     // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
-    let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
-    {
-        HubTokenizerConfig::from_file(filename)
-    } else {
-        tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
+    // let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
+    // {
+    //     HubTokenizerConfig::from_file(filename)
+    // } else {
+    //     tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
+    // };
+
+    // let tokenizer_config = tokenizer_config.unwrap_or_else(|| {
+    //     tracing::warn!("Could not find tokenizer config locally and no API specified");
+    //     HubTokenizerConfig::default()
+    // });
+
+    let tokenizer: Tokenizer = {
+        use pyo3::prelude::*;
+        pyo3::Python::with_gil(|py| -> PyResult<()> {
+            py_resolve_tokenizer(py, &tokenizer_name, revision.as_deref(), false)?;
+            Ok(())
+        })
+        .inspect_err(|err| {
+            tracing::error!("Failed to import python tokenizer {err}");
+        })
+        .or_else(|err| {
+            let out = legacy_tokenizer_handle(config_filename.as_ref());
+            out.ok_or(err)
+        })
+        .expect("We cannot load a tokenizer");
+        let filename = "out/tokenizer.json";
+        if let Ok(tok) = tokenizers::Tokenizer::from_file(filename) {
+            Tokenizer::Rust(tok)
+        } else {
+            Tokenizer::Python {
+                tokenizer_name: tokenizer_name.to_string(),
+                revision: revision.map(|revision| revision.to_string()),
+                trust_remote_code: false,
+            }
+        }
     };
 
-    tokenizer_filename.and_then(|filename| Tokenizer::from_file(filename).ok())
+    Some(tokenizer)
 }
 
 #[tokio::main]
@@ -258,50 +292,56 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
     }
 
     // Create the backend
-    let tokenizer = get_tokenizer(
+    match get_tokenizer(
         &tokenizer_name,
         tokenizer_config_path.as_deref(),
         revision.as_deref(),
     )
     .await
-    .expect("Failed to retrieve tokenizer implementation");
+    .expect("Failed to retrieve tokenizer implementation")
+    {
+        Tokenizer::Python { .. } => Err(TensorRtLlmBackendError::Tokenizer(
+            "Failed to retrieve Rust based tokenizer".to_string(),
+        )),
+        Tokenizer::Rust(tokenizer) => {
+            info!("Successfully retrieved tokenizer {}", &tokenizer_name);
+            let backend = TensorRtLlmBackendV2::new(
+                tokenizer,
+                model_id,
+                executor_worker,
+                max_concurrent_requests,
+            )?;
 
-    info!("Successfully retrieved tokenizer {}", &tokenizer_name);
-    let backend = TensorRtLlmBackendV2::new(
-        tokenizer,
-        model_id,
-        executor_worker,
-        max_concurrent_requests,
-    )?;
+            info!("Successfully created backend");
 
-    info!("Successfully created backend");
-
-    // Run server
-    server::run(
-        backend,
-        max_concurrent_requests,
-        max_best_of,
-        max_stop_sequences,
-        max_top_n_tokens,
-        max_input_tokens,
-        max_total_tokens,
-        validation_workers,
-        auth_token,
-        tokenizer_name,
-        tokenizer_config_path,
-        revision,
-        false,
-        hostname,
-        port,
-        cors_allow_origin,
-        false,
-        None,
-        None,
-        true,
-        max_client_batch_size,
-        usage_stats,
-        payload_limit,
-    )
-    .await?;
-    Ok(())
+            // Run server
+            server::run(
+                backend,
+                max_concurrent_requests,
+                max_best_of,
+                max_stop_sequences,
+                max_top_n_tokens,
+                max_input_tokens,
+                max_total_tokens,
+                validation_workers,
+                auth_token,
+                tokenizer_name,
+                tokenizer_config_path,
+                revision,
+                false,
+                hostname,
+                port,
+                cors_allow_origin,
+                false,
+                None,
+                None,
+                true,
+                max_client_batch_size,
+                usage_stats,
+                payload_limit,
+            )
+            .await?;
+            Ok(())
+        }
+    }
 }

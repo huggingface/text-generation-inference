@@ -219,7 +219,9 @@ def paged_reshape_and_cache(
             raise ImportError(
                 f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
             )
-        ops.reshape_and_cache(key, value, key_cache, value_cache, slots, "auto", 1.0)
+        ops.reshape_and_cache(
+            key, value, key_cache, value_cache, slots, "auto", 1.0, 1.0
+        )
     elif SYSTEM == "ipex":
         import intel_extension_for_pytorch as ipex
 

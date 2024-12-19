@@ -78,6 +78,7 @@ class RWConfig(PretrainedConfig):
         self.alibi = False
         self.rotary = True
         self.rope_theta = rope_theta
+        self.max_position_embeddings = 2048
 
         self.vocab_size = vocab_size
         # Backward compatibility with n_embed kwarg

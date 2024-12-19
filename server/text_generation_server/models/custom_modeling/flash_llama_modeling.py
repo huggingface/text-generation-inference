@@ -64,9 +64,9 @@ if SYSTEM != "ipex":
 
 if SYSTEM == "rocm":
     try:
-        from vllm import _custom_C
+        import vllm._custom_ops as ops
     except Exception as e:
-        raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
+        raise ImportError(f"Could not load `vllm._custom_ops`. Full error: {e}")
 
 
 def load_attention(config, prefix: str, weights, layer_id):
@@ -392,7 +392,7 @@ class LlamaMLP(nn.Module):
                 dtype=hidden_states.dtype,
                 device="cuda",
             )
-            _custom_C.LLMM_Silu(
+            ops.LLMM_Silu(
                 self.gate_up_proj.base_layer.linear.weight, hidden_states, out, 8
             )
             return self.down_proj(out, adapter_data)
