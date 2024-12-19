@@ -47,18 +47,12 @@ include(cmake/trtllm.cmake)
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(TGI_TRTLLM_BACKEND_DEBUG ON)
     add_compile_definitions(TGI_TRTLLM_BACKEND_DEBUG=1)
+    add_compile_definitions(SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE)
 endif ()
 
 if (${TGI_TRTLLM_BACKEND_BUILD_USE_LLD})
     message(STATUS "Using lld linker")
     add_link_options("-fuse-ld=lld")
-endif ()
-
-# This attempt to detect if the compiler can emit warning if it can't apply return value optimization from a function
-check_cxx_compiler_flag("-Wnrvo" COMPILER_SUPPORT_WARNING_ON_NVRO)
-if (${COMPILER_SUPPORT_WARNING_ON_NVRO})
-    message(STATUS "Enabling non-NVRO detection")
-    target_compile_options(tgi_trtllm_backend_impl "-Werror -Wnvro")
 endif ()
 
 # Let's build TRTLLM as part of CMake
@@ -97,10 +91,19 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     )
     FetchContent_MakeAvailable(Catch2)
 
+    # This attempt to detect if the compiler can emit warning if it can't apply return value optimization from a function
+    check_cxx_compiler_flag("-Wnrvo" COMPILER_SUPPORT_WARNING_ON_NVRO)
+    if (${COMPILER_SUPPORT_WARNING_ON_NVRO})
+        message(STATUS "Enabling non-NVRO detection")
+        target_compile_options(tgi_trtllm_backend_impl "-Werror -Wnvro")
+    endif ()
+
     cmake_path(GET TRTLLM_NVRTC_WRAPPER_LIBRARY_PATH PARENT_PATH TRTLLM_NVRTC_WRAPPER_PARENT_LIBRARY_PATH)
     message(STATUS "Adding linking path: ${TRTLLM_NVRTC_WRAPPER_PARENT_LIBRARY_PATH}")
 
     add_executable(tgi_trtllm_backend_tests tests/test_hardware.cpp tests/test_backend.cpp)
+
+    target_compile_options(tgi_trtllm_backend_tests PRIVATE -Werror)
     target_link_directories(tgi_trtllm_backend_tests PRIVATE "${TRTLLM_NVRTC_WRAPPER_PARENT_LIBRARY_PATH}")
     target_include_directories(tgi_trtllm_backend_tests PUBLIC "${trtllm_SOURCE_DIR}/cpp/include")
     target_include_directories(tgi_trtllm_backend_tests PUBLIC "csrc/")
@@ -109,9 +112,32 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     target_link_libraries(tgi_trtllm_backend_tests PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tensorrt_llm_nvrtc_wrapper)
 
     if (CMAKE_BUILD_TYPE MATCHES "Debug")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -fsanitize=address -fsanitize=undefined")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=undefined")
-        target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address)
+        if (NOT "${ASan_${CMAKE_C_COMPILER_ID}_FLAGS}" STREQUAL "")
+            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=address)
+        endif ()
+
+        if (NOT "${UBSan_${CMAKE_C_COMPILER_ID}_FLAGS}" STREQUAL "")
+            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined)
+        endif ()
+
+        if (NOT "${MSan_${CMAKE_C_COMPILER_ID}_FLAGS}" STREQUAL "")
+            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=memory)
+        endif ()
+
+        #        execute_process(COMMAND CMAKE_C_COMPILER --print-file-name=libasan.so OUTPUT_VARIABLE LIBASAN_PATH OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE LIBASAN_FOUND)
+        #        execute_process(COMMAND CMAKE_C_COMPILER --print-file-name=libubsan.so OUTPUT_VARIABLE LIBUBSAN_PATH OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE LIBUBSAN_FOUND)
+
+        #        if (LIBASAN_FOUND)
+        #            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -fsanitize=address")
+        #            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+        #            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=address)
+        #        endif ()
+
+        #        if (LIBUBSAN_FOUND)
+        #            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -fsanitize=undefined")
+        #            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
+        #            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined)
+        #        endif ()
     endif ()
 
     if(CMAKE_BUILD_TYPE MATCHES "Debug")
