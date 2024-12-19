@@ -58,7 +58,7 @@ jobs:
         with:
           context: .
           file: Dockerfile_trtllm
-          target: runtime
+          target: ci-runtime
           push: false
           load: true
           platforms: 'linux/amd64'
