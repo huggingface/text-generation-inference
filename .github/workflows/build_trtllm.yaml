@@ -80,7 +80,7 @@ jobs:
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name != 'pull_request' }}
         id: meta
-        uses: docker/metadata-action@v4.3.0
+        uses: docker/metadata-action@v5
         with:
           flavor: |
             latest=auto
@@ -104,6 +104,7 @@ jobs:
           target: ci-runtime
           push: true
           load: true
+          tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           platforms: 'linux/amd64'
           build-args: |
             build_type=dev
