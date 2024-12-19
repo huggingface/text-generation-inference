@@ -4,6 +4,7 @@ from loguru import logger
 from typing import Dict, Optional
 
 from text_generation_server.utils.log import log_master
+from text_generation_server.utils.import_utils import SYSTEM
 
 REQUEST_LOGPROBS = os.getenv("REQUEST_LOGPROBS", "0").lower() in {"1", "true"}
 ATTENTION = os.environ["ATTENTION"]
@@ -28,10 +29,14 @@ TGI_WIGGLE_ROOM = float(os.getenv("TGI_WIGGLE_ROOM", "0.95"))
 assert TGI_WIGGLE_ROOM > 0
 assert TGI_WIGGLE_ROOM < 1
 
+
 # This is overridden by the cli
 BLOCK_SIZE: int
 if ATTENTION == "flashdecoding":
-    BLOCK_SIZE = 256
+    if SYSTEM == "ipex":
+        BLOCK_SIZE = 64
+    else:
+        BLOCK_SIZE = 256
 elif ATTENTION == "flashinfer":
     BLOCK_SIZE = 1
 else:
