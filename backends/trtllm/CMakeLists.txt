@@ -87,7 +87,6 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     message(STATUS "Building tests")
     option(TGI_TRTLLM_BACKEND_ENABLE_ASAN "Enable AddressSanitizer")
     option(TGI_TRTLLM_BACKEND_ENABLE_UBSAN "Enable UndefinedSanitizer")
-    option(TGI_TRTLLM_BACKEND_ENABLE_MSAN "Enable MemorySanitizer")
 
     FetchContent_Declare(
             Catch2
@@ -124,11 +123,6 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
         if (${TGI_TRTLLM_BACKEND_ENABLE_UBSAN})
             message(STATUS "Enabled UndefinedSanitizer")
             target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined)
-        endif ()
-
-        if (${TGI_TRTLLM_BACKEND_ENABLE_MSAN})
-            message(STATUS "Enabled MemorySanitizer")
-            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=memory)
         endif ()
     endif ()
 
