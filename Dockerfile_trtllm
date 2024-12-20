@@ -76,14 +76,14 @@ ARG aws_secret_key_id
 ARG aws_session_token
 ARG sccache_bucket
 ARG sccache_s3_key_prefix
-ARG sscache_region
+ARG sccache_region
 
 ENV AWS_ACCESS_KEY_ID=$aws_access_key_id
 ENV AWS_SECRET_ACCESS_KEY=$aws_secret_access_key
 ENV AWS_SESSION_TOKEN=$aws_session_token
 ENV SCCACHE_BUCKET=$sccache_bucket
-ENV SCCACHE_S3_KEY_PREFIX=$SCCACHE_S3_KEY_PREFIX
-ENV SSCACHE_REGION=$sscache_region
+ENV SCCACHE_S3_KEY_PREFIX=$sccache_s3_key_prefix
+ENV SSCACHE_REGION=$sccache_region
 
 ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
 ENV CUDA_ARCH_LIST=${cuda_arch_list}
