@@ -1173,6 +1173,7 @@ pub struct Url {
 pub enum MessageChunk {
     Text { text: String },
     ImageUrl { image_url: Url },
+    VideoUrl { video_url: Url },
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
@@ -1229,6 +1230,9 @@ impl From<Message> for TextMessage {
                     .map(|chunk| match chunk {
                         MessageChunk::Text { text } => text,
                         MessageChunk::ImageUrl { image_url } => format!("![]({})", image_url.url),
+                        MessageChunk::VideoUrl { video_url } => {
+                            format!("<video>({})", video_url.url)
+                        }
                     })
                     .collect::<Vec<_>>()
                     .join(""),
