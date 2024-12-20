@@ -5,6 +5,10 @@ from text_generation_server.layers.attention.kv_cache import KVCache, KVScales
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.utils.log import log_master
+from text_generation_server.models.globals import (
+    ATTENTION,
+    BLOCK_SIZE,
+)
 from loguru import logger
 import vllm._custom_ops as ops
 
@@ -73,11 +77,44 @@ def paged_attention(
     # limitations under the License.
     #
 
+    if ATTENTION == "flashdecoding":
+        max_q = 1
+        max_k = max_s
+        import flash_attn_2_cuda
+
+        if softcap is None:
+            softcap = 0.0
+        out = flash_attn_2_cuda.varlen_fwd(
+            query,
+            kv_cache.key,
+            kv_cache.value,
+            None,
+            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_k,
+            None,  # pad_k
+            None,
+            block_tables,
+            None,
+            max_q,
+            max_k,
+            0.0,  # dropout
+            softmax_scale,
+            False,  # zero_tensors
+            True,  # causal
+            -1,  # Window_left
+            -1,  # Window right
+            softcap,
+            False,  # return softmax
+            None,  # generator
+        )
+        return out[0]
+
     if softcap is not None:
         raise RuntimeError("Paged attention doesn't support softcapping")
 
     # value_cache => [num_blocks, num_heads, head_size, block_size]
-    block_size = kv_cache.value.shape[3]
+    # block_size = kv_cache.value.shape[3]
+    block_size = BLOCK_SIZE
     num_seqs, num_heads, head_size = query.shape
 
     num_kv_heads = kv_cache.key.shape[1]
@@ -247,14 +284,15 @@ def attention(
         # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
         return flash_attn_2_cuda.varlen_fwd(
             query,
-            key,
-            value,
+            # flashdecoding: pass the KV caches, paged: pass the KV.
+            kv_cache.key if ATTENTION == "flashdecoding" else key,
+            kv_cache.value if ATTENTION == "flashdecoding" else value,
             out,
             seqlen.cu_seqlen_q,
-            seqlen.cu_seqlen_q,
+            seqlen.cu_seqlen_k,
             None,
             None,
-            None,
+            block_tables if ATTENTION == "flashdecoding" else None,
             None,
             seqlen.max_q,
             seqlen.max_k,
