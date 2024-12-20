@@ -78,7 +78,7 @@ ARG PYTHON_VERSION='3.11.10'
 ARG TARGETPLATFORM
 ENV PATH=/opt/conda/bin:$PATH
 
-ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
+ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942;gfx1100"
 
 # TGI seem to require libssl.so.1.1 instead of libssl.so.3 so we can't use ubuntu 22.04. Ubuntu 20.04 has python==3.8, and TGI requires python>=3.9, hence the need for miniconda.
 # Install mamba
@@ -170,7 +170,7 @@ RUN --mount=type=bind,from=export_hipblaslt,src=/,target=/install \
     fi
 
 ARG BUILD_ENVIRONMENT=pytorch-linux-jammy-rocm6.2-py3.11
-ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
+ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942;gfx1100"
 
 # A commit to fix the output scaling factor issue in _scaled_mm
 # Not yet in 2.5.0-rc1
