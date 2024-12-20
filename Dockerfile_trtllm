@@ -102,6 +102,7 @@ ENV IS_GHA_BUILD ${is_gha_build}
 ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
 ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
 ENV USE_LLD_LINKER=ON
+ENV RUSTC_WRAPPER=sccache
 
 COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
@@ -112,7 +113,7 @@ COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     python3 backends/trtllm/scripts/setup_sccache.py --is-gha-build ${IS_GHA_BUILD} && \
-    RUSTC_WRAPPER=sccache CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
+    CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
     sccache --show-stats
 
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS runtime
