@@ -111,7 +111,7 @@ COPY backends/trtllm backends/trtllm
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
-    python3 scripts/setup_sccache.py --is-gha-build $IS_GHA_BUILD -k $AWS_ACCESS_KEY_ID -s $AWS_SECRET_KEY_ID -t $AWS_SESSION_TOKEN -b $SCCACHE_BUCKET -r $SSCACHE_REGION -p $SCCACHE_S3_KEY_PREFIX && \
+    python3 backends/trtllm/scripts/setup_sccache.py --is-gha-build $IS_GHA_BUILD -k $AWS_ACCESS_KEY_ID -s $AWS_SECRET_KEY_ID -t $AWS_SESSION_TOKEN -b $SCCACHE_BUCKET -r $SSCACHE_REGION -p $SCCACHE_S3_KEY_PREFIX && \
     RUSTC_WRAPPER=sccache CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm
 
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS runtime
