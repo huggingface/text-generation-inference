@@ -144,7 +144,9 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             }
         }
 
-        let fallback_attention = if matches!(compute_capability, Some((major, _)) if major < 8) {
+        let fallback_attention = if compute_capability.is_none()
+            || matches!(compute_capability, Some((major, _)) if major < 8)
+        {
             "paged"
         } else {
             "flashdecoding"

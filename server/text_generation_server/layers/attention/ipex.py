@@ -31,7 +31,7 @@ def attention(
     out = torch.empty_like(query)
 
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
-    if ATTENTION == "flashdecoding":
+    if ATTENTION == "flashdecoding-ipex":
         ipex.llm.modules.PagedAttention.flash_attn_varlen_func(
             out,
             query.contiguous() if query.device.type == "xpu" else query,
@@ -84,7 +84,7 @@ def paged_attention(
 
     out = torch.empty_like(query)
 
-    if ATTENTION == "flashdecoding":
+    if ATTENTION == "flashdecoding-ipex":
         ipex.llm.modules.PagedAttention.flash_attn_varlen_func(
             out,
             query.contiguous() if query.device.type == "xpu" else query,
