@@ -32,7 +32,7 @@ jobs:
 
       - name: Extract TensorRT-LLM version
         run: |
-          echo "TENSORRT_LLM_VERSION=$(grep -oP '([a-z,0-9]{40})' backends/trtllm/cmake/trtllm.cmake)" >> $GITHUB_ENV
+          echo "TENSORRT_LLM_VERSION=$(grep -oP '([a-z,0-9]{40})' $GITHUB_WORKSPACE/text-generation-inference/backends/trtllm/cmake/trtllm.cmake)" >> $GITHUB_ENV
           echo "TensorRT-LLM version: $TENSORRT_LLM_VERSION"
 
       - name: "Configure AWS Credentials"
@@ -115,8 +115,8 @@ jobs:
             sccache_bucket=${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
             sccache_s3_key_prefix=trtllm-${{ env.TENSORRT_LLM_VERSION }}
             sccache_region=us-east-1
-          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}-trtllm,mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
-          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }}-trtllm,mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
 
 
 
