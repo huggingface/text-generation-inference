@@ -72,7 +72,7 @@ ARG is_gha_build="false"
 
 # SCCACHE Specifics args - before finding a better, more generic, way...
 ARG aws_access_key_id
-ARG aws_secret_key_id
+ARG aws_secret_access_key
 ARG aws_session_token
 ARG sccache_bucket
 ARG sccache_s3_key_prefix
