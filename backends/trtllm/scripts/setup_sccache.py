@@ -24,12 +24,13 @@ def setup_sccache_locally():
                 del environ[envvar]
 
 
-def setup_sccache_for_s3(s3_args):
+def setup_sccache_for_s3():
     from os import environ
 
     print("Setting up AWS S3 Caching Layer")
-    for envvar, field in AWS_S3_CACHING_VARIABLES.items():
-        environ[envvar] = getattr(s3_args, field)
+    for envvar in AWS_S3_CACHING_VARIABLES.keys():
+        if not envvar in environ or not environ[envvar] or len(environ[envvar]) == 0:
+            print(f"Missing definition for environment variable {envvar}")
 
 
 if __name__ == "__main__":
@@ -37,21 +38,12 @@ if __name__ == "__main__":
 
     parser.add_argument("--is-gha-build", type=str, default="FALSE",
                         help="Indicate if the build is from Github Actions")
-    parser.add_argument("--aws-access-key-id", "-k", type=str, required=True, help="AWS Access Key ID to use")
-    parser.add_argument("--aws-secret-access-key", "-s", type=str, required=True,
-                        help="AWS Secret Access Key to use")
-    parser.add_argument("--aws-session-token", "-t", type=str, required=True, help="AWS Session Token to use")
-    parser.add_argument("--s3-bucket-name", "-b", type=str, required=True, help="AWS target S3 Bucket")
-    parser.add_argument("--s3-bucket-prefix", "-p", type=str, required=True, help="AWS target S3 Bucket folder prefix")
-    parser.add_argument("--s3-region", "-r", type=str, required=True, help="AWS target S3 region")
 
     # Parse args
     args = parser.parse_args()
     args.is_gha_build = args.is_gha_build.lower() in {"on", "true", "1"}
-    print(args)
 
-    match args.store:
-        case "s3":
-            setup_sccache_for_s3(args)
-        case _:
-            setup_sccache_locally()
+    if args.is_gha_build:
+        setup_sccache_for_s3()
+    else:
+        setup_sccache_locally()
