@@ -119,7 +119,8 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
 
     if let Some(wrapper) = option_env!("RUSTC_WRAPPER") {
         if wrapper == "sccache" {
-            config.define("CMAKE_CXX_COMPILER_LAUNCHER", "sccache");
+            println!("cargo:warning=Using caching tool: {wrapper}");
+            config.define("CMAKE_CXX_COMPILER_LAUNCHER", wrapper);
         }
     }
 

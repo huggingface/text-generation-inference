@@ -33,7 +33,7 @@ jobs:
       - name: Extract TensorRT-LLM version
         run: |
           echo "TENSORRT_LLM_VERSION=$(grep -oP '([a-z,0-9]{40})' $GITHUB_WORKSPACE/backends/trtllm/cmake/trtllm.cmake)" >> $GITHUB_ENV
-          echo "TensorRT-LLM version: $TENSORRT_LLM_VERSION"
+          echo "TensorRT-LLM version: ${{ env.TENSORRT_LLM_VERSION }}"
 
       - name: "Configure AWS Credentials"
         id: aws-creds
