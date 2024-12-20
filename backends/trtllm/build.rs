@@ -132,11 +132,6 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
         config.define("TGI_TRTLLM_BACKEND_ENABLE_UBSAN", "ON");
     }
 
-    if (is_debug && option_env!("ENABLE_MSAN").is_some()) || *IS_GHA_BUILD {
-        println!("cargo:warning=Enabling Memory Sanitizer");
-        config.define("TGI_TRTLLM_BACKEND_ENABLE_MSAN", "ON");
-    }
-
     if let Some(nvcc_host_compiler) = option_env!("CMAKE_CUDA_HOST_COMPILER") {
         config.define("CMAKE_CUDA_HOST_COMPILER", nvcc_host_compiler);
     }
