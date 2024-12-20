@@ -117,6 +117,12 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
         config.define("TGI_TRTLLM_BACKEND_BUILD_TESTS", "ON");
     }
 
+    if let Some(wrapper) = option_env!("RUSTC_WRAPPER") {
+        if wrapper == "sccache" {
+            config.define("CMAKE_CXX_COMPILER_LAUNCHER", "sccache");
+        }
+    }
+
     if option_env!("USE_LLD_LINKER").is_some() {
         println!("cargo:warning=Using lld linker");
         config.define("TGI_TRTLLM_BACKEND_BUILD_USE_LLD", "ON");
