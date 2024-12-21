@@ -5,6 +5,7 @@ Text Generation Inference enables serving optimized models. The following sectio
 
 - [Deepseek V2](https://huggingface.co/deepseek-ai/DeepSeek-V2)
 - [Idefics 2](https://huggingface.co/HuggingFaceM4/idefics2-8b) (Multimodal)
+- [Idefics 3](https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3) (Multimodal)
 - [Llava Next (1.6)](https://huggingface.co/llava-hf/llava-v1.6-vicuna-13b-hf) (Multimodal)
 - [Llama](https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f)
 - [Phi 3](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct)

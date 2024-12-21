@@ -23,6 +23,32 @@ tracer = trace.get_tracer(__name__)
 IDEFICS2_FAKE_TOKEN = "<fake_token_around_image>"
 IDEFICS2_IMAGE_TOKEN = "<image>"
 
+IDEFICS3_IMAGE_TOKEN = "<image>"
+IDEFICS3_FAKE_IMAGE_TOKEN = "<fake_token_around_image>"
+IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
+
+
+def get_image_prompt_string(
+    rows=0,
+    cols=0,
+    seq_len=1,
+    fake_token=IDEFICS3_FAKE_IMAGE_TOKEN,
+    img_token=IDEFICS3_IMAGE_TOKEN,
+    global_token=IDEFICS3_GLOBAL_IMG_TOKEN,
+):
+    tokens = img_token * seq_len
+    end_token = f"{fake_token}{global_token}{tokens}{fake_token}"
+
+    if rows == 0 or cols == 0:
+        return end_token
+
+    grid = "\n".join(
+        "".join(f"{fake_token}<row_{i+1}_col_{j+1}>{tokens}" for j in range(cols))
+        for i in range(rows)
+    )
+
+    return f"{grid}\n\n{end_token}"
+
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
     """
@@ -53,6 +79,23 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         image_str = f"{IDEFICS2_FAKE_TOKEN}{IDEFICS2_IMAGE_TOKEN * image_seq_len}{IDEFICS2_FAKE_TOKEN}"
         if processor.image_processor.do_image_splitting:
             image_str *= 5
+        return image_str
+    if config.model_type == "idefics3":
+        # TODO: implement this in a more general way
+        n_rows = image_input["rows"][0][image_id]
+        n_cols = image_input["cols"][0][image_id]
+        image_seq_len = int(
+            ((config.vision_config.image_size // config.vision_config.patch_size) ** 2)
+            / (config.scale_factor**2)
+        )
+        image_str = get_image_prompt_string(
+            rows=n_rows,
+            cols=n_cols,
+            seq_len=image_seq_len,
+            fake_token=IDEFICS3_FAKE_IMAGE_TOKEN,
+            img_token=IDEFICS3_IMAGE_TOKEN,
+            global_token=IDEFICS3_GLOBAL_IMG_TOKEN,
+        )
         return image_str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
@@ -194,12 +237,19 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
         if images:
-            image_inputs = processor.image_processor(images, return_tensors="pt")
+            kwargs = {}
+            match processor.image_processor_class:
+                case "Idefics3ImageProcessor":
+                    kwargs["return_row_col_info"] = True
+
+            image_inputs = processor.image_processor(
+                images, return_tensors="pt", **kwargs
+            )
         else:
             image_inputs = None
 
-        batch_inputs = []
-        max_truncation = 0
+        batch_tokenized_inputs = []
+        max_length = 0
         image_id = 0
         for r in requests:
             full_text = ""
@@ -214,16 +264,14 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     image_id += 1
 
             full_text = image_text_replacement_fixup(config, full_text)
-
-            batch_inputs.append(full_text)
-            max_truncation = max(max_truncation, r.truncate)
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs,
-            truncation=True,
-            max_length=max_truncation,
-            add_special_tokens=not config.model_type == "paligemma",
-        )["input_ids"]
+            input_ids = tokenizer(
+                full_text,
+                truncation=True,
+                max_length=r.truncate,
+                add_special_tokens=r.add_special_tokens,
+            )["input_ids"]
+            max_length = max(max_length, len(input_ids))
+            batch_tokenized_inputs.append(input_ids)
 
         return batch_tokenized_inputs, image_inputs
 

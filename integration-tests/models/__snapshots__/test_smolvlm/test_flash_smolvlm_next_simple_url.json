@@ -1,0 +1,61 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 8,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 330,
+        "logprob": -0.118652344,
+        "special": false,
+        "text": " A"
+      },
+      {
+        "id": 11426,
+        "logprob": -0.28320312,
+        "special": false,
+        "text": " bee"
+      },
+      {
+        "id": 335,
+        "logprob": -0.95703125,
+        "special": false,
+        "text": " on"
+      },
+      {
+        "id": 253,
+        "logprob": -0.06982422,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 11986,
+        "logprob": -0.49414062,
+        "special": false,
+        "text": " pink"
+      },
+      {
+        "id": 8525,
+        "logprob": -0.07763672,
+        "special": false,
+        "text": " flower"
+      },
+      {
+        "id": 30,
+        "logprob": -1.0703125,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 49154,
+        "logprob": -0.092285156,
+        "special": true,
+        "text": "<end_of_utterance>"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": " A bee on a pink flower."
+}
