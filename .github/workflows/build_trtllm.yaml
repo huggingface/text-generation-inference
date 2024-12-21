@@ -129,7 +129,7 @@ jobs:
           password: ${{ secrets.REGISTRY_PASSWORD }}
         options: --gpus all --net=host
 
-      steps:
-        - name: Run C++/CUDA tests
-          run: /usr/local/tgi/tgi_trtllm_backend_tests
+    steps:
+      - name: Run C++/CUDA tests
+        run: /usr/local/tgi/tgi_trtllm_backend_tests
 
