@@ -679,6 +679,206 @@ class Idefics2Connector(nn.Module):
         return image_hidden_states
 
 
+class Idefics3Connector(nn.Module):
+    def __init__(self, prefix, config, weights):
+        super().__init__()
+        self.modality_projection = TensorParallelRowLinear.load(
+            prefix=f"{prefix}.modality_projection.proj",
+            config=config,
+            weights=weights,
+            bias=False,
+        )
+        self.scale_factor = config.scale_factor
+
+    def pixel_shuffle(self, x, scale_factor=2):
+        bsz, seq, embed_dim = x.size()
+        height = width = int(seq**0.5)
+        x = x.view(bsz, height, width, embed_dim)
+        x = x.view(bsz, height, int(width / scale_factor), embed_dim * scale_factor)
+        x = x.permute(0, 2, 1, 3)
+        x = x.reshape(
+            bsz,
+            int(width / scale_factor),
+            int(height / scale_factor),
+            embed_dim * (scale_factor**2),
+        )
+        x = x.permute(0, 2, 1, 3)
+        x = x.reshape(bsz, int(seq / (scale_factor**2)), embed_dim * (scale_factor**2))
+        return x
+
+    def forward(self, image_hidden_states, attention_mask):
+        print(image_hidden_states.device, self.modality_projection.linear.weight.device)
+        image_hidden_states = self.pixel_shuffle(image_hidden_states, self.scale_factor)
+        image_hidden_states = self.modality_projection(image_hidden_states)
+        return image_hidden_states
+
+
+class Idefics3ForConditionalGeneration(nn.Module):
+    def __init__(self, prefix, config, weights):
+        super().__init__()
+        config.vision_config.quantize = None
+        config.vision_config.speculator = config.speculator
+        config.text_config.quantize = config.quantize
+        config.text_config.speculator = config.speculator
+        # set tie_word_embeddings to True to load `.embed_tokens.weight` instead of `.lm_head.weight`
+        # since Idefics3 uses the `embed_tokens` for the final prediction
+        # config.text_config.tie_word_embeddings = True
+
+        vision_config = config.vision_config
+        self.text_model = load_text_model(
+            prefix=f"{prefix}.model.text_model" if prefix else "model.text_model",
+            config=config.text_config,
+            weights=weights,
+            name="text_model",
+        )
+        self.dtype = weights.dtype
+
+        # The vision and connector models are not quantized.
+        with weights.use_loader(DefaultWeightsLoader(UnquantizedWeight)):
+            self.vision_model = Idefics2VisionTransformer(
+                prefix=(
+                    f"{prefix}.model.vision_model" if prefix else "model.vision_model"
+                ),
+                config=vision_config,
+                weights=weights,
+            )
+
+            config.quantize = None
+            self.connector = Idefics3Connector(
+                prefix=f"{prefix}.model.connector" if prefix else "model.connector",
+                config=config,
+                weights=weights,
+            )
+
+        self.config = config
+        self.image_token_id = config.image_token_id
+        self.pad_token_id = (
+            config.pad_token_id if config.pad_token_id is not None else -1
+        )
+
+    def _merge_input_ids_with_image_features(
+        self,
+        input_ids: torch.Tensor,
+        inputs_embeds: torch.Tensor,
+        image_features: torch.Tensor,
+    ):
+        """In place merges in vision_embeddings with inputs_embeds."""
+        # mask = input_ids == self.config.image_token_index
+        mask = input_ids == self.config.image_token_id
+        # Let's pray we have enabled enough slots !
+        inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
+        return inputs_embeds
+
+    def forward(
+        self,
+        input_ids: torch.Tensor,
+        position_ids: torch.Tensor,
+        cu_seqlen_prefill: Optional[torch.Tensor],
+        kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
+        block_tables: torch.Tensor,
+        slots: torch.Tensor,
+        seqlen: Seqlen,
+        max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        lm_head_indices: Optional[torch.Tensor] = None,
+        pixel_values: torch.FloatTensor = None,
+        pixel_attention_mask: Optional[torch.BoolTensor] = None,
+        # Unused here
+        image_sizes: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
+        video_grid_thw: Optional[torch.LongTensor] = None,
+        cross_attention_states: Optional[torch.Tensor] = None,
+        image_indices=None,
+    ):
+        inputs_embeds = self.text_model.embed_tokens(input_ids)
+        if pixel_values is not None:
+            batch_size, num_images, num_channels, height, width = pixel_values.shape
+            all_states = []
+            all_pixel_values = pixel_values
+            all_pixel_mask = pixel_attention_mask
+            for i in range(batch_size):
+                pixel_values = all_pixel_values.to(
+                    dtype=self.dtype
+                )  # fp16 compatibility
+                pixel_values = pixel_values[i : i + 1]
+                pixel_values = pixel_values.view(num_images, *pixel_values.shape[2:])
+
+                # Remove padding images - padding images are full 0.
+                nb_values_per_image = pixel_values.shape[1:].numel()
+                real_images_inds = (pixel_values == 0.0).sum(
+                    dim=(-1, -2, -3)
+                ) != nb_values_per_image
+                pixel_values = pixel_values[real_images_inds].contiguous()
+
+                # Handle the vision attention mask
+                if pixel_attention_mask is None:
+                    pixel_attention_mask = torch.ones(
+                        size=(
+                            pixel_values.size(0),
+                            pixel_values.size(2),
+                            pixel_values.size(3),
+                        ),
+                        dtype=torch.bool,
+                        device=pixel_values.device,
+                    )
+                else:
+                    # Remove padding images from the mask/pP p
+                    pixel_attention_mask = all_pixel_mask[i : i + 1]
+                    pixel_attention_mask = pixel_attention_mask.view(
+                        1 * num_images, *pixel_attention_mask.shape[2:]
+                    )
+                    pixel_attention_mask = pixel_attention_mask[
+                        real_images_inds
+                    ].contiguous()
+
+                patch_size = self.config.vision_config.patch_size
+                patches_subgrid = pixel_attention_mask.unfold(
+                    dimension=1, size=patch_size, step=patch_size
+                )
+                patches_subgrid = patches_subgrid.unfold(
+                    dimension=2, size=patch_size, step=patch_size
+                )
+                patch_attention_mask = (patches_subgrid.sum(dim=(-1, -2)) > 0).bool()
+
+                # Get sequence from the vision encoder
+                image_hidden_states = self.vision_model(
+                    pixel_values=pixel_values,
+                    patch_attention_mask=patch_attention_mask,
+                )
+
+                # Modality projection & resampling
+                image_hidden_states = self.connector(
+                    image_hidden_states,
+                    attention_mask=patch_attention_mask.view(pixel_values.size(0), -1),
+                )
+
+                all_states.append(image_hidden_states)
+            image_hidden_states = torch.stack(all_states, dim=0)
+
+            inputs_embeds = self._merge_input_ids_with_image_features(
+                input_ids, inputs_embeds, image_hidden_states
+            )
+
+        hidden_states = self.text_model.model(
+            inputs_embeds=inputs_embeds,
+            position_ids=position_ids,
+            cu_seqlen_prefill=cu_seqlen_prefill,
+            kv_cache=kv_cache,
+            block_tables=block_tables,
+            slots=slots,
+            seqlen=seqlen,
+            max_s=max_s,
+            true_max_s=max_s,
+            prefill_cache_indices=None,
+            adapter_data=adapter_data,
+        )
+        if lm_head_indices is not None:
+            hidden_states = hidden_states[lm_head_indices]
+        logits, speculative_logits = self.text_model.lm_head(hidden_states)
+        return logits, speculative_logits
+
+
 class Idefics2ForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()

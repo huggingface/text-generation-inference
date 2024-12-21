@@ -28,69 +28,26 @@ IDEFICS3_FAKE_IMAGE_TOKEN = "<fake_token_around_image>"
 IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
 
 
-def _prompt_split_image(
-    image_seq_len,
-    image_rows,
-    image_cols,
-    fake_token_around_image,
-    image_token,
-    global_img_token,
-):
-    """Prompt with expanded image tokens for when the image is split into patches."""
-    text_split_images = ""
-    for n_h in range(image_rows):
-        for n_w in range(image_cols):
-            text_split_images += (
-                f"{fake_token_around_image}"
-                + f"<row_{n_h + 1}_col_{n_w + 1}>"
-                + f"{image_token}" * image_seq_len
-            )
-        text_split_images += "\n"
-
-    text_split_images += (
-        f"\n{fake_token_around_image}"
-        + f"{global_img_token}"
-        + f"{image_token}" * image_seq_len
-        + f"{fake_token_around_image}"
-    )
-    return text_split_images
-
-
-def _prompt_single_image(
-    image_seq_len, fake_token_around_image, image_token, global_img_token
-):
-    """Prompt with expanded image tokens for a single image."""
-    return (
-        f"{fake_token_around_image}"
-        + f"{global_img_token}"
-        + f"{image_token}" * image_seq_len
-        + f"{fake_token_around_image}"
-    )
-
-
 def get_image_prompt_string(
-    image_rows,
-    image_cols,
-    image_seq_len,
-    fake_token_around_image,
-    image_token,
-    global_img_token,
+    rows=0,
+    cols=0,
+    seq_len=1,
+    fake_token=IDEFICS3_FAKE_IMAGE_TOKEN,
+    img_token=IDEFICS3_IMAGE_TOKEN,
+    global_token=IDEFICS3_GLOBAL_IMG_TOKEN,
 ):
-    if image_rows == 0 and image_cols == 0:
-        return _prompt_single_image(
-            image_seq_len,
-            fake_token_around_image=fake_token_around_image,
-            image_token=image_token,
-            global_img_token=global_img_token,
-        )
-    return _prompt_split_image(
-        image_seq_len,
-        image_rows,
-        image_cols,
-        fake_token_around_image,
-        image_token,
-        global_img_token,
+    tokens = img_token * seq_len
+    end_token = f"{fake_token}{global_token}{tokens}{fake_token}"
+
+    if rows == 0 or cols == 0:
+        return end_token
+
+    grid = "\n".join(
+        "".join(f"{fake_token}<row_{i+1}_col_{j+1}>{tokens}" for j in range(cols))
+        for i in range(rows)
     )
+
+    return f"{grid}\n\n{end_token}"
 
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
@@ -132,12 +89,12 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
             / (config.scale_factor**2)
         )
         image_str = get_image_prompt_string(
-            n_rows,
-            n_cols,
-            image_seq_len,
-            image_token=IDEFICS3_IMAGE_TOKEN,
-            fake_token_around_image=IDEFICS3_FAKE_IMAGE_TOKEN,
-            global_img_token=IDEFICS3_GLOBAL_IMG_TOKEN,
+            rows=n_rows,
+            cols=n_cols,
+            seq_len=image_seq_len,
+            fake_token=IDEFICS3_FAKE_IMAGE_TOKEN,
+            img_token=IDEFICS3_IMAGE_TOKEN,
+            global_token=IDEFICS3_GLOBAL_IMG_TOKEN,
         )
         return image_str
     elif config.model_type == "llava_next":

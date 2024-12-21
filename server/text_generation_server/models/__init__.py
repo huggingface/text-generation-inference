@@ -151,6 +151,8 @@ try:
     )
     from text_generation_server.models.custom_modeling.idefics2 import (
         Idefics2ForConditionalGeneration,
+    )
+    from text_generation_server.models.custom_modeling.idefics3 import (
         Idefics3ForConditionalGeneration,
     )
     from text_generation_server.models.custom_modeling.qwen2_vl import (
