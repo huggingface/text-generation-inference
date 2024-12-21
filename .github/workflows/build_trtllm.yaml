@@ -118,5 +118,18 @@ jobs:
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
 
+  tests:
+    runs-on:
+      group: aws-g6-12xl-plus-priv-cache
+      container:
+        image:
+          registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:${{ env.LABEL }}
+        credentials:
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+        options: --gpus all --net=host
 
+      steps:
+        - name: Run C++/CUDA tests
+          run: /usr/local/tgi/tgi_trtllm_backend_tests
 
