@@ -93,7 +93,7 @@ def use_prefill_with_paged_kv_state(
             head_dim=head_size,
             q_data_type=dtype,
             page_size=page_size,
-            window_left=window_left,
+            window_left=-1 if window_left is None else window_left,
         )
         yield
     finally:
@@ -139,7 +139,7 @@ def use_prefill_state(
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
             q_data_type=dtype,
-            window_left=window_left,
+            window_left=-1 if window_left is None else window_left,
         )
         yield
     finally:
@@ -243,7 +243,7 @@ def use_decode_state(
             page_size=page_size,
             data_type=kv_cache_dtype,
             q_data_type=dtype,
-            window_left=window_left,
+            window_left=-1 if window_left is None else window_left,
         )
         yield
     finally:
