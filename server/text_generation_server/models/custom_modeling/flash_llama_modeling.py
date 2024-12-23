@@ -647,7 +647,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             )
         self.model = FlashLlamaModel(prefix, config, weights)
         if config.tie_word_embeddings:
-            suffix = f"model.embed_tokens"
+            suffix = "model.embed_tokens"
         else:
             suffix = "lm_head"
 
