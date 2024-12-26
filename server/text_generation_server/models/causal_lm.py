@@ -717,11 +717,12 @@ class CausalLM(Model):
         }
 
 
-        if model.config.model_type in ["llama", "mistral", "starcoder2", "qwen2", "falcon"]:
-            if model.config.model_type not in ["falcon"]:
+        if model.config.model_type in ["llama", "mistral", "starcoder2", "qwen2", "falcon", "gpt_bigcode"]:
+            if model.config.model_type not in ["falcon", "gpt_bigcode"]:
                 self.kwargs["attn_softmax_bf16"] = True
 
-            self.kwargs["trim_logits"] = True
+            if model.config.model_type not in ["gpt_bigcode"]:
+                self.kwargs["trim_logits"] = True
 
             if os.getenv("USE_FLASH_ATTENTION", "false").lower() == "true":
                 self.kwargs["use_flash_attention"] = True
