@@ -26,7 +26,7 @@ permissions:
 jobs:
   build:
     runs-on:
-      group: aws-highmemory-32-plus-priv
+      group: aws-highmemory-64-plus-priv
     steps:
       - uses: actions/checkout@v4
 
