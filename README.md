@@ -23,11 +23,25 @@ limitations under the License.
   - [Tested Models and Configurations](#tested-models-and-configurations)
   - [Running TGI on Gaudi](#running-tgi-on-gaudi)
   - [Running TGI with BF16 Precision](#running-tgi-with-bf16-precision)
+    - [Llama2-7B on 1 Card](#llama2-7b-on-1-card)
+    - [Llama2-70B on 8 cards](#llama2-70b-on-8-cards)
+    - [Llama3.1-8B on 1 card](#llama31-8b-on-1-card)
+    - [Llama3.1-70B 8 cards](#llama31-70b-8-cards)
+    - [Llava-v1.6-Mistral-7B on 1 card](#llava-v16-mistral-7b-on-1-card)
   - [Running TGI with FP8 Precision](#running-tgi-with-fp8-precision)
+    - [Llama2-7B on 1 Card](#llama2-7b-on-1-card-1)
+    - [Llama2-70B on 8 Cards](#llama2-70b-on-8-cards-1)
+    - [Llama3.1-8B on 1 Card](#llama31-8b-on-1-card-1)
+    - [Llama3.1-70B on 8 cards](#llama31-70b-on-8-cards)
+    - [Llava-v1.6-Mistral-7B on 1 Card](#llava-v16-mistral-7b-on-1-card-1)
+    - [Llava-v1.6-Mistral-7B on 8 Cards](#llava-v16-mistral-7b-on-8-cards)
   - [TGI-Gaudi Benchmark](#tgi-gaudi-benchmark)
+    - [Static Batching Benchmark](#static-batching-benchmark)
+    - [Continuous Batching Benchmark](#continuous-batching-benchmark)
   - [Adjusting TGI Parameters](#adjusting-tgi-parameters)
   - [Environment Variables](#environment-variables)
   - [Profiler](#profiler)
+  - [License](#license)
 
 
 ## Tested Models and Configurations
@@ -62,7 +76,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
 
 1. Pull the official Docker image with:
    ```bash
-   docker pull ghcr.io/huggingface/tgi-gaudi:2.0.6
+   docker pull ghcr.io/huggingface/tgi-gaudi:2.3.1
    ```
 > [!NOTE]
 > Alternatively, you can build the Docker image using the `Dockerfile` located in this folder with:
@@ -83,7 +97,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
    -e OMPI_MCA_btl_vader_single_copy_mechanism=none -e HF_TOKEN=$hf_token \
    -e ENABLE_HPU_GRAPH=true -e LIMIT_HPU_GRAPH=true -e USE_FLASH_ATTENTION=true \
    -e FLASH_ATTENTION_RECOMPUTE=true --cap-add=sys_nice --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 --model-id $model --max-input-tokens 1024 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 --model-id $model --max-input-tokens 1024 \
    --max-total-tokens 2048
    ```
 
@@ -97,7 +111,7 @@ To use [🤗 text-generation-inference](https://github.com/huggingface/text-gene
     -e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none \
     -e  HF_TOKEN=$hf_token -e ENABLE_HPU_GRAPH=true -e LIMIT_HPU_GRAPH=true \
     -e USE_FLASH_ATTENTION=true -e FLASH_ATTENTION_RECOMPUTE=true --cap-add=sys_nice \
-    --ipc=host ghcr.io/huggingface/tgi-gaudi:2.0.6 --model-id $model --sharded true \
+    --ipc=host ghcr.io/huggingface/tgi-gaudi:2.3.1 --model-id $model --sharded true \
     --num-shard 8 --max-input-tokens 1024 --max-total-tokens 2048
    ```
 3. Wait for the TGI-Gaudi server to come online. You will see something like so:
@@ -140,7 +154,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --max-input-length 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-total-tokens 65536 \
@@ -172,7 +186,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-length 1024 --max-total-tokens 2048 \
@@ -204,7 +218,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --max-input-length 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-total-tokens 65536 \
@@ -236,7 +250,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-length 1024 --max-total-tokens 2048 \
@@ -268,7 +282,7 @@ docker run -p 8080:80 \
     -e BATCH_BUCKET_SIZE=1 \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-total-tokens 32768
@@ -319,7 +333,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --max-input-length 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-total-tokens 65536 \
@@ -354,7 +368,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-length 1024 --max-total-tokens 2048 \
@@ -390,7 +404,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --max-input-length 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-total-tokens 65536 \
@@ -425,7 +439,7 @@ docker run -p 8080:80 \
    -e FLASH_ATTENTION_RECOMPUTE=true \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-length 1024 --max-total-tokens 2048 \
@@ -458,7 +472,7 @@ docker run -p 8080:80 \
     -e BATCH_BUCKET_SIZE=1 \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-total-tokens 32768
@@ -489,7 +503,7 @@ docker run -p 8080:80 \
     -e BATCH_BUCKET_SIZE=1 \
    --cap-add=sys_nice \
    --ipc=host \
-   ghcr.io/huggingface/tgi-gaudi:2.0.6 \
+   ghcr.io/huggingface/tgi-gaudi:2.3.1 \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
