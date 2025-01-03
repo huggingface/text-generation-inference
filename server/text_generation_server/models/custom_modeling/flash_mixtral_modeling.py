@@ -520,68 +520,28 @@ class FlashMixtralForCausalLM(torch.nn.Module):
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        true_max_s = max_s
+        if prefill_cache_indices is not None:
+            # Slots also need to be sliced as it has the same size as the whole kv tensor
+            slots = slots[prefill_cache_indices]
+        elif self.max_past is not None:
+            # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
+            # kernel requires the true values
+            seqlen = seqlen.clamp(max=self.max_past_tensor)
 
-        if (
-            torch.distributed.get_rank() == 0
-            and input_ids.shape[0] == 262144
-            and cu_seqlen_prefill is not None
-        ):
-            with torch.profiler.profile(
-                activities=[
-                    torch.profiler.ProfilerActivity.CPU,
-                    torch.profiler.ProfilerActivity.CUDA,
-                ],
-                record_shapes=True,
-            ) as prof:
-                true_max_s = max_s
-                if prefill_cache_indices is not None:
-                    # Slots also need to be sliced as it has the same size as the whole kv tensor
-                    slots = slots[prefill_cache_indices]
-                elif self.max_past is not None:
-                    # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
-                    # kernel requires the true values
-                    seqlen = seqlen.clamp(max=self.max_past_tensor)
-
-                hidden_states = self.model(
-                    input_ids,
-                    position_ids,
-                    cu_seqlen_prefill,
-                    kv_cache,
-                    block_tables,
-                    slots,
-                    seqlen,
-                    max_s,
-                    true_max_s,
-                    prefill_cache_indices,
-                )
-                if lm_head_indices is not None:
-                    hidden_states = hidden_states[lm_head_indices]
-                logits = self.lm_head(hidden_states)
-
-            prof.export_chrome_trace("/tgi/trace_mistral_prefill.json")
-        else:
-            true_max_s = max_s
-            if prefill_cache_indices is not None:
-                # Slots also need to be sliced as it has the same size as the whole kv tensor
-                slots = slots[prefill_cache_indices]
-            elif self.max_past is not None:
-                # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
-                # kernel requires the true values
-                seqlen = seqlen.clamp(max=self.max_past_tensor)
-
-            hidden_states = self.model(
-                input_ids,
-                position_ids,
-                cu_seqlen_prefill,
-                kv_cache,
-                block_tables,
-                slots,
-                seqlen,
-                max_s,
-                true_max_s,
-                prefill_cache_indices,
-            )
-            if lm_head_indices is not None:
-                hidden_states = hidden_states[lm_head_indices]
-            logits = self.lm_head(hidden_states)
+        hidden_states = self.model(
+            input_ids,
+            position_ids,
+            cu_seqlen_prefill,
+            kv_cache,
+            block_tables,
+            slots,
+            seqlen,
+            max_s,
+            true_max_s,
+            prefill_cache_indices,
+        )
+        if lm_head_indices is not None:
+            hidden_states = hidden_states[lm_head_indices]
+        logits = self.lm_head(hidden_states)
         return logits

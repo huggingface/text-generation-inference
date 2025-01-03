@@ -53,20 +53,21 @@ class KVCache:
     ):
         """Construct the key-value cache for a layer."""
         if dtype in {torch.float8_e5m2, torch.float8_e4m3fn}:
-            if (ATTENTION == "flashinfer" and SYSTEM == "cuda") or not (
-                ATTENTION == "paged" and SYSTEM == "rocm"
+            if not (
+                (ATTENTION == "flashinfer" and SYSTEM == "cuda")
+                or (ATTENTION == "paged" and SYSTEM == "rocm")
             ):
                 raise ValueError(
-                    "FP8 KV cache is currently only supported for flashinfer on CUDA and paged attention on ROCM"
+                    "FP8 KV cache is currently only supported for flashinfer on CUDA and paged attention on ROCm. "
                 )
             if SYSTEM == "rocm" and dtype == torch.float8_e5m2:
                 raise ValueError(
-                    "float8_e5m2 FP8 KV cache is not supported on AMD Rocm"
+                    "float8_e5m2 FP8 KV cache is not supported on AMD ROCm"
                 )
 
-        self.kv_cache_dtype_str = "auto"
+        self.kv_cache_dtype = "auto"
         if SYSTEM == "rocm" and dtype == torch.float8_e4m3fn:
-            self.kv_cache_dtype_str = "fp8"
+            self.kv_cache_dtype = "fp8"
             dtype = torch.uint8
 
         element_size = torch.tensor([], dtype=dtype).element_size()
@@ -123,27 +124,16 @@ class KVCache:
             self.dtype == torch.float8_e4m3fn
             and ATTENTION == "flashinfer"
             and SYSTEM == "cuda"
+        ) or (
+            self.kv_cache_dtype == "fp8" and ATTENTION == "paged" and SYSTEM == "rocm"
         ):
-            log_once(
-                logger.info,
-                "Using FP8 KV cache scales",
-            )
-            return True
-        elif (
-            self.kv_cache_dtype_str == "fp8"
-            and ATTENTION == "paged"
-            and SYSTEM == "rocm"
-        ):
-            log_once(
-                logger.info,
-                "Using FP8 KV cache scales",
-            )
+            log_once(logger.info, "Using FP8 KV cache scales")
             return True
         else:
             # We have scales, but not the correct FP8 cache type, so warn once.
             log_once(
                 logger.info,
-                "Ignoring FP8 KV cache scales, only float8_e4m3fn KV cache on flashinfer is supported",
+                "Ignoring FP8 KV cache scales, supported only for flashinfer on CUDA and paged attention on ROCm",
             )
             return False
 
@@ -213,7 +203,7 @@ class KVCache:
                 key_cache,
                 value_cache,
                 slots,
-                self.kv_cache_dtype_str,
+                self.kv_cache_dtype,
                 kv_scales.key_scale_cpu,
                 kv_scales.value_scale_cpu,
             )

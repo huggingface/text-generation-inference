@@ -398,16 +398,10 @@ class LlamaMLP(nn.Module):
             return self.down_proj(out, adapter_data)
         else:
             gate_up_states = self.gate_up_proj(hidden_states, adapter_data)
-            output_shape = gate_up_states.shape[:-1] + (self.intermediate_size,)
-            out = torch.empty(
-                output_shape, dtype=gate_up_states.dtype, device=gate_up_states.device
+            gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
+            return self.down_proj(
+                self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], adapter_data
             )
-            ops.silu_and_mul(out, gate_up_states)
-            return self.down_proj(out, adapter_data)
-            # gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-            # return self.down_proj(
-            #     self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], adapter_data
-            # )
 
 
 class FlashLlamaLayer(nn.Module):

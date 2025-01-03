@@ -119,7 +119,7 @@ def paged_attention(
             block_size,
             max_s,
             None,
-            kv_cache.kv_cache_dtype_str,
+            kv_cache.kv_cache_dtype,
             kv_scales.key_scale_cpu,
             kv_scales.value_scale_cpu,
         )
@@ -154,7 +154,7 @@ def paged_attention(
                 block_size,
                 max_s,
                 None,
-                kv_cache.kv_cache_dtype_str,
+                kv_cache.kv_cache_dtype,
                 kv_scales.key_scale_cpu,
                 kv_scales.value_scale_cpu,
             )
@@ -174,7 +174,7 @@ def paged_attention(
                 block_size,
                 max_s,
                 None,
-                kv_cache.kv_cache_dtype_str,
+                kv_cache.kv_cache_dtype,
                 kv_scales.key_scale_cpu,
                 kv_scales.value_scale_cpu,
                 None,
