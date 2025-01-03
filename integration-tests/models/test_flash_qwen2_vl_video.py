@@ -71,14 +71,5 @@ async def test_qwen2_vl_simpl(qwen2_vl, response_snapshot):
                     full_text += response["choices"][0]["delta"]["content"]
                 except json.JSONDecodeError:
                     pass
-    # assert count == 27
-    # assert response.usage == {
-    #     "completion_tokens": 10,
-    #     "prompt_tokens": 50,
-    #     "total_tokens": 60,
-    # }
-    # assert (
-    #     response.choices[0].message.content
-    #     == "In a bustling city, a chicken named Cluck"
-    # )
+
     assert last_response == response_snapshot

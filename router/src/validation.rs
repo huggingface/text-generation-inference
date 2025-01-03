@@ -21,7 +21,6 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::{instrument, Span};
 use {once_cell::sync::Lazy, regex::Regex};
-// video processing
 
 #[cfg(feature = "video")]
 use ffmpeg_next::{
@@ -772,7 +771,6 @@ fn video_tokens(config: &Config, height: u32, width: u32, sampled_frames: f32) -
     use Config::*;
 
     match config {
-        // TOOD: improve to use the config to better estimate the number of tokens
         Qwen2Vl(_config) => {
             let min_frames = 2_f32;
             let max_frames = 256_f32;

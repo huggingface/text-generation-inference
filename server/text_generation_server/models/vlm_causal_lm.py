@@ -80,11 +80,6 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
 
 def video_text_replacement(processor, video_input, config) -> str:
     if config.model_type == "qwen2_vl":
-        # num_pads = video_input['pixel_values'].size(0)
-        # num_pads = 1206
-
-        # import ipdb; ipdb.set_trace()
-        # num_pads = 9556 + 10
         num_pads = video_input.pixel_values.shape[0] // 4
         padding = "<|video_pad|>" * num_pads
         return f"<|vision_start|>{padding}<|vision_end|>"
