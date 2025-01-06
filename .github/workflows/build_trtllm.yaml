@@ -16,6 +16,7 @@ on:
       - "launcher/**"
       - "Cargo.lock"
       - "rust-toolchain.toml"
+      - ".github/workflows/build_trtllm.yaml"
     branches:
       - "main"
 
@@ -30,10 +31,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
+
       - name: Extract TensorRT-LLM version
         run: |
           echo "TENSORRT_LLM_VERSION=$(grep -oP '([a-z,0-9]{40})' $GITHUB_WORKSPACE/backends/trtllm/cmake/trtllm.cmake)" >> $GITHUB_ENV
           echo "TensorRT-LLM version: ${{ env.TENSORRT_LLM_VERSION }}"
+
+      - name: Set LABEL
+        run: |
+          echo "LABEL=trtllm" >> $GITHUB_ENV
 
       - name: "Configure AWS Credentials"
         id: aws-creds
@@ -95,8 +103,6 @@ jobs:
 
       - name: Build and push Docker image
         id: build-and-push
-        env:
-          LABEL: "trtllm"
         uses: docker/build-push-action@v6
         with:
           context: .
