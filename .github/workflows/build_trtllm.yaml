@@ -130,7 +130,7 @@ jobs:
       group: aws-g6-12xl-plus-priv-cache
     container:
       image:
-        registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:${{ github.GITHUB_SHA }}
+        registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:${{ needs.build-and-push.outputs.docker_image }}
       credentials:
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
