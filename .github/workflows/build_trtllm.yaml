@@ -30,7 +30,7 @@ jobs:
       docker_image: ${{ steps.final.outputs.docker_image }}
       label: ${ steps.final.outputs.label }}
     concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
+      group: ${{ github.workflow }}-${{ github.job }}-build-and-push-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     runs-on:
       group: aws-highmemory-64-plus-priv
@@ -141,10 +141,8 @@ jobs:
       cancel-in-progress: true
     runs-on:
       group: aws-g6-12xl-plus-priv-cache
-    env:
-      DOCKER_IMAGE: ${{ needs.build-and-push.outputs.docker_image }}
     container:
-      image: ${DOCKER_IMAGE}
+      image: ${{ needs.build-and-push.outputs.docker_image }}
       credentials:
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
