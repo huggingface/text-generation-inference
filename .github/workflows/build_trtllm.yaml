@@ -150,5 +150,5 @@ jobs:
 
     steps:
       - name: Run C++/CUDA tests
-        run: /usr/local/tgi/tgi_trtllm_backend_tests
+        run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
 
