@@ -25,7 +25,7 @@ permissions:
   id-token: write # Required to authenticate via OIDC.
 
 jobs:
-  build:
+  build-and-push:
     runs-on:
       group: aws-highmemory-64-plus-priv
     steps:
@@ -123,9 +123,18 @@ jobs:
             sccache_region=us-east-1
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache-${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+      - name: Final
+        id: final
+        run: |
+          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
+          echo "docker_volume=${{ env.DOCKER_VOLUME }}" >> "$GITHUB_OUTPUT"
+          echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
+          echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "extra_pytest=${{ env.EXTRA_PYTEST }}" >> "$GITHUB_OUTPUT"
 
   tests:
-    needs: build
+    needs: build-and-push
     runs-on:
       group: aws-g6-12xl-plus-priv-cache
     container:
