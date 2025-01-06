@@ -126,20 +126,16 @@ jobs:
       - name: Final
         id: final
         run: |
-          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
-          echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
-          echo "docker_volume=${{ env.DOCKER_VOLUME }}" >> "$GITHUB_OUTPUT"
-          echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
-          echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
-          echo "extra_pytest=${{ env.EXTRA_PYTEST }}" >> "$GITHUB_OUTPUT"
+          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
 
   tests:
     needs: build-and-push
     runs-on:
       group: aws-g6-12xl-plus-priv-cache
+    env:
+      DOCKER_IMAGE: ${{ needs.build-and-push.outputs.docker_image }}
     container:
-      image:
-        registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:${{ needs.build-and-push.outputs.docker_image }}
+      image: ${DOCKER_IMAGE}
       credentials:
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
