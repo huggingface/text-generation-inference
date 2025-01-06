@@ -16,6 +16,7 @@ on:
       - "launcher/**"
       - "Cargo.lock"
       - "rust-toolchain.toml"
+      - ".github/workflows/build_trtllm.yaml"
     branches:
       - "main"
 
