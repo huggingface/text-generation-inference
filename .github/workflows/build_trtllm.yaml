@@ -26,6 +26,9 @@ permissions:
 
 jobs:
   build-and-push:
+    outputs:
+      docker_image: ${{ steps.final.outputs.docker_image }}
+      label: ${ steps.final.outputs.label }}
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
