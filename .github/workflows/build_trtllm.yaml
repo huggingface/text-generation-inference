@@ -128,9 +128,11 @@ jobs:
     needs: build
     runs-on:
       group: aws-g6-12xl-plus-priv-cache
+    env:
+      TARGET_SHA: ${{ env.LABEL }}
     container:
       image:
-        registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:${{ env.LABEL }}
+        registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:${TARGET_SHA}
       credentials:
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
