@@ -146,7 +146,7 @@ jobs:
       credentials:
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
-      options: --gpus all --net=host
+      options: --gpus all
 
     steps:
       - name: Run C++/CUDA tests
