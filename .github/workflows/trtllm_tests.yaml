@@ -29,6 +29,7 @@ jobs:
     uses: ./.github/workflows/build_trtllm.yaml
     with:
       runs-on: aws-highmemory-64-plus-priv
+    secrets: inherit
 
   run-tests:
     needs: build-and-push
