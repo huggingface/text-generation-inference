@@ -1,0 +1,51 @@
+name: Build TensorRT-LLM2
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        type: string
+        description: "Which instance type to use to run the workflow"
+        required: true
+
+    outputs:
+      docker_image:
+        description: "Reference to the Docker Image build by this workflow"
+        value: ${{ jobs.build-and-push.outputs.docker_image }}
+      label:
+        description: "Label generated for this build"
+        value: ${{ jobs.build-and-push.outputs.label }}
+
+permissions:
+  contents: read # Required to check out repository.
+  id-token: write # Required to authenticate via OIDC.
+
+jobs:
+  build-and-push:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
+    outputs:
+      docker_image: ${{ steps.final.outputs.docker_image }}
+      label: ${ steps.final.outputs.label }}
+    runs-on:
+      group: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
+
+      - name: Extract TensorRT-LLM version
+        run: |
+          echo "TENSORRT_LLM_VERSION=$(grep -oP '([a-z,0-9]{40})' $GITHUB_WORKSPACE/backends/trtllm/cmake/trtllm.cmake)" >> $GITHUB_ENV
+          echo "TensorRT-LLM version: ${{ env.TENSORRT_LLM_VERSION }}"
+      - name: Set LABEL
+        run: |
+          echo "LABEL=trtllm" >> $GITHUB_ENV
+      - name: "Configure AWS Credentials"
+        id: aws-creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
+          role-duration-seconds: 7200
+          output-credentials: true
