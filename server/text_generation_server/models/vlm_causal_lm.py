@@ -13,6 +13,7 @@ from text_generation_server.models.flash_causal_lm import (
     FlashCausalLM,
 )
 from text_generation_server.models.globals import PREFIX_CACHING, ATTENTION
+from loguru import logger
 from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
 from text_generation_server.layers.attention import Seqlen
@@ -29,25 +30,32 @@ IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
 
 
 def get_image_prompt_string(
-    rows=0,
-    cols=0,
-    seq_len=1,
-    fake_token=IDEFICS3_FAKE_IMAGE_TOKEN,
-    img_token=IDEFICS3_IMAGE_TOKEN,
-    global_token=IDEFICS3_GLOBAL_IMG_TOKEN,
+    *,
+    image_seq_len,
+    image_rows,
+    image_cols,
+    fake_token_around_image,
+    image_token,
+    global_img_token,
 ):
-    tokens = img_token * seq_len
-    end_token = f"{fake_token}{global_token}{tokens}{fake_token}"
+    """Prompt with expanded image tokens for when the image is split into patches."""
+    text_split_images = ""
+    for n_h in range(image_rows):
+        for n_w in range(image_cols):
+            text_split_images += (
+                f"{fake_token_around_image}"
+                + f"<row_{n_h + 1}_col_{n_w + 1}>"
+                + f"{image_token}" * image_seq_len
+            )
+        text_split_images += "\n"
 
-    if rows == 0 or cols == 0:
-        return end_token
-
-    grid = "\n".join(
-        "".join(f"{fake_token}<row_{i+1}_col_{j+1}>{tokens}" for j in range(cols))
-        for i in range(rows)
+    text_split_images += (
+        f"\n{fake_token_around_image}"
+        + f"{global_img_token}"
+        + f"{image_token}" * image_seq_len
+        + f"{fake_token_around_image}"
     )
-
-    return f"{grid}\n\n{end_token}"
+    return text_split_images
 
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
@@ -89,18 +97,17 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
             / (config.scale_factor**2)
         )
         image_str = get_image_prompt_string(
-            rows=n_rows,
-            cols=n_cols,
-            seq_len=image_seq_len,
-            fake_token=IDEFICS3_FAKE_IMAGE_TOKEN,
-            img_token=IDEFICS3_IMAGE_TOKEN,
-            global_token=IDEFICS3_GLOBAL_IMG_TOKEN,
+            image_seq_len=image_seq_len,
+            image_rows=n_rows,
+            image_cols=n_cols,
+            fake_token_around_image=IDEFICS3_FAKE_IMAGE_TOKEN,
+            image_token=IDEFICS3_IMAGE_TOKEN,
+            global_img_token=IDEFICS3_GLOBAL_IMG_TOKEN,
         )
         return image_str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
-        from loguru import logger
 
         log_master(
             logger.info,
@@ -238,9 +245,11 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
         if images:
             kwargs = {}
-            match processor.image_processor_class:
-                case "Idefics3ImageProcessor":
-                    kwargs["return_row_col_info"] = True
+            if (
+                hasattr(processor, "image_processor_class")
+                and processor.image_processor_class == "Idefics3ImageProcessor"
+            ):
+                kwargs["return_row_col_info"] = True
 
             image_inputs = processor.image_processor(
                 images, return_tensors="pt", **kwargs

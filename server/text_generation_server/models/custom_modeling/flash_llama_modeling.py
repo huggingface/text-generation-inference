@@ -632,20 +632,24 @@ class FlashLlamaModel(torch.nn.Module):
 
 
 class FlashLlamaForCausalLM(torch.nn.Module):
-    def __init__(self, prefix: str, config, weights):
+    def __init__(self, prefix: str, config, weights, name=None):
+        if name is None:
+            name = "model"
         super().__init__()
-        base_model = "" if prefix.endswith("text_model") else ".model"
-
         with no_fp8(weights):
             self.embed_tokens = TensorParallelEmbedding(
                 prefix=(
-                    "model.embed_tokens"
+                    f"{name}.embed_tokens"
                     if not prefix
-                    else f"{prefix}{base_model}.embed_tokens"
+                    else f"{prefix}.{name}.embed_tokens"
                 ),
                 weights=weights,
             )
-        self.model = FlashLlamaModel(prefix, config, weights)
+        self.model = FlashLlamaModel(
+            prefix=name if not prefix else f"{prefix}.{name}",
+            config=config,
+            weights=weights,
+        )
         if config.tie_word_embeddings:
             suffix = "model.embed_tokens"
         else:
@@ -656,18 +660,13 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         if embedding_multiplier is not None:
             self.embed_tokens.weight.data *= embedding_multiplier
 
-        if not prefix:
-            head_prefix = suffix
-        elif prefix.endswith("text_model"):
-            head_prefix = suffix
-        else:
-            head_prefix = f"{prefix}.{suffix}"
+        prefix = "lm_head" if not prefix or name != "model" else f"{prefix}.lm_head"
 
         with no_fp8(weights):
             self.lm_head = SpeculativeHead.load(
                 config,
-                prefix=head_prefix,
-                weights=weights,
+                prefix,
+                weights,
             )
 
         # Used in Granite
