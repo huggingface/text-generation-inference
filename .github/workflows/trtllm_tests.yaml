@@ -29,7 +29,10 @@ jobs:
     uses: ./.github/workflows/build_trtllm.yaml
     with:
       runs-on: aws-highmemory-64-plus-priv
-    secrets: inherit
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.S3_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_AWS_SECRET_ACCESS_KEY }}
+      AWS_ROLE_GITHUB_TGI_SCCACHE: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
 
   run-tests:
     needs: build-and-push
