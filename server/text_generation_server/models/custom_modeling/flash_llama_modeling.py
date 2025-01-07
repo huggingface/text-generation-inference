@@ -660,7 +660,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         if embedding_multiplier is not None:
             self.embed_tokens.weight.data *= embedding_multiplier
 
-        prefix = "lm_head" if not prefix or name != "model" else f"{prefix}.lm_head"
+        prefix = "lm_head" if not prefix or name != "model" else f"{prefix}.{suffix}"
 
         with no_fp8(weights):
             self.lm_head = SpeculativeHead.load(

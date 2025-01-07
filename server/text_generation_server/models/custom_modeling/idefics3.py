@@ -19,7 +19,6 @@ from typing import List, Optional, Tuple
 import torch
 import torch.utils.checkpoint
 from torch import nn
-import math
 
 from transformers.activations import ACT2FN
 from text_generation_server.models.custom_modeling.vlm import (

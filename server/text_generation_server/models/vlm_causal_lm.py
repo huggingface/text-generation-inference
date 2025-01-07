@@ -30,7 +30,7 @@ IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
 
 
 # copied from: https://github.com/huggingface/transformers/blob/02ed609285c2448b3b54c31e362f2c389fa952ab/src/transformers/models/idefics3/processing_idefics3.py#L44-L60
-def get_image_prompt_string(
+def _prompt_split_image(
     *,
     image_seq_len: int,
     image_rows: int,
@@ -97,7 +97,7 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
             ((config.vision_config.image_size // config.vision_config.patch_size) ** 2)
             / (config.scale_factor**2)
         )
-        image_str = get_image_prompt_string(
+        image_str = _prompt_split_image(
             image_seq_len=image_seq_len,
             image_rows=n_rows,
             image_cols=n_cols,
