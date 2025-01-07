@@ -26,7 +26,7 @@ jobs:
       contents: write
       packages: write
       id-token: write
-    uses: ./.github/workflows/build_trtllm.yaml
+    uses: ./.github/workflows/1-build-trtllm.yml
     with:
       runs-on: aws-highmemory-64-plus-priv
     secrets:
