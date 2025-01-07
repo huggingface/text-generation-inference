@@ -133,7 +133,7 @@ class KVCache:
             # We have scales, but not the correct FP8 cache type, so warn once.
             log_once(
                 logger.info,
-                "Ignoring FP8 KV cache scales, supported only for flashinfer on CUDA and paged attention on ROCm",
+                "Ignoring FP8 KV cache scales, supported only for float8_e4m3fn KV cache with flashinfer on CUDA and paged attention on ROCm",
             )
             return False
 
