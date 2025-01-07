@@ -29,6 +29,7 @@ IDEFICS3_FAKE_IMAGE_TOKEN = "<fake_token_around_image>"
 IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
 
 
+# copied from: https://github.com/huggingface/transformers/blob/02ed609285c2448b3b54c31e362f2c389fa952ab/src/transformers/models/idefics3/processing_idefics3.py#L44-L60
 def get_image_prompt_string(
     *,
     image_seq_len: int,
