@@ -6,6 +6,18 @@ on:
         type: string
         description: "Which instance type to use to run the workflow"
         required: true
+    secrets:
+#      AWS_ACCESS_KEY_ID:
+#        description: "AWS S3 access key id to connect to the S3 bucket containing sccache content"
+#        required: true
+#
+#      AWS_SECRET_ACCESS_KEY:
+#        description: "AWS S3 secret access key to connect to the S3 bucket containing sccache content"
+#        required: true
+
+      AWS_ROLE_GITHUB_TGI_SCCACHE:
+        description: "AWS S3 Role to assume when connecting to the S3 bucket containing sccache content"
+        required: true
 
     outputs:
       docker_image:
