@@ -24,6 +24,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
     uses: ./.github/workflows/build_trtllm.yaml
     with:
       runs-on: aws-highmemory-64-plus-priv
