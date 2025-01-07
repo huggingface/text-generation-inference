@@ -1,3 +1,4 @@
+name: "TensorRT-LLM C/C++/CUDA Test Suite"
 on:
   push:
     branches:
