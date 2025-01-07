@@ -31,12 +31,12 @@ IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
 
 def get_image_prompt_string(
     *,
-    image_seq_len,
-    image_rows,
-    image_cols,
-    fake_token_around_image,
-    image_token,
-    global_img_token,
+    image_seq_len: int,
+    image_rows: int,
+    image_cols: int,
+    fake_token_around_image: str,
+    image_token: str,
+    global_img_token: str,
 ):
     """Prompt with expanded image tokens for when the image is split into patches."""
     text_split_images = ""
