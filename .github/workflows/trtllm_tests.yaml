@@ -29,8 +29,6 @@ jobs:
     uses: ./.github/workflows/build_trtllm.yaml
     with:
       runs-on: aws-highmemory-64-plus-priv
-    secrets:
-      AWS_ROLE_GITHUB_TGI_SCCACHE: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
 
   run-tests:
     needs: build-and-push
