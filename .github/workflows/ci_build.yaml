@@ -47,3 +47,13 @@ jobs:
       # https://github.com/actions/runner/issues/2206
       release-tests: ${{ inputs.release-tests == true }}
     secrets: inherit
+
+  build-trtllm:
+    uses: ./.github/workflows/build_trtllm.yaml
+    with:
+      runs-on: aws-highmemory-64-plus-priv
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    secrets: inherit
