@@ -1,0 +1,43 @@
+on:
+  push:
+    branches:
+      - 'main'
+      - 'trtllm/ci'
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - "backends/trtllm"
+      - "server/**"
+      - "proto/**"
+      - "router/**"
+      - "launcher/**"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - ".github/workflows/build_trtllm.yaml"
+      - ".github/workflows/trtllm_tests.yaml"
+    branches:
+      - "main"
+
+jobs:
+  build-and-push:
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/build_trtllm.yaml
+    with:
+      runs-on: aws-highmemory-64-plus-priv
+
+  run-tests:
+    needs: build-and-push
+    runs-on:
+      container:
+        image: ${{ needs.build-and-push.outputs.docker_image }}
+        credentials:
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+        options: --gpus all
+
+    steps:
+      - name: Run C++/CUDA tests
+        run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
