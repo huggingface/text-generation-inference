@@ -1,24 +1,19 @@
 name: Build TensorRT-LLM
-
 on:
-  push:
-    branches:
-      - 'main'
-      - 'trtllm/ci'
-    tags:
-      - 'v*'
-  pull_request:
-    paths:
-      - "backends/trtllm"
-      - "server/**"
-      - "proto/**"
-      - "router/**"
-      - "launcher/**"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - ".github/workflows/build_trtllm.yaml"
-    branches:
-      - "main"
+  workflow_call:
+    inputs:
+      runs-on:
+        type: string
+        description: "Which instance type to use to run the workflow"
+        required: true
+
+    outputs:
+      docker_image:
+        description: "Reference to the Docker Image build by this workflow"
+        value: ${{ jobs.build-and-push.outputs.docker_image }}
+      label:
+        description: "Label generated for this build"
+        value: ${{ jobs.build-and-push.outputs.label }}
 
 permissions:
   contents: read # Required to check out repository.
@@ -26,14 +21,13 @@ permissions:
 
 jobs:
   build-and-push:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ github.head_ref || github.run_id }}
     outputs:
       docker_image: ${{ steps.final.outputs.docker_image }}
       label: ${ steps.final.outputs.label }}
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-build-and-push-${{ github.head_ref || github.run_id }}
-      cancel-in-progress: true
     runs-on:
-      group: aws-highmemory-64-plus-priv
+      group: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@v4
 
@@ -134,21 +128,5 @@ jobs:
         run: |
           echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
-  tests:
-    needs: build-and-push
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
-      cancel-in-progress: true
-    runs-on:
-      group: aws-g6-12xl-plus-priv-cache
-    container:
-      image: ${{ needs.build-and-push.outputs.docker_image }}
-      credentials:
-        username: ${{ secrets.REGISTRY_USERNAME }}
-        password: ${{ secrets.REGISTRY_PASSWORD }}
-      options: --gpus all
 
-    steps:
-      - name: Run C++/CUDA tests
-        run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
 
