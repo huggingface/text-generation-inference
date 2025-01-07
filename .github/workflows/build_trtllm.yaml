@@ -6,10 +6,6 @@ on:
         type: string
         description: "Which instance type to use to run the workflow"
         required: true
-    secrets:
-      AWS_ROLE_GITHUB_TGI_SCCACHE:
-        description: "AWS S3 Role to assume when connecting to the S3 bucket containing sccache content"
-        required: true
 
     outputs:
       docker_image:
@@ -52,7 +48,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: us-east-1
-          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_SCCACHE }}
+          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
           role-duration-seconds: 7200
           output-credentials: true
 
