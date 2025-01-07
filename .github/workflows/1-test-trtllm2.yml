@@ -1,9 +1,9 @@
 name: "TensorRT-LLM C/C++/CUDA Test Suite POPO"
-on:
-  push:
-    branches:
-      - 'main'
-      - 'trtllm/ci'
+on: workflow_dispatch
+  # push:
+  #   branches:
+  #     - 'main'
+  #     - 'trtllm/ci'
     tags:
       - 'v*'
   pull_request:
