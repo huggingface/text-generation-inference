@@ -37,7 +37,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     runs-on:
-      group: aws-highmemory-64-plus-priv
+      group: aws-g6-12xl-plus-priv-cache
     container:
       image: ${{ needs.build-and-push.outputs.docker_image }}
       credentials:
