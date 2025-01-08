@@ -141,8 +141,8 @@ You have the option to utilize the `HF_TOKEN` environment variable for configuri
 For example, if you want to serve the gated Llama V2 model variants:
 
 1. Go to https://huggingface.co/settings/tokens
-2. Copy your cli READ token
-3. Export `HF_TOKEN=<your cli READ token>`
+2. Copy your CLI READ token
+3. Export `HF_TOKEN=<your CLI READ token>`
 
 or with Docker:
 
@@ -157,7 +157,7 @@ docker run --gpus all --shm-size 1g -e HF_TOKEN=$token -p 8080:80 -v $volume:/da
 ### A note on Shared Memory (shm)
 
 [`NCCL`](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html) is a communication framework used by
-`PyTorch` to do distributed training/inference. `text-generation-inference` make
+`PyTorch` to do distributed training/inference. `text-generation-inference` makes
 use of `NCCL` to enable Tensor Parallelism to dramatically speed up inference for large language models.
 
 In order to share data between the different devices of a `NCCL` group, `NCCL` might fall back to using the host memory if
