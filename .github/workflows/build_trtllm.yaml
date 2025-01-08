@@ -15,9 +15,9 @@ on:
         description: "Label generated for this build"
         value: ${{ jobs.build-and-push.outputs.label }}
 
-    permissions:
-      contents: read # Required to check out repository.
-      id-token: write # Required to authenticate via OIDC.
+permissions:
+  contents: read # Required to check out repository.
+  id-token: write # Required to authenticate via OIDC.
 
 jobs:
   build-and-push:
