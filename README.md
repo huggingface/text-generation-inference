@@ -196,7 +196,7 @@ Detailed blogpost by Adyen on TGI inner workings: [LLM inference at scale with T
 
 You can also opt to install `text-generation-inference` locally.
 
-First clone the repository and change directoy into it:
+First clone the repository and change directory into it:
 
 ```shell
 git clone https://github.com/huggingface/text-generation-inference
@@ -213,7 +213,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 conda create -n text-generation-inference python=3.11
 conda activate text-generation-inference
 
-#using pyton venv
+#using python venv
 python3 -m venv .venv
 source .venv/bin/activate
 ```
