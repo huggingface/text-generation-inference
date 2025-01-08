@@ -2480,7 +2480,8 @@ class FlashCausalLM(Model):
                 num_kv_heads=self.num_kv_heads,
                 head_size=self.head_size,
                 page_size=BLOCK_SIZE,
-                dtype=self.dtype,
+                kv_dtype=self.kv_cache_dtype,
+                q_dtype=self.dtype,
                 window_left=self.sliding_window,
             )
         else:
@@ -2494,6 +2495,6 @@ class FlashCausalLM(Model):
                 head_size=self.head_size,
                 page_size=BLOCK_SIZE,
                 kv_cache_dtype=self.kv_cache_dtype,
-                dtype=self.dtype,
+                q_dtype=self.dtype,
                 window_left=self.sliding_window,
             )
