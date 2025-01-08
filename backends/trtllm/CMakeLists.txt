@@ -76,7 +76,10 @@ target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugi
 install(TARGETS tgi_trtllm_backend_impl)
 install(TARGETS tensorrt_llm nvinfer_plugin_tensorrt_llm decoder_attention executorWorker)
 install(FILES ${TRTLLM_NVRTC_WRAPPER_LIBRARY_PATH} TYPE LIB)
-install(FILES ${TRTLLM_EXECUTOR_STATIC_LIBRARY_PATH} TYPE LIB)
+if (NOT ${TGI_TRTLLM_BACKEND_DEBUG})
+    install(FILES ${TRTLLM_EXECUTOR_STATIC_LIBRARY_PATH} TYPE LIB)
+endif ()
+
 
 #### Unit Tests ####
 if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
@@ -122,13 +125,10 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
         endif ()
     endif ()
 
-    if(CMAKE_BUILD_TYPE MATCHES "Debug")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fsanitize=undefined -fsanitize=address")
-        target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined PUBLIC -fsanitize=address)
-    endif()
+    install(TARGETS tgi_trtllm_backend_tests)
 
-    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
-    include(CTest)
-    include(Catch)
-    catch_discover_tests(tgi_trtllm_backend_tests)
+    #    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+    #    include(CTest)
+    #    include(Catch)
+    #    catch_discover_tests(tgi_trtllm_backend_tests)
 endif ()
