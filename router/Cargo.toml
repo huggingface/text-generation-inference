@@ -25,7 +25,7 @@ opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
 opentelemetry-otlp = "0.13.0"
 outlines-core = { git = "https://github.com/dottxt-ai/outlines-core.git", rev = "ba10c619fc9bf3c487e43f49bdecb95a24bb465c" }
 rand = "0.8.5"
-reqwest = { version = "0.11.20", features = [] }
+reqwest = { version = "0.11.20", features = ["blocking"] }
 serde = "1.0.188"
 serde_json = "1.0.107"
 thiserror = "1.0.48"
