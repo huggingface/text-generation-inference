@@ -68,4 +68,6 @@ class PaliGemmaBatch(VlmCausalLMBatch):
             image_inputs = new_image_inputs
         else:
             image_inputs = None
-        return batch_tokenized_inputs, image_inputs
+
+        video_inputs = None
+        return batch_tokenized_inputs, image_inputs, video_inputs

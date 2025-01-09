@@ -81,6 +81,8 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         image_sizes: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
+        video_pixel_values: Optional[torch.FloatTensor] = None,
+        video_grid_thw: Optional[torch.LongTensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         # TODO This is odd but apparently pali gemma position ids start at 1.

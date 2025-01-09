@@ -301,6 +301,7 @@ impl TensorRtLlmBackendV2 {
             1 => match request.inputs.first().expect("Single item-chunk") {
                 Chunk::Text(_) => Ok(()),
                 Chunk::Image(_) => Err(ValidationError(UnsupportedModality("image"))),
+                Chunk::Video(_) => Err(ValidationError(UnsupportedModality("video"))),
             },
         }
     }

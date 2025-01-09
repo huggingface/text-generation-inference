@@ -2,6 +2,7 @@ import torch
 from PIL import Image
 from io import BytesIO
 
+import numpy as np
 from opentelemetry import trace
 from typing import Iterable, Optional, Tuple, List, Type, Dict
 
@@ -17,6 +18,7 @@ from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
 from text_generation_server.layers.attention import Seqlen
 from text_generation_server.models.metadata_kernels import block_tables_to_ragged
+import math
 
 tracer = trace.get_tracer(__name__)
 
@@ -71,6 +73,15 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         grid_t, grid_h, grid_w = image_input["image_grid_thw"][image_id]
         num_pads = grid_t * grid_h * grid_w // 4
         padding = "<|image_pad|>" * num_pads
+        return f"<|vision_start|>{padding}<|vision_end|>"
+    else:
+        raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
+
+
+def video_text_replacement(processor, video_input, config) -> str:
+    if config.model_type == "qwen2_vl":
+        num_pads = video_input.pixel_values.shape[0] // 4
+        padding = "<|video_pad|>" * num_pads
         return f"<|vision_start|>{padding}<|vision_end|>"
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
@@ -138,29 +149,59 @@ def get_number_of_features(height: int, width: int, config) -> int:
     return unpadded_features + newline_features + base_features
 
 
+# copied from: https://github.com/QwenLM/Qwen2-VL/blob/main/qwen-vl-utils/src/qwen_vl_utils/vision_process.py
+def smart_nframes(
+    fps: int,
+    nframes: int,
+    min_frames: int,
+    max_frames: int,
+    total_frames: int,
+    video_fps: int | float,
+) -> int:
+    if nframes:
+        nframes = round(nframes / 2) * 2
+    else:
+        min_frames = math.ceil(min_frames / 2) * 2
+        max_frames = math.floor(max_frames / 2) * 2
+        nframes = total_frames / video_fps * fps
+        nframes = min(max(nframes, min_frames), max_frames)
+        nframes = round(nframes / 2) * 2
+    if not (2 <= nframes and nframes <= total_frames):
+        raise ValueError(
+            f"nframes should in interval [{2}, {total_frames}], but got {nframes}."
+        )
+    return nframes
+
+
 class VlmCausalLMBatch(FlashCausalLMBatch):
     pixel_values: Optional[List[torch.Tensor]]
+    video_pixel_values: Optional[List[torch.Tensor]]
     pixel_attention_mask: Optional[List[torch.Tensor]]
     image_sizes: Optional[List[Tuple[int, int]]]
     image_grid_thw: Optional[torch.Tensor]
+    video_grid_thw: Optional[torch.Tensor]
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches):
         batch = super(VlmCausalLMBatch, cls).concatenate(batches)
         batch.pixel_values = None
+        batch.video_pixel_values = None
         batch.pixel_attention_mask = None
         batch.image_sizes = None
         batch.image_grid_thw = None
+        batch.video_grid_thw = None
         return batch
 
     @tracer.start_as_current_span("filter")
     def filter(self, request_ids: List[int]):
         batch = super().filter(request_ids)
         batch.pixel_values = None
+        batch.video_pixel_values = None
         batch.pixel_attention_mask = None
         batch.image_sizes = None
         batch.image_grid_thw = None
+        batch.video_grid_thw = None
         return batch
 
     @classmethod
@@ -171,6 +212,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         # can make the image splits the same size. And we need the final
         # sizes to insert correct number of image tokens.
         images = []
+        videos = []
         for r in requests:
             for chunk in r.input_chunks.chunks:
                 chunk_type = chunk.WhichOneof("chunk")
@@ -190,6 +232,30 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         images.append(image)
                     else:
                         images.append([image])
+                elif chunk_type == "video":
+                    if config.model_type == "qwen2_vl":
+                        video_frame_buf = np.frombuffer(
+                            chunk.video.data, dtype=np.uint8
+                        )
+                        num_bytes = len(video_frame_buf)
+                        bytes_per_frame = num_bytes // chunk.video.frames
+
+                        # iterate over with a stride the size of a frame
+                        frames = []
+                        for i in range(chunk.video.frames):
+                            frame = video_frame_buf[
+                                i * bytes_per_frame : (i + 1) * bytes_per_frame
+                            ]
+                            frame = frame.reshape(
+                                chunk.video.height, chunk.video.width, 3
+                            )
+                            frames.append(frame)
+
+                        video_frame_buf = np.stack(frames)
+                        frame_nchw_tensor = torch.from_numpy(video_frame_buf).permute(
+                            0, 3, 1, 2
+                        )
+                        videos.append(frame_nchw_tensor)
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
@@ -197,6 +263,19 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
             image_inputs = processor.image_processor(images, return_tensors="pt")
         else:
             image_inputs = None
+
+        video_inputs = None
+        if videos:
+            try:
+                video_inputs = processor.image_processor(
+                    videos,
+                    return_tensors="pt",
+                )
+            except Exception as e:
+                print(f"Failed to process video: {e}")
+                pass
+        else:
+            video_inputs = None
 
         batch_inputs = []
         max_truncation = 0
@@ -212,9 +291,10 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         processor, image_inputs, config, image_id
                     )
                     image_id += 1
+                elif chunk_type == "video":
+                    full_text += video_text_replacement(processor, video_inputs, config)
 
             full_text = image_text_replacement_fixup(config, full_text)
-
             batch_inputs.append(full_text)
             max_truncation = max(max_truncation, r.truncate)
 
@@ -225,7 +305,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
             add_special_tokens=not config.model_type == "paligemma",
         )["input_ids"]
 
-        return batch_tokenized_inputs, image_inputs
+        return batch_tokenized_inputs, image_inputs, video_inputs
 
     @classmethod
     def from_pb_processor(
@@ -237,10 +317,23 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "VlmCausalLMBatch":
-        batch_tokenized_inputs, image_inputs = cls.batch_tokenized_inputs(
+        batch_tokenized_inputs, image_inputs, video_inputs = cls.batch_tokenized_inputs(
             pb.requests, tokenizer, processor, config
         )
         batch = cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
+        if video_inputs is not None:
+            if "pixel_values" in video_inputs:
+                batch.video_pixel_values = video_inputs["pixel_values"].to(
+                    device=device
+                )
+            if "image_grid_thw" in video_inputs:
+                batch.video_grid_thw = video_inputs["image_grid_thw"].to(device=device)
+            else:
+                batch.video_grid_thw = None
+        else:
+            batch.video_pixel_values = None
+            batch.video_grid_thw = None
+
         if image_inputs is not None:
             batch.pixel_values = image_inputs["pixel_values"].to(device=device)
             if "pixel_attention_mask" in image_inputs:
@@ -257,6 +350,10 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 batch.image_grid_thw = image_inputs["image_grid_thw"].to(device=device)
             else:
                 batch.image_grid_thw = None
+            if "video_grid_thw" in image_inputs:
+                batch.video_grid_thw = image_inputs["video_grid_thw"].to(device=device)
+            else:
+                batch.video_grid_thw = None
         else:
             batch.pixel_values = None
             batch.pixel_attention_mask = None
@@ -367,7 +464,7 @@ class VlmCausalLM(FlashCausalLM):
         if self.model.config.model_type == "qwen2_vl":
             if position_ids.dim() == 1 and batch.prefilling:
                 position_ids = self.model.get_position_ids(
-                    input_ids, batch.image_grid_thw
+                    input_ids, batch.image_grid_thw, batch.video_grid_thw
                 )
                 batch.position_ids = position_ids
 
@@ -420,20 +517,26 @@ class VlmCausalLM(FlashCausalLM):
                     prefill_cache_indices=batch.prefill_cache_indices,
                     lm_head_indices=lm_head_indices,
                     pixel_values=batch.pixel_values,
+                    video_pixel_values=batch.video_pixel_values,
                     pixel_attention_mask=batch.pixel_attention_mask,
                     image_sizes=batch.image_sizes,
                     image_grid_thw=batch.image_grid_thw,
+                    video_grid_thw=batch.video_grid_thw,
                 )
                 if batch.prefill_cache_indices is not None:
                     batch.prefill_cache_indices = None
                 if batch.pixel_values is not None:
                     batch.pixel_values = None
+                if batch.video_pixel_values is not None:
+                    batch.video_pixel_values = None
                 if batch.pixel_attention_mask is not None:
                     batch.pixel_attention_mask = None
                 if batch.image_sizes is not None:
                     batch.image_sizes = None
                 if batch.image_grid_thw is not None:
                     batch.image_grid_thw = None
+                if batch.video_grid_thw is not None:
+                    batch.video_grid_thw = None
                 return logits, speculative_logits
 
         # Copy inputs to the static inputs of the cuda graph

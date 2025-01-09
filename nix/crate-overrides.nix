@@ -19,6 +19,26 @@ defaultCrateOverrides
   };
   rav1e = attrs: { env.CARGO_ENCODED_RUSTFLAGS = "-C target-feature=-crt-static"; };
 
+  ffmpeg-sys-next = attrs: {
+    nativeBuildInputs = [
+      pkg-config
+    ];
+    buildInputs = [
+      rustPlatform.bindgenHook
+      ffmpeg
+    ];
+  };
+
+  ffmpeg-next = attrs: {
+    # Somehow the variables that are passed are mangled, so they are not
+    # correctly passed to the ffmpeg-next build script. Worth investigating
+    # more since it's probably a bug in crate2nix or buildRustCrate.
+    postPatch = ''
+      substituteInPlace build.rs \
+        --replace-fail "DEP_FFMPEG_" "DEP_FFMPEG_SYS_NEXT_"
+    '';
+  };
+
   grpc-metadata = attrs: {
     src = filter {
       root = ../backends/grpc-metadata;

@@ -439,6 +439,13 @@ impl State {
                                     data: image.data,
                                     mimetype: image.mimetype,
                                 }),
+                                Chunk::Video(video) => client::Chunk::Video(client::Video {
+                                    data: video.data,
+                                    mimetype: video.mimetype,
+                                    width: video.width,
+                                    height: video.height,
+                                    frames: video.num_frames,
+                                }),
                             }),
                         })
                         .collect(),
