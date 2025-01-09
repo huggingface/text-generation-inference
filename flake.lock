@@ -978,15 +978,16 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1732218602,
-        "narHash": "sha256-BElslL34KjOJCFMPkNtilOz6S/7iY7Vd72FNbRRWKDY=",
+        "lastModified": 1736179589,
+        "narHash": "sha256-/zZCSieBJncVXqOFbvbSov76g2eWAxVxEJNNA6SmQKc=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "f79638ac4e420e661321261744e745a3a747e182",
+        "rev": "fc7ff53b2cd5c984ad1434f20c271e3b7600d1c4",
         "type": "github"
       },
       "original": {
         "owner": "huggingface",
+        "ref": "flashinfer-v0.2",
         "repo": "text-generation-inference-nix",
         "type": "github"
       }

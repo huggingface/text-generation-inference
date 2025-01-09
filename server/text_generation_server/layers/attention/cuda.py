@@ -60,8 +60,7 @@ def paged_attention(
         from text_generation_server.layers.attention.flashinfer import decode_state
 
         return decode_state.get().forward(
-            # TODO: remove `contiguous` call once https://github.com/flashinfer-ai/flashinfer/pull/553 is merged.
-            query.contiguous(),
+            query,
             paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
@@ -231,8 +230,7 @@ def attention(
             softcap = 0.0
 
         return prefill_with_paged_kv_state.get().forward(
-            # TODO: remove `contiguous` call once https://github.com/flashinfer-ai/flashinfer/pull/553 is merged.
-            query.contiguous(),
+            query,
             causal=causal,
             paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,

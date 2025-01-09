@@ -64,7 +64,7 @@ async def test_compressed_tensors_w8a8_int_dynamic_weight_all_params(
     assert response.details.generated_tokens == 10
     assert (
         response.generated_text
-        == "What is deep learning?\n\nDeep Learning is an area of artificial intelligence"
+        == "What is deep learning?\n\nDeep Learning is an artificial intelligence (AI"
     )
     assert response == response_snapshot
 

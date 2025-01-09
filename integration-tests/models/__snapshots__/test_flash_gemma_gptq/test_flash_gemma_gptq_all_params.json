@@ -14,60 +14,60 @@
       },
       {
         "id": 573,
-        "logprob": -0.18493652,
+        "logprob": -0.19030762,
         "special": false,
         "text": " the"
       },
       {
         "id": 16819,
-        "logprob": -1.4804688,
+        "logprob": -1.4863281,
         "special": false,
         "text": " detection"
       },
       {
         "id": 576,
-        "logprob": -0.7011719,
+        "logprob": -0.7089844,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 573,
+        "logprob": -2.0410156,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 8566,
+        "logprob": 0.0,
+        "special": false,
+        "text": " presence"
+      },
+      {
+        "id": 689,
+        "logprob": -0.16491699,
+        "special": false,
+        "text": " or"
+      },
+      {
+        "id": 14862,
+        "logprob": 0.0,
+        "special": false,
+        "text": " absence"
+      },
+      {
+        "id": 576,
+        "logprob": -0.9970703,
         "special": false,
         "text": " of"
       },
       {
         "id": 671,
-        "logprob": -2.1738281,
+        "logprob": -0.5292969,
         "special": false,
         "text": " an"
-      },
-      {
-        "id": 24646,
-        "logprob": -3.0449219,
-        "special": false,
-        "text": " RNA"
-      },
-      {
-        "id": 12369,
-        "logprob": -0.19299316,
-        "special": false,
-        "text": " virus"
-      },
-      {
-        "id": 575,
-        "logprob": -0.10632324,
-        "special": false,
-        "text": " in"
-      },
-      {
-        "id": 6022,
-        "logprob": -0.98095703,
-        "special": false,
-        "text": " patients"
-      },
-      {
-        "id": 1064,
-        "logprob": -1.3095703,
-        "special": false,
-        "text": " who"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "Test request for the detection of an RNA virus in patients who"
+  "generated_text": "Test request for the detection of the presence or absence of an"
 }
