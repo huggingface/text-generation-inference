@@ -77,6 +77,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y &&
     cargo install sccache --locked
 
 # Build actual TGI
+ARG build_type
+ARG is_gha_build
+
 # SCCACHE Specifics args - before finding a better, more generic, way...
 ARG aws_access_key_id
 ARG aws_secret_access_key
