@@ -16,7 +16,7 @@ on:
         value: ${{ jobs.build-and-push.outputs.label }}
 
 jobs:
-  build-and-push:
+  build-trtllm-and-push:
     permissions:
       contents: read # Required to check out repository.
       id-token: write # Required to authenticate via OIDC.
@@ -114,7 +114,7 @@ jobs:
           platforms: 'linux/amd64'
           build-args: |
             build_type=dev
-            is_gha_build=true
+            is_gha_build=TRUE
             aws_access_key_id=${{ steps.aws-creds.outputs.aws-access-key-id }}
             aws_secret_access_key=${{ steps.aws-creds.outputs.aws-secret-access-key }}
             aws_session_token=${{ steps.aws-creds.outputs.aws-session-token }}
