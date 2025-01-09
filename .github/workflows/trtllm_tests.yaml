@@ -46,5 +46,7 @@ jobs:
       options: --gpus all --shm-size=8g
 
     steps:
+      - name: List binaries
+        run: ls -alh /usr/local/tgi/bin
       - name: Run C++/CUDA tests
         run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
