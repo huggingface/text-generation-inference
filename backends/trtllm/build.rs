@@ -209,7 +209,7 @@ fn build_ffi_layer(deps_folder: &PathBuf, is_debug: bool) {
 fn main() {
     // Misc variables
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let build_profile = env::var("DEBUG").unwrap();
+    let build_profile = env::var("PROFILE").unwrap();
     let (is_debug, opt_level) = match build_profile.as_ref() {
         "debug" => (true, "0"),
         "dev" => (true, "0"),
