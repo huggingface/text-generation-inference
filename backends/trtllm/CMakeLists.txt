@@ -82,7 +82,7 @@ endif ()
 
 
 #### Unit Tests ####
-if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
+if (${TGI_TRTLLM_BACKEND_BUILD_TESTS} AND CMAKE_BUILD_TYPE MATCHES "Debug")
     message(STATUS "Building tests")
     option(TGI_TRTLLM_BACKEND_ENABLE_ASAN "Enable AddressSanitizer")
     option(TGI_TRTLLM_BACKEND_ENABLE_UBSAN "Enable UndefinedSanitizer")
@@ -113,16 +113,14 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS})
     target_link_libraries(tgi_trtllm_backend_tests PUBLIC Catch2::Catch2WithMain nlohmann_json::nlohmann_json spdlog::spdlog tgi_trtllm_backend_impl)
     target_link_libraries(tgi_trtllm_backend_tests PRIVATE tensorrt_llm nvinfer_plugin_tensorrt_llm tensorrt_llm_nvrtc_wrapper)
 
-    if (CMAKE_BUILD_TYPE MATCHES "Debug")
-        if (${TGI_TRTLLM_BACKEND_ENABLE_ASAN})
-            message(STATUS "Enabled AddressSanitizer")
-            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=address)
-        endif ()
+    if (${TGI_TRTLLM_BACKEND_ENABLE_ASAN})
+        message(STATUS "Enabled AddressSanitizer")
+        target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=address)
+    endif ()
 
-        if (${TGI_TRTLLM_BACKEND_ENABLE_UBSAN})
-            message(STATUS "Enabled UndefinedSanitizer")
-            target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined)
-        endif ()
+    if (${TGI_TRTLLM_BACKEND_ENABLE_UBSAN})
+        message(STATUS "Enabled UndefinedSanitizer")
+        target_link_options(tgi_trtllm_backend_tests BEFORE PUBLIC -fsanitize=undefined)
     endif ()
 
     install(TARGETS tgi_trtllm_backend_tests)
