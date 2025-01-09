@@ -113,7 +113,7 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
         )
         .define("TGI_TRTLLM_BACKEND_TRT_ROOT", tensorrt_path);
 
-    if is_debug {
+    if is_debug || *IS_GHA_BUILD {
         config.define("TGI_TRTLLM_BACKEND_BUILD_TESTS", "ON");
     }
 
@@ -209,7 +209,7 @@ fn build_ffi_layer(deps_folder: &PathBuf, is_debug: bool) {
 fn main() {
     // Misc variables
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let build_profile = env::var("PROFILE").unwrap();
+    let build_profile = env::var("DEBUG").unwrap();
     let (is_debug, opt_level) = match build_profile.as_ref() {
         "debug" => (true, "0"),
         "dev" => (true, "0"),
