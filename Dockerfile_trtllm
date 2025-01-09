@@ -92,6 +92,7 @@ ENV USE_LLD_LINKER=ON
 ENV CUDA_ARCH_LIST=${cuda_arch_list}
 ENV CMAKE_CXX_COMPILER_LAUNCHER=sccache
 ENV RUSTC_WRAPPER=sccache
+ENV IS_GHA_BUILD=${is_gha_build}
 
 COPY . .
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
