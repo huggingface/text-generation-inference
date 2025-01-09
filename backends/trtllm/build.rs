@@ -212,6 +212,7 @@ fn main() {
     let build_profile = env::var("PROFILE").unwrap();
     let (is_debug, opt_level) = match build_profile.as_ref() {
         "debug" => (true, "0"),
+        "dev" => (true, "0"),
         _ => (false, "3"),
     };
 
