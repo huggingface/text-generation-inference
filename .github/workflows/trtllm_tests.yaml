@@ -21,7 +21,7 @@ on:
       - "main"
 
 jobs:
-  build-and-push:
+  build-backend:
     permissions:
       contents: write
       packages: write

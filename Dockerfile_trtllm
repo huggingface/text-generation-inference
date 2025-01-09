@@ -95,11 +95,13 @@ ENV SCCACHE_BUCKET=$sccache_bucket
 ENV SCCACHE_S3_KEY_PREFIX=$sccache_s3_key_prefix
 ENV SCCACHE_REGION=$sccache_region
 
-ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
-ENV CUDA_ARCH_LIST=${cuda_arch_list}
 ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
 ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
+ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
+
 ENV USE_LLD_LINKER=ON
+ENV CUDA_ARCH_LIST=${cuda_arch_list}
+ENV CMAKE_CXX_COMPILER_LAUNCHER=sccache
 ENV RUSTC_WRAPPER=sccache
 
 COPY Cargo.lock Cargo.lock
