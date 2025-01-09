@@ -1288,7 +1288,7 @@ class FlashCausalLM(Model):
             weights_loader=weights_loader,
         )
 
-        prefix = ""
+        prefix = None
         model = model_class(prefix, config, weights)
         torch.distributed.barrier(group=self.process_group)
 
