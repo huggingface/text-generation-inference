@@ -16,7 +16,7 @@ on:
         value: ${{ jobs.build-and-push.outputs.label }}
 
 jobs:
-  build-trtllm-and-push:
+  build-and-push:
     permissions:
       contents: read # Required to check out repository.
       id-token: write # Required to authenticate via OIDC.
@@ -131,4 +131,28 @@ jobs:
           echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
 
+  run-tests:
+    needs: build-and-push
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    runs-on:
+      group: aws-g6-12xl-plus-priv-cache
+    container:
+      image: ${{ needs.build-and-push.outputs.docker_image }}
+      credentials:
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+      options: --gpus all --shm-size=8g
+
+    steps:
+      - name: whoami
+        run: |
+          echo "Container: ${{ needs.build-and-push.outputs.docker_image }}"
+
+      - name: List binaries
+        run: ls -alh /usr/local/tgi
+
+      - name: Run C++/CUDA tests
+        run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
 
