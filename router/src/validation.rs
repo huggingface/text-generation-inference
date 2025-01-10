@@ -7,7 +7,6 @@ use crate::{
 use crate::{PyTokenizer, Tokenizer};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{ImageFormat, ImageReader};
-use jsonschema::{Draft, JSONSchema};
 use outlines_core::json_schema::to_regex as json_schema_to_regex;
 use rand::{thread_rng, Rng};
 use serde_json::Value;
@@ -355,9 +354,7 @@ impl Validation {
                         }?;
 
                         // Check if the json is a valid JSONSchema
-                        JSONSchema::options()
-                            .with_draft(Draft::Draft202012)
-                            .compile(&json)
+                        jsonschema::draft202012::meta::validate(&json)
                             .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
 
                         // The schema can be valid but lack properties.
