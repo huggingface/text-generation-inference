@@ -146,13 +146,6 @@ jobs:
       options: --gpus all --shm-size=8g
 
     steps:
-      - name: whoami
-        run: |
-          echo "Container: ${{ needs.build-and-push.outputs.docker_image }}"
-
-      - name: List binaries
-        run: ls -alh /usr/local/tgi
-
       - name: Run C++/CUDA tests
         run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
 
