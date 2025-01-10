@@ -128,7 +128,7 @@ jobs:
       - name: Final
         id: final
         run: |
-          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm:sha-${{ env.GITHUB_SHA_SHORT }}-${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
           echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
 
   run-tests:
