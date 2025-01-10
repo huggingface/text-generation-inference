@@ -30,6 +30,8 @@ jobs:
       group: ${{ inputs.runs-on }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
@@ -82,7 +84,7 @@ jobs:
           images: |
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference/tensorrt-llm
           tags: |
-            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}-${{ env.LABEL }}
 
       # If main, release or tag
       - name: Extract metadata (tags, labels) for Docker
@@ -99,7 +101,7 @@ jobs:
             type=semver,pattern={{version}}${{ env.LABEL }}
             type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
             type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}-${{ env.LABEL }}
 
       - name: Build and push Docker image
         id: build-and-push
