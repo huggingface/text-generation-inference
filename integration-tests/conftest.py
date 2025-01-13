@@ -354,6 +354,7 @@ def launcher(event_loop):
         kv_cache_dtype: Optional[str] = None,
         revision: Optional[str] = None,
         max_input_length: Optional[int] = None,
+        max_input_tokens: Optional[int] = None,
         max_batch_prefill_tokens: Optional[int] = None,
         max_total_tokens: Optional[int] = None,
         lora_adapters: Optional[List[str]] = None,
@@ -402,6 +403,9 @@ def launcher(event_loop):
         if max_input_length:
             args.append("--max-input-length")
             args.append(str(max_input_length))
+        if max_input_tokens:
+            args.append("--max-input-tokens")
+            args.append(str(max_input_tokens))
         if max_batch_prefill_tokens:
             args.append("--max-batch-prefill-tokens")
             args.append(str(max_batch_prefill_tokens))

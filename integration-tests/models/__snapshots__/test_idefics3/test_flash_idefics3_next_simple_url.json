@@ -1,0 +1,67 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 9,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 2684,
+        "logprob": -0.24902344,
+        "special": false,
+        "text": " There"
+      },
+      {
+        "id": 374,
+        "logprob": -0.0703125,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 264,
+        "logprob": -0.23535156,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 35372,
+        "logprob": -0.125,
+        "special": false,
+        "text": " statue"
+      },
+      {
+        "id": 304,
+        "logprob": -0.30273438,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 279,
+        "logprob": -0.20507812,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 2217,
+        "logprob": -0.076171875,
+        "special": false,
+        "text": " image"
+      },
+      {
+        "id": 13,
+        "logprob": -0.053710938,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 128258,
+        "logprob": -0.011352539,
+        "special": true,
+        "text": "<end_of_utterance>"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": " There is a statue in the image."
+}

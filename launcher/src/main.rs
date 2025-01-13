@@ -1652,7 +1652,11 @@ impl From<&str> for Gpu {
             "nvidia-l40s" => Gpu::L40S,
             "nvidia-a10g" => Gpu::A10G,
             "nvidia-h100-80gb-hbm3" => Gpu::H100,
+            "nvidia-h100-nvl" => Gpu::H100,
+            "nvidia-h100" => Gpu::H100,
             "nvidia-a100-sxm4-80gb" => Gpu::A100,
+            "nvidia-a100-sxm4-40gb" => Gpu::A100,
+            "nvidia-a100-80gb-pcie" => Gpu::A100,
             "nvidia-a100" => Gpu::A100,
             card => Gpu::Unknown(card.to_string()),
         }

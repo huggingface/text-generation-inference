@@ -187,8 +187,6 @@ In addition to the grammar parameter, we've also introduced a set of tools and f
 
 Tools are a set of user defined functions that can be used in tandem with the chat functionality to enhance the LLM's capabilities. Functions, similar to grammar are defined as JSON schema and can be passed as part of the parameters to the Messages API.
 
-Functions, similar to grammar are defined as JSON schema and can be passed as part of the parameters to the Messages API.
-
 ```json
 curl localhost:3000/v1/chat/completions \
     -X POST \

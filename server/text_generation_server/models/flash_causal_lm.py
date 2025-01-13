@@ -1288,7 +1288,7 @@ class FlashCausalLM(Model):
             weights_loader=weights_loader,
         )
 
-        prefix = ""
+        prefix = None
         model = model_class(prefix, config, weights)
         torch.distributed.barrier(group=self.process_group)
 
@@ -1663,7 +1663,7 @@ class FlashCausalLM(Model):
 
                 for seqlen in tuning_sequences:
                     log_master(logger.info, f"Warming up TunableOp for seqlen={seqlen}")
-                    self.tunableop_warmup(seqlen)
+                    self.tunableop_warmup(seqlen, max_total_tokens)
                     torch.cuda.tunable.write_file(tunableop_filepath)
                 if os.environ.get("PYTORCH_TUNABLEOP_TUNING_AFTER_WARMUP") != "1":
                     torch.cuda.tunable.tuning_enable(False)
@@ -1710,7 +1710,7 @@ class FlashCausalLM(Model):
         assert max_total_tokens is not None
         return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
 
-    def tunableop_warmup(self, seqlen: int):
+    def tunableop_warmup(self, seqlen: int, max_bt: int):
         input_ids = torch.zeros(seqlen, dtype=torch.int64, device=self.device)
         position_ids = torch.zeros(seqlen, dtype=torch.int32, device=self.device)
         slots = torch.arange(seqlen, dtype=torch.int64, device=self.device)
@@ -1724,11 +1724,15 @@ class FlashCausalLM(Model):
             [0, seqlen], device=self.device, dtype=torch.int32
         )
         max_s = seqlen
+
+        block_tables = torch.arange(
+            max_bt, dtype=torch.int32, device=self.device
+        ).repeat(seqlen)
+        block_tables = block_tables.reshape((seqlen, max_bt))
+
         seqlen = Seqlen(
             input_lengths=input_lengths,
             cache_lengths=cache_lengths_tensor,
-            cu_seqlen_q=cu_seqlen_prefill,
-            max_q=1,
             max_k=seqlen,
         )
 
@@ -1738,7 +1742,7 @@ class FlashCausalLM(Model):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=self.kv_cache,
-            block_tables=None,
+            block_tables=block_tables,
             seqlen=seqlen,
             slots=slots,
             max_s=max_s,
@@ -2480,7 +2484,8 @@ class FlashCausalLM(Model):
                 num_kv_heads=self.num_kv_heads,
                 head_size=self.head_size,
                 page_size=BLOCK_SIZE,
-                dtype=self.dtype,
+                kv_dtype=self.kv_cache_dtype,
+                q_dtype=self.dtype,
                 window_left=self.sliding_window,
             )
         else:
@@ -2494,6 +2499,6 @@ class FlashCausalLM(Model):
                 head_size=self.head_size,
                 page_size=BLOCK_SIZE,
                 kv_cache_dtype=self.kv_cache_dtype,
-                dtype=self.dtype,
+                q_dtype=self.dtype,
                 window_left=self.sliding_window,
             )

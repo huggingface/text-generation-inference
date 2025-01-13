@@ -7,7 +7,6 @@ use crate::{
 use crate::{PyTokenizer, Tokenizer};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{ImageFormat, ImageReader};
-use jsonschema::{Draft, JSONSchema};
 use outlines_core::json_schema::to_regex as json_schema_to_regex;
 use rand::{thread_rng, Rng};
 use serde_json::Value;
@@ -355,9 +354,7 @@ impl Validation {
                         }?;
 
                         // Check if the json is a valid JSONSchema
-                        JSONSchema::options()
-                            .with_draft(Draft::Draft202012)
-                            .compile(&json)
+                        jsonschema::draft202012::meta::validate(&json)
                             .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
 
                         // The schema can be valid but lack properties.
@@ -614,6 +611,73 @@ fn image_tokens(
 
             image_string
         }
+        Idefics3(config) => {
+            const FAKE: &str = "<fake_token_around_image>";
+            const IMAGE: &str = "<image>";
+            const GLOBAL_IMG: &str = "<global-img>";
+
+            let max_longest_edge_for_image_resize = config.get_max_longest_edge_for_image_resize();
+
+            // resize image if it is larger than max_longest_edge_for_image_resize keeping aspect ratio
+            let (height, width) = if height > max_longest_edge_for_image_resize
+                || width > max_longest_edge_for_image_resize
+            {
+                let aspect_ratio = height as f32 / width as f32;
+                if height > width {
+                    (
+                        max_longest_edge_for_image_resize,
+                        (max_longest_edge_for_image_resize as f32 / aspect_ratio) as usize,
+                    )
+                } else {
+                    (
+                        (max_longest_edge_for_image_resize as f32 * aspect_ratio) as usize,
+                        max_longest_edge_for_image_resize,
+                    )
+                }
+            } else {
+                (height, width)
+            };
+
+            let image_seq_len = config.get_number_of_features();
+            let max_edge = config.get_max_longest_edge();
+
+            let (image_rows, image_cols) = if height > max_edge || width > max_edge {
+                (
+                    (height as f32 / max_edge as f32).ceil() as usize,
+                    (width as f32 / max_edge as f32).ceil() as usize,
+                )
+            } else {
+                (0, 0)
+            };
+
+            let mut image_string = String::new();
+
+            if image_rows == 0 && image_cols == 0 {
+                // Single image case
+                image_string.push_str(FAKE);
+                image_string.push_str(GLOBAL_IMG);
+                image_string.push_str(&IMAGE.repeat(image_seq_len));
+                image_string.push_str(FAKE);
+            } else {
+                // Split image case
+                for n_h in 0..image_rows {
+                    for n_w in 0..image_cols {
+                        image_string.push_str(FAKE);
+                        image_string.push_str(&format!("<row_{}_col_{}>", n_h + 1, n_w + 1));
+                        image_string.push_str(&IMAGE.repeat(image_seq_len));
+                    }
+                    image_string.push('\n');
+                }
+
+                image_string.push('\n');
+                image_string.push_str(FAKE);
+                image_string.push_str(GLOBAL_IMG);
+                image_string.push_str(&IMAGE.repeat(image_seq_len));
+                image_string.push_str(FAKE);
+            }
+
+            image_string
+        }
         Paligemma(config) => "<image>".repeat(config.get_number_of_features(height, width)),
         LlavaNext(config) => "<image>".repeat(config.get_number_of_features(height, width)),
         Qwen2Vl(config) => format!(
@@ -647,7 +711,8 @@ fn prepare_input<T: TokenizerTrait>(
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     let (tokenizer_query, input_chunks) = match config {
         Some(
-            config @ (Idefics | Mllama | Idefics2(_) | Paligemma(_) | LlavaNext(_) | Qwen2Vl(_)),
+            config @ (Idefics | Mllama | Idefics2(_) | Idefics3(_) | Paligemma(_) | LlavaNext(_)
+            | Qwen2Vl(_)),
         ) => {
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());

@@ -8,7 +8,7 @@
     "tokens": [
       {
         "id": 1939,
-        "logprob": -2.2675781,
+        "logprob": -2.2460938,
         "special": false,
         "text": "?\n\n"
       },
@@ -20,13 +20,13 @@
       },
       {
         "id": 20909,
-        "logprob": -0.37695312,
+        "logprob": -0.48608398,
         "special": false,
         "text": " Learning"
       },
       {
         "id": 4102,
-        "logprob": -1.9316406,
+        "logprob": -2.265625,
         "special": false,
         "text": " "
       },
@@ -38,25 +38,13 @@
       },
       {
         "id": 458,
-        "logprob": -0.80859375,
+        "logprob": -0.6328125,
         "special": false,
         "text": " an"
       },
       {
-        "id": 3082,
-        "logprob": -1.4541016,
-        "special": false,
-        "text": " area"
-      },
-      {
-        "id": 315,
-        "logprob": 0.0,
-        "special": false,
-        "text": " of"
-      },
-      {
         "id": 20443,
-        "logprob": -0.5136719,
+        "logprob": -0.1796875,
         "special": false,
         "text": " artificial"
       },
@@ -65,9 +53,21 @@
         "logprob": 0.0,
         "special": false,
         "text": " intelligence"
+      },
+      {
+        "id": 320,
+        "logprob": -0.37695312,
+        "special": false,
+        "text": " ("
+      },
+      {
+        "id": 15469,
+        "logprob": 0.0,
+        "special": false,
+        "text": "AI"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "What is deep learning?\n\nDeep Learning is an area of artificial intelligence"
+  "generated_text": "What is deep learning?\n\nDeep Learning is an artificial intelligence (AI"
 }
