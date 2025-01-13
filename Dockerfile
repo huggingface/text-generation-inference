@@ -193,7 +193,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         make \
         curl \
         git \
-        python3.11-devel \
+        python3.11-dev \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed
