@@ -174,7 +174,7 @@ COPY server/Makefile-flashinfer Makefile
 RUN make install-flashinfer
 
 # Text Generation Inference base image
-FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS base
+FROM nvidia/cuda:12.1.0-base-ubuntu22.04 AS base
 
 # Conda env
 ENV PATH=/opt/conda/bin:$PATH \
@@ -193,6 +193,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         make \
         curl \
         git \
+        python3.11-devel \
         && rm -rf /var/lib/apt/lists/*
 
 # Copy conda with PyTorch installed
