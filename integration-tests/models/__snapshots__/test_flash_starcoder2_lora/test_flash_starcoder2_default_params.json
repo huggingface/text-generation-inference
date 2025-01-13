@@ -1,0 +1,373 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 60,
+    "prefill": [],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 78,
+        "logprob": -1.0654297,
+        "special": false,
+        "text": "I"
+      },
+      {
+        "id": 3874,
+        "logprob": -0.4074707,
+        "special": false,
+        "text": " am"
+      },
+      {
+        "id": 331,
+        "logprob": -0.12695312,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 2951,
+        "logprob": -0.4501953,
+        "special": false,
+        "text": " software"
+      },
+      {
+        "id": 46380,
+        "logprob": -0.15124512,
+        "special": false,
+        "text": " engineer"
+      },
+      {
+        "id": 51,
+        "logprob": -0.953125,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 222,
+        "logprob": -0.66259766,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 8204,
+        "logprob": -0.95947266,
+        "special": false,
+        "text": "What"
+      },
+      {
+        "id": 458,
+        "logprob": -0.3869629,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 1390,
+        "logprob": 0.0,
+        "special": false,
+        "text": " your"
+      },
+      {
+        "id": 27455,
+        "logprob": -0.07891846,
+        "special": false,
+        "text": " favorite"
+      },
+      {
+        "id": 16100,
+        "logprob": -0.4074707,
+        "special": false,
+        "text": " programming"
+      },
+      {
+        "id": 2940,
+        "logprob": 0.0,
+        "special": false,
+        "text": " language"
+      },
+      {
+        "id": 68,
+        "logprob": 0.0,
+        "special": false,
+        "text": "?"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 78,
+        "logprob": 0.0,
+        "special": false,
+        "text": "I"
+      },
+      {
+        "id": 2144,
+        "logprob": 0.0,
+        "special": false,
+        "text": " like"
+      },
+      {
+        "id": 5006,
+        "logprob": -0.10021973,
+        "special": false,
+        "text": " Python"
+      },
+      {
+        "id": 51,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 8204,
+        "logprob": 0.0,
+        "special": false,
+        "text": "What"
+      },
+      {
+        "id": 458,
+        "logprob": 0.0,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 1390,
+        "logprob": 0.0,
+        "special": false,
+        "text": " your"
+      },
+      {
+        "id": 27455,
+        "logprob": 0.0,
+        "special": false,
+        "text": " favorite"
+      },
+      {
+        "id": 16100,
+        "logprob": 0.0,
+        "special": false,
+        "text": " programming"
+      },
+      {
+        "id": 2940,
+        "logprob": 0.0,
+        "special": false,
+        "text": " language"
+      },
+      {
+        "id": 68,
+        "logprob": 0.0,
+        "special": false,
+        "text": "?"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 78,
+        "logprob": 0.0,
+        "special": false,
+        "text": "I"
+      },
+      {
+        "id": 2144,
+        "logprob": 0.0,
+        "special": false,
+        "text": " like"
+      },
+      {
+        "id": 5006,
+        "logprob": 0.0,
+        "special": false,
+        "text": " Python"
+      },
+      {
+        "id": 51,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 8204,
+        "logprob": 0.0,
+        "special": false,
+        "text": "What"
+      },
+      {
+        "id": 458,
+        "logprob": 0.0,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 1390,
+        "logprob": 0.0,
+        "special": false,
+        "text": " your"
+      },
+      {
+        "id": 27455,
+        "logprob": 0.0,
+        "special": false,
+        "text": " favorite"
+      },
+      {
+        "id": 16100,
+        "logprob": 0.0,
+        "special": false,
+        "text": " programming"
+      },
+      {
+        "id": 2940,
+        "logprob": 0.0,
+        "special": false,
+        "text": " language"
+      },
+      {
+        "id": 68,
+        "logprob": 0.0,
+        "special": false,
+        "text": "?"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 78,
+        "logprob": 0.0,
+        "special": false,
+        "text": "I"
+      },
+      {
+        "id": 2144,
+        "logprob": 0.0,
+        "special": false,
+        "text": " like"
+      },
+      {
+        "id": 5006,
+        "logprob": 0.0,
+        "special": false,
+        "text": " Python"
+      },
+      {
+        "id": 51,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 8204,
+        "logprob": 0.0,
+        "special": false,
+        "text": "What"
+      },
+      {
+        "id": 458,
+        "logprob": 0.0,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 1390,
+        "logprob": 0.0,
+        "special": false,
+        "text": " your"
+      },
+      {
+        "id": 27455,
+        "logprob": 0.0,
+        "special": false,
+        "text": " favorite"
+      },
+      {
+        "id": 16100,
+        "logprob": 0.0,
+        "special": false,
+        "text": " programming"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "\n\nI am a software engineer.\n\nWhat is your favorite programming language?\n\nI like Python.\n\nWhat is your favorite programming language?\n\nI like Python.\n\nWhat is your favorite programming language?\n\nI like Python.\n\nWhat is your favorite programming"
+}

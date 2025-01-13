@@ -281,6 +281,12 @@ def get_mlp_weights(i, layer):
             if hasattr(mlp, "up_proj"):
                 weights[(i, "up_proj")] = (f"model.layers.{i}.mlp.up_proj", mlp.up_proj)
 
+        if hasattr(mlp, "c_fc"):
+            weights[(i, "c_fc")] = (f"model.layers.{i}.mlp.c_fc", mlp.c_fc)
+
+        if hasattr(mlp, "c_proj"):
+            weights[(i, "c_proj")] = (f"model.layers.{i}.mlp.c_proj", mlp.c_proj)
+
         if hasattr(mlp, "down_proj"):
             weights[(i, "down_proj")] = (
                 f"model.layers.{i}.mlp.down_proj",
