@@ -1595,7 +1595,11 @@ class FlashCausalLM(Model):
         if max_total_tokens is None:
             if get_support_chunking():
                 model_max_length = self.tokenizer.model_max_length
-                max_position_embeddings = self.config.max_position_embeddings
+                max_position_embeddings = (
+                    self.config.max_position_embeddings
+                    if hasattr(self.config, "max_position_embeddings")
+                    else model_max_length
+                )
                 max_total_tokens = min(
                     num_blocks * BLOCK_SIZE, model_max_length, max_position_embeddings
                 )
