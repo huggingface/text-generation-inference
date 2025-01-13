@@ -224,9 +224,9 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/loca
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 
 FROM ${PLATFORM} AS final
-ENV ATTENTION=paged
-ENV PREFIX_CACHING=0
-ENV PREFILL_CHUNKING=0
+ENV ATTENTION=flashdecoding-ipex
+ENV PREFIX_CACHING=1
+ENV PREFILL_CHUNKING=1
 ENV CUDA_GRAPHS=0
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]

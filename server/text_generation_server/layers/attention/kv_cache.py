@@ -66,7 +66,9 @@ class KVCache:
         else:
             x = BLOCK_SIZE // element_size
 
-        if ATTENTION in {"flashdecoding", "flashinfer"}:
+        if ATTENTION in {"flashdecoding", "flashinfer"} or (
+            ATTENTION == "flashdecoding-ipex" and device.type == "xpu"
+        ):
             self.kv_cache = (
                 torch.empty(
                     (num_blocks, BLOCK_SIZE, num_heads, head_size),
@@ -80,6 +82,7 @@ class KVCache:
                 ),
             )
         elif SYSTEM == "ipex" and device == torch.device("cpu"):
+            # ipex cpu flashdecoding kernel and paged attention kernel share same layout
             self.kv_cache = (
                 torch.empty(
                     (num_blocks, num_heads, BLOCK_SIZE, head_size),
@@ -187,6 +190,12 @@ class KVCache:
             shape = key_cache.shape
             key_cache.view(-1, shape[-2], shape[-1])[slots] = key
             value_cache.view(-1, shape[-2], shape[-1])[slots] = value
+        elif ATTENTION == "flashdecoding-ipex" and key.device.type == "xpu":
+            import intel_extension_for_pytorch as ipex
+
+            ipex.llm.modules.PagedAttention.reshape_and_cache_flash(
+                key, value, key_cache, value_cache, slots
+            )
         else:
             paged_reshape_and_cache(key, value, key_cache, value_cache, slots)
 
