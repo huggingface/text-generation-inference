@@ -156,9 +156,9 @@ def paged_attention(
             block_size,
             max_s,
             None,
-            "auto",
-            1.0,
-            1.0,
+            kv_cache.kv_cache_dtype,
+            kv_scales.key_scale_cpu,
+            kv_scales.value_scale_cpu,
         )
     else:
         # Run PagedAttention V2.
@@ -191,9 +191,9 @@ def paged_attention(
                 block_size,
                 max_s,
                 None,
-                "auto",
-                1.0,
-                1.0,
+                kv_cache.kv_cache_dtype,
+                kv_scales.key_scale_cpu,
+                kv_scales.value_scale_cpu,
             )
         else:
             ops.paged_attention_rocm(
@@ -211,9 +211,9 @@ def paged_attention(
                 block_size,
                 max_s,
                 None,
-                "auto",
-                1.0,
-                1.0,
+                kv_cache.kv_cache_dtype,
+                kv_scales.key_scale_cpu,
+                kv_scales.value_scale_cpu,
                 None,
                 _PARTITION_SIZE,
             )
