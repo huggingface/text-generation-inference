@@ -40,6 +40,18 @@ jobs:
         uses: actions/checkout@v4
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
+      - name: Extract TensorRT-LLM version
+        run: |
+          echo "TENSORRT_LLM_VERSION=$(grep -oP '([a-z,0-9]{40})' $GITHUB_WORKSPACE/backends/trtllm/cmake/trtllm.cmake)" >> $GITHUB_ENV
+          echo "TensorRT-LLM version: ${{ env.TENSORRT_LLM_VERSION }}"
+      - name: "Configure AWS Credentials"
+        id: aws-creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_TGI_TEST }}
+          role-duration-seconds: 7200
+          output-credentials: true
       - name: Construct harware variables
         shell: bash
         run: |
@@ -52,6 +64,7 @@ jobs:
                 export runs_on="aws-g6-12xl-plus-priv-cache"
                 export platform=""
                 export extra_pytest=""
+                export target="nil" 
                 ;;
             cuda-trtllm)
                 export dockerfile="Dockerfile_trtllm"
@@ -61,6 +74,11 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest=""
+                export target="ci-runtime"
+                export sccache_s3_key_prefix="trtllm"
+                export sccache_region="us-east-1"
+                export build_type="dev"
+                export is_gha_build="TRUE"
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
@@ -70,6 +88,7 @@ jobs:
                 export runs_on="amd-gpu-runners"
                 export platform=""
                 export extra_pytest="-k test_flash_gemma_gptq_load"
+                export target="nil"
                 ;;
             intel-xpu)
                 export dockerfile="Dockerfile_intel"
@@ -79,6 +98,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform="xpu"
                 export extra_pytest=""
+                export target="nil"
                 ;;
             intel-cpu)
                 export dockerfile="Dockerfile_intel"
@@ -89,6 +109,7 @@ jobs:
                 export runs_on="aws-highmemory-32-plus-priv"
                 export platform="cpu"
                 export extra_pytest="-k test_flash_gemma_simple"
+                export target="nil"
                 ;;
           esac
           echo $dockerfile
@@ -105,6 +126,11 @@ jobs:
           echo "RUNS_ON=${runs_on}" >> $GITHUB_ENV
           echo "EXTRA_PYTEST=${extra_pytest}" >> $GITHUB_ENV
           echo REGISTRY_MIRROR=$REGISTRY_MIRROR >> $GITHUB_ENV
+          echo "TARGET=${target}" >> $GITHUB_ENV
+          echo "SCCACHE_S3_KEY_PREFIX=${sccache_s3_key_prefix}" >> $GITHUB_ENV
+          echo "SCCACHE_REGION=${sccache_region}" >> $GITHUB_ENV
+          echo "BUILD_TYPE=${build_type}" >> $GITHUB_ENV
+          echo "IS_GHA_BUILD=${is_gha_build}" >> $GITHUB_ENV
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
@@ -169,6 +195,11 @@ jobs:
             GIT_SHA=${{ env.GITHUB_SHA }}
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
             PLATFORM=${{ env.PLATFORM }}
+            build_type=${{ env.BUILD_TYPE }}
+            is_gha_build=${{ env.IS_GHA_BUILD }}
+            sccache_bucket=${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
+            sccache_s3_key_prefix=${{ env.SCCACHE_S3_KEY_PREFIX }}
+            sccache_region=${{ env.SCCACHE_REGION }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
