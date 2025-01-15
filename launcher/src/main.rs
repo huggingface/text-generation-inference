@@ -2079,14 +2079,7 @@ fn main() -> Result<(), LauncherError> {
     let cuda_graphs = match (&args.cuda_graphs, &quantize) {
         (Some(cuda_graphs), _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
         #[allow(deprecated)]
-        (
-            None,
-            Some(
-                Quantization::Bitsandbytes
-                | Quantization::BitsandbytesNf4
-                | Quantization::BitsandbytesFp4,
-            ),
-        ) => {
+        (None, Some(Quantization::Bitsandbytes)) => {
             tracing::warn!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
             vec![]
         }
