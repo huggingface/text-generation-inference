@@ -14,7 +14,7 @@
   - local: installation_inferentia
     title: Using TGI with AWS Inferentia
   - local: installation_tpu
-    title: Using TGI with Google TPU
+    title: Using TGI with Google TPUs
   - local: installation_intel
     title: Using TGI with Intel GPUs
   - local: installation
