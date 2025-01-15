@@ -257,8 +257,7 @@ impl State {
         }
 
         // Pad prefill_token_budget to be a multiple of block size
-        let prefill_token_budget =
-            ((prefill_token_budget + self.block_size - 1) / self.block_size) * self.block_size;
+        let prefill_token_budget = prefill_token_budget.div_ceil(self.block_size) * self.block_size;
 
         // Create span for this batch to add context to inference calls
         let next_batch_span = info_span!(parent: None, "batch", batch_size = tracing::field::Empty);

@@ -5,7 +5,6 @@ use hf_hub::{
 };
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
-use regex::Regex;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
@@ -2176,26 +2175,21 @@ fn main() -> Result<(), LauncherError> {
             }
 
             // capture adapter_id, path, revision in format of adapter_id=path@revision
-            let re = Regex::new(r"^([^=@]+)(?:=([^@]+))?(?:@(.+))?$").unwrap();
-            if let Some(caps) = re.captures(adapter) {
-                let adapter_id = caps.get(1).map_or("", |m| m.as_str());
-                let revision = caps.get(3).map(|m| m.as_str());
-
-                download_convert_model(
-                    adapter_id,
-                    revision,
-                    args.trust_remote_code,
-                    args.huggingface_hub_cache.as_deref(),
-                    args.weights_cache_override.as_deref(),
-                    running.clone(),
-                    false, // avoid merging lora adapters if using multi-lora
-                )?;
-            } else {
-                return Err(LauncherError::ArgumentValidation(format!(
-                    "Invalid LoRA adapter format: {}",
-                    adapter
-                )));
-            }
+            // path is disabled beforehand.
+            let mut splits = adapter.split("@");
+            let adapter_id = splits.next().ok_or_else(|| {
+                LauncherError::ArgumentValidation("Missing adapter id".to_string())
+            })?;
+            let revision = splits.next();
+            download_convert_model(
+                adapter_id,
+                revision,
+                args.trust_remote_code,
+                args.huggingface_hub_cache.as_deref(),
+                args.weights_cache_override.as_deref(),
+                running.clone(),
+                false, // avoid merging lora adapters if using multi-lora
+            )?;
         }
     }
 
