@@ -37,7 +37,7 @@ jobs:
       # fail-fast is true by default
       fail-fast: false
       matrix:
-        hardware: ["cuda", "rocm", "intel-xpu", "intel-cpu"]
+        hardware: ["cuda", "cuda-trtllm", "rocm", "intel-xpu", "intel-cpu"]
     uses: ./.github/workflows/build.yaml # calls the one above ^
     permissions:
       contents: write
@@ -46,14 +46,4 @@ jobs:
       hardware: ${{ matrix.hardware }}
       # https://github.com/actions/runner/issues/2206
       release-tests: ${{ inputs.release-tests == true }}
-    secrets: inherit
-
-  build-trtllm:
-    uses: ./.github/workflows/build_trtllm.yaml
-    with:
-      runs-on: aws-highmemory-64-plus-priv
-    permissions:
-      contents: write
-      packages: write
-      id-token: write
     secrets: inherit
