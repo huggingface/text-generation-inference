@@ -1,7 +1,6 @@
 #include <ranges>
 
 #include <nlohmann/json.hpp>
-#include <spdlog/spdlog.h>
 
 #include "backend.hpp"
 #include "hardware.hpp"
@@ -17,7 +16,8 @@ namespace huggingface::tgi::backends::trtllm {
         if (world_size > 1) {
             SPDLOG_INFO("Detected sharded engine deployment, using orchestrator mode");
             mode = tle::CommunicationMode::kORCHESTRATOR;
-            orchestratorConfig = std::make_optional<tle::OrchestratorConfig>(true, executor_worker_path_, nullptr, true);
+            orchestratorConfig = std::make_optional<tle::OrchestratorConfig>(true, executor_worker_path_, nullptr,
+                                                                             true);
         } else {
             SPDLOG_INFO("Detected single engine deployment, using leader mode");
         }
@@ -44,21 +44,22 @@ namespace huggingface::tgi::backends::trtllm {
     }
 
     backend_t::backend_t(std::filesystem::path &engines_folder, std::filesystem::path &executor_worker_path)
-        : workspace(engines_folder, executor_worker_path), executor_(executor_factory_initializer(workspace)) {}
+            : workspace(engines_folder, executor_worker_path), executor_(executor_factory_initializer(workspace)) {}
 
     size_t backend_t::num_tokens_ready() const noexcept {
         return executor_.getNumResponsesReady();
     }
 
     std::expected<request_id_t, backend_error_t>
-    backend_t::submit(std::span<const token_id_t> token_ids, const generation_params_t generation_params, const sampling_params_t sampling_params) noexcept {
-        SPDLOG_DEBUG("Submitting {:d} tokens to the executor for scheduling ({}, {})", token_ids.size(), generation_params, sampling_params);
-        return executor_.enqueueRequest(tle::Request {
+    backend_t::submit(std::span<const token_id_t> token_ids, const generation_params_t g_params,
+                      const sampling_params_t s_params) noexcept {
+        SPDLOG_DEBUG("Submit {:d} tokens for scheduling ({}, {})", token_ids.size(), g_params, s_params);
+        return executor_.enqueueRequest(tle::Request{
                 {token_ids.begin(), token_ids.end()},  // Making actual copy of the tokens
-                static_cast<tle::SizeType32>(generation_params.max_new_tokens),
+                static_cast<tle::SizeType32>(g_params.max_new_tokens),
                 true,
-                (tle::SamplingConfig) sampling_params,
-                tle::OutputConfig { /* returnLogProbs= */ true },
+                (tle::SamplingConfig) s_params,
+                tle::OutputConfig{ /* returnLogProbs= */ true},
                 std::nullopt,
                 std::nullopt,
                 std::nullopt,

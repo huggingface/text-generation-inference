@@ -1,21 +1,21 @@
 [workspace]
 members = [
-  "benchmark",
-  "backends/v2",
-  "backends/v3",
-  "backends/grpc-metadata",
-  "backends/trtllm",
-  "launcher",
-  "router"
+    "benchmark",
+    "backends/v2",
+    "backends/v3",
+    "backends/grpc-metadata",
+    "backends/trtllm",
+    "launcher",
+    "router"
 ]
 default-members = [
-  "benchmark",
-  "backends/v2",
-  "backends/v3",
-  "backends/grpc-metadata",
-  # "backends/trtllm",
-  "launcher",
-  "router"
+    "benchmark",
+    "backends/v2",
+    "backends/v3",
+    "backends/grpc-metadata",
+    # "backends/trtllm",
+    "launcher",
+    "router"
 ]
 resolver = "2"
 
