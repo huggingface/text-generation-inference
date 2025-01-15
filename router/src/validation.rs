@@ -1229,12 +1229,11 @@ mod tests {
         assert!(
             chunks
                 == vec![
-                    Chunk::Text("test".to_string()).into(),
+                    Chunk::Text("test".to_string()),
                     Chunk::Image(Image {
                         data: pixel_data.clone(),
                         mimetype: "image/gif".to_string()
                     })
-                    .into()
                 ],
             "Failed to process images",
         );
@@ -1289,17 +1288,15 @@ mod tests {
         assert!(
             chunks
                 == vec![
-                    Chunk::Text("test".to_string()).into(),
+                    Chunk::Text("test".to_string()),
+                    Chunk::Image(Image {
+                        data: pixel_data.clone(),
+                        mimetype: "image/gif".to_string()
+                    }),
                     Chunk::Image(Image {
                         data: pixel_data.clone(),
                         mimetype: "image/gif".to_string()
                     })
-                    .into(),
-                    Chunk::Image(Image {
-                        data: pixel_data.clone(),
-                        mimetype: "image/gif".to_string()
-                    })
-                    .into()
                 ],
             "Failed to process images",
         );

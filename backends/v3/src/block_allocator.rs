@@ -165,13 +165,13 @@ impl Allocator for SimpleAllocator {
             let (tokens, repeats) = match self.window_size {
                 None => (tokens, 1),
                 Some(window_size) => {
-                    let repeats = (tokens + window_size - 1) / window_size;
+                    let repeats = tokens.div_ceil(window_size);
                     let tokens = core::cmp::min(tokens, window_size);
                     (tokens, repeats as usize)
                 }
             };
             // Pad to a multiple of block size
-            let required_blocks = (tokens + self.block_size - 1) / self.block_size;
+            let required_blocks = tokens.div_ceil(self.block_size);
             (required_blocks, repeats)
         };
 

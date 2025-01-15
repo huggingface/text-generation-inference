@@ -79,7 +79,7 @@ impl TokenizerTrait for tokenizers::Tokenizer {
     }
 }
 
-impl<'a> TokenizerTrait for PyTokenizer<'a> {
+impl TokenizerTrait for PyTokenizer<'_> {
     fn encode_trait(
         &self,
         query: String,

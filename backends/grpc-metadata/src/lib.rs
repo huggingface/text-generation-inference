@@ -8,7 +8,7 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 /// Inject context in the metadata of a gRPC request.
 struct MetadataInjector<'a>(pub &'a mut tonic::metadata::MetadataMap);
 
-impl<'a> Injector for MetadataInjector<'a> {
+impl Injector for MetadataInjector<'_> {
     /// Set a key and value in the MetadataMap.  Does nothing if the key or value are not valid inputs
     fn set(&mut self, key: &str, value: String) {
         if let Ok(key) = tonic::metadata::MetadataKey::from_bytes(key.as_bytes()) {
