@@ -1449,6 +1449,9 @@ def get_model_with_lora_adapters(
                 "up_proj",
                 "down_proj",
                 "qkv_proj",
+                # add c_* layers used in starcoder2
+                "c_proj",
+                "c_fc",
             ]
 
             for layer_name in adapter_layers:

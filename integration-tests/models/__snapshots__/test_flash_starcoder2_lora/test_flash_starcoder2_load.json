@@ -1,0 +1,294 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 222,
+          "logprob": -1.9091797,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 222,
+          "logprob": -1.0478516,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 40,
+          "logprob": -3.015625,
+          "special": false,
+          "text": "#"
+        },
+        {
+          "id": 494,
+          "logprob": -1.4228516,
+          "special": false,
+          "text": " +"
+        },
+        {
+          "id": 447,
+          "logprob": -1.1025391,
+          "special": false,
+          "text": " ["
+        },
+        {
+          "id": 9009,
+          "logprob": -0.0008444786,
+          "special": false,
+          "text": "markdown"
+        },
+        {
+          "id": 98,
+          "logprob": -8.8095665e-05,
+          "special": false,
+          "text": "]"
+        },
+        {
+          "id": 37402,
+          "logprob": -0.5810547,
+          "special": false,
+          "text": " slideshow"
+        },
+        {
+          "id": 8492,
+          "logprob": -0.00022864342,
+          "special": false,
+          "text": "={\""
+        },
+        {
+          "id": 7277,
+          "logprob": -0.00030994415,
+          "special": false,
+          "text": "slide"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\n# + [markdown] slideshow={\"slide"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 222,
+          "logprob": -1.9091797,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 222,
+          "logprob": -1.0478516,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 40,
+          "logprob": -3.015625,
+          "special": false,
+          "text": "#"
+        },
+        {
+          "id": 494,
+          "logprob": -1.4228516,
+          "special": false,
+          "text": " +"
+        },
+        {
+          "id": 447,
+          "logprob": -1.1025391,
+          "special": false,
+          "text": " ["
+        },
+        {
+          "id": 9009,
+          "logprob": -0.0008444786,
+          "special": false,
+          "text": "markdown"
+        },
+        {
+          "id": 98,
+          "logprob": -8.8095665e-05,
+          "special": false,
+          "text": "]"
+        },
+        {
+          "id": 37402,
+          "logprob": -0.5810547,
+          "special": false,
+          "text": " slideshow"
+        },
+        {
+          "id": 8492,
+          "logprob": -0.00022864342,
+          "special": false,
+          "text": "={\""
+        },
+        {
+          "id": 7277,
+          "logprob": -0.00030994415,
+          "special": false,
+          "text": "slide"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\n# + [markdown] slideshow={\"slide"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 222,
+          "logprob": -1.9091797,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 222,
+          "logprob": -1.0478516,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 40,
+          "logprob": -3.015625,
+          "special": false,
+          "text": "#"
+        },
+        {
+          "id": 494,
+          "logprob": -1.4228516,
+          "special": false,
+          "text": " +"
+        },
+        {
+          "id": 447,
+          "logprob": -1.1025391,
+          "special": false,
+          "text": " ["
+        },
+        {
+          "id": 9009,
+          "logprob": -0.0008444786,
+          "special": false,
+          "text": "markdown"
+        },
+        {
+          "id": 98,
+          "logprob": -8.8095665e-05,
+          "special": false,
+          "text": "]"
+        },
+        {
+          "id": 37402,
+          "logprob": -0.5810547,
+          "special": false,
+          "text": " slideshow"
+        },
+        {
+          "id": 8492,
+          "logprob": -0.00022864342,
+          "special": false,
+          "text": "={\""
+        },
+        {
+          "id": 7277,
+          "logprob": -0.00030994415,
+          "special": false,
+          "text": "slide"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\n# + [markdown] slideshow={\"slide"
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 222,
+          "logprob": -1.9091797,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 222,
+          "logprob": -1.0478516,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 40,
+          "logprob": -3.015625,
+          "special": false,
+          "text": "#"
+        },
+        {
+          "id": 494,
+          "logprob": -1.4228516,
+          "special": false,
+          "text": " +"
+        },
+        {
+          "id": 447,
+          "logprob": -1.1025391,
+          "special": false,
+          "text": " ["
+        },
+        {
+          "id": 9009,
+          "logprob": -0.0008444786,
+          "special": false,
+          "text": "markdown"
+        },
+        {
+          "id": 98,
+          "logprob": -8.8095665e-05,
+          "special": false,
+          "text": "]"
+        },
+        {
+          "id": 37402,
+          "logprob": -0.5810547,
+          "special": false,
+          "text": " slideshow"
+        },
+        {
+          "id": 8492,
+          "logprob": -0.00022864342,
+          "special": false,
+          "text": "={\""
+        },
+        {
+          "id": 7277,
+          "logprob": -0.00030994415,
+          "special": false,
+          "text": "slide"
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": "\n\n# + [markdown] slideshow={\"slide"
+  }
+]
