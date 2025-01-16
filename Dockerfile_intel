@@ -110,8 +110,8 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
-    uv pip install -U pip uv && \
-    uv pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
+    pip install -U pip uv && \
+    uv pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir --system
 
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/oneapi/pti/0.9/lib:/opt/conda/lib
 ENV CCL_ZE_IPC_EXCHANGE=sockets
