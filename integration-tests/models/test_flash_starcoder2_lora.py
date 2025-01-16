@@ -54,6 +54,7 @@ async def test_flash_starcoder2_load(
 
     assert responses == response_snapshot
 
+
 @pytest.mark.asyncio
 async def test_flash_starcoder2_with_hugcode_adapter(
     flash_starcoder2, response_snapshot
@@ -73,6 +74,6 @@ async def test_flash_starcoder2_with_hugcode_adapter(
 
     assert response.status_code == 200
     data = response.json()
-    assert data["generated_text"] == "_world():\n    print(\"Hello World!\")\n"
+    assert data["generated_text"] == '_world():\n    print("Hello World!")\n'
 
     assert data == response_snapshot
