@@ -104,7 +104,7 @@ RUN case ${TARGETPLATFORM} in \
     /opt/conda/bin/conda clean -ya
 
 # Install flash-attention, torch dependencies
-RUN python3 -m pip install --upgrade pip && pip install numpy einops ninja joblib msgpack cmake --no-cache-dir && rm -rf /var/lib/apt/lists/*
+RUN python3 -m pip install --upgrade pip uv && uv pip install numpy einops ninja joblib msgpack cmake --no-cache-dir && rm -rf /var/lib/apt/lists/*
 
 RUN conda install mkl=2021
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib/:/opt/conda/lib/python3.11/site-packages/torch/lib:/opt/conda/lib/
@@ -320,8 +320,8 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements_rocm.txt && \
-    pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
+    pip install -U pip uv && \
+    uv pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
