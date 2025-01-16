@@ -93,5 +93,5 @@ markers = ["private: marks tests as requiring an admin hf token (deselect with '
 [tool.isort]
 profile = "black"
 
-[tool.setuptools]
-packages = ["text_generation_server"]
+[tool.setuptools.packages.find]
+include = ["text_generation_server*"]

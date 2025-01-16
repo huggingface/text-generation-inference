@@ -318,6 +318,7 @@ COPY --from=moe-kernels /usr/src/moe-kernels/build/lib.linux-x86_64-cpython-311 
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
+ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     make gen-server && \
     pip install -U pip uv && \

@@ -230,6 +230,7 @@ COPY --from=flashinfer-builder /opt/conda/lib/python3.11/site-packages/flashinfe
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
+ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     make gen-server && \
     pip install -U pip uv && \
