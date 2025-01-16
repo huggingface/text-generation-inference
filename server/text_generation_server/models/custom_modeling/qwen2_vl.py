@@ -517,11 +517,11 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         pixel_values: torch.FloatTensor = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
-        pixel_attention_mask=None,
+        pixel_attention_mask: Optional[torch.Tensor] = None,
         image_sizes: Optional[torch.LongTensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         cross_attention_states: Optional[torch.Tensor] = None,
-        image_indices=None,
+        image_indices: Optional[torch.Tensor] = None,
     ):
         inputs_embeds = self.embed_tokens(input_ids)
 
