@@ -10,12 +10,14 @@ include Makefile-flashinfer
 
 unit-tests:
 	pip install -U pip uv
+	uv venv
 	uv pip install -e ".[dev]"
 	pytest -s -vv -m "not private" tests
 
 gen-server:
 	# Compile protos
 	pip install -U pip uv
+	uv venv
 	uv pip install ".[gen]"
 	mkdir text_generation_server/pb || true
 	python -m grpc_tools.protoc -I../proto/v3 --python_out=text_generation_server/pb \
