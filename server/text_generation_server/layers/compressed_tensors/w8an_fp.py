@@ -147,7 +147,7 @@ class W8ANFpLoader(WeightsLoader):
                 else None
             )
 
-        if self.load_weight_scale or SYSTEM == "rocm":
+        if self.load_weight_scale and SYSTEM == "rocm":
             w, weight_scale, input_scale = normalize_e4m3fn_to_e4m3fnuz(
                 w, weight_scale, input_scale
             )
