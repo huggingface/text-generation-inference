@@ -95,3 +95,6 @@ profile = "black"
 
 [tool.setuptools.packages.find]
 include = ["text_generation_server*"]
+
+[tool.setuptools.package-data]
+"*" = ["pb"]
