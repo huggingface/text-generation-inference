@@ -234,28 +234,20 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         images.append([image])
                 elif chunk_type == "video":
                     if config.model_type == "qwen2_vl":
-                        video_frame_buf = np.frombuffer(
-                            chunk.video.data, dtype=np.uint8
-                        )
-                        num_bytes = len(video_frame_buf)
-                        bytes_per_frame = num_bytes // chunk.video.frames
-
-                        # iterate over with a stride the size of a frame
-                        frames = []
-                        for i in range(chunk.video.frames):
-                            frame = video_frame_buf[
-                                i * bytes_per_frame : (i + 1) * bytes_per_frame
-                            ]
-                            frame = frame.reshape(
-                                chunk.video.height, chunk.video.width, 3
+                        # reshape via numpy array then convert to torch tensor and permute
+                        frame_nchw_tensor = torch.from_numpy(
+                            np.frombuffer(chunk.video.data, dtype=np.uint8).reshape(
+                                chunk.video.frames,
+                                chunk.video.height,
+                                chunk.video.width,
+                                3,
                             )
-                            frames.append(frame)
-
-                        video_frame_buf = np.stack(frames)
-                        frame_nchw_tensor = torch.from_numpy(video_frame_buf).permute(
-                            0, 3, 1, 2
-                        )
+                        ).permute(0, 3, 1, 2)
                         videos.append(frame_nchw_tensor)
+                    else:
+                        raise RuntimeError(
+                            f"Model type {config.model_type} does not support video"
+                        )
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 

@@ -829,15 +829,6 @@ fn prepare_input<T: TokenizerTrait>(
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
                 let processed_video = match config {
-                    Idefics | Mllama | Idefics2(_) | Paligemma(_) | LlavaNext(_) => {
-                        let default_target_width = 224;
-                        let default_target_height = 224;
-                        fetch_video(
-                            &inputs[chunk_start..chunk_end],
-                            default_target_width,
-                            default_target_height,
-                        )?
-                    }
                     Qwen2Vl(_) => {
                         let target_width = 360;
                         let target_height = 420;
@@ -959,12 +950,9 @@ impl ChunksToString for Vec<Chunk> {
                 height: _,
                 num_frames: _,
             }) => {
-                // TODO: revisit if we should limit video support to v3 - to avoid sending very large base64 strings
-                let encoded = STANDARD.encode(data);
-                output.push_str(&format!(
-                    r#"<video width="{}"><source src="data:{};base64,{}" type="{}"></video>"#,
-                    width, mimetype, encoded, mimetype
-                ));
+
+                // TODO: do not support serialization of video data
+                unimplemented!("Video tokens are not supported for this model configuration")
             }
         });
         output

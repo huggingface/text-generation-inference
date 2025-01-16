@@ -86,12 +86,9 @@ impl ChunksToString for Vec<InputChunk> {
                 height: _,
                 frames: _,
             })) => {
-                // TODO: revisit if we should limit video support to v3 - to avoid sending very large base64 strings
-                let encoded = STANDARD.encode(data);
-                output.push_str(&format!(
-                    r#"<video width="{}"><source src="data:{};base64,{}" type="{}"></video>"#,
-                    width, mimetype, encoded, mimetype
-                ));
+                // 
+                // TODO: do not support serialization of video data
+                unimplemented!("Video tokens are not supported for this model configuration")
             }
             // We don't create empty chunks, so this should be unreachable.
             None => unreachable!("Chunks should never be empty"),
