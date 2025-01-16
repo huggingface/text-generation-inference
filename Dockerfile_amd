@@ -322,7 +322,7 @@ ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     make gen-server && \
     pip install -U pip uv && \
-    uv pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
+    uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
