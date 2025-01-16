@@ -50,7 +50,8 @@ jobs:
           make install-cpu
       - name: Run server tests
         run: |
-          pip install pytest
+          source ./.venv/bin/activate
+          uv pip install pytest
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           pytest -s -vv server/tests
       - name: Pre-commit checks
