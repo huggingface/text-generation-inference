@@ -112,7 +112,7 @@ ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     make gen-server && \
     pip install -U pip uv && \
-    uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
+    uv pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
 
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/oneapi/pti/0.9/lib:/opt/conda/lib
 ENV CCL_ZE_IPC_EXCHANGE=sockets
