@@ -517,11 +517,11 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         pixel_values: torch.FloatTensor = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
-        pixel_attention_mask: Optional[torch.Tensor] = None,
+        pixel_attention_mask=None,
         image_sizes: Optional[torch.LongTensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         cross_attention_states: Optional[torch.Tensor] = None,
-        image_indices: Optional[torch.Tensor] = None,
+        image_indices=None,
     ):
         inputs_embeds = self.embed_tokens(input_ids)
 
@@ -533,7 +533,6 @@ class Qwen2VLForConditionalGeneration(nn.Module):
                 ).squeeze(0)
                 inputs_embeds[input_ids == self.image_token_id] = image_embeds
 
-        max_s = max(max_s, inputs_embeds.size(0))
         hidden_states = self.text_model(
             inputs_embeds=inputs_embeds,
             position_ids=position_ids,
