@@ -2,7 +2,7 @@ ARG CUDA_ARCH_LIST="75-real;80-real;86-real;89-real;90-real"
 ARG OMPI_VERSION="4.1.7rc1"
 
 # Build dependencies resolver stage
-FROM lukemathwalker/cargo-chef:latest AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.84.0 AS chef
 WORKDIR /usr/src/text-generation-inference/backends/trtllm
 
 FROM chef AS planner

@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
-  <img width=560 width=315 alt="Making TGI deployment optimal" src="https://huggingface.co/datasets/Narsil/tgi_assets/resolve/main/thumbnail.png">
+  <img width=560 alt="Making TGI deployment optimal" src="https://huggingface.co/datasets/Narsil/tgi_assets/resolve/main/thumbnail.png">
 </a>
 
 # Text Generation Inference
@@ -84,7 +84,7 @@ model=HuggingFaceH4/zephyr-7b-beta
 volume=$PWD/data
 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data \
-3.0.0   ghcr.io/huggingface/text-generation-inference:3.0.0 --model-id $model
+    ghcr.io/huggingface/text-generation-inference:3.0.0 --model-id $model
 ```
 
 And then you can make requests like
@@ -141,8 +141,8 @@ You have the option to utilize the `HF_TOKEN` environment variable for configuri
 For example, if you want to serve the gated Llama V2 model variants:
 
 1. Go to https://huggingface.co/settings/tokens
-2. Copy your cli READ token
-3. Export `HF_TOKEN=<your cli READ token>`
+2. Copy your CLI READ token
+3. Export `HF_TOKEN=<your CLI READ token>`
 
 or with Docker:
 
@@ -151,13 +151,14 @@ model=meta-llama/Meta-Llama-3.1-8B-Instruct
 volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
 token=<your cli READ token>
 
-docker run --gpus all --shm-size 1g -e HF_TOKEN=$token -p 8080:80 -v $volume:/data ghcr.io/huggingface/text-generation-inference:3.0.0 --model-id $model
+docker run --gpus all --shm-size 1g -e HF_TOKEN=$token -p 8080:80 -v $volume:/data \
+    ghcr.io/huggingface/text-generation-inference:3.0.0 --model-id $model
 ```
 
 ### A note on Shared Memory (shm)
 
 [`NCCL`](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html) is a communication framework used by
-`PyTorch` to do distributed training/inference. `text-generation-inference` make
+`PyTorch` to do distributed training/inference. `text-generation-inference` makes
 use of `NCCL` to enable Tensor Parallelism to dramatically speed up inference for large language models.
 
 In order to share data between the different devices of a `NCCL` group, `NCCL` might fall back to using the host memory if
@@ -196,7 +197,7 @@ Detailed blogpost by Adyen on TGI inner workings: [LLM inference at scale with T
 
 You can also opt to install `text-generation-inference` locally.
 
-First clone the repository and change directoy into it:
+First clone the repository and change directory into it:
 
 ```shell
 git clone https://github.com/huggingface/text-generation-inference
@@ -213,7 +214,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 conda create -n text-generation-inference python=3.11
 conda activate text-generation-inference
 
-#using pyton venv
+#using python venv
 python3 -m venv .venv
 source .venv/bin/activate
 ```

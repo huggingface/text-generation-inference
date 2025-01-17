@@ -79,7 +79,7 @@ impl TokenizerTrait for tokenizers::Tokenizer {
     }
 }
 
-impl<'a> TokenizerTrait for PyTokenizer<'a> {
+impl TokenizerTrait for PyTokenizer<'_> {
     fn encode_trait(
         &self,
         query: String,
@@ -170,6 +170,7 @@ impl TokenizerConfigToken {
 #[serde(tag = "processor_class")]
 pub enum HubPreprocessorConfig {
     Idefics2Processor(Idefics2Preprocessor),
+    Idefics3Processor(Idefics2Preprocessor),
 }
 
 impl HubPreprocessorConfig {

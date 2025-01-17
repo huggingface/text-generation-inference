@@ -205,6 +205,7 @@ pub async fn kserve_model_infer(
             let generate_request = GenerateRequest {
                 inputs: str_input.to_string(),
                 parameters: payload.parameters.clone(),
+                add_special_tokens: true,
             };
             let infer = infer.clone();
             let compute_type = compute_type.clone();
@@ -212,7 +213,7 @@ pub async fn kserve_model_infer(
             async move {
                 generate_internal(infer, compute_type, Json(generate_request), span)
                     .await
-                    .map(|(_, Json(generation))| {
+                    .map(|(_, _, Json(generation))| {
                         let generation_as_bytes = generation.generated_text.as_bytes().to_vec();
                         OutputChunk {
                             name: output.name.clone(),

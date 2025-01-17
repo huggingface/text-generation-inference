@@ -1,2 +1,5 @@
 install-flashinfer:
-	pip install flashinfer==0.1.6 -i https://flashinfer.ai/whl/cu124/torch2.4
+	# We need fsspec as an additional dependency, but
+	# `pip install flashinfer` cannot resolve it.
+	pip install fsspec
+	pip install flashinfer==0.2.0.post1 -i https://flashinfer.ai/whl/cu124/torch2.4

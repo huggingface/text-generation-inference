@@ -23,7 +23,7 @@ clap = { version = "4.4.5", features = ["derive", "env"] }
 grpc-metadata = { path = "../grpc-metadata" }
 futures = "0.3.28"
 hf-hub = { workspace = true }
-jsonschema = { version = "0.17.1", features = ["draft202012"] }
+jsonschema = { version = "0.28.0" }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 nohash-hasher = "0.2.0"

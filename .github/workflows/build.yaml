@@ -67,7 +67,8 @@ jobs:
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
                 export docker_volume="/mnt"
-                export runs_on="amd-gpu-runners"
+                # This runner was deactivated.
+                export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest="-k test_flash_gemma_gptq_load"
                 ;;

@@ -13,6 +13,7 @@ from text_generation_server.models.flash_causal_lm import (
     FlashCausalLM,
 )
 from text_generation_server.models.globals import PREFIX_CACHING, ATTENTION
+from loguru import logger
 from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
 from text_generation_server.layers.attention import Seqlen
@@ -22,6 +23,40 @@ tracer = trace.get_tracer(__name__)
 
 IDEFICS2_FAKE_TOKEN = "<fake_token_around_image>"
 IDEFICS2_IMAGE_TOKEN = "<image>"
+
+IDEFICS3_IMAGE_TOKEN = "<image>"
+IDEFICS3_FAKE_IMAGE_TOKEN = "<fake_token_around_image>"
+IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
+
+
+# copied from: https://github.com/huggingface/transformers/blob/02ed609285c2448b3b54c31e362f2c389fa952ab/src/transformers/models/idefics3/processing_idefics3.py#L44-L60
+def _prompt_split_image(
+    *,
+    image_seq_len: int,
+    image_rows: int,
+    image_cols: int,
+    fake_token_around_image: str,
+    image_token: str,
+    global_img_token: str,
+):
+    """Prompt with expanded image tokens for when the image is split into patches."""
+    text_split_images = ""
+    for n_h in range(image_rows):
+        for n_w in range(image_cols):
+            text_split_images += (
+                f"{fake_token_around_image}"
+                + f"<row_{n_h + 1}_col_{n_w + 1}>"
+                + f"{image_token}" * image_seq_len
+            )
+        text_split_images += "\n"
+
+    text_split_images += (
+        f"\n{fake_token_around_image}"
+        + f"{global_img_token}"
+        + f"{image_token}" * image_seq_len
+        + f"{fake_token_around_image}"
+    )
+    return text_split_images
 
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
@@ -54,10 +89,26 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         if processor.image_processor.do_image_splitting:
             image_str *= 5
         return image_str
+    if config.model_type == "idefics3":
+        # TODO: implement this in a more general way
+        n_rows = image_input["rows"][0][image_id]
+        n_cols = image_input["cols"][0][image_id]
+        image_seq_len = int(
+            ((config.vision_config.image_size // config.vision_config.patch_size) ** 2)
+            / (config.scale_factor**2)
+        )
+        image_str = _prompt_split_image(
+            image_seq_len=image_seq_len,
+            image_rows=n_rows,
+            image_cols=n_cols,
+            fake_token_around_image=IDEFICS3_FAKE_IMAGE_TOKEN,
+            image_token=IDEFICS3_IMAGE_TOKEN,
+            global_img_token=IDEFICS3_GLOBAL_IMG_TOKEN,
+        )
+        return image_str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
-        from loguru import logger
 
         log_master(
             logger.info,
@@ -194,12 +245,21 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
         if images:
-            image_inputs = processor.image_processor(images, return_tensors="pt")
+            kwargs = {}
+            if (
+                hasattr(processor, "image_processor_class")
+                and processor.image_processor_class == "Idefics3ImageProcessor"
+            ):
+                kwargs["return_row_col_info"] = True
+
+            image_inputs = processor.image_processor(
+                images, return_tensors="pt", **kwargs
+            )
         else:
             image_inputs = None
 
-        batch_inputs = []
-        max_truncation = 0
+        batch_tokenized_inputs = []
+        max_length = 0
         image_id = 0
         for r in requests:
             full_text = ""
@@ -214,16 +274,14 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     image_id += 1
 
             full_text = image_text_replacement_fixup(config, full_text)
-
-            batch_inputs.append(full_text)
-            max_truncation = max(max_truncation, r.truncate)
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs,
-            truncation=True,
-            max_length=max_truncation,
-            add_special_tokens=not config.model_type == "paligemma",
-        )["input_ids"]
+            input_ids = tokenizer(
+                full_text,
+                truncation=True,
+                max_length=r.truncate,
+                add_special_tokens=r.add_special_tokens,
+            )["input_ids"]
+            max_length = max(max_length, len(input_ids))
+            batch_tokenized_inputs.append(input_ids)
 
         return batch_tokenized_inputs, image_inputs
 

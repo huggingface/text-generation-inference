@@ -152,6 +152,9 @@ try:
     from text_generation_server.models.custom_modeling.idefics2 import (
         Idefics2ForConditionalGeneration,
     )
+    from text_generation_server.models.custom_modeling.idefics3 import (
+        Idefics3ForConditionalGeneration,
+    )
     from text_generation_server.models.custom_modeling.qwen2_vl import (
         Qwen2VLForConditionalGeneration,
     )
@@ -186,6 +189,12 @@ class ModelType(enum.Enum):
         "type": "idefics2",
         "name": "Idefics 2",
         "url": "https://huggingface.co/HuggingFaceM4/idefics2-8b",
+        "multimodal": True,
+    }
+    IDEFICS3 = {
+        "type": "idefics3",
+        "name": "Idefics 3",
+        "url": "https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3",
         "multimodal": True,
     }
     LLAVA_NEXT = {
@@ -1253,6 +1262,24 @@ def get_model(
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+    if model_type == IDEFICS3:
+        if FLASH_ATTENTION:
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Idefics3ForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                # XXX: Extremely important to cap resolution in order to limit
+                # VRAM usage.
+                processor_kwargs={"size": {"longest_edge": 1456}},
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == PALIGEMMA:
         if FLASH_ATTENTION:
             return VlmCausalLM(
@@ -1422,6 +1449,9 @@ def get_model_with_lora_adapters(
                 "up_proj",
                 "down_proj",
                 "qkv_proj",
+                # add c_* layers used in starcoder2
+                "c_proj",
+                "c_fc",
             ]
 
             for layer_name in adapter_layers:
