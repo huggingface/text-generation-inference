@@ -235,7 +235,6 @@ def attention(
             paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
-            window_left=window_size_left,
             k_scale=kv_scales.key_scale_cpu if can_scale else 1.0,
             v_scale=kv_scales.value_scale_cpu if can_scale else 1.0,
         )
