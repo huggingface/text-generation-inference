@@ -3,7 +3,6 @@ pub mod config;
 pub mod infer;
 pub mod server;
 pub mod validation;
-// Dummy change to trigger CI, TODO remove this.
 
 #[cfg(feature = "kserve")]
 mod kserve;
