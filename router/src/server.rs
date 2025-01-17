@@ -54,6 +54,8 @@ use std::fs::File;
 use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering::SeqCst;
 use thiserror::Error;
 use tokio::select;
 use tokio::signal;
@@ -400,6 +402,14 @@ pub(crate) async fn generate_internal(
         "x-generated-tokens",
         response.generated_text.generated_tokens.into(),
     );
+    headers.insert(
+        "x-batch-current-size",
+        BATCH_CURRENT_SIZE.load(SeqCst).to_string().parse().unwrap(),
+    );
+    headers.insert(
+        "x-queue-size",
+        QUEUE_SIZE.load(SeqCst).to_string().parse().unwrap(),
+    );
 
     // Metrics
     metrics::counter!("tgi_request_success").increment(1);
@@ -490,6 +500,9 @@ async fn generate_stream(
     (headers, sse)
 }
 
+pub static BATCH_CURRENT_SIZE: AtomicU32 = AtomicU32::new(0);
+pub static QUEUE_SIZE: AtomicU32 = AtomicU32::new(0);
+
 async fn generate_stream_internal(
     infer: Infer,
     ComputeType(compute_type): ComputeType,
@@ -513,6 +526,14 @@ async fn generate_stream_internal(
         compute_characters.to_string().parse().unwrap(),
     );
     headers.insert("X-Accel-Buffering", "no".parse().unwrap());
+    headers.insert(
+        "x-batch-current-size",
+        BATCH_CURRENT_SIZE.load(SeqCst).to_string().parse().unwrap(),
+    );
+    headers.insert(
+        "x-queue-size",
+        QUEUE_SIZE.load(SeqCst).to_string().parse().unwrap(),
+    );
 
     let stream = async_stream::stream! {
         // Inference

@@ -6,8 +6,10 @@ use crate::client::{
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::max;
 use std::collections::VecDeque;
+use std::sync::atomic::Ordering::SeqCst;
 use text_generation_router::infer::InferError;
 use text_generation_router::infer::InferStreamResponse;
+use text_generation_router::server::QUEUE_SIZE;
 use text_generation_router::validation::{
     Chunk, ChunksToString, ValidGenerateRequest, ValidGrammar, ValidParameters,
     ValidStoppingParameters,
@@ -140,6 +142,7 @@ async fn queue_task(
             QueueCommand::Append(entry, span) => {
                 span.in_scope(|| state.append(*entry));
                 metrics::gauge!("tgi_queue_size").increment(1.0);
+                QUEUE_SIZE.fetch_add(1, SeqCst);
             }
             QueueCommand::NextBatch {
                 min_size,
@@ -155,6 +158,7 @@ async fn queue_task(
                     .await;
                 response_sender.send(next_batch).unwrap();
                 metrics::gauge!("tgi_queue_size").set(state.entries.len() as f64);
+                QUEUE_SIZE.store(state.entries.len() as u32, SeqCst);
             }
         }
     }

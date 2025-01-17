@@ -5,8 +5,10 @@ use crate::client::{
 use crate::queue::{Entry, Queue};
 use async_trait::async_trait;
 use nohash_hasher::IntMap;
+use std::sync::atomic::Ordering::SeqCst;
 use std::sync::Arc;
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
+use text_generation_router::server::BATCH_CURRENT_SIZE;
 use text_generation_router::validation::ValidGenerateRequest;
 use text_generation_router::{FinishReason, PrefillToken, Token};
 use tokio::sync::mpsc::error::SendError;
@@ -164,6 +166,7 @@ pub(crate) async fn batching_task(
                 let current_tokens = batch.current_tokens;
                 let mut batches = vec![batch];
                 metrics::gauge!("tgi_batch_current_size").set(batch_size as f64);
+                BATCH_CURRENT_SIZE.store(batch_size, SeqCst);
                 metrics::gauge!("tgi_batch_current_max_tokens").set(batch_max_tokens as f64);
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
@@ -284,6 +287,7 @@ pub(crate) async fn batching_task(
                 waiting_tokens += 1;
             }
             metrics::gauge!("tgi_batch_current_size").set(0.0);
+            BATCH_CURRENT_SIZE.store(0, SeqCst);
             metrics::gauge!("tgi_batch_current_max_tokens").set(0.0);
         }
     }
