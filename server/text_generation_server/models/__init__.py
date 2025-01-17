@@ -378,7 +378,7 @@ def get_model(
 
     # Fast transformers path
     transformers_model_class = getattr(transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type])
-    if transformers_model_class._supports_flex_attn:
+    if transformers_model_class.is_backend_compatible():
         transformers_causal_lm_class = TransformersFlashCausalLM
 
     quantization_config = config_dict.get("quantization_config", None)
