@@ -224,17 +224,19 @@ COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-
 COPY --from=flashinfer-builder /opt/conda/lib/python3.11/site-packages/flashinfer/ /opt/conda/lib/python3.11/site-packages/flashinfer/
 
 # Install flash-attention dependencies
-RUN pip install einops --no-cache-dir
+# RUN pip install einops --no-cache-dir
 
 # Install server
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
+ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements_cuda.txt && \
-    pip install ".[attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir && \
-    pip install nvidia-nccl-cu12==2.22.3
+    python -c "from text_generation_server.pb import generate_pb2" && \
+    pip install -U pip uv && \
+    uv pip install -e ".[attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir && \
+    uv pip install nvidia-nccl-cu12==2.22.3
 
 ENV LD_PRELOAD=/opt/conda/lib/python3.11/site-packages/nvidia/nccl/lib/libnccl.so.2
 # Required to find libpython within the rust binaries
