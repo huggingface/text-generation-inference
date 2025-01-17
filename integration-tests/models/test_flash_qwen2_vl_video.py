@@ -5,13 +5,7 @@ import requests
 
 @pytest.fixture(scope="module")
 def qwen2_vl_handle(launcher):
-    with launcher(
-        "Qwen/Qwen2-VL-7B-Instruct",
-        max_input_length=10_000,
-        max_batch_prefill_tokens=10_000,
-        max_total_tokens=10_001,
-        cuda_graphs=[0],
-    ) as handle:
+    with launcher("Qwen/Qwen2-VL-7B-Instruct") as handle:
         yield handle
 
 
