@@ -133,6 +133,15 @@ def paged_attention(
 
     out = torch.empty_like(query)
 
+    if kv_cache.dtype == torch.float8_e4m3fn:
+        key = kv_cache.key.view(torch.uint8)
+        value = kv_cache.value.view(torch.uint8)
+        kv_cache_dtype = "fp8"
+    else:
+        key = kv_cache.key
+        value = kv_cache.value
+        kv_cache_dtype = "auto"
+
     # NOTE(woosuk): We use a simple heuristic to decide whether to use
     # PagedAttention V1 or V2. If the number of partitions is 1, we use
     # V1 to avoid the overhead of reduction. Also, if the number of
@@ -147,8 +156,8 @@ def paged_attention(
         ops.paged_attention_v1(
             out,
             query,
-            kv_cache.key,
-            kv_cache.value,
+            key,
+            value,
             num_kv_heads,
             softmax_scale,
             block_tables,
@@ -156,7 +165,7 @@ def paged_attention(
             block_size,
             max_s,
             None,
-            kv_cache.kv_cache_dtype,
+            kv_cache_dtype,
             kv_scales.key_scale_cpu,
             kv_scales.value_scale_cpu,
         )
@@ -182,8 +191,8 @@ def paged_attention(
                 max_logits,
                 tmp_output,
                 query,
-                kv_cache.key,
-                kv_cache.value,
+                key,
+                value,
                 num_kv_heads,
                 softmax_scale,
                 block_tables,
@@ -191,7 +200,7 @@ def paged_attention(
                 block_size,
                 max_s,
                 None,
-                kv_cache.kv_cache_dtype,
+                kv_cache_dtype,
                 kv_scales.key_scale_cpu,
                 kv_scales.value_scale_cpu,
             )
@@ -202,8 +211,8 @@ def paged_attention(
                 max_logits,
                 tmp_output,
                 query,
-                kv_cache.key,
-                kv_cache.value,
+                key,
+                value,
                 num_kv_heads,
                 softmax_scale,
                 block_tables,
@@ -211,7 +220,7 @@ def paged_attention(
                 block_size,
                 max_s,
                 None,
-                kv_cache.kv_cache_dtype,
+                kv_cache_dtype,
                 kv_scales.key_scale_cpu,
                 kv_scales.value_scale_cpu,
                 None,
