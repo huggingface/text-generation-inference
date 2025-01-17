@@ -236,7 +236,6 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                             w = image.width * 2
                             h = image.height * 2
                             image = image.resize((w, h))
-
                     if config.model_type == "llava_next":
                         images.append(image)
                     else:
