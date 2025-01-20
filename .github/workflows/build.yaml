@@ -214,6 +214,4 @@ jobs:
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           echo $DOCKER_IMAGE
           docker pull $DOCKER_IMAGE
-          # Run once only the bloom tests to try and avoid the random timeout.
-          pytest -s -vv --release integration-tests/models/test_bloom_560m.py
           pytest -s -vv integration-tests ${PYTEST_FLAGS} ${EXTRA_PYTEST}
