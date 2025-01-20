@@ -88,8 +88,6 @@ ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
 
 ENV USE_LLD_LINKER=ON
 ENV CUDA_ARCH_LIST=${cuda_arch_list}
-ENV CMAKE_CXX_COMPILER_LAUNCHER=sccache
-ENV RUSTC_WRAPPER=sccache
 ENV IS_GHA_BUILD=${is_gha_build}
 
 COPY Cargo.lock Cargo.lock
@@ -104,7 +102,10 @@ COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     python3 backends/trtllm/scripts/setup_sccache.py --is-gha-build ${is_gha_build} && \
-    CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
+    CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX \
+    CMAKE_CXX_COMPILER_LAUNCHER=sccache \
+    RUSTC_WRAPPER=sccache \
+    cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
     sccache --show-stats
 
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS runtime
