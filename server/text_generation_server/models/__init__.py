@@ -21,7 +21,9 @@ import transformers
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM, CausalLMBatchKeysLast
-from text_generation_server.models.transformers_flash_causal_lm import TransformersFlashCausalLM
+from text_generation_server.models.transformers_flash_causal_lm import (
+    TransformersFlashCausalLM,
+)
 from text_generation_server.models.custom_modeling.opt_modeling import OPTForCausalLM
 from text_generation_server.models.custom_modeling.mpt_modeling import (
     MPTForCausalLM,
@@ -377,11 +379,19 @@ def get_model(
     transformers_causal_lm_class = CausalLM
 
     # Fast transformers path
-    transformers_model_class = getattr(transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type])
-    if transformers_model_class.is_backend_compatible():
+    transformers_model_class = getattr(
+        transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type]
+    )
+    if transformers_model_class._supports_flex_attn:
         transformers_causal_lm_class = TransformersFlashCausalLM
-        if not FLASH_ATTENTION and lora_adapter_ids is not None and len(lora_adapter_ids) > 0:
-            raise ValueError("Transformers backend AutoModel do not support `lora_adapter_ids`.")
+        if (
+            not FLASH_ATTENTION
+            and lora_adapter_ids is not None
+            and len(lora_adapter_ids) > 0
+        ):
+            raise ValueError(
+                "Transformers backend AutoModel do not support `lora_adapter_ids`."
+            )
 
     quantization_config = config_dict.get("quantization_config", None)
     if quantization_config is None:

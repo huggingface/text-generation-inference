@@ -5,7 +5,7 @@ import torch
 from typing import List, Optional, DefaultDict
 
 from loguru import logger
-from typing import Dict, Union
+from typing import Dict
 from text_generation_server.pb.generate_pb2 import GrammarType
 
 from outlines.fsm.guide import RegexGuide

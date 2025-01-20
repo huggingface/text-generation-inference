@@ -963,7 +963,9 @@ def quantize(
 
     max_shard_size = "10GB"
     state_dict_split = split_torch_state_dict_into_shards(
-        state_dict, filename_pattern="model.safetensors", max_shard_size=max_shard_size,
+        state_dict,
+        filename_pattern="model.safetensors",
+        max_shard_size=max_shard_size,
     )
     index = None
     if state_dict_split.is_sharded:

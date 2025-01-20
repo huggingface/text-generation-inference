@@ -67,4 +67,3 @@ def set_adapter_to_index(adapter_to_index: Dict[str, int]):
 def get_adapter_to_index():
     global ADAPTER_TO_INDEX
     return ADAPTER_TO_INDEX
-
