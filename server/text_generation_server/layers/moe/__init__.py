@@ -16,6 +16,7 @@ from text_generation_server.layers.moe.gptq_marlin import (
     can_use_marlin_moe_gemm,
 )
 from text_generation_server.layers.moe.unquantized import UnquantizedSparseMoELayer
+from text_generation_server.layers.moe.fp8 import FP8SparseMoELayer
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import (
@@ -218,12 +219,17 @@ class SparseMoELayer(nn.Module):
         down_proj_name: str = "down_proj",
     ):
         super().__init__()
-
         if (
             isinstance(weights.loader, DefaultWeightsLoader)
             and isinstance(weights.loader.weight_class, UnquantizedWeight)
         ) or isinstance(weights.loader, HybridFP8UnquantLoader):
-            cls = UnquantizedSparseMoELayer
+            if (
+                isinstance(weights.loader, HybridFP8UnquantLoader)
+                and weights.loader.to_fp8
+            ):
+                cls = FP8SparseMoELayer
+            else:
+                cls = UnquantizedSparseMoELayer
         elif isinstance(
             weights.loader, GPTQMarlinWeightsLoader
         ) and can_use_marlin_moe_gemm(
