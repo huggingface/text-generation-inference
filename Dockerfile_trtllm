@@ -97,8 +97,10 @@ COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY router router
 COPY backends/trtllm backends/trtllm
+COPY benchmark benchmark
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
+
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     python3 backends/trtllm/scripts/setup_sccache.py --is-gha-build ${is_gha_build} && \
     CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
