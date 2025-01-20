@@ -48,7 +48,7 @@ def tgi_flash_attention_forward(
     softmax_scale: Optional[float] = None,
     sliding_window: Optional[int] = None,
     softcap: Optional[float] = None,
-    **kwargs,  # This is needed to "absorb" other args passed by Transformers modeling
+    **_kwargs,  # This is needed to "absorb" other args passed by Transformers modeling
 ):
 
     kv_cache = kv_cache[module.layer_idx]

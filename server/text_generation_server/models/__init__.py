@@ -380,6 +380,8 @@ def get_model(
     transformers_model_class = getattr(transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type])
     if transformers_model_class.is_backend_compatible():
         transformers_causal_lm_class = TransformersFlashCausalLM
+        if not FLASH_ATTENTION and lora_adapter_ids is not None and len(lora_adapter_ids) > 0:
+            raise ValueError("Transformers backend AutoModel do not support `lora_adapter_ids`.")
 
     quantization_config = config_dict.get("quantization_config", None)
     if quantization_config is None:
