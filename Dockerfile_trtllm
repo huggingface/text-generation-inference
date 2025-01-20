@@ -3,20 +3,6 @@ ARG ompi_version="4.1.7rc1"
 ARG build_type=release
 ARG is_gha_build=false
 
-# Build dependencies resolver stage
-FROM lukemathwalker/cargo-chef:latest-rust-1.84.0 AS chef
-WORKDIR /usr/src/text-generation-inference/backends/trtllm
-
-FROM chef AS planner
-COPY Cargo.lock Cargo.lock
-COPY Cargo.toml Cargo.toml
-COPY rust-toolchain.toml rust-toolchain.toml
-COPY router router
-COPY benchmark/ benchmark/
-COPY backends/ backends/
-COPY launcher/ launcher/
-RUN cargo chef prepare --recipe-path recipe.json
-
 # CUDA dependent dependencies resolver stage
 FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS cuda-builder
 
@@ -76,12 +62,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y &&
     chmod -R a+w /root/.cargo && \
     cargo install sccache --locked
 
-ENV PATH="/root/.cargo/bin:$PATH"
-RUN cargo install cargo-chef
-
-# Cache dependencies
-COPY --from=planner /usr/src/text-generation-inference/backends/trtllm/recipe.json .
-RUN cargo chef cook --release --recipe-path recipe.json
 
 # SCCACHE Specifics args - before finding a better, more generic, way...
 ARG aws_access_key_id
@@ -127,8 +107,6 @@ RUN apt update && apt install -y libucx0 pipx python3-minimal python3-dev python
     pipx install --include-deps transformers tokenizers
 
 WORKDIR /usr/local/tgi/bin
-
-ARG build_type
 
 ENV PATH=/root/.local/share/pipx/venvs/transformers/bin/:$PATH
 ENV LD_LIBRARY_PATH="/usr/local/tgi/lib:/usr/local/mpi/lib:/usr/local/tensorrt/lib:/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH"
