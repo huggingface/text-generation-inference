@@ -1,12 +1,6 @@
 name: Build TensorRT-LLM
 on:
   workflow_call:
-    inputs:
-      runs-on:
-        type: string
-        description: "Which instance type to use to run the workflow"
-        required: true
-
     outputs:
       docker_image:
         description: "Reference to the Docker Image build by this workflow"

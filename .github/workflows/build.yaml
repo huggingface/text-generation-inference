@@ -31,7 +31,7 @@ jobs:
       group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     runs-on:
-      group: aws-highmemory-32-plus-priv
+      group: aws-highmemory-64-plus-priv
     permissions:
       contents: write
       packages: write
