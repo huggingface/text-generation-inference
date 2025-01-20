@@ -136,9 +136,12 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
         config.define("CMAKE_CUDA_HOST_COMPILER", nvcc_host_compiler);
     }
 
-    if let Some(cxx_compiler_launcher) = option_env!("CMAKE_CXX_COMPILER_LAUNCHER") {
-        println!("cargo:warning=Using caching tool: {cxx_compiler_launcher}");
-        config.define("CMAKE_CXX_COMPILER_LAUNCHER", cxx_compiler_launcher);
+    if let Some(wrapper) = option_env!("RUSTC_WRAPPER") {
+        println!("cargo:warning=Using caching tool: {wrapper}");
+
+        env::set_var("CMAKE_C_COMPILER_LAUNCHER", wrapper);
+        env::set_var("CMAKE_CXX_COMPILER_LAUNCHER", wrapper);
+        env::set_var("CMAKE_CUDA_COMPILER_LAUNCHER", wrapper);
     }
 
     // Allow to override which Python to use ...

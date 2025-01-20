@@ -103,7 +103,6 @@ COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     python3 backends/trtllm/scripts/setup_sccache.py --is-gha-build ${is_gha_build} && \
     CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX \
-    CMAKE_CXX_COMPILER_LAUNCHER=sccache \
     RUSTC_WRAPPER=sccache \
     cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
     sccache --show-stats
