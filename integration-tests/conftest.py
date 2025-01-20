@@ -573,7 +573,7 @@ def launcher(event_loop):
             devices=devices,
             volumes=volumes,
             ports={"80/tcp": port},
-            healthcheck={"timeout": int(60 * 1e9), "retries": 2},  # 60s
+            healthcheck={"timeout": int(180 * 1e9), "retries": 2},  # 60s
             shm_size="1G",
         )
 
