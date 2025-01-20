@@ -199,6 +199,9 @@ jobs:
             PLATFORM=${{ env.PLATFORM }}
             build_type=${{ env.BUILD_TYPE }}
             is_gha_build=${{ env.IS_GHA_BUILD }}
+            aws_access_key_id=${{ steps.aws-creds.outputs.aws-access-key-id }}
+            aws_secret_access_key=${{ steps.aws-creds.outputs.aws-secret-access-key }}
+            aws_session_token=${{ steps.aws-creds.outputs.aws-session-token }}
             sccache_bucket=${{ secrets.AWS_S3_BUCKET_GITHUB_TGI_TEST }}
             sccache_s3_key_prefix=${{ env.SCCACHE_S3_KEY_PREFIX }}
             sccache_region=${{ env.SCCACHE_REGION }}
