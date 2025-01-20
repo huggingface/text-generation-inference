@@ -562,6 +562,7 @@ def launcher(event_loop):
                 docker.types.DeviceRequest(count=gpu_count, capabilities=[["gpu"]])
             ]
 
+        client.api.timeout = 180
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
