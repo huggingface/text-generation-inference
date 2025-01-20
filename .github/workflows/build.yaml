@@ -1,5 +1,8 @@
 name: Build and push docker image to internal registry
 
+permissions:
+  id-token: write
+
 on:
   workflow_call:
     inputs:
