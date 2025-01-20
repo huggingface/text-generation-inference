@@ -89,9 +89,9 @@ class DenseMoELayer(nn.Module):
             "No fused layers are available for this model type, using (slower) dense MoE layer",
         )
 
-        assert (n_expert_group is None) == (
-            topk_group is None
-        ), "n_expert_group and topk_group must both be None or have some value"
+        assert (n_expert_group is None) == (topk_group is None), (
+            "n_expert_group and topk_group must both be None or have some value"
+        )
 
         self.n_expert_group = n_expert_group
         self.n_experts = n_experts
@@ -199,21 +199,24 @@ class SparseMoELayer(nn.Module):
         topk: int,
         topk_group: Optional[int],
         weights: Weights,
+        scoring_func: Optional[str] = "softmax",
+        e_score_correction_bias: Optional[float] = None,
         gate_proj_name: str = "gate_proj",
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
     ):
         super().__init__()
-        if isinstance(weights.loader, DefaultWeightsLoader) and isinstance(
-            weights.loader.weight_class, UnquantizedWeight
-        ):
-            cls = UnquantizedSparseMoELayer
-        elif isinstance(weights.loader, HybridFP8UnquantLoader):
-            cls = (
-                FP8SparseMoELayer
-                if weights.loader.to_fp8
-                else UnquantizedSparseMoELayer
-            )
+        if (
+            isinstance(weights.loader, DefaultWeightsLoader)
+            and isinstance(weights.loader.weight_class, UnquantizedWeight)
+        ) or isinstance(weights.loader, HybridFP8UnquantLoader):
+            if (
+                isinstance(weights.loader, HybridFP8UnquantLoader)
+                and weights.loader.to_fp8
+            ):
+                cls = FP8SparseMoELayer
+            else:
+                cls = UnquantizedSparseMoELayer
         elif isinstance(
             weights.loader, GPTQMarlinWeightsLoader
         ) and can_use_marlin_moe_gemm(
@@ -240,6 +243,8 @@ class SparseMoELayer(nn.Module):
             topk=topk,
             topk_group=topk_group,
             weights=weights,
+            scoring_func=scoring_func,
+            e_score_correction_bias=e_score_correction_bias,
             gate_proj_name=gate_proj_name,
             up_proj_name=up_proj_name,
             down_proj_name=down_proj_name,

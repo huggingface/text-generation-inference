@@ -4,6 +4,7 @@
 Text Generation Inference enables serving optimized models. The following sections list which models (VLMs & LLMs) are supported.
 
 - [Deepseek V2](https://huggingface.co/deepseek-ai/DeepSeek-V2)
+- [Deepseek V3](https://huggingface.co/deepseek-ai/DeepSeek-V3)
 - [Idefics 2](https://huggingface.co/HuggingFaceM4/idefics2-8b) (Multimodal)
 - [Idefics 3](https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3) (Multimodal)
 - [Llava Next (1.6)](https://huggingface.co/llava-hf/llava-v1.6-vicuna-13b-hf) (Multimodal)
