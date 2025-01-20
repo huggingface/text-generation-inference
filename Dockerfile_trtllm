@@ -98,6 +98,7 @@ COPY rust-toolchain.toml rust-toolchain.toml
 COPY router router
 COPY backends backends
 COPY benchmark benchmark
+COPY launcher launcher
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 
