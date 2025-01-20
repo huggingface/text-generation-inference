@@ -382,7 +382,10 @@ def get_model(
     transformers_model_class = getattr(
         transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type]
     )
-    if transformers_model_class._supports_flex_attn:
+    accelerator_available = torch.cuda.is_available() or (
+        hasattr(torch, "xpu") and torch.xpu.is_available()
+    )
+    if transformers_model_class._supports_flex_attn and accelerator_available:
         transformers_causal_lm_class = TransformersFlashCausalLM
         if (
             not FLASH_ATTENTION
@@ -390,7 +393,7 @@ def get_model(
             and len(lora_adapter_ids) > 0
         ):
             raise ValueError(
-                "Transformers backend AutoModel do not support `lora_adapter_ids`."
+                "Flash `Transformers` modeling backend does not support `lora_adapter_ids`."
             )
 
     quantization_config = config_dict.get("quantization_config", None)

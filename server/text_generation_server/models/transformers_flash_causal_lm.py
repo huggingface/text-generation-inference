@@ -111,11 +111,9 @@ class TransformersFlashCausalLM(FlashCausalLM):
             device = torch.device("xpu")
             dtype = torch.float16 if dtype is None else dtype
         else:
-            if quantize:
-                raise ValueError("quantization is not available on CPU")
-
-            device = torch.device("cpu")
-            dtype = torch.float32 if dtype is None else dtype
+            raise ValueError(
+                "Flash `Transformers` modeling backend is not available on cpu."
+            )
 
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
