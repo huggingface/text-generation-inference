@@ -16,7 +16,6 @@ from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional, List, Dict
 from pathlib import Path
-import transformers
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
@@ -385,11 +384,14 @@ def get_model(
     transformers_causal_lm_class = CausalLM
 
     # Fast transformers path
-    transformers_model_class = getattr(
-        transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type]
+    transformers_model_class = modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.get(
+        model_type, None
     )
-
-    if FLASH_TRANSFORMERS_BACKEND and transformers_model_class._supports_flex_attn:
+    if (
+        FLASH_TRANSFORMERS_BACKEND
+        and transformers_model_class is not None
+        and transformers_model_class._supports_flex_attn
+    ):
         transformers_causal_lm_class = TransformersFlashCausalLM
 
     quantization_config = config_dict.get("quantization_config", None)
