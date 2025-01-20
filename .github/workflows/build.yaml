@@ -79,7 +79,6 @@ jobs:
                 export sccache_s3_key_prefix="trtllm"
                 export sccache_region="us-east-1"
                 export build_type="dev"
-                export is_gha_build="TRUE"
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
@@ -132,7 +131,6 @@ jobs:
           echo "SCCACHE_S3_KEY_PREFIX=${sccache_s3_key_prefix}" >> $GITHUB_ENV
           echo "SCCACHE_REGION=${sccache_region}" >> $GITHUB_ENV
           echo "BUILD_TYPE=${build_type}" >> $GITHUB_ENV
-          echo "IS_GHA_BUILD=${is_gha_build}" >> $GITHUB_ENV
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
@@ -198,7 +196,7 @@ jobs:
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
             PLATFORM=${{ env.PLATFORM }}
             build_type=${{ env.BUILD_TYPE }}
-            is_gha_build=${{ env.IS_GHA_BUILD }}
+            is_gha_build=true
             aws_access_key_id=${{ steps.aws-creds.outputs.aws-access-key-id }}
             aws_secret_access_key=${{ steps.aws-creds.outputs.aws-secret-access-key }}
             aws_session_token=${{ steps.aws-creds.outputs.aws-session-token }}
@@ -250,3 +248,22 @@ jobs:
           echo $DOCKER_IMAGE
           docker pull $DOCKER_IMAGE
           pytest -s -vv integration-tests ${PYTEST_FLAGS} ${EXTRA_PYTEST}
+
+  backend_trtllm_cxx_tests:
+    needs: build-and-push
+    if: needs.build-and-push.outputs.label == '-trtllm'
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    runs-on:
+      group: aws-g6-12xl-plus-priv-cache
+    container:
+      image: ${{ needs.build-and-push.outputs.docker_image }}
+      credentials:
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+      options: --gpus all --shm-size=8g
+
+    steps:
+      - name: Run C++/CUDA tests
+        run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
