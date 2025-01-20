@@ -57,6 +57,7 @@ FROM cuda-builder AS tgi-builder
 WORKDIR /usr/src/text-generation-inference
 
 # Install Rust
+ENV PATH="/root/.cargo/bin:$PATH"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y && \
     chmod -R a+w /root/.rustup && \
     chmod -R a+w /root/.cargo && \
