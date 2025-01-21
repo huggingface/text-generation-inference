@@ -1,5 +1,5 @@
 ARG cuda_arch_list="75-real;80-real;86-real;89-real;90-real"
-ARG ompi_version="4.1.7rc1"
+ARG ompi_version="4.1.7"
 ARG build_type=release
 ARG is_gha_build=false
 
@@ -37,10 +37,11 @@ FROM cuda-builder AS mpi-builder
 ARG ompi_version
 
 ENV OMPI_TARBALL_FILENAME="openmpi-$ompi_version.tar.bz2"
-RUN wget "https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILENAME" -P /opt/src && \
-    mkdir /usr/src/mpi && \
-    tar -xf "/opt/src/$OMPI_TARBALL_FILENAME" -C /usr/src/mpi --strip-components=1 && \
-    cd /usr/src/mpi && \
+ADD --checksum=sha256:54a33cb7ad81ff0976f15a6cc8003c3922f0f3d8ceed14e1813ef3603f22cd34 \
+    https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILENAME \
+    /opt/src/mpi
+
+RUN cd /usr/src/mpi && \
     ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda --with-slurm && \
     make -j all && \
     make install && \
