@@ -330,7 +330,7 @@ impl Validation {
                 }
                 Ok(Some(value))
             })
-            .unwrap_or(Ok(None))?;
+            .unwrap_or(Ok(Some(self.max_input_length)))?;
 
         // Validate inputs
         let (inputs, input_ids, input_length, max_new_tokens) = self
