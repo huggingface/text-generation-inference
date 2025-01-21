@@ -45,7 +45,6 @@ from text_generation_server.pb import generate_pb2
 from text_generation_server.utils import (
     HeterogeneousNextTokenChooser,
     StoppingCriteria,
-    make_tokenizer_optional,
     is_tokenizer_transparent,
     pad_next_token_chooser_parameters,
 )
@@ -636,7 +635,6 @@ class CausalLM(Model):
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
-        make_tokenizer_optional(tokenizer)
 
         # Create model
         world_size = int(os.getenv("WORLD_SIZE", "1"))
