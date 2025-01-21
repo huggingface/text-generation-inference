@@ -65,7 +65,7 @@ jobs:
                 export runs_on="aws-g6-12xl-plus-priv-cache"
                 export platform=""
                 export extra_pytest=""
-                export target="nil" 
+                export target="nil"
                 ;;
             cuda-trtllm)
                 export dockerfile="Dockerfile_trtllm"
