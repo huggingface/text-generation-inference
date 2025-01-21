@@ -10,7 +10,7 @@ use tokio::sync::TryAcquireError;
 use tokio::task::spawn_blocking;
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 use text_generation_router::infer::InferError::{GenerationError, ValidationError};
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
