@@ -11,7 +11,7 @@ use text_generation_router::server::{
     get_hub_model_info, legacy_tokenizer_handle, py_resolve_tokenizer,
 };
 use text_generation_router::usage_stats::UsageStatsLevel;
-use text_generation_router::{server, HubTokenizerConfig, Tokenizer};
+use text_generation_router::{server, Tokenizer};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -69,7 +69,7 @@ struct Args {
 
 async fn get_tokenizer(
     tokenizer_name: &str,
-    tokenizer_config_path: Option<&str>,
+    _tokenizer_config_path: Option<&str>,
     revision: Option<&str>,
 ) -> Option<Tokenizer> {
     // Parse Huggingface hub token
