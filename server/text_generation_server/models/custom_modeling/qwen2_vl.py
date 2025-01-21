@@ -222,12 +222,11 @@ class Qwen2VLVisionBlock(nn.Module):
     def forward(
         self, hidden_states, cu_seqlens, rotary_pos_emb, max_seqlen
     ) -> torch.Tensor:
-        hidden_states_post_norm1, res = self.norm1(hidden_states)
-        hidden_states = hidden_states + self.attn(
-            hidden_states_post_norm1, cu_seqlens, rotary_pos_emb, max_seqlen
-        )
-        hidden_states_post_norm2, res = self.norm2(hidden_states)
-        hidden_states = hidden_states + self.mlp(hidden_states_post_norm2)
+        norm1_out, _ = self.norm1(hidden_states)
+        attn_out = self.attn(norm1_out, cu_seqlens, rotary_pos_emb, max_seqlen)
+        hidden_states = hidden_states + attn_out
+        norm2_out, _ = self.norm2(hidden_states)
+        hidden_states = hidden_states + self.mlp(norm2_out)
         return hidden_states
 
 
@@ -527,6 +526,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
 
         # apply the visual model to the pixel values if they are provided
         if pixel_values is not None and len(pixel_values) > 0:
+            pixel_values = pixel_values.to(inputs_embeds.dtype)
             if pixel_values is not None:
                 image_embeds = self.visual(
                     pixel_values, grid_thw=image_grid_thw

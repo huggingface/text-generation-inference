@@ -5,7 +5,7 @@
       "index": 0,
       "logprobs": null,
       "message": {
-        "content": "The image depicts an anthropomorphic rabbit, wearing a futuristic spacesuit, in an extraterrestrial environment. The setting appears to be a red planet resembling Mars, with rugged terrain and rocky formations in the background. The moon is visible in the distant sky, adding to the lunar landscape.",
+        "content": "The image depicts an anthropomorphic rabbit, wearing a futuristic spacesuit, in an extraterrestrial environment. The setting appears to be a red planet resembling Mars, with rugged terrain and rocky formations in the background. The hitch is in a dynamic pose, with its hands on its hips and legs slightly apart, giving it an imposing stance.",
         "name": null,
         "role": "assistant",
         "tool_calls": null
@@ -13,14 +13,14 @@
       "usage": null
     }
   ],
-  "created": 1730164250,
+  "created": 1737498164,
   "id": "",
   "model": "Qwen/Qwen2-VL-7B-Instruct",
   "object": "chat.completion",
-  "system_fingerprint": "2.4.2-dev0-native",
+  "system_fingerprint": "3.0.2-dev0-native",
   "usage": {
-    "completion_tokens": 58,
-    "prompt_tokens": 349,
-    "total_tokens": 407
+    "completion_tokens": 68,
+    "prompt_tokens": 1364,
+    "total_tokens": 1432
   }
 }

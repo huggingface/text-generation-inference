@@ -90,7 +90,11 @@ class PositionRotaryEmbedding(nn.Module):
             if rope_type == "linear":
                 pass
             elif rope_type == "default":
-                pass
+                if rope_scaling.get("mrope_section", False):
+                    mrope_section = rope_scaling.get("mrope_section")
+                    return RotaryPositionEmbeddingMultimodalSections(
+                        inv_freq, scaling_factor, mrope_section
+                    )
             elif rope_type == "dynamic":
                 scaling_factor = rope_scaling["factor"]
                 return DynamicPositionRotaryEmbedding(
@@ -548,3 +552,74 @@ def apply_llama3_scaling(
             new_freqs.append((1 - smooth) * freq / scaling_factor + smooth * freq)
 
     return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)
+
+
+class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
+    def __init__(self, inv_freq, scaling_factor, sections):
+        super().__init__(inv_freq, scaling_factor)
+        self.sections = sections * 2
+        self._cos_cached = None
+        self._sin_cached = None
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        cos: torch.Tensor,
+        sin: torch.Tensor,
+    ):
+        mrope_section = self.sections
+        unsqueeze_dim = 1
+
+        split_cos = cos.split(mrope_section, dim=-1)
+        split_sin = sin.split(mrope_section, dim=-1)
+
+        cos = []
+        for i, m in enumerate(split_cos):
+            cos.append(m[i % 3])
+
+        cos = torch.cat(cos, dim=-1).unsqueeze(unsqueeze_dim)
+
+        sin = []
+        for i, m in enumerate(split_sin):
+            sin.append(m[i % 3])
+
+        sin = torch.cat(sin, dim=-1).unsqueeze(unsqueeze_dim)
+
+        q = query.transpose(0, 1).unsqueeze(0)
+        k = key.transpose(0, 1).unsqueeze(0)
+
+        rotary_dim = cos.shape[-1]
+        q1 = q[..., :rotary_dim]
+        q2 = torch.cat((-q[..., rotary_dim // 2 :], q[..., : rotary_dim // 2]), dim=-1)
+        rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, True)
+
+        k1 = k[..., :rotary_dim]
+        k2 = torch.cat((-k[..., rotary_dim // 2 :], k[..., : rotary_dim // 2]), dim=-1)
+        rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, True)
+
+    def get_cos_sin(
+        self,
+        position_ids: torch.Tensor,
+        max_s: int,
+        dtype: torch.dtype,
+    ):
+        self._update_cos_sin_cache(dtype, position_ids.device, max_s)
+
+        inv_freq_expanded = (
+            self.inv_freq[None, None, :, None]
+            .float()
+            .expand(3, position_ids.shape[1], -1, 1)
+        )
+
+        position_ids_expanded = position_ids[
+            :, :, None, :
+        ].float()  # shape (3, bs, 1, positions)
+
+        freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(
+            2, 3
+        )
+        emb = torch.cat((freqs, freqs), dim=-1)
+        cos = emb.cos()
+        sin = emb.sin()
+        return cos.to(dtype), sin.to(dtype)

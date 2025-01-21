@@ -1486,6 +1486,10 @@ class FlashCausalLM(Model):
             state=state,
             cache_lengths_tensor=cache_lengths_tensor,
         ):
+            # in the case of N dimensional position ids we need to slice the
+            # position ids to match the input_ids size for cuda graphs warmup
+            position_ids = position_ids[..., : input_ids.shape[0]]
+
             seqlen = Seqlen(
                 input_lengths=input_lengths_tensor,
                 cache_lengths=cache_lengths_tensor,

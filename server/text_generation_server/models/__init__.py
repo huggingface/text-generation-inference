@@ -1362,7 +1362,7 @@ def get_model(
             revision=revision,
             quantize=quantize,
             speculator=speculator,
-            dtype=dtype,
+            dtype=torch.bfloat16,
             kv_cache_dtype=kv_cache_dtype,
             trust_remote_code=trust_remote_code,
             lora_adapter_ids=lora_adapter_ids,

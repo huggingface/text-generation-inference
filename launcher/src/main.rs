@@ -230,7 +230,14 @@ struct QuantizationConfig {
 }
 
 #[derive(Debug, Deserialize)]
-struct VisionConfig {}
+struct VisionConfig {
+    depth: usize,
+    embed_dim: usize,
+    mlp_ratio: usize,
+    in_chans: usize,
+    patch_size: usize,
+    temporal_patch_size: usize,
+}
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -253,11 +260,6 @@ struct Config {
 
 impl Config {
     fn flop(&self) -> Option<u64> {
-        if self.vision_config.is_some() {
-            // VLM are much harder to predict and VRAM requirements
-            // Are more complex.
-            return None;
-        }
         let num_heads = self.num_heads? as u64;
         let num_kv_heads = self.num_kv_heads? as u64;
         let head_dim = self.head_dim? as u64;
@@ -277,8 +279,38 @@ impl Config {
         let gate_up_down_flops = 2 * 3 * hidden_size * intermediate_size;
 
         let layer_flops = attn_layer_flops + gate_up_down_flops;
-        let total = layer_flops * num_layers;
-        Some(total)
+        let text_flops = layer_flops * num_layers;
+
+        tracing::debug!("Text flops: {}", human_size(text_flops as usize, "flop"));
+
+        if let Some(vision_config) = self.vision_config.as_ref() {
+            let in_chans = vision_config.in_chans as u64;
+            let patch_size = vision_config.patch_size as u64;
+            let embed_dim = vision_config.embed_dim as u64;
+            let vision_depth = vision_config.depth as u64;
+            let mlp_ratio = vision_config.mlp_ratio as u64;
+            let temporal_patch_size = vision_config.temporal_patch_size as u64;
+            // 1. patch embedding:
+            // - conv3d operation: (t*h*w) * (k_t*k_h*k_w) * c_in * c_out * 2
+            // where the 2 accounts for multiply-add
+            let patch_flops = 2 * temporal_patch_size * patch_size.pow(2) * embed_dim * in_chans;
+            // 2. self-attention + mlp:
+            // - qkv projections: 3 * d_model * d_model * 2
+            // - attention: d_model * d_model * 2
+            // - mlp: 2 * d_model * (mlp_ratio * d_model) * 2
+            // simplified to: 2 * d_model * (4 + mlp_ratio * d_model)
+            let attn_flops = 2 * embed_dim * (4 + mlp_ratio * embed_dim);
+            // 3. add with layer norm flops for total vision layer flops
+            let layer_flops = patch_flops + attn_flops + 2 * embed_dim;
+            let vision_flops = layer_flops * vision_depth;
+            tracing::debug!(
+                "Vision flops: {}",
+                human_size(vision_flops as usize, "flop")
+            );
+            Some(text_flops + vision_flops)
+        } else {
+            Some(text_flops)
+        }
     }
 
     fn kv_vram_per_tok(&self) -> Option<usize> {
@@ -2012,6 +2044,10 @@ fn main() -> Result<(), LauncherError> {
 
     let config: Option<Config> = get_config(&args.model_id, &args.revision).ok();
     let quantize = config.as_ref().and_then(|c| c.quantize);
+    let model_type = config
+        .as_ref()
+        .and_then(|c| c.model_type.as_deref())
+        .map(|s| s.to_owned());
     // Quantization usually means you're even more RAM constrained.
 
     let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
@@ -2100,8 +2136,20 @@ fn main() -> Result<(), LauncherError> {
             vec![]
         }
         _ => {
-            let cuda_graphs = vec![1, 2, 4, 8, 16, 32];
-            tracing::info!("Using default cuda graphs {cuda_graphs:?}");
+            let default_cuda_graphs = vec![1, 2, 4, 8, 16, 32];
+            tracing::info!("Using default CUDA graphs: {:?}", default_cuda_graphs);
+            let cuda_graphs = match model_type.as_deref() {
+                Some("qwen2_vl") => {
+                    tracing::warn!(
+                        "Qwen VL model detected - restricting CUDA graphs to values >= 3"
+                    );
+                    default_cuda_graphs
+                        .into_iter()
+                        .filter(|&c| c >= 3)
+                        .collect()
+                }
+                _ => default_cuda_graphs,
+            };
             cuda_graphs
         }
     };
