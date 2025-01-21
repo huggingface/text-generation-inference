@@ -8,9 +8,7 @@ AWS_S3_CACHING_VARIABLES = {
     "SCCACHE_BUCKET": "s3_bucket_name",
 }
 
-ALL_CACHING_STORAGE_VARIABLES = {
-    "AWS_S3_CACHING_VARIABLES"
-}
+ALL_CACHING_STORAGE_VARIABLES = {"AWS_S3_CACHING_VARIABLES"}
 
 
 def setup_sccache_locally():
@@ -29,15 +27,19 @@ def setup_sccache_for_s3():
 
     print("Setting up AWS S3 Caching Layer")
     for envvar in AWS_S3_CACHING_VARIABLES.keys():
-        if not envvar in environ or not environ[envvar] or len(environ[envvar]) == 0:
+        if envvar not in environ or not environ[envvar] or len(environ[envvar]) == 0:
             print(f"Missing definition for environment variable {envvar}")
 
 
 if __name__ == "__main__":
     parser = ArgumentParser("TensorRT-LLM Build Caching Setup")
 
-    parser.add_argument("--is-gha-build", type=str, default="FALSE",
-                        help="Indicate if the build is from Github Actions")
+    parser.add_argument(
+        "--is-gha-build",
+        type=str,
+        default="FALSE",
+        help="Indicate if the build is from Github Actions",
+    )
 
     # Parse args
     args = parser.parse_args()
