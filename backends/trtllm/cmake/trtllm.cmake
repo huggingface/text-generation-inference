@@ -29,7 +29,7 @@ fetchcontent_declare(
         trtllm
         GIT_REPOSITORY https://github.com/huggingface/TensorRT-LLM.git
         GIT_TAG 42a7b0922fc9e095f173eab9a7efa0bcdceadd0d
-        GIT_SHALLOW ON
+        GIT_SHALLOW OFF
         DOWNLOAD_EXTRACT_TIMESTAMP
 )
 fetchcontent_makeavailable(trtllm)
