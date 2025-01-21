@@ -1,0 +1,10 @@
+[package]
+name = "text-generation-backends-vllm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+
+[dependencies]
+pyo3 = "0.23"
+pyo3-asyncio = "0.20"
