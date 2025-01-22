@@ -305,11 +305,11 @@
     },
     "flake-compat_4": {
       "locked": {
-        "lastModified": 1696426674,
-        "narHash": "sha256-kvjfFW7WAETZlt09AgDn1MrtKzP7t90Vf7vypd3OL1U=",
+        "lastModified": 1733328505,
+        "narHash": "sha256-NeCCThCEP3eCl2l/+27kNNK7QrwZB1IJCrXfrbv5oqU=",
         "owner": "edolstra",
         "repo": "flake-compat",
-        "rev": "0f9255e01c2351cc7d116c072cb317785dd33b33",
+        "rev": "ff81ac966bb2cae68946d5ed5fc4994f96d0ffec",
         "type": "github"
       },
       "original": {
@@ -718,11 +718,11 @@
     },
     "nixpkgs_6": {
       "locked": {
-        "lastModified": 1732034459,
-        "narHash": "sha256-Zais/zMRuJdlALidkUgEuasXOd37ZZLqkPkF9bIYSrY=",
+        "lastModified": 1737453259,
+        "narHash": "sha256-5LaFI9SQwCZmJDasMoYMdzNouWXNk3BvjKcO19tq1Rs=",
         "owner": "danieldk",
         "repo": "nixpkgs",
-        "rev": "40280e7bf9743cdf563494db4ece2a43aa674fa8",
+        "rev": "e0372dbcfd19ddd783b7c3b3868f19322f83318e",
         "type": "github"
       },
       "original": {
@@ -853,11 +853,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1736994333,
-        "narHash": "sha256-v4Jrok5yXsZ6dwj2+2uo5cSyUi9fBTurHqHvNHLT1XA=",
+        "lastModified": 1737512878,
+        "narHash": "sha256-dgF6htdmfNnZzVInifks6npnCAyVsIHWSpWNs10RSW0=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "848db855cb9e88785996e961951659570fc58814",
+        "rev": "06b8ed0eee289fe94c66f1202ced9a6a2c59a14c",
         "type": "github"
       },
       "original": {
@@ -978,16 +978,15 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1737042758,
-        "narHash": "sha256-yW8IIcNU08IXxFJEv9lqnmx+4qcT6IfTvDqgw8NO1nM=",
+        "lastModified": 1737540114,
+        "narHash": "sha256-ubowOFdG8pAodwuxzWHLIoQJtGXJTlb4RtISVVY3Tx0=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "12137321ce83850131ef5307e846c4e304366e3a",
+        "rev": "d18053189cc5ce4111250da841df101c8cdf13ff",
         "type": "github"
       },
       "original": {
         "owner": "huggingface",
-        "ref": "pytorch-3.5.1",
         "repo": "text-generation-inference-nix",
         "type": "github"
       }
