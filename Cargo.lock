@@ -3881,7 +3881,7 @@ dependencies = [
  "openssl-probe",
  "rustls-pki-types",
  "schannel",
- "security-framework 3.0.2",
+ "security-framework 3.0.1",
 ]
 
 [[package]]
@@ -3978,7 +3978,7 @@ dependencies = [
 
 [[package]]
 name = "security-framework"
-version = "3.0.2"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e1415a607e92bec364ea2cf9264646dcce0f91e6d65281bd6f2819cca3bf39c8"
 dependencies = [
