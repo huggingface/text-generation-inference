@@ -79,7 +79,7 @@ __all__ = [
 
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
-FLASH_ATTENTION = True
+FLASH_ATTENTION = False
 
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
@@ -931,10 +931,10 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
-        elif sharded:
-            raise NotImplementedError(
-                FLASH_ATT_ERROR_MESSAGE.format(f"Sharded {model_type}")
-            )
+        # elif sharded:
+        #     raise NotImplementedError(
+        #         FLASH_ATT_ERROR_MESSAGE.format(f"Sharded {model_type}")
+        #     )
         else:
             return transformers_causal_lm_class.fallback(
                 model_id,

@@ -1571,7 +1571,7 @@ class FlashCausalLM(Model):
             real_free_memory = get_free_memory(self.device, MEMORY_FRACTION)
             log_master(
                 logger.debug,
-                f"Free memory {free_memory/1e9:.2f}GB , (real: {real_free_memory/1e9:.2f}GB",
+                f"Free memory {free_memory / 1e9:.2f}GB , (real: {real_free_memory / 1e9:.2f}GB",
             )
 
             _, _batch, _ = self.generate_token(batch)
