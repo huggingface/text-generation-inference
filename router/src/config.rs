@@ -88,7 +88,12 @@ impl LlavaNext {
     pub fn get_number_of_features(&self, height: usize, width: usize) -> usize {
         let image_size = self.vision_config.image_size;
         let patch_size = self.vision_config.patch_size;
-        assert!(image_size % patch_size == 0);
+        if image_size % patch_size != 0 {
+            warn!(
+                "Image size {} is not divisible by patch size {}, will round down",
+                image_size, patch_size
+            );
+        }
         let npatches = image_size / patch_size;
         // Dimensions are intentionally swapped to be bug-compatible with
         // upstream: https://github.com/LLaVA-VL/LLaVA-NeXT/issues/59
@@ -270,5 +275,27 @@ mod test {
         assert_eq!(slots, 2640);
         let slots = config.get_number_of_features(1067, 1600);
         assert_eq!(slots, 2144);
+    }
+
+    #[test]
+    fn test_uneven_division() {
+        let config = LlavaNext {
+            text_config: TextConfig {},
+            vision_config: VisionConfig {
+                image_size: 337, // Intentionally uneven
+                patch_size: 14,
+            },
+            image_grid_pinpoints: vec![
+                (336, 672),
+                (672, 336),
+                (672, 672),
+                (1008, 336),
+                (336, 1008),
+            ],
+        };
+
+        // Should still work even with uneven division
+        let slots = config.get_number_of_features(640, 640);
+        assert_eq!(slots, 2928);
     }
 }

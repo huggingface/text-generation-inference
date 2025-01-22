@@ -170,7 +170,10 @@ def get_number_of_features(height: int, width: int, config) -> int:
     image_size = config.vision_config.image_size
     patch_size = config.vision_config.patch_size
 
-    assert image_size % patch_size == 0
+    if image_size % patch_size != 0:
+        logger.warning(
+            f"Image size {image_size} is not divisible by patch size {patch_size}"
+        )
 
     npatches = image_size // patch_size
 
@@ -520,9 +523,9 @@ class VlmCausalLM(FlashCausalLM):
         cuda_graph["input_lengths"].zero_()
         cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
         cuda_graph["cache_lengths"].zero_()
-        cuda_graph["cache_lengths"][
-            : cache_lengths_tensor.shape[0]
-        ] = cache_lengths_tensor
+        cuda_graph["cache_lengths"][: cache_lengths_tensor.shape[0]] = (
+            cache_lengths_tensor
+        )
 
         with self._forward_context(
             block_tables=cuda_graph["block_tables"],
