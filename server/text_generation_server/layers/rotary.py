@@ -86,15 +86,21 @@ class PositionRotaryEmbedding(nn.Module):
             # `rope_type` is now standard in transformers, but some existing models
             # have `type` instead.
             rope_type = rope_scaling.get("rope_type", rope_scaling.get("type", None))
+            mrope_section = rope_scaling.get("mrope_section", None)
+
+            # only apply mrope if sections are provided and the rope type is mrope or default
+            if mrope_section is not None and (
+                rope_type == "mrope" or rope_type == "default"
+            ):
+                mrope_section = rope_scaling.get("mrope_section")
+                return RotaryPositionEmbeddingMultimodalSections(
+                    inv_freq, scaling_factor, mrope_section
+                )
 
             if rope_type == "linear":
                 pass
             elif rope_type == "default":
-                if rope_scaling.get("mrope_section", False):
-                    mrope_section = rope_scaling.get("mrope_section")
-                    return RotaryPositionEmbeddingMultimodalSections(
-                        inv_freq, scaling_factor, mrope_section
-                    )
+                pass
             elif rope_type == "dynamic":
                 scaling_factor = rope_scaling["factor"]
                 return DynamicPositionRotaryEmbedding(
