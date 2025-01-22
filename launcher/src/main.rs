@@ -321,7 +321,7 @@ impl Config {
             }
             // model has a vision config but is not supported for flops calculation
             // we return None to avoid overestimating the memory requirements
-            _ => return None,
+            _ => None,
         }
     }
 
