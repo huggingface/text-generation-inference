@@ -2,14 +2,12 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from loguru import logger
 from text_generation_server.layers.fp8 import fp8_quantize
 from text_generation_server.layers.marlin.gptq import _check_valid_shape
 from text_generation_server.layers.marlin.util import (
     _check_marlin_kernels,
     permute_scales,
 )
-from text_generation_server.utils.log import log_once
 
 try:
     import marlin_kernels
@@ -35,8 +33,6 @@ class GPTQMarlinFP8Linear(nn.Module):
 
         _check_marlin_kernels()
         assert marlin_kernels is not None
-
-        log_once(logger.info, "GPU does not support FP8, using Marlin FP8 kernel")
 
         scales = scales.unsqueeze(0)
         if scales.shape[1] == 1:

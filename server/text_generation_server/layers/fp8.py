@@ -52,6 +52,16 @@ def get_fp8_linear(force_w8a16: bool = False) -> Type[torch.nn.Module]:
             #       gives better decoding throughput on L4 and L40.
             from text_generation_server.layers.marlin import GPTQMarlinFP8Linear
 
+            if major == 8 and minor == 9:
+                log_once(
+                    logger.info,
+                    "GPU supports FP8, but using Marlin FP8 kernel for better performance",
+                )
+            else:
+                log_once(
+                    logger.info, "GPU does not support FP8, using Marlin FP8 kernel"
+                )
+
             return GPTQMarlinFP8Linear
 
     # On other systems let Torch decide if the hardware supports FP8.
