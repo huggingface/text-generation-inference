@@ -1400,7 +1400,11 @@ class FlashCausalLM(Model):
         cache_lengths = [0] * bs
         if max_bs is None:
             input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
-            position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
+            if hasattr(self.model, "get_position_ids"):
+                # use model specific position ids for initialization
+                position_ids = self.model.get_position_ids(input_ids)
+            else:
+                position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
             slots = torch.arange(bs, dtype=torch.int64, device=self.device)
             input_lengths_tensor = (
                 torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
@@ -1427,7 +1431,7 @@ class FlashCausalLM(Model):
                     "Cuda graphs should be generated in decreasing order size to reduce VRAM usage"
                 )
             input_ids = self.cuda_graphs[max_bs]["input_ids"][:bs]
-            position_ids = self.cuda_graphs[max_bs]["position_ids"][:bs]
+            position_ids = self.cuda_graphs[max_bs]["position_ids"][..., :bs]
             if ATTENTION == "flashinfer":
                 block_tables = self.cuda_graphs[max_bs]["block_tables"][: bs * max_bt]
             else:
@@ -1456,14 +1460,6 @@ class FlashCausalLM(Model):
         else:
             state = None
 
-        if (
-            hasattr(self.model, "config")
-            and hasattr(self.model.config, "model_type")
-            and self.model.config.model_type == "qwen2_vl"
-        ):
-            if position_ids.dim() == 1:
-                position_ids = self.model.get_position_ids(input_ids)
-
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs] = {
             "input_ids": input_ids,
@@ -1486,10 +1482,6 @@ class FlashCausalLM(Model):
             state=state,
             cache_lengths_tensor=cache_lengths_tensor,
         ):
-            # in the case of N dimensional position ids we need to slice the
-            # position ids to match the input_ids size for cuda graphs warmup
-            position_ids = position_ids[..., : input_ids.shape[0]]
-
             seqlen = Seqlen(
                 input_lengths=input_lengths_tensor,
                 cache_lengths=cache_lengths_tensor,
