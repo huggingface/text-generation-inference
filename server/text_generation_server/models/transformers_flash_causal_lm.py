@@ -262,6 +262,6 @@ class TransformersFlashCausalLM(FlashCausalLM):
         # To update with full Transformers support asap
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
-        logits = self.model.lm_head.forward(hidden_states)
+        logits = self.model.lm_head(hidden_states)
 
         return logits, None
