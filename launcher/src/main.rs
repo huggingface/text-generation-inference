@@ -1632,6 +1632,7 @@ enum Gpu {
     L40,
     L40S,
     A10G,
+    A40,
     H100,
     A100,
     Unknown(String),
@@ -1652,6 +1653,7 @@ impl From<&str> for Gpu {
             "nvidia-l40" => Gpu::L40,
             "nvidia-l40s" => Gpu::L40S,
             "nvidia-a10g" => Gpu::A10G,
+            "nvidia-a40" => Gpu::A40,
             "nvidia-h100-80gb-hbm3" => Gpu::H100,
             "nvidia-h100-nvl" => Gpu::H100,
             "nvidia-h100" => Gpu::H100,
@@ -1673,6 +1675,7 @@ impl std::fmt::Display for Gpu {
             Gpu::L40 => write!(f, "nvida-l40"),
             Gpu::L40S => write!(f, "nvida-l40s"),
             Gpu::A10G => write!(f, "nvidia-a10g"),
+            Gpu::A40 => write!(f, "nvidia-a40"),
             Gpu::H100 => write!(f, "nvidia-h100-80fb-hbm3"),
             Gpu::A100 => write!(f, "nvida-a100-sxm4-80gb"),
             Gpu::Unknown(card) => write!(f, "{}", card),
@@ -1696,6 +1699,9 @@ impl ComputeType {
             Gpu::L40S => Some(363 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/products/a10-gpu/
             Gpu::A10G => Some(125 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/a40/
+            // https://images.nvidia.com/content/Solutions/data-center/a40/nvidia-a40-datasheet.pdf
+            Gpu::A40 => Some(149 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/h100/
             // https://www.techpowerup.com/gpu-specs/docs/nvidia-gh100-architecture.pdf
             Gpu::H100 => Some(900 * 10u64.pow(12)),
