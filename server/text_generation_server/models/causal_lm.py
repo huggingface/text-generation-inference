@@ -1197,7 +1197,7 @@ class CausalLM(Model):
 
         # Warmup prefill batch_size
         max_input_length =  request.max_input_length
-        prefill_batch_size_list = [batch for batch in range(BATCH_BUCKET_SIZE, max_prefill_batch_size, BATCH_BUCKET_SIZE)]
+        prefill_batch_size_list = [batch for batch in range(PREFILL_BATCH_BUCKET_SIZE, max_prefill_batch_size, PREFILL_BATCH_BUCKET_SIZE)]
         prefill_batch_size_list.append(max_prefill_batch_size)
         prefill_seqlen_list = [seq for seq in range(PAD_SEQUENCE_TO_MULTIPLE_OF, max_input_length, PAD_SEQUENCE_TO_MULTIPLE_OF)]
         prefill_seqlen_list.append(max_input_length)
