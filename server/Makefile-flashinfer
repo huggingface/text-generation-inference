@@ -3,4 +3,4 @@ install-flashinfer:
 	# `pip install flashinfer` cannot resolve it.
 	pip install fsspec sympy==1.13.1 numpy
 	pip install -U setuptools
-	TORCH_CUDA_ARCH_LIST="8.0;8.6;9.0+PTX" FLASHINFER_ENABLE_AOT=1 pip install git+https://github.com/flashinfer-ai/flashinfer.git@v0.2.0.post1#egg=flashinfer  --no-build-isolation
+	FLASHINFER_ENABLE_AOT=1 pip install git+https://github.com/flashinfer-ai/flashinfer.git@v0.2.0.post1#egg=flashinfer  --no-build-isolation
