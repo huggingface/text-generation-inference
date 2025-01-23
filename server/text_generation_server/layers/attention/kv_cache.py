@@ -55,10 +55,10 @@ class KVCache:
         if dtype in {torch.float8_e5m2, torch.float8_e4m3fn}:
             if not (
                 (ATTENTION == "flashinfer" and SYSTEM == "cuda")
-                or (ATTENTION == "paged" and SYSTEM == "rocm")
+                or (ATTENTION == "paged" and SYSTEM in ("cuda", "rocm"))
             ):
                 raise ValueError(
-                    "FP8 KV cache is currently only supported for flashinfer on CUDA and paged attention on ROCm. "
+                    "FP8 KV cache is currently only supported for flashinfer on CUDA and paged attention on CUDA and ROCm. "
                 )
             if SYSTEM == "rocm" and dtype == torch.float8_e5m2:
                 raise ValueError(
@@ -226,8 +226,13 @@ def paged_reshape_and_cache(
             raise ImportError(
                 f"Could not import attention_kernels. Make sure your installation is correct. Complete error: {e}"
             )
+
+        kv_cache_dtype = "auto"
+        if key_cache.dtype == torch.float8_e4m3fn:
+            kv_cache_dtype = "fp8"
+
         attention_kernels.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
+            key, value, key_cache, value_cache, slots, kv_cache_dtype, k_scale, v_scale
         )
     elif SYSTEM == "rocm":
         try:
