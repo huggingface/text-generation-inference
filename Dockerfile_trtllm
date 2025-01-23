@@ -41,7 +41,7 @@ ADD --checksum=sha256:54a33cb7ad81ff0976f15a6cc8003c3922f0f3d8ceed14e1813ef3603f
     https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILENAME \
     /opt/src/mpi
 
-RUN cd /usr/src/mpi && \
+RUN cd /opt/src/mpi && \
     ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda --with-slurm && \
     make -j all && \
     make install && \
