@@ -35,7 +35,7 @@ async def test_flash_qwen2_vl_simple(flash_qwen2, response_snapshot):
 
     assert (
         response.choices[0].message.content
-        == "The image depicts an anthropomorphic rabbit, wearing a futuristic spacesuit, in an extraterrestrial environment. The setting appears to be a red planet resembling Mars, with rugged terrain and rocky formations in the background. The hitch is in a dynamic pose, with its hands on its hips and legs slightly apart, giving it an imposing stance."
+        == "The image depicts an anthropomorphic rabbit, wearing a futuristic spacesuit, in an extraterrestrial environment. The setting appears to be a red planet resembling Mars, with rugged terrain and rocky formations in the background. The moon is visible in the distant sky, adding to the lunar landscape."
     )
 
     assert response == response_snapshot
@@ -72,7 +72,7 @@ async def test_flash_qwen2_vl_simple_streaming(flash_qwen2, response_snapshot):
 
     assert (
         generated
-        == "The image depicts an anthropomorphic rabbit, wearing a futuristic spacesuit, in an extraterrestrial environment. The setting appears to be a red planet resembling Mars, with rugged terrain and rocky formations in the background. The hitch is in a dynamic pose, with its hands on its hips and legs slightly apart, giving it an imposing stance."
+        == "The image depicts an anthropomorphic rabbit, wearing a futuristic spacesuit, in an extraterrestrial environment. The setting appears to be a red planet resembling Mars, with rugged terrain and rocky formations in the background. The moon is visible in the distant sky, adding to the lunar landscape."
     )
-    assert count == 68
+    assert count == 58
     assert last_response == response_snapshot

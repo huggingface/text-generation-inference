@@ -2056,10 +2056,6 @@ fn main() -> Result<(), LauncherError> {
 
     let config: Option<Config> = get_config(&args.model_id, &args.revision).ok();
     let quantize = config.as_ref().and_then(|c| c.quantize);
-    let model_type = config
-        .as_ref()
-        .and_then(|c| c.model_type.as_deref())
-        .map(|s| s.to_owned());
     // Quantization usually means you're even more RAM constrained.
 
     let (prefix_caching, attention) = resolve_attention(&config, &args.lora_adapters);
@@ -2148,20 +2144,8 @@ fn main() -> Result<(), LauncherError> {
             vec![]
         }
         _ => {
-            let default_cuda_graphs = vec![1, 2, 4, 8, 16, 32];
-            tracing::info!("Using default CUDA graphs: {:?}", default_cuda_graphs);
-            let cuda_graphs = match model_type.as_deref() {
-                Some("qwen2_vl") => {
-                    tracing::warn!(
-                        "Qwen VL model detected - restricting CUDA graphs to values >= 3"
-                    );
-                    default_cuda_graphs
-                        .into_iter()
-                        .filter(|&c| c >= 3)
-                        .collect()
-                }
-                _ => default_cuda_graphs,
-            };
+            let cuda_graphs = vec![1, 2, 4, 8, 16, 32];
+            tracing::info!("Using default cuda graphs {cuda_graphs:?}");
             cuda_graphs
         }
     };
