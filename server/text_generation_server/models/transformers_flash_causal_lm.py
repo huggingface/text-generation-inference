@@ -260,4 +260,8 @@ class TransformersFlashCausalLM(FlashCausalLM):
             hidden_states = hidden_states[lm_head_indices]
         logits = self.model.lm_head(hidden_states)
 
+        # For Granite while next transformers version is released and we can use `lm_head_indices` natively
+        if hasattr(self.model.config, "logits_scaling"):
+            logits = logits / self.model.config.logits_scaling
+
         return logits, None
