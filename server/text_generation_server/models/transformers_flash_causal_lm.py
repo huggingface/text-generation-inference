@@ -3,7 +3,7 @@ from typing import List, Optional
 
 import torch
 from opentelemetry import trace
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM
 import transformers.modeling_utils
 
 from text_generation_server.models.flash_causal_lm import FlashCausalLM
@@ -36,9 +36,7 @@ def tgi_flash_attention_forward(
     softcap: Optional[float] = None,
     **kwargs,  # This is needed to "absorb" other args passed by Transformers modeling
 ):
-
     kv_cache = kv_cache[module.layer_idx]
-
     query_states = query_states.transpose(1, 2).squeeze(dim=0)
     key_states = key_states.transpose(1, 2).squeeze(dim=0)
     value_states = value_states.transpose(1, 2).squeeze(dim=0)
@@ -95,7 +93,6 @@ class TransformersFlashCausalLM(FlashCausalLM):
         default_dtype=torch.float16,
         trust_remote_code: bool = False,
         tokenizer_class=AutoTokenizer,
-        config_class=AutoConfig,
         kv_cache_dtype: Optional[torch.dtype] = None,
     ):
         self.quantize = quantize
@@ -105,17 +102,17 @@ class TransformersFlashCausalLM(FlashCausalLM):
             raise RuntimeError("Speculator decoding is not enabled for AutoModel")
 
         if torch.cuda.is_available():
-            device = torch.device("cuda:0")
-            dtype = torch.float16 if dtype is None else dtype
+            device = torch.device(f"cuda:{rank}")
+            dtype = default_dtype if dtype is None else dtype
         elif hasattr(torch, "xpu") and torch.xpu.is_available():
             device = torch.device("xpu")
-            dtype = torch.float16 if dtype is None else dtype
+            dtype = default_dtype if dtype is None else dtype
         else:
             raise ValueError(
                 "Flash `Transformers` modeling backend is not available on cpu."
             )
 
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = tokenizer_class.from_pretrained(
             model_id,
             revision=revision,
             padding_side="left",
@@ -126,10 +123,10 @@ class TransformersFlashCausalLM(FlashCausalLM):
             model_id,
             revision=revision,
             torch_dtype=dtype,
-            device_map="auto",
             load_in_8bit=quantize == "bitsandbytes",
             trust_remote_code=trust_remote_code,
             attn_implementation="tgi",
+            device_map=device if world_size == 1 else None,
             tp_plan="auto" if world_size > 1 else None,
         )
 
@@ -261,6 +258,6 @@ class TransformersFlashCausalLM(FlashCausalLM):
         # To update with full Transformers support asap
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
-        logits = self.model.lm_head.forward(hidden_states)
+        logits = self.model.lm_head(hidden_states)
 
         return logits, None

@@ -47,7 +47,7 @@ RUN cargo build --profile release-opt --frozen
 FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS pytorch-install
 
 # NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
-ARG PYTORCH_VERSION=2.4.0
+ARG PYTORCH_VERSION=2.5.1
 
 ARG PYTHON_VERSION=3.11
 # Keep in sync with `server/pyproject.toml
@@ -235,8 +235,8 @@ RUN cd server && \
     make gen-server && \
     python -c "from text_generation_server.pb import generate_pb2" && \
     pip install -U pip uv && \
-    uv pip install -e ".[attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir && \
-    uv pip install nvidia-nccl-cu12==2.22.3
+    uv pip install -e ".[attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir # && \
+    # uv pip install nvidia-nccl-cu12==2.22.3
 
 ENV LD_PRELOAD=/opt/conda/lib/python3.11/site-packages/nvidia/nccl/lib/libnccl.so.2
 # Required to find libpython within the rust binaries
