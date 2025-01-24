@@ -61,6 +61,7 @@ FROM cuda-builder AS tgi-builder
 WORKDIR /usr/src/text-generation-inference
 
 # Scoped global args reuse
+ARG cuda_arch_list
 ARG build_type
 ARG sccache_gha_enabled
 ARG actions_cache_url
@@ -74,8 +75,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y &&
     cargo install sccache --locked
 
 ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
-ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
-ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
+ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig"
+ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt"
 
 ENV USE_LLD_LINKER=ON
 ENV CUDA_ARCH_LIST=${cuda_arch_list}
@@ -95,9 +96,9 @@ COPY launcher launcher
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 
+ENV RUSTC_WRAPPER=sccache
+ENV CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
-    CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX \
-    RUSTC_WRAPPER=sccache \
     cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
     sccache --show-stats
 
