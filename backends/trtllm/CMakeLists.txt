@@ -1,17 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-find_program(CCACHE_EXECUTABLE sccache)
-if (NOT CCACHE_EXECUTABLE)
-    find_program(CCACHE_EXECUTABLE ccache)
-endif ()
-
-if (CCACHE_EXECUTABLE)
-    message(STATUS "Using compiler with caching: ${CCACHE_EXECUTABLE}")
-    set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_EXECUTABLE}")
-    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_EXECUTABLE}")
-    set(CMAKE_CUDA_COMPILER_LAUNCHER "${CCACHE_EXECUTABLE}")
-endif ()
-
 if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
     cmake_policy(SET CMP0135 NEW)
 endif ()

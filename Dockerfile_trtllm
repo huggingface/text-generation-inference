@@ -1,5 +1,4 @@
 ARG cuda_arch_list="75-real;80-real;86-real;89-real;90-real"
-ARG ompi_version="4.1.7"
 ARG build_type=release
 ARG sccache_gha_enabled=no
 ARG actions_cache_url=""
@@ -36,19 +35,16 @@ ENV TENSORRT_INSTALL_PREFIX=/usr/local/tensorrt
 
 # Install OpenMPI
 FROM cuda-builder AS mpi-builder
-ARG ompi_version
-
-ENV OMPI_TARBALL_FILENAME="openmpi-$ompi_version.tar.bz2"
-ADD --checksum=sha256:54a33cb7ad81ff0976f15a6cc8003c3922f0f3d8ceed14e1813ef3603f22cd34 \
-    https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILENAME \
-    /opt/src/mpi/
-
 WORKDIR /opt/src/mpi
-RUN tar --strip-components=1 -xf $OMPI_TARBALL_FILENAME &&\
+
+ADD --checksum=sha256:54a33cb7ad81ff0976f15a6cc8003c3922f0f3d8ceed14e1813ef3603f22cd34 \
+    https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.7.tar.bz2 .
+
+RUN tar --strip-components=1 -xf openmpi-4.1.7.tar.bz2 &&\
     ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda --with-slurm && \
     make -j all && \
     make install && \
-    rm -rf "/opt/src/$OMPI_TARBALL_FILENAME"
+    rm -rf "/opt/src/openmpi-4.1.7.tar.bz2"
 
 # Install TensorRT
 FROM cuda-builder AS trt-builder
@@ -97,6 +93,9 @@ COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 
 ENV RUSTC_WRAPPER=sccache
+ENV CMAKE_C_COMPILER_LAUNCHER=sccache
+ENV CMAKE_CXX_COMPILER_LAUNCHER=sccache
+ENV CMAKE_CUDA_COMPILER_LAUNCHER=sccache
 ENV CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX
 RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
