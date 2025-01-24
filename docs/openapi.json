@@ -1508,6 +1508,25 @@
           }
         }
       },
+      "FunctionCall": {
+        "type": "object",
+        "required": [
+          "name",
+          "arguments"
+        ],
+        "properties": {
+          "arguments": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "FunctionDefinition": {
         "type": "object",
         "required": [
@@ -2280,7 +2299,7 @@
         ],
         "properties": {
           "function": {
-            "$ref": "#/components/schemas/FunctionDefinition"
+            "$ref": "#/components/schemas/FunctionCall"
           },
           "id": {
             "type": "string"
