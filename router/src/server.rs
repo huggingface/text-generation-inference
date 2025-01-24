@@ -1138,7 +1138,27 @@ fn create_event_from_stream_token(
 
     // replace the content with the tool calls if grammar is present
     let (content, tool_calls) = if inner_using_tools {
-        (None, Some(vec![stream_token.token.text.clone()]))
+        // Create a DeltaToolCall object
+        let delta_tool_call = DeltaToolCall {
+            index: 0, // Assuming this is the first tool call
+            id: "0".to_string(), // Generate a unique ID here
+            r#type: "function".to_string(),
+            function: Function {
+                name: Some(stream_token.token.text.clone()), // Wrap in Some
+                arguments: stream_token.token.text.clone(), // Assuming the arguments are in the token text
+            },
+        };
+    
+        // Serialize the DeltaToolCall into a JSON string
+        let tool_call_string = serde_json::to_string(&delta_tool_call).unwrap_or_else(|e| {
+            println!("Failed to serialize DeltaToolCall: {:?}", e);
+            String::new()
+        });
+    
+        // Wrap the serialized tool call in a Vec and Option
+        let tool_calls = Some(vec![tool_call_string]);
+
+        (None, tool_calls)
     } else {
         let content = if !stream_token.token.special {
             Some(stream_token.token.text.clone())
@@ -1438,8 +1458,7 @@ pub(crate) async fn chat_completions(
                             e
                         ))
                     })?;
-                    println!("Arguments: {:?}", arguments);
-                    println!("Arguments String: {:?}", arguments_string);
+                    
                     let tool_calls = vec![ToolCall {
                         id: format!("{:09}", 0),
                         r#type: "function".to_string(),
