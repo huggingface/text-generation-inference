@@ -1,0 +1,77 @@
+FROM ubuntu:24.04 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    python3-venv \
+    python3-pip
+
+RUN python3 -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+RUN pip3 install --no-cache-dir transformers
+
+FROM base AS deps
+WORKDIR /deps
+
+RUN apt-get install -y \
+    clang cmake git
+
+# nvidia-cuda-toolkit
+#    -DGGML_CUDA=ON \
+
+ENV LLAMA_VERSION=b4585
+RUN git clone --depth 1 -b ${LLAMA_VERSION} https://github.com/ggerganov/llama.cpp \
+ && cd llama.cpp \
+ && cmake -B build \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBDIR=/usr/lib \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
+    -DLLAMA_BUILD_COMMON=OFF \
+    -DLLAMA_BUILD_TESTS=OFF \
+    -DLLAMA_BUILD_EXAMPLES=OFF \
+    -DLLAMA_BUILD_SERVER=OFF \
+ && cmake --build build --config Release -j \
+ && cmake --install build
+
+# ENV MIMALLOC_VERSION=v3.0.1
+# RUN git clone --depth 1 -b ${MIMALLOC_VERSION} https://github.com/microsoft/mimalloc \
+#  && cd mimalloc \
+#  && cmake -B build \
+#     -DCMAKE_INSTALL_PREFIX=/usr \
+#     -DCMAKE_INSTALL_LIBDIR=/usr/lib \
+#     -DCMAKE_C_COMPILER=clang \
+#     -DCMAKE_CXX_COMPILER=clang++ \
+#  && cmake --build build --config Release -j \
+#  && cmake --install build
+
+RUN apt-get install -y \
+    curl pkg-config libssl-dev
+
+WORKDIR /app
+COPY rust-toolchain.toml rust-toolchain.toml
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none
+ENV PATH="/root/.cargo/bin:$PATH"
+RUN cargo install cargo-chef --locked
+
+FROM deps AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM deps AS builder
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook \
+    --recipe-path recipe.json \
+    --profile release-opt \
+    --package text-generation-router-llamacpp
+COPY . .
+RUN cargo build \
+    --profile release-opt \
+    --package text-generation-router-llamacpp --frozen
+
+FROM base AS runtime
+
+COPY --from=deps /usr/lib/libllama.so /usr/lib/
+COPY --from=deps /usr/lib/libggml*.so /usr/lib/
+COPY --from=builder /app/target/release-opt/text-generation-router-llamacpp /bin/text-generation-launcher
+
+ENTRYPOINT ["text-generation-launcher"]

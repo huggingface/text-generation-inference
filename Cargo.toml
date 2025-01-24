@@ -5,6 +5,7 @@ members = [
     "backends/v3",
     "backends/grpc-metadata",
     "backends/trtllm",
+    "backends/llamacpp",
     "launcher",
     "router"
 ]
