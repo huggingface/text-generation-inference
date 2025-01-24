@@ -38,7 +38,7 @@ impl ToolGrammar {
                             description: Some(
                                 "Open ended response with no specific tool selected".to_string(),
                             ),
-                            arguments: json!({
+                            parameters: json!({
                                 "type": "object",
                                 "properties": {
                                     "content": {
@@ -83,7 +83,7 @@ impl ToolGrammar {
                     }),
                 );
 
-                if let Value::Object(args) = func.arguments {
+                if let Value::Object(args) = func.parameters {
                     if let Some(Value::Object(props)) = args.get("properties") {
                         properties.extend(props.clone());
                     }
