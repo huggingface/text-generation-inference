@@ -43,6 +43,7 @@ pub enum EventType {
     Start,
     Stop,
     Error,
+    Ping,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,7 +71,7 @@ impl UsageStatsEvent {
             .post(TELEMETRY_URL)
             .headers(headers)
             .body(body)
-            .timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(10))
             .send()
             .await;
     }
