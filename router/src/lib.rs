@@ -1137,6 +1137,15 @@ pub(crate) struct FunctionDefinition {
     pub arguments: serde_json::Value,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, ToSchema, Default, PartialEq)]
+pub(crate) struct FunctionCall {
+    #[serde(default)]
+    pub description: Option<String>,
+    pub name: String,
+    #[serde(alias = "parameters")]
+    pub arguments: String,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) struct Tool {
@@ -1160,7 +1169,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
 pub(crate) struct ToolCall {
     pub id: String,
     pub r#type: String,
-    pub function: FunctionDefinition,
+    pub function: FunctionCall,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
@@ -1679,19 +1688,20 @@ mod tests {
             tool_calls: vec![ToolCall {
                 id: "0".to_string(),
                 r#type: "function".to_string(),
-                function: FunctionDefinition {
+                function: FunctionCall {
                     description: None,
                     name: "myfn".to_string(),
                     arguments: json!({
                         "format": "csv"
-                    }),
+                    })
+                    .to_string(),
                 },
             }],
         });
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(
             serialized,
-            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}]}"#
+            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":"{\"format\":\"csv\"}"}}]}"#
         );
     }
 

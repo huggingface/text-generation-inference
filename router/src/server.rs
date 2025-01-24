@@ -12,7 +12,6 @@ use crate::sagemaker::{
 };
 use crate::validation::ValidationError;
 use crate::vertex::vertex_compatibility;
-use crate::ChatTokenizeResponse;
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -27,6 +26,7 @@ use crate::{
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
+use crate::{ChatTokenizeResponse, FunctionCall};
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
 use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
@@ -1435,10 +1435,10 @@ pub(crate) async fn chat_completions(
                     let tool_calls = vec![ToolCall {
                         id: "0".to_string(),
                         r#type: "function".to_string(),
-                        function: FunctionDefinition {
+                        function: FunctionCall {
                             description: None,
                             name,
-                            arguments,
+                            arguments: arguments.to_string(),
                         },
                     }];
                     (Some(tool_calls), None)
@@ -1571,6 +1571,7 @@ Tool,
 ToolCall,
 Function,
 FunctionDefinition,
+FunctionCall,
 ToolChoice,
 ModelInfo,
 ChatTokenizeResponse,
