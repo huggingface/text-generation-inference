@@ -848,7 +848,7 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
             )
         else:
-            return TransformersFlashCausalLM.fallback(
+            return CausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -898,7 +898,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    elif model_type == LLAMA or model_type == PHI3 or model_type == GRANITE:
+    elif model_type == LLAMA or model_type == GRANITE:
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
@@ -934,7 +934,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    elif model_type == BAICHUAN:
+    elif model_type == BAICHUAN or model_type == PHI3:
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
@@ -1433,6 +1433,7 @@ def get_model(
         FLASH_TRANSFORMERS_BACKEND
         and transformers_model_class is not None
         and transformers_model_class._supports_flex_attn
+        and hasattr(transformers_model_class.config_class, "base_model_tp_plan")
     ):
         return TransformersFlashCausalLM.fallback(
             model_id,
