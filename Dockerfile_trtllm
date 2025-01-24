@@ -82,7 +82,7 @@ ENV USE_LLD_LINKER=ON
 ENV CUDA_ARCH_LIST=${cuda_arch_list}
 
 # SCCACHE Specifics args - before finding a better, more generic, way...
-ENV SCCACHE_GHA_ENABLE=${sccache_gha_enabled}
+ENV SCCACHE_GHA_ENABLED=${sccache_gha_enabled}
 ENV ACTIONS_CACHE_URL=${actions_cache_url}
 ENV ACTIONS_RUNTIME_TOKEN=${actions_runtime_token}
 

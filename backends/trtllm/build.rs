@@ -14,7 +14,7 @@ const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
 const NCCL_ROOT_DIR: Option<&str> = option_env!("NCCL_ROOT_DIR");
 
 const IS_GHA_BUILD: LazyLock<bool> = LazyLock::new(|| {
-    option_env!("IS_GHA_BUILD").map_or(false, |value| match value.to_lowercase().as_str() {
+    option_env!("SCCACHE_GHA_ENABLED").map_or(false, |value| match value.to_lowercase().as_str() {
         "on" => true,
         "true" => true,
         "1" => true,
