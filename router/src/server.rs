@@ -1371,7 +1371,7 @@ pub(crate) async fn chat_completions(
                                 system_fingerprint.clone(),
                                 model_id.clone(),
                             );
-
+    
                             yield Ok::<Event, Infallible>(event);
                         }
                     }
@@ -1432,13 +1432,21 @@ pub(crate) async fn chat_completions(
                     (None, Some(content_message))
                 }
                 _ => {
+                    let arguments_string = serde_json::to_string(&arguments).map_err(|e| {
+                        InferError::ToolError(format!(
+                            "Failed to serialize arguments to string: {}",
+                            e
+                        ))
+                    })?;
+                    println!("Arguments: {:?}", arguments);
+                    println!("Arguments String: {:?}", arguments_string);
                     let tool_calls = vec![ToolCall {
-                        id: "0".to_string(),
+                        id: format!("{:09}", 0),
                         r#type: "function".to_string(),
                         function: FunctionDefinition {
                             description: None,
                             name,
-                            arguments,
+                            arguments: Value::String(arguments_string), // Serialize to string here
                         },
                     }];
                     (Some(tool_calls), None)
