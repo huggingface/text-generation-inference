@@ -4448,6 +4448,7 @@ name = "text-generation-backends-vllm"
 version = "3.0.2-dev0"
 dependencies = [
  "async-trait",
+ "clap 4.5.21",
  "pyo3",
  "text-generation-router",
  "thiserror 2.0.11",
