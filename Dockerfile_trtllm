@@ -94,7 +94,10 @@ COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 
 ENV RUSTC_WRAPPER=sccache
 ENV CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX
-RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
+RUN export CMAKE_C_COMPILER_LAUNCHER=sccache && \
+    export CMAKE_CXX_COMPILER_LAUNCHER=sccache && \
+    export CMAKE_CUDA_COMPILER_LAUNCHER=sccache && \
+    mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
     sccache --show-stats
 
