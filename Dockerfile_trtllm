@@ -38,6 +38,7 @@ ENV TENSORRT_INSTALL_PREFIX=/usr/local/tensorrt
 FROM cuda-builder AS mpi-builder
 WORKDIR /opt/src/mpi
 
+ARG ompi_version
 ENV OMPI_VERSION=${ompi_version}
 ENV OMPI_TARBALL_FILENAME=openmpi-${OMPI_VERSION}.tar.bz2
 ADD --checksum=sha256:54a33cb7ad81ff0976f15a6cc8003c3922f0f3d8ceed14e1813ef3603f22cd34 \
