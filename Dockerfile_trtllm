@@ -1,5 +1,6 @@
 ARG cuda_arch_list="75-real;80-real;86-real;89-real;90-real"
 ARG build_type=release
+ARG ompi_version=4.1.7
 ARG sccache_gha_enabled=no
 ARG actions_cache_url=""
 ARG actions_runtime_token=""
@@ -37,14 +38,16 @@ ENV TENSORRT_INSTALL_PREFIX=/usr/local/tensorrt
 FROM cuda-builder AS mpi-builder
 WORKDIR /opt/src/mpi
 
+ENV OMPI_VERSION=${ompi_version}
+ENV OMPI_TARBALL_FILENAME=openmpi-${OMPI_VERSION}.tar.bz2
 ADD --checksum=sha256:54a33cb7ad81ff0976f15a6cc8003c3922f0f3d8ceed14e1813ef3603f22cd34 \
-    https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.7.tar.bz2 .
+    https://download.open-mpi.org/release/open-mpi/v4.1/${OMPI_TARBALL_FILENAME} .
 
-RUN tar --strip-components=1 -xf openmpi-4.1.7.tar.bz2 &&\
+RUN tar --strip-components=1 -xf ${OMPI_TARBALL_FILENAME} &&\
     ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda --with-slurm && \
     make -j all && \
     make install && \
-    rm -rf "/opt/src/openmpi-4.1.7.tar.bz2"
+    rm -rf ${OMPI_TARBALL_FILENAME}/..
 
 # Install TensorRT
 FROM cuda-builder AS trt-builder
