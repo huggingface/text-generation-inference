@@ -111,6 +111,8 @@ def paged_attention(
 
         out = torch.empty_like(query)
 
+        kv_cache_dtype = "fp8" if kv_cache.dtype == torch.float8_e4m3fn else "auto"
+
         use_v1 = max_s <= 8192 and (
             max_num_partitions == 1 or num_seqs * num_heads > 512
         )
@@ -120,15 +122,16 @@ def paged_attention(
                 query,
                 kv_cache.key,
                 kv_cache.value,
-                kv_head_mapping,
+                kv_cache.key.shape[1],
                 softmax_scale,
                 block_tables,
                 input_lengths,
                 block_size,
                 max_s,
                 None,
-                "auto",
-                1.0,
+                kv_cache_dtype,
+                kv_scales.key_scale_cpu,
+                kv_scales.value_scale_cpu,
             )
         else:
             # Run PagedAttention V2.
@@ -153,15 +156,16 @@ def paged_attention(
                 query,
                 kv_cache.key,
                 kv_cache.value,
-                kv_head_mapping,
+                kv_cache.key.shape[1],
                 softmax_scale,
                 block_tables,
                 input_lengths,
                 block_size,
                 max_s,
                 None,
-                "auto",
-                1.0,
+                kv_cache_dtype,
+                kv_scales.key_scale_cpu,
+                kv_scales.value_scale_cpu,
             )
     return out
 
