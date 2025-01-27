@@ -377,6 +377,9 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         self.config = config
         config.vision_config.quantize = None
         config.vision_config.speculator = config.speculator
+        # set rope_scaling.type == "mrope" since AutoConfig.from_pretrained incorrectly
+        # returns rope_scaling.type == "default" for Qwen2-VL model at the moment
+        config.rope_scaling.update({"rope_type": "mrope"})
         self.hidden_size = config.hidden_size
         self.vision_start_token_id = config.vision_start_token_id
         self.image_token_id = config.image_token_id

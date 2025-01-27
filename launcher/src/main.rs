@@ -260,6 +260,11 @@ struct Config {
 
 impl Config {
     fn flop(&self) -> Option<u64> {
+        if self.vision_config.is_some() {
+            // VLM are much harder to predict and VRAM requirements
+            // Are more complex.
+            return None;
+        }
         let num_heads = self.num_heads? as u64;
         let num_kv_heads = self.num_kv_heads? as u64;
         let head_dim = self.head_dim? as u64;
@@ -279,50 +284,8 @@ impl Config {
         let gate_up_down_flops = 2 * 3 * hidden_size * intermediate_size;
 
         let layer_flops = attn_layer_flops + gate_up_down_flops;
-        let text_flops = layer_flops * num_layers;
-
-        tracing::debug!("Text flops: {}", human_size(text_flops as usize, "flop"));
-
-        // text-only case
-        if self.vision_config.is_none() {
-            return Some(text_flops);
-        }
-
-        let vision_config = self.vision_config.as_ref().unwrap();
-
-        // estimate vision flops for specific model types
-        match self.model_type.as_deref() {
-            Some("qwen2_vl") => {
-                let in_chans = vision_config.in_chans? as u64;
-                let patch_size = vision_config.patch_size? as u64;
-                let embed_dim = vision_config.embed_dim? as u64;
-                let vision_depth = vision_config.depth? as u64;
-                let mlp_ratio = vision_config.mlp_ratio? as u64;
-                let temporal_patch_size = vision_config.temporal_patch_size? as u64;
-                // 1. patch embedding:
-                // - conv3d operation: (t*h*w) * (k_t*k_h*k_w) * c_in * c_out * 2
-                // where the 2 accounts for multiply-add
-                let patch_flops =
-                    2 * temporal_patch_size * patch_size.pow(2) * embed_dim * in_chans;
-                // 2. self-attention + mlp:
-                // - qkv projections: 3 * d_model * d_model * 2
-                // - attention: d_model * d_model * 2
-                // - mlp: 2 * d_model * (mlp_ratio * d_model) * 2
-                // simplified to: 2 * d_model * (4 + mlp_ratio * d_model)
-                let attn_flops = 2 * embed_dim * (4 + mlp_ratio * embed_dim);
-                // 3. add with layer norm flops for total vision layer flops
-                let layer_flops = patch_flops + attn_flops + 2 * embed_dim;
-                let vision_flops = layer_flops * vision_depth;
-                tracing::debug!(
-                    "Vision flops: {}",
-                    human_size(vision_flops as usize, "flop")
-                );
-                Some(text_flops + vision_flops)
-            }
-            // model has a vision config but is not supported for flops calculation
-            // we return None to avoid overestimating the memory requirements
-            _ => None,
-        }
+        let total = layer_flops * num_layers;
+        Some(total)
     }
 
     fn kv_vram_per_tok(&self) -> Option<usize> {

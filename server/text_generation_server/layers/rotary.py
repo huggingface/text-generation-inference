@@ -101,6 +101,11 @@ class PositionRotaryEmbedding(nn.Module):
                 pass
             elif rope_type == "default":
                 pass
+            elif rope_type == "mrope":
+                mrope_section = rope_scaling["mrope_section"]
+                return RotaryPositionEmbeddingMultimodalSections(
+                    inv_freq, scaling_factor, mrope_section
+                )
             elif rope_type == "dynamic":
                 scaling_factor = rope_scaling["factor"]
                 return DynamicPositionRotaryEmbedding(
@@ -576,16 +581,6 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
         cos: torch.Tensor,
         sin: torch.Tensor,
     ):
-        # process multi-modal rotary embeddings
-        split_cos, split_sin = [
-            torch.split(t, self.sections, dim=-1) for t in (cos, sin)
-        ]
-        cos = torch.cat([m[i % 3] for i, m in enumerate(split_cos)], dim=-1).unsqueeze(
-            1
-        )
-        sin = torch.cat([m[i % 3] for i, m in enumerate(split_sin)], dim=-1).unsqueeze(
-            1
-        )
         # prepare input tensors
         q, k = [x.transpose(0, 1).unsqueeze(0) for x in (query, key)]
         rotary_dim = cos.shape[-1]
@@ -624,10 +619,17 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
             .unsqueeze(-1)
             .expand(-1, -1, self._cos_cached_exp.shape[-1])
         )
+        indices = indices.to(dtype=torch.int64)
         cos_c = torch.gather(self._cos_cached_exp, 1, indices)
         cos_c = torch.cat([cos_c, cos_c], dim=-1).unsqueeze(1)
+        split_cos = torch.split(cos_c, self.sections, dim=-1)
+        cos_c = torch.cat([m[i % 3] for i, m in enumerate(split_cos)], dim=-1)
+        cos_c = cos_c.unsqueeze(1)
 
         sin_c = torch.gather(self._sin_cached_exp, 1, indices)
         sin_c = torch.cat([sin_c, sin_c], dim=-1).unsqueeze(1)
+        split_sin = torch.split(sin_c, self.sections, dim=-1)
+        sin_c = torch.cat([m[i % 3] for i, m in enumerate(split_sin)], dim=-1)
+        sin_c = sin_c.unsqueeze(1)
 
         return cos_c, sin_c
