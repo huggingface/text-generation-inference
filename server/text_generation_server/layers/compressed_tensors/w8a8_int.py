@@ -1,6 +1,7 @@
 from typing import List, Optional, Union, TypeVar
 from dataclasses import dataclass
 
+from hf_kernels import load_kernel
 from loguru import logger
 import torch
 from compressed_tensors.quantization import QuantizationArgs, QuantizationType
@@ -10,7 +11,7 @@ from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 try:
-    import marlin_kernels
+    marlin_kernels = load_kernel("kernels-community/quantization")
 except ImportError:
     marlin_kernels = None
 
