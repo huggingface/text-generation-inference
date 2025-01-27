@@ -120,12 +120,6 @@ impl LlmEngine {
             let py_tokens_prompt = py_tokens_prompt_class.call_bound(py, (), Some(&kwargs))?;
             let py_sampling_params = sampling_params.try_to_object(py)?;
 
-            let _ = py.eval_bound(
-                "print(type(params), params)",
-                Some(&[("params", &py_sampling_params)].into_py_dict_bound(py)),
-                None,
-            );
-
             self.engine.call_method1(
                 py,
                 "add_request",
