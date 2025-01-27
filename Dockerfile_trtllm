@@ -1,7 +1,9 @@
 ARG cuda_arch_list="75-real;80-real;86-real;89-real;90-real"
-ARG ompi_version="4.1.7"
 ARG build_type=release
-ARG is_gha_build=false
+ARG ompi_version=4.1.7
+ARG sccache_gha_enabled=no
+ARG actions_cache_url=""
+ARG actions_runtime_token=""
 
 # CUDA dependent dependencies resolver stage
 FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS cuda-builder
@@ -34,19 +36,19 @@ ENV TENSORRT_INSTALL_PREFIX=/usr/local/tensorrt
 
 # Install OpenMPI
 FROM cuda-builder AS mpi-builder
-ARG ompi_version
-
-ENV OMPI_TARBALL_FILENAME="openmpi-$ompi_version.tar.bz2"
-ADD --checksum=sha256:54a33cb7ad81ff0976f15a6cc8003c3922f0f3d8ceed14e1813ef3603f22cd34 \
-    https://download.open-mpi.org/release/open-mpi/v4.1/$OMPI_TARBALL_FILENAME \
-    /opt/src/mpi/
-
 WORKDIR /opt/src/mpi
-RUN tar --strip-components=1 -xf $OMPI_TARBALL_FILENAME &&\
+
+ARG ompi_version
+ENV OMPI_VERSION=${ompi_version}
+ENV OMPI_TARBALL_FILENAME=openmpi-${OMPI_VERSION}.tar.bz2
+ADD --checksum=sha256:54a33cb7ad81ff0976f15a6cc8003c3922f0f3d8ceed14e1813ef3603f22cd34 \
+    https://download.open-mpi.org/release/open-mpi/v4.1/${OMPI_TARBALL_FILENAME} .
+
+RUN tar --strip-components=1 -xf ${OMPI_TARBALL_FILENAME} &&\
     ./configure --prefix=/usr/local/mpi --with-cuda=/usr/local/cuda --with-slurm && \
     make -j all && \
     make install && \
-    rm -rf "/opt/src/$OMPI_TARBALL_FILENAME"
+    rm -rf ${OMPI_TARBALL_FILENAME}/..
 
 # Install TensorRT
 FROM cuda-builder AS trt-builder
@@ -59,8 +61,11 @@ FROM cuda-builder AS tgi-builder
 WORKDIR /usr/src/text-generation-inference
 
 # Scoped global args reuse
-ARG is_gha_build
+ARG cuda_arch_list
 ARG build_type
+ARG sccache_gha_enabled
+ARG actions_cache_url
+ARG actions_runtime_token
 
 # Install Rust
 ENV PATH="/root/.cargo/bin:$PATH"
@@ -69,28 +74,17 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y &&
     chmod -R a+w /root/.cargo && \
     cargo install sccache --locked
 
-# SCCACHE Specifics args - before finding a better, more generic, way...
-ARG aws_access_key_id
-ARG aws_secret_access_key
-ARG aws_session_token
-ARG sccache_bucket
-ARG sccache_s3_key_prefix
-ARG sccache_region
-
-ENV AWS_ACCESS_KEY_ID=$aws_access_key_id
-ENV AWS_SECRET_ACCESS_KEY=$aws_secret_access_key
-ENV AWS_SESSION_TOKEN=$aws_session_token
-ENV SCCACHE_BUCKET=$sccache_bucket
-ENV SCCACHE_S3_KEY_PREFIX=$sccache_s3_key_prefix
-ENV SCCACHE_REGION=$sccache_region
-
 ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
-ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig:$PKG_CONFIG_PATH"
-ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt:$CMAKE_PREFIX_PATH"
+ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig"
+ENV CMAKE_PREFIX_PATH="/usr/local/mpi:/usr/local/tensorrt"
 
 ENV USE_LLD_LINKER=ON
 ENV CUDA_ARCH_LIST=${cuda_arch_list}
-ENV IS_GHA_BUILD=${is_gha_build}
+
+# SCCACHE Specifics args - before finding a better, more generic, way...
+ENV SCCACHE_GHA_ENABLED=${sccache_gha_enabled}
+ENV ACTIONS_CACHE_URL=${actions_cache_url}
+ENV ACTIONS_RUNTIME_TOKEN=${actions_runtime_token}
 
 COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
@@ -102,10 +96,12 @@ COPY launcher launcher
 COPY --from=trt-builder /usr/local/tensorrt /usr/local/tensorrt
 COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 
-RUN mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
-    python3 backends/trtllm/scripts/setup_sccache.py --is-gha-build ${is_gha_build} && \
-    CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX \
-    RUSTC_WRAPPER=sccache \
+ENV RUSTC_WRAPPER=sccache
+ENV CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX
+RUN export CMAKE_C_COMPILER_LAUNCHER=sccache && \
+    export CMAKE_CXX_COMPILER_LAUNCHER=sccache && \
+    export CMAKE_CUDA_COMPILER_LAUNCHER=sccache && \
+    mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \
     cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
     sccache --show-stats
 
