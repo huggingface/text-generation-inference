@@ -1918,7 +1918,7 @@ pub async fn run(
             start_event.send().await;
             let mut last_report = Instant::now();
             while !stop_usage_thread_clone.load(Ordering::Relaxed) {
-                if last_report.elapsed() > Duration::from_secs(3600) {
+                if last_report.elapsed() > Duration::from_secs(900) {
                     let report_event = usage_stats::UsageStatsEvent::new(
                         ua.clone(),
                         usage_stats::EventType::Ping,
