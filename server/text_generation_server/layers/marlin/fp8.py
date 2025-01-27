@@ -2,6 +2,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+from hf_kernels import load_kernel
 from text_generation_server.layers.fp8 import fp8_quantize
 from text_generation_server.layers.marlin.gptq import _check_valid_shape
 from text_generation_server.layers.marlin.util import (
@@ -10,7 +11,7 @@ from text_generation_server.layers.marlin.util import (
 )
 
 try:
-    import marlin_kernels
+    marlin_kernels = load_kernel("kernels-community/quantization")
 except ImportError:
     marlin_kernels = None
 

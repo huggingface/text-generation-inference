@@ -1,13 +1,14 @@
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
+from hf_kernels import load_kernel
 import torch
 import torch.nn as nn
 from text_generation_server.layers.marlin.util import _check_marlin_kernels
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 try:
-    import marlin_kernels
+    marlin_kernels = load_kernel("kernels-community/quantization")
 except ImportError:
     marlin_kernels = None
 
@@ -303,8 +304,11 @@ class GPTQMarlin24Linear(nn.Module):
                 f"Group size {groupsize} is not supported, must be one of: {supported_sizes}"
             )
 
-        self.bits = weight.bits
-        weights_per_int32 = 32 // self.bits
+        if weight.bits == 4:
+            self.quant_type = marlin_kernels.scalar_types.uint4b8
+        else:
+            self.quant_type = marlin_kernels.scalar_types.uint8b128
+        weights_per_int32 = 32 // weight.bits
 
         assert (
             out_features % GPTQ_MARLIN_24_MIN_THREAD_N == 0
@@ -344,7 +348,7 @@ class GPTQMarlin24Linear(nn.Module):
             self.meta,
             self.scale_packed,
             self.workspace,
-            self.bits,
+            self.quant_type,
             A.shape[0],
             self.scale_packed.shape[1],
             A.shape[1],

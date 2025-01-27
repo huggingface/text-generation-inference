@@ -1,12 +1,13 @@
 import functools
 from typing import List, Tuple
 
+from hf_kernels import load_kernel
 import numpy
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
 
 try:
-    import marlin_kernels
+    marlin_kernels = load_kernel("kernels-community/quantization")
 except ImportError:
     marlin_kernels = None
 

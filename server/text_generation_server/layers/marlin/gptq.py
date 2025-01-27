@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 import numpy
 import torch
 import torch.nn as nn
+from hf_kernels import load_kernel
 from loguru import logger
 from text_generation_server.layers.marlin.util import (
     _check_marlin_kernels,
@@ -16,7 +17,7 @@ from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 try:
-    import marlin_kernels
+    marlin_kernels = load_kernel("kernels-community/quantization")
 except ImportError:
     marlin_kernels = None
 
@@ -385,7 +386,20 @@ class GPTQMarlinLinear(nn.Module):
         out_features = weight.scales.shape[1]
         _check_valid_shape(in_features=in_features, out_features=out_features)
 
-        self.bits = weight.bits
+        if weight.bits not in (4, 8):
+            raise ValueError("GPTQMarlinLinear only supports 4 and 8-bit quantization")
+
+        if weight.qzeros.numel() > 0:
+            if weight.bits == 4:
+                self.quant_type = marlin_kernels.scalar_types.uint4
+            else:
+                self.quant_type = marlin_kernels.scalar_types.uint8
+        else:
+            if weight.bits == 4:
+                self.quant_type = marlin_kernels.scalar_types.uint4b8
+            else:
+                self.quant_type = marlin_kernels.scalar_types.uint8b128
+
         self.is_full_k = weight.is_full_k
 
         self.qweight = weight.qweight
@@ -414,7 +428,7 @@ class GPTQMarlinLinear(nn.Module):
             self.g_idx,
             self.perm,
             self.workspace,
-            self.bits,
+            self.quant_type,
             A_flat.shape[0],
             self.scales.shape[1],
             A_flat.shape[1],

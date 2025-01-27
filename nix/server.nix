@@ -19,10 +19,10 @@
   grpcio-reflection,
   grpcio-status,
   grpcio-tools,
+  hf-kernels,
   hf-transfer,
   loguru,
   mamba-ssm,
-  marlin-kernels,
   moe-kernels,
   opentelemetry-api,
   opentelemetry-exporter-otlp,
@@ -93,10 +93,10 @@ buildPythonPackage {
     grpcio-reflection
     grpcio-status
     grpcio-tools
+    hf-kernels
     hf-transfer
     loguru
     mamba-ssm
-    marlin-kernels
     moe-kernels
     opentelemetry-api
     opentelemetry-exporter-otlp
