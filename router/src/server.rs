@@ -1824,7 +1824,7 @@ pub async fn run(
 
     let tokenizer: Result<Tokenizer, WebServerError> = {
         use pyo3::prelude::*;
-        let res = Python::with_gil(|py| -> PyResult<()> {
+        Python::with_gil(|py| -> PyResult<()> {
             py_resolve_tokenizer(py, &tokenizer_name, revision.as_deref(), trust_remote_code)?;
             Ok(())
         })
@@ -1834,12 +1834,8 @@ pub async fn run(
         .or_else(|err| {
             let out = legacy_tokenizer_handle(config_filename.as_ref());
             out.ok_or(err)
-        }).map_err(|_|WebServerError::Tokenizer(
-            "Unable to load tokenizer.".to_string(),
-        ));
-        if res.is_err(){
-            return res
-        }
+        })
+        .map_err(|_| WebServerError::Tokenizer("Unable to load tokenizer.".to_string()))?;
         let filename = "out/tokenizer.json";
         if let Ok(tok) = tokenizers::Tokenizer::from_file(filename) {
             Ok(Tokenizer::Rust(tok))
