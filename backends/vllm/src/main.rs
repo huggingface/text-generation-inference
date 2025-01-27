@@ -73,6 +73,8 @@ impl Into<EngineArgs> for &Args {
 
 #[tokio::main]
 async fn main() -> Result<(), VllmBackendError> {
+    tracing_subscriber::fmt::init();
+
     let args = Args::parse();
     let backend = VllmBackend::from_engine_args((&args).into())?;
 
