@@ -64,7 +64,7 @@ jobs:
                 export runs_on="aws-g6-12xl-plus-priv-cache"
                 export platform=""
                 export extra_pytest=""
-                export target="nil"
+                export target=""
                 ;;
             cuda-trtllm)
                 export dockerfile="Dockerfile_trtllm"
@@ -79,7 +79,7 @@ jobs:
                   export target="nil"; 
                 else 
                   export build_type="dev";
-                  export target="runtime-ci"; 
+                  export target="ci-runtime"; 
                 fi
                 ;;
             rocm)
@@ -91,7 +91,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest="-k test_flash_gemma_gptq_load"
-                export target="nil"
+                export target=""
                 ;;
             intel-xpu)
                 export dockerfile="Dockerfile_intel"
@@ -101,7 +101,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform="xpu"
                 export extra_pytest=""
-                export target="nil"
+                export target=""
                 ;;
             intel-cpu)
                 export dockerfile="Dockerfile_intel"
@@ -112,7 +112,7 @@ jobs:
                 export runs_on="aws-highmemory-32-plus-priv"
                 export platform="cpu"
                 export extra_pytest="-k test_flash_gemma_simple"
-                export target="nil"
+                export target=""
                 ;;
           esac
           echo $dockerfile
