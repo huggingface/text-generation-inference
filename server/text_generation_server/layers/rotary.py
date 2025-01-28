@@ -568,9 +568,7 @@ def apply_llama3_scaling(
 class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
     def __init__(self, inv_freq, scaling_factor, sections):
         super().__init__(inv_freq, scaling_factor)
-        # expand the inv_freq for the 3 sections
-        self.inv_freq_exp = inv_freq[None, None, :, None].expand(3, -1, -1, 1)
-        self.sections = sections * 2
+        self.sections = sections
         self._cos_cached = None
         self._sin_cached = None
 
@@ -582,7 +580,7 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
         sin: torch.Tensor,
     ):
         # prepare input tensors
-        q, k = [x.transpose(0, 1).unsqueeze(0) for x in (query, key)]
+        q, k = [x.transpose(0, 1) for x in (query, key)]
         rotary_dim = cos.shape[-1]
         q1, k1 = q[..., :rotary_dim], k[..., :rotary_dim]
         q2 = torch.cat((-q[..., rotary_dim // 2 :], q[..., : rotary_dim // 2]), dim=-1)
@@ -596,15 +594,14 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
         # recomputing if the sequence length is smaller than the cached one
         if (
             seqlen > self._seq_len_cached
-            or self._cos_cached_exp.device != device
-            or self._cos_cached_exp.dtype != dtype
+            or self._cos_cached.device != device
+            or self._cos_cached.dtype != dtype
         ):
             self._seq_len_cached = seqlen
             t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
             freqs = torch.outer(t, self.inv_freq.to(device=t.device))
-            freqs = freqs.expand(3, -1, -1)
-            self._cos_cached_exp = freqs.cos().to(dtype)
-            self._sin_cached_exp = freqs.sin().to(dtype)
+            self._cos_cached = torch.cos(freqs).to(dtype)
+            self._sin_cached = torch.sin(freqs).to(dtype)
 
     def get_cos_sin(
         self,
@@ -613,23 +610,24 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
         dtype: torch.dtype,
     ):
         self._update_cos_sin_cache(dtype, position_ids.device, max_s)
-        # expand the position_ids to match the shape of the cached cos/sin
-        indices = (
-            position_ids.squeeze(1)
-            .unsqueeze(-1)
-            .expand(-1, -1, self._cos_cached_exp.shape[-1])
+
+        # access freqs for each of the 3 sections and stack them
+        cos_c = torch.stack(
+            [self._cos_cached[position_ids[:, i]] for i in range(3)], dim=0
         )
-        indices = indices.to(dtype=torch.int64)
-        cos_c = torch.gather(self._cos_cached_exp, 1, indices)
-        cos_c = torch.cat([cos_c, cos_c], dim=-1).unsqueeze(1)
+        sin_c = torch.stack(
+            [self._sin_cached[position_ids[:, i]] for i in range(3)], dim=0
+        )
+
+        # chunk based on sections
         split_cos = torch.split(cos_c, self.sections, dim=-1)
-        cos_c = torch.cat([m[i % 3] for i, m in enumerate(split_cos)], dim=-1)
-        cos_c = cos_c.unsqueeze(1)
-
-        sin_c = torch.gather(self._sin_cached_exp, 1, indices)
-        sin_c = torch.cat([sin_c, sin_c], dim=-1).unsqueeze(1)
         split_sin = torch.split(sin_c, self.sections, dim=-1)
-        sin_c = torch.cat([m[i % 3] for i, m in enumerate(split_sin)], dim=-1)
-        sin_c = sin_c.unsqueeze(1)
 
-        return cos_c, sin_c
+        # for each section, select the corresponding cos/sin (0, 1, 2, ...)
+        cos_sliced = torch.cat([m[i % 3] for i, m in enumerate(split_cos)], dim=-1)
+        sin_sliced = torch.cat([m[i % 3] for i, m in enumerate(split_sin)], dim=-1)
+
+        # double the size and add a batch dimension
+        cos = torch.cat([cos_sliced, cos_sliced], dim=-1).unsqueeze(0)
+        sin = torch.cat([sin_sliced, sin_sliced], dim=-1).unsqueeze(0)
+        return cos, sin

@@ -413,31 +413,17 @@ class Qwen2VLForConditionalGeneration(nn.Module):
     def get_position_ids(
         self,
         input_ids: torch.Tensor,
-        image_grid_thw: torch.Tensor,
+        image_grid_thw: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
-        # TODO: avoid the early return and extra work in a more efficient way
-        if image_grid_thw is not None:
-
-            if input_ids.dim() == 1:
-                input_ids = input_ids.unsqueeze(0)
-
-            position_ids = torch.ones(
-                3,
-                1,
-                input_ids.shape[0],
-                dtype=input_ids.dtype,
-                device=input_ids.device,
+        if image_grid_thw is None:
+            # (batch_size, 3)
+            return (
+                torch.arange(input_ids.shape[0], device=input_ids.device)
+                .unsqueeze(1)
+                .repeat(1, 3)
             )
-            position_ids = (
-                torch.arange(input_ids.shape[1], device=input_ids.device)
-                .view(1, 1, -1)
-                .repeat(3, input_ids.shape[0], 1)
-            )
-            return position_ids
 
         # if image grid provided than we need to calculate the position ids
-
         spatial_merge_size = self.spatial_merge_size
         vision_start_token_id = self.vision_start_token_id
         vision_end_token_id = self.vision_end_token_id
@@ -445,12 +431,6 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         device = input_ids.device
         dtype = input_ids.dtype
         input_ids_len = input_ids.shape[0]
-        position_ids = torch.ones(
-            3,
-            input_ids_len,
-            dtype=dtype,
-            device=device,
-        )
 
         # capture vision segments
         starts = torch.where(input_ids == vision_start_token_id)[0]
@@ -513,11 +493,11 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             m = torch.arange(final_text_len, device=device).view(1, -1).expand(3, -1)
             full_llm_pos_ids_list.append(m + max_s)
 
-        # combine all the segments and reshape to (3, input_ids_len)
-        llm_positions = torch.cat(full_llm_pos_ids_list, dim=1).reshape(3, -1)
-        position_ids[..., :] = llm_positions.to(position_ids.device)
-        # TODO: avoid the extra dimension when updating the consumer of this function
-        return position_ids.unsqueeze(1)
+        # concat and reshape to (3, input_ids_len) then swap dimensions to (input_ids_len, 3)
+        position_ids = (
+            torch.cat(full_llm_pos_ids_list, dim=1).reshape(3, -1).transpose(0, 1)
+        )
+        return position_ids
 
     def forward(
         self,

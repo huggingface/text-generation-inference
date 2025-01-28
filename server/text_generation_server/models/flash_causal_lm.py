@@ -1431,7 +1431,7 @@ class FlashCausalLM(Model):
                     "Cuda graphs should be generated in decreasing order size to reduce VRAM usage"
                 )
             input_ids = self.cuda_graphs[max_bs]["input_ids"][:bs]
-            position_ids = self.cuda_graphs[max_bs]["position_ids"][..., :bs]
+            position_ids = self.cuda_graphs[max_bs]["position_ids"][:bs]
             if ATTENTION == "flashinfer":
                 block_tables = self.cuda_graphs[max_bs]["block_tables"][: bs * max_bt]
             else:
@@ -2046,7 +2046,7 @@ class FlashCausalLM(Model):
         # instantly become of shape [BATCH_SIZE]
         if prefill and finished_prefilling:
             indices = batch.cu_seqlen_prefill[1:] - 1
-            batch.position_ids = batch.position_ids[(..., indices)]
+            batch.position_ids = batch.position_ids[indices]
             batch.slot_indices = batch.slot_indices[indices]
             batch.adapter_meta.adapter_indices = batch.adapter_meta.adapter_indices[
                 indices
