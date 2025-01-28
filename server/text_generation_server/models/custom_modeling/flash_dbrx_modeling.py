@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from hf_kernels import load_kernel
 import torch
 import torch.distributed
 
@@ -25,8 +26,10 @@ from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "ipex":
     from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
+elif SYSTEM == "cuda":
+    moe_kernels = load_kernel("kernels-community/moe")
 else:
-    from moe_kernels.fused_moe import fused_moe
+    import moe_kernels
 
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -510,7 +513,7 @@ class BlockSparseMoE(nn.Module):
                 topk_group=None,
             )
         else:
-            out = fused_moe(
+            out = moe_kernels.fused_moe(
                 x,
                 self.wv1,
                 self.w2,

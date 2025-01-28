@@ -1,5 +1,6 @@
 from typing import Optional, Protocol, runtime_checkable
 
+from hf_kernels import load_kernel
 import torch
 import torch.nn as nn
 from loguru import logger
@@ -27,6 +28,10 @@ from text_generation_server.utils.weights import (
 
 if SYSTEM == "ipex":
     from .fused_moe_ipex import fused_topk, grouped_topk
+if SYSTEM == "cuda":
+    moe_kernels = load_kernel("kernels-community/moe")
+    fused_topk = moe_kernels.fused_topk
+    grouped_topk = moe_kernels.grouped_topk
 else:
     from moe_kernels.fused_moe import fused_topk, grouped_topk
 
