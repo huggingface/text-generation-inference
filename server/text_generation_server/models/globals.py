@@ -28,7 +28,7 @@ if PREFIX_CACHING and ATTENTION not in {
     raise RuntimeError("Prefix caching is only supported with flashinfer")
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
-TGI_WIGGLE_ROOM = float(os.getenv("TGI_WIGGLE_ROOM", "0.95"))
+TGI_WIGGLE_ROOM = float(os.getenv("TGI_WIGGLE_ROOM", "0.93"))
 assert TGI_WIGGLE_ROOM > 0
 assert TGI_WIGGLE_ROOM < 1
 
