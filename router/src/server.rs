@@ -1898,6 +1898,7 @@ pub async fn run(
                 disable_grammar_support,
                 max_client_batch_size,
                 usage_stats_level,
+                backend.name(),
             );
             Some(usage_stats::UserAgent::new(reduced_args))
         }
