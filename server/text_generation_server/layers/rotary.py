@@ -579,15 +579,14 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
         cos: torch.Tensor,
         sin: torch.Tensor,
     ):
-        # prepare input tensors
-        q, k = [x.transpose(0, 1) for x in (query, key)]
-        rotary_dim = cos.shape[-1]
-        q1, k1 = q[..., :rotary_dim], k[..., :rotary_dim]
-        q2 = torch.cat((-q[..., rotary_dim // 2 :], q[..., : rotary_dim // 2]), dim=-1)
-        k2 = torch.cat((-k[..., rotary_dim // 2 :], k[..., : rotary_dim // 2]), dim=-1)
+        # rotate half the sequence length
+        rot = cos.shape[-1] // 2
+        q2 = torch.cat([-query[..., rot:], query[..., :rot]], dim=-1)
+        k2 = torch.cat([-key[..., rot:], key[..., :rot]], dim=-1)
 
-        rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, True)
-        rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, True)
+        # apply the rotation
+        rotary_emb.apply_rotary(query, q2, cos, sin, query, q2, True)
+        rotary_emb.apply_rotary(key, k2, cos, sin, key, k2, True)
 
     def _update_cos_sin_cache(self, dtype, device, seqlen):
         # always cache the cos/sin for the full sequence length to avoid
@@ -628,6 +627,6 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
         sin_sliced = torch.cat([m[i % 3] for i, m in enumerate(split_sin)], dim=-1)
 
         # double the size and add a batch dimension
-        cos = torch.cat([cos_sliced, cos_sliced], dim=-1).unsqueeze(0)
-        sin = torch.cat([sin_sliced, sin_sliced], dim=-1).unsqueeze(0)
+        cos = torch.cat([cos_sliced, cos_sliced], dim=-1).unsqueeze(1)
+        sin = torch.cat([sin_sliced, sin_sliced], dim=-1).unsqueeze(1)
         return cos, sin
