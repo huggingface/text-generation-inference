@@ -1401,8 +1401,11 @@ class FlashCausalLM(Model):
         if max_bs is None:
             input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
             position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
-            # mrope have position_ids per section, if so repeat n times
-            if self.model.config.rope_scaling["rope_type"] == "mrope":
+            if (  # mrope have position_ids per section, if so repeat n times
+                hasattr(self.model, "config")
+                and hasattr(self.model.config, "rope_scaling")
+                and self.model.config.rope_scaling["rope_type"] == "mrope"
+            ):
                 n_sections = len(self.model.config.rope_scaling["mrope_section"])
                 position_ids = position_ids.unsqueeze(1).repeat(1, n_sections)
             slots = torch.arange(bs, dtype=torch.int64, device=self.device)
