@@ -97,6 +97,7 @@ pub struct Args {
     disable_grammar_support: bool,
     max_client_batch_size: usize,
     usage_stats_level: UsageStatsLevel,
+    backend_name: &'static str,
 }
 
 impl Args {
@@ -120,6 +121,7 @@ impl Args {
         disable_grammar_support: bool,
         max_client_batch_size: usize,
         usage_stats_level: UsageStatsLevel,
+        backend_name: &'static str,
     ) -> Self {
         Self {
             model_config,
@@ -140,6 +142,7 @@ impl Args {
             disable_grammar_support,
             max_client_batch_size,
             usage_stats_level,
+            backend_name,
         }
     }
 }

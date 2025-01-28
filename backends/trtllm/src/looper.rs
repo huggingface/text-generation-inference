@@ -340,4 +340,8 @@ impl Backend for TensorRtLlmBackendV2 {
     async fn health(&self, _: bool) -> bool {
         true
     }
+
+    fn name(&self) -> &'static str {
+        "TensorRT-LLM"
+    }
 }
