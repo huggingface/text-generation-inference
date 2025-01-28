@@ -230,14 +230,7 @@ struct QuantizationConfig {
 }
 
 #[derive(Debug, Deserialize)]
-struct VisionConfig {
-    depth: Option<usize>,
-    embed_dim: Option<usize>,
-    mlp_ratio: Option<usize>,
-    in_chans: Option<usize>,
-    patch_size: Option<usize>,
-    temporal_patch_size: Option<usize>,
-}
+struct VisionConfig {}
 
 #[derive(Debug, Deserialize)]
 struct Config {
