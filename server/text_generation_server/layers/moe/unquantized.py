@@ -1,5 +1,6 @@
 from typing import Optional
 
+from hf_kernels import load_kernel
 import torch
 import torch.nn as nn
 
@@ -8,8 +9,10 @@ from text_generation_server.utils.weights import UnquantizedWeight, Weights
 
 if SYSTEM == "ipex":
     from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
+elif SYSTEM == "cuda":
+    moe_kernels = load_kernel("kernels-community/moe")
 else:
-    from moe_kernels.fused_moe import fused_moe
+    import moe_kernels
 
 
 class UnquantizedSparseMoELayer(nn.Module):
@@ -59,7 +62,7 @@ class UnquantizedSparseMoELayer(nn.Module):
 
     def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
         if SYSTEM == "rocm":
-            return fused_moe(
+            return moe_kernels.fused_moe(
                 x,
                 self.gate_up_proj,
                 self.down_proj,
@@ -79,7 +82,7 @@ class UnquantizedSparseMoELayer(nn.Module):
                 topk_group=self.topk_group,
             )
 
-        return fused_moe(
+        return moe_kernels.fused_moe(
             x,
             w1=self.gate_up_proj,
             w2=self.down_proj,

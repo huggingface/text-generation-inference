@@ -97,7 +97,6 @@ buildPythonPackage {
     hf-transfer
     loguru
     mamba-ssm
-    moe-kernels
     opentelemetry-api
     opentelemetry-exporter-otlp
     opentelemetry-instrumentation-grpc
