@@ -149,6 +149,10 @@ class Weights:
     ):
         routing = {}
         for filename in filenames:
+            # if filename.as_posix().endswith("l.safetensors"):
+            #     from loguru import logger
+            #     logger.info(f"Skipping {filename}")
+            #     continue
             with safe_open(filename, framework="pytorch") as f:
                 for k in f.keys():
                     if k in routing:

@@ -87,6 +87,10 @@ try:
         FlashDeepseekV2ForCausalLM,
         DeepseekV2Config,
     )
+    from text_generation_server.models.custom_modeling.flash_deepseek_v3_modeling import (
+        FlashDeepseekV3ForCausalLM,
+        DeepseekV3Config,
+    )
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
     )
@@ -184,6 +188,11 @@ class ModelType(enum.Enum):
         "type": "deepseek_v2",
         "name": "Deepseek V2",
         "url": "https://huggingface.co/deepseek-ai/DeepSeek-V2",
+    }
+    DEEPSEEK_V3 = {
+        "type": "deepseek_v3",
+        "name": "Deepseek V3",
+        "url": "https://huggingface.co/deepseek-ai/DeepSeek-V3",
     }
     IDEFICS2 = {
         "type": "idefics2",
@@ -622,6 +631,40 @@ def get_model(
         elif sharded:
             raise NotImplementedError(
                 FLASH_ATT_ERROR_MESSAGE.format("Sharded Deepseek V2")
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == DEEPSEEK_V3:
+        if FLASH_ATTENTION:
+            head_size = max(
+                config_dict.get("qk_nope_dim", 128)
+                + config_dict.get("qk_rope_dim", 64),
+                config_dict.get("v_head_dim", 128),
+            )
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashDeepseekV3ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                default_dtype=torch.bfloat16,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                config_class=DeepseekV3Config,
+                head_size=head_size,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Deepseek V3")
             )
         else:
             return CausalLM.fallback(
