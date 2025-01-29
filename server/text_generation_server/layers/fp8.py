@@ -58,7 +58,7 @@ def get_fp8_linear(force_w8a16: bool = False) -> Type[torch.nn.Module]:
     return Fp8Linear
 
 
-def normalize_e4m3fn_to_e4m3fnuz(
+def normalize_e4m3fn_to_native_float8(
     weight: torch.Tensor,
     weight_scale: torch.Tensor,
     input_scale: Optional[torch.Tensor] = None,
@@ -162,7 +162,7 @@ def fp8_quantize(
     qweight = qweight.to(qdtype)
 
     if SYSTEM == "rocm":
-        qweight, scale, _ = normalize_e4m3fn_to_e4m3fnuz(qweight, scale)
+        qweight, scale, _ = normalize_e4m3fn_to_native_float8(qweight, scale)
 
     return qweight, scale
 
@@ -285,7 +285,7 @@ class HybridFP8UnquantLoader(WeightsLoader):
             )
 
             if SYSTEM == "rocm":
-                w, scale, input_scale = normalize_e4m3fn_to_e4m3fnuz(
+                w, scale, input_scale = normalize_e4m3fn_to_native_float8(
                     w, scale, input_scale
                 )
 
@@ -380,7 +380,7 @@ class Fp8Linear(torch.nn.Module):
         if CUTLASS_FP8_AVAILABLE:
             log_once(logger.info, "Using cutlass w8a8 kernels")
         if SYSTEM == "rocm" and qweight.dtype == torch.float8_e4m3fn:
-            qweight, scale, input_scale = normalize_e4m3fn_to_e4m3fnuz(
+            qweight, scale, input_scale = normalize_e4m3fn_to_native_float8(
                 weight=qweight, weight_scale=scale, input_scale=input_scale
             )
 

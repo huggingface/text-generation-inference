@@ -8,7 +8,7 @@ from text_generation_server.layers.fp8 import (
     Fp8Weight,
     fp8_quantize,
     quant_dtype,
-    normalize_e4m3fn_to_e4m3fnuz,
+    normalize_e4m3fn_to_native_float8,
 )
 from moe_kernels.fused_moe import fused_moe
 
@@ -112,7 +112,7 @@ def _load_expert_weights(
 
         if weight.weight.dtype in {torch.float8_e4m3fn, torch.float8_e4m3fnuz}:
             all_weight[i], all_weight_scales[i], current_input_scale = (
-                normalize_e4m3fn_to_e4m3fnuz(
+                normalize_e4m3fn_to_native_float8(
                     weight.weight, weight.weight_scale, weight.input_scale
                 )
             )

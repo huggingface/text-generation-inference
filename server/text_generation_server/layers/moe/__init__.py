@@ -219,17 +219,16 @@ class SparseMoELayer(nn.Module):
         down_proj_name: str = "down_proj",
     ):
         super().__init__()
-        if (
-            isinstance(weights.loader, DefaultWeightsLoader)
-            and isinstance(weights.loader.weight_class, UnquantizedWeight)
-        ) or isinstance(weights.loader, HybridFP8UnquantLoader):
-            if (
-                isinstance(weights.loader, HybridFP8UnquantLoader)
-                and weights.loader.to_fp8
-            ):
-                cls = FP8SparseMoELayer
-            else:
-                cls = UnquantizedSparseMoELayer
+        if isinstance(weights.loader, DefaultWeightsLoader) and isinstance(
+            weights.loader.weight_class, UnquantizedWeight
+        ):
+            cls = UnquantizedSparseMoELayer
+        elif isinstance(weights.loader, HybridFP8UnquantLoader):
+            cls = (
+                FP8SparseMoELayer
+                if weights.loader.to_fp8
+                else UnquantizedSparseMoELayer
+            )
         elif isinstance(
             weights.loader, GPTQMarlinWeightsLoader
         ) and can_use_marlin_moe_gemm(
