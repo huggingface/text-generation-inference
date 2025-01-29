@@ -10,7 +10,11 @@ from text_generation_server.layers.fp8 import (
     quant_dtype,
     normalize_e4m3fn_to_native_float8,
 )
-from moe_kernels.fused_moe import fused_moe
+
+try:
+    from moe_kernels.fused_moe import fused_moe
+except Exception:
+    fused_moe = None
 
 
 class FP8SparseMoELayer(nn.Module):
