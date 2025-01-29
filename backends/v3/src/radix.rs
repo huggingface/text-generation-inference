@@ -110,10 +110,15 @@ impl Allocator for RadixAllocator {
 
         let suffix_blocks = suffix_len.div_ceil(self.block_size);
 
+        let prefix_len_uncached = prefill_tokens.as_ref().map(|p| p.len()).unwrap_or_default();
         tracing::info!("Prefix {prefix_len} - Suffix {suffix_len}");
         metrics::counter!("tgi_cache_hit", "allocator" => "radix")
             .increment(prefix_len.try_into().expect("Can convert usize to u64"));
-        metrics::counter!("tgi_cache_total", "allocator" => "radix").increment(suffix_len.into());
+        metrics::counter!("tgi_cache_total", "allocator" => "radix").increment(
+            prefix_len_uncached
+                .try_into()
+                .expect("Can convert usize to u64"),
+        );
 
         match self.alloc_or_reclaim(suffix_blocks as usize) {
             Some(suffix_blocks) => blocks.extend(suffix_blocks),
