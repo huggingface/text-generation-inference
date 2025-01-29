@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 import os
 from typing import Optional, Tuple, Type, Union, List
-from moe_kernels.fp8_utils import w8a8_block_fp8_matmul, per_token_group_quant_fp8
 
 import torch
 from loguru import logger
 
+from moe_kernels import w8a8_block_fp8_matmul, per_token_group_quant_fp8
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import (
     Weight,
@@ -187,8 +187,6 @@ class HybridFP8UnquantLoader(WeightsLoader):
         if w.dtype == torch.float8_e4m3fn:
             if self.weight_block_size is not None:
                 scale = weights.get_tensor(f"{prefix}.weight_scale_inv")
-                if scale.device == torch.device("cpu"):
-                    scale = scale.to(weights.device)
                 return Fp8Weight(
                     weight=w,
                     weight_scale=scale,
@@ -289,9 +287,7 @@ class HybridFP8UnquantLoader(WeightsLoader):
                     weights.get_sharded(f"{p}.weight_scale_inv", dim=0, to_device=False)
                     for p in prefixes
                 ]
-                scale = torch.cat(scale, dim=dim)
-                if scale.device == torch.device("cpu"):
-                    scale = scale.to(weights.device)
+                scale = torch.cat(scale, dim=dim).to(weights.device)
                 return Fp8Weight(
                     weight=w,
                     weight_scale=scale,
@@ -347,8 +343,6 @@ class HybridFP8UnquantLoader(WeightsLoader):
         if w.dtype == torch.float8_e4m3fn:
             if self.weight_block_size is not None:
                 scale = weights.get_sharded(f"{prefix}.weight_scale_inv", dim=1)
-                if scale.device == torch.device("cpu"):
-                    scale = scale.to(weights.device)
 
                 return Fp8Weight(
                     weight=w,

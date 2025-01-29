@@ -60,6 +60,7 @@ def _get_quantizer_config(model_id, revision):
             return _FP8QuantizerConfig(
                 activation_scale_ub=data["quantization_config"]["activation_scale_ub"]
             )
+        weight_block_size = data["quantization_config"].get("weight_block_size", None)
 
         if "zero_point" in data["quantization_config"]:
             sym = not data["quantization_config"]["zero_point"]
@@ -67,16 +68,12 @@ def _get_quantizer_config(model_id, revision):
         elif "sym" in data["quantization_config"]:
             sym = data["quantization_config"]["sym"]
 
-        if "bits" in data["quantization_config"]:
-            bits = data["quantization_config"]["bits"]
-        if "group_size" in data["quantization_config"]:
-            groupsize = data["quantization_config"]["group_size"]
+        bits = data["quantization_config"]["bits"]
+        groupsize = data["quantization_config"]["group_size"]
         # Order is important here, desc_act is missing on some real models
         quant_method = data["quantization_config"]["quant_method"]
-        checkpoint_format = data["quantization_config"].get("checkpoint_format", None)
-        if desc_act in data["quantization_config"]:
-            desc_act = data["quantization_config"]["desc_act"]
-        weight_block_size = data["quantization_config"].get("weight_block_size", None)
+        checkpoint_format = data["quantization_config"].get("checkpoint_format")
+        desc_act = data["quantization_config"]["desc_act"]
     except Exception:
         filename = "quantize_config.json"
         try:
