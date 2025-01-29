@@ -150,6 +150,14 @@ jobs:
           username: ${{ secrets.AZURE_DOCKER_USERNAME }}
           password: ${{ secrets.AZURE_DOCKER_PASSWORD }}
           registry: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_BUILDX_CACHE }}
+          role-duration-seconds: 7200
+          aws-region: us-east1
+          output-credentials: true
+          
       # If pull request
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name == 'pull_request' }}
@@ -180,6 +188,8 @@ jobs:
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v4
+        env: 
+          DOCKER_BUILD_SUMMARY: false
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
@@ -197,8 +207,8 @@ jobs:
 
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=max
-          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=max
+          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ steps.creds.outputs.aws-access-key-id }},secret_access_key=${{ steps.creds.outputs.aws-secret-access-key }},mode=max
+          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ steps.creds.outputs.aws-access-key-id }},secret_access_key=${{ steps.creds.outputs.aws-secret-access-key }},mode=max
       - name: Final
         id: final
         run: |
