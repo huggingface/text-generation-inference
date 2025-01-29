@@ -67,9 +67,7 @@ ARG sccache_gha_enabled
 
 # Install Rust
 ENV PATH="/root/.cargo/bin:$PATH"
-RUN --mount=type=secret,id=actions_cache_url,env=ACTIONS_CACHE_URL \
-    --mount=type=secret,id=actions_runtime_token,env=ACTIONS_RUNTIME_TOKEN \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y && \
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y && \
     chmod -R a+w /root/.rustup && \
     chmod -R a+w /root/.cargo && \
     cargo install sccache --locked
@@ -83,8 +81,6 @@ ENV CUDA_ARCH_LIST=${cuda_arch_list}
 
 # SCCACHE Specifics args - before finding a better, more generic, way...
 ENV SCCACHE_GHA_ENABLED=${sccache_gha_enabled}
-ENV ACTIONS_CACHE_URL=${actions_cache_url}
-ENV ACTIONS_RUNTIME_TOKEN=${actions_runtime_token}
 
 COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
@@ -98,7 +94,9 @@ COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 
 ENV RUSTC_WRAPPER=sccache
 ENV CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX
-RUN export CMAKE_C_COMPILER_LAUNCHER=sccache && \
+RUN --mount=type=secret,id=actions_cache_url,env=ACTIONS_CACHE_URL \
+    --mount=type=secret,id=actions_runtime_token,env=ACTIONS_RUNTIME_TOKEN \
+    export CMAKE_C_COMPILER_LAUNCHER=sccache && \
     export CMAKE_CXX_COMPILER_LAUNCHER=sccache && \
     export CMAKE_CUDA_COMPILER_LAUNCHER=sccache && \
     mkdir $TGI_INSTALL_PREFIX && mkdir "$TGI_INSTALL_PREFIX/include" && mkdir "$TGI_INSTALL_PREFIX/lib" && \

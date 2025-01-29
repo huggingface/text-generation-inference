@@ -202,7 +202,7 @@ jobs:
             PLATFORM=${{ env.PLATFORM }}
             build_type=${{ env.BUILD_TYPE }}
             sccache_gha_enabled=on
-          secrets:
+          secrets: |
             actions_cache_url=${{ env.ACTIONS_CACHE_URL }}
             actions_runtime_token=${{ env.ACTIONS_RUNTIME_TOKEN }}
 
