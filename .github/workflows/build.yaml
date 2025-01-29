@@ -155,7 +155,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_BUILDX_CACHE }}
           role-duration-seconds: 7200
-          aws-region: us-east1
+          aws-region: us-east-1
           output-credentials: true
           
       # If pull request
