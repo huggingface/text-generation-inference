@@ -1404,6 +1404,7 @@ class FlashCausalLM(Model):
             if (  # mrope have position_ids per section, if so repeat n times
                 hasattr(self.model, "config")
                 and hasattr(self.model.config, "rope_scaling")
+                and "rope_type" in self.model.config.rope_scaling
                 and self.model.config.rope_scaling["rope_type"] == "mrope"
             ):
                 n_sections = len(self.model.config.rope_scaling["mrope_section"])
