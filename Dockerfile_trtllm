@@ -64,12 +64,12 @@ WORKDIR /usr/src/text-generation-inference
 ARG cuda_arch_list
 ARG build_type
 ARG sccache_gha_enabled
-ARG actions_cache_url
-ARG actions_runtime_token
 
 # Install Rust
 ENV PATH="/root/.cargo/bin:$PATH"
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y && \
+RUN --mount=type=secret,id=actions_cache_url,env=ACTIONS_CACHE_URL \
+    --mount=type=secret,id=actions_runtime_token,env=ACTIONS_RUNTIME_TOKEN \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y && \
     chmod -R a+w /root/.rustup && \
     chmod -R a+w /root/.cargo && \
     cargo install sccache --locked
