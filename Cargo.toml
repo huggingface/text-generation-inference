@@ -7,7 +7,7 @@ members = [
     "backends/trtllm",
     "launcher",
     "router",
-    "kvrouter"
+    "kvrouter",
 ]
 default-members = [
     "benchmark",
@@ -16,6 +16,7 @@ default-members = [
     "backends/grpc-metadata",
     # "backends/trtllm",
     "launcher",
+    "kvrouter",
     "router"
 ]
 resolver = "2"

@@ -10,6 +10,7 @@ COPY Cargo.toml Cargo.toml
 COPY rust-toolchain.toml rust-toolchain.toml
 COPY proto proto
 COPY benchmark benchmark
+COPY kvrouter kvrouter
 COPY router router
 COPY backends backends
 COPY launcher launcher
