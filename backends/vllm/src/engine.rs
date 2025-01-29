@@ -29,9 +29,9 @@ impl IntoPyDict for EngineArgs {
                     ),
                 ],
             )
-            .as_any(),
+                .as_any(),
         )
-        .expect("Failed to create Python Dict from EngineArgs")
+            .expect("Failed to create Python Dict from EngineArgs")
     }
 }
 
@@ -99,7 +99,7 @@ impl LlmEngine {
             // Next create the LLMEngine from the EngineArgs
             // from vllm.engine.llm_engine import LLMEngine
             // engine = LLMEngine.from_engine_args(engine_args)
-            let py_engine_llm_mod = PyModule::import_bound(py, "vllm.engine.llm_engine")?;
+            let py_engine_llm_mod = PyModule::import_bound(py, "vllm.v1.engine.llm_engine")?;
             let py_engine_llm_class = py_engine_llm_mod.getattr("LLMEngine")?;
             py_engine_llm_class
                 .call_method("from_engine_args", (py_engine_args,), None)?
