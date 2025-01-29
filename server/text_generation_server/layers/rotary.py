@@ -88,10 +88,8 @@ class PositionRotaryEmbedding(nn.Module):
             rope_type = rope_scaling.get("rope_type", rope_scaling.get("type", None))
             mrope_section = rope_scaling.get("mrope_section", None)
 
-            # only apply mrope if sections are provided and the rope type is mrope or default
-            if mrope_section is not None and (
-                rope_type == "mrope" or rope_type == "default"
-            ):
+            # only apply mrope if sections are provided and the rope type is mrope and a section is provided
+            if mrope_section is not None and rope_type == "mrope":
                 mrope_section = rope_scaling.get("mrope_section")
                 return RotaryPositionEmbeddingMultimodalSections(
                     inv_freq, scaling_factor, mrope_section
