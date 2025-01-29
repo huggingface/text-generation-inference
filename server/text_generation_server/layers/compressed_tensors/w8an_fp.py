@@ -7,7 +7,7 @@ from text_generation_server.layers.fp8 import (
     Fp8Weight,
     _load_scalar_or_matrix_scale,
     requantize_with_max_scale,
-    normalize_e4m3fn_to_e4m3fnuz,
+    normalize_e4m3fn_to_native_float8,
 )
 from text_generation_server.utils.weights import Weights, WeightsLoader
 from text_generation_server.utils.import_utils import SYSTEM
@@ -148,7 +148,7 @@ class W8ANFpLoader(WeightsLoader):
             )
 
         if self.load_weight_scale and SYSTEM == "rocm":
-            w, weight_scale, input_scale = normalize_e4m3fn_to_e4m3fnuz(
+            w, weight_scale, input_scale = normalize_e4m3fn_to_native_float8(
                 w, weight_scale, input_scale
             )
 

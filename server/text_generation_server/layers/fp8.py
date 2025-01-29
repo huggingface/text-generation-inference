@@ -68,12 +68,12 @@ def get_fp8_linear(force_w8a16: bool = False) -> Type[torch.nn.Module]:
     return Fp8Linear
 
 
-def normalize_e4m3fn_to_e4m3fnuz(
+def normalize_e4m3fn_to_native_float8(
     weight: torch.Tensor,
     weight_scale: torch.Tensor,
     input_scale: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
-    if weight.dtype == torch.float8_e4m3fn:
+    if weight.dtype == torch.float8_e4m3fn and SYSTEM == "rocm":
         # The bits pattern 10000000(-128) represents zero in e4m3fn
         # but NaN in e4m3fnuz. So here we set it to 0.
         # https://onnx.ai/onnx/technical/float8.html
@@ -172,7 +172,7 @@ def fp8_quantize(
     qweight = qweight.to(qdtype)
 
     if SYSTEM == "rocm":
-        qweight, scale, _ = normalize_e4m3fn_to_e4m3fnuz(qweight, scale)
+        qweight, scale, _ = normalize_e4m3fn_to_native_float8(qweight, scale)
 
     return qweight, scale
 
@@ -295,7 +295,7 @@ class HybridFP8UnquantLoader(WeightsLoader):
             )
 
             if SYSTEM == "rocm":
-                w, scale, input_scale = normalize_e4m3fn_to_e4m3fnuz(
+                w, scale, input_scale = normalize_e4m3fn_to_native_float8(
                     w, scale, input_scale
                 )
 
@@ -390,8 +390,8 @@ class Fp8Linear(torch.nn.Module):
         if CUTLASS_FP8_AVAILABLE:
             log_once(logger.info, "Using cutlass w8a8 kernels")
         if SYSTEM == "rocm" and qweight.dtype == torch.float8_e4m3fn:
-            qweight, scale, input_scale = normalize_e4m3fn_to_e4m3fnuz(
-                weight=qweight, weight_scale=scale
+            qweight, scale, input_scale = normalize_e4m3fn_to_native_float8(
+                weight=qweight, weight_scale=scale, input_scale=input_scale
             )
 
         self.dtype = dtype

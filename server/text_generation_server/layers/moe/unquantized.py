@@ -58,17 +58,7 @@ class UnquantizedSparseMoELayer(nn.Module):
             )
 
     def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
-        if SYSTEM == "rocm":
-            return fused_moe(
-                x,
-                self.gate_up_proj,
-                self.down_proj,
-                gating_output,
-                self.topk,
-                renormalize=self.renormalize,
-                inplace=True,
-            )
-        elif SYSTEM == "ipex":
+        if SYSTEM == "ipex":
             return self.ipex_fused_moe(
                 hidden_states=x,
                 router_logits=gating_output,
