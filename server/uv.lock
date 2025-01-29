@@ -997,101 +997,15 @@ wheels = [
 
 [[package]]
 name = "moe-kernels"
-version = "0.7.0"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.13'",
-]
+version = "0.8.0"
+source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.8.0/moe_kernels-0.8.0+cu123torch2.5-cp39-abi3-linux_x86_64.whl" }
 dependencies = [
-    { name = "nvidia-ml-py", marker = "python_full_version >= '3.13'" },
-    { name = "torch", marker = "python_full_version >= '3.13'" },
-    { name = "triton", marker = "python_full_version >= '3.13'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9c/a1/76f32a7ce5b18e5b841e64e0e2631fa2b94f432743d6ab76b76fb24fe961/moe-kernels-0.7.0.tar.gz", hash = "sha256:1f564affad32077fe17c24566bd6200e38087e90b248636bab55fac2e1ac6874", size = 23629 }
-
-[[package]]
-name = "moe-kernels"
-version = "0.7.0"
-source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp310-cp310-linux_x86_64.whl" }
-resolution-markers = [
-    "python_full_version == '3.10.*'",
-]
-dependencies = [
-    { name = "nvidia-ml-py", marker = "python_full_version == '3.10.*'" },
-    { name = "torch", marker = "python_full_version == '3.10.*'" },
-    { name = "triton", marker = "python_full_version == '3.10.*'" },
-]
-wheels = [
-    { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp310-cp310-linux_x86_64.whl", hash = "sha256:242d5de087902aa84dff54b6ba140b4066904fe5e7757f934645343b052ab076" },
-]
-
-[package.metadata]
-requires-dist = [
     { name = "nvidia-ml-py" },
     { name = "torch" },
     { name = "triton" },
 ]
-
-[[package]]
-name = "moe-kernels"
-version = "0.7.0"
-source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp311-cp311-linux_x86_64.whl" }
-resolution-markers = [
-    "python_full_version == '3.11.*'",
-]
-dependencies = [
-    { name = "nvidia-ml-py", marker = "python_full_version == '3.11.*'" },
-    { name = "torch", marker = "python_full_version == '3.11.*'" },
-    { name = "triton", marker = "python_full_version == '3.11.*'" },
-]
 wheels = [
-    { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp311-cp311-linux_x86_64.whl", hash = "sha256:8198a3388a03a3248d5f5698097e8ce0a73b6a01f9854fc2338aacc57e554e8a" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "nvidia-ml-py" },
-    { name = "torch" },
-    { name = "triton" },
-]
-
-[[package]]
-name = "moe-kernels"
-version = "0.7.0"
-source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp312-cp312-linux_x86_64.whl" }
-resolution-markers = [
-    "python_full_version == '3.12.*'",
-]
-dependencies = [
-    { name = "nvidia-ml-py", marker = "python_full_version == '3.12.*'" },
-    { name = "torch", marker = "python_full_version == '3.12.*'" },
-    { name = "triton", marker = "python_full_version == '3.12.*'" },
-]
-wheels = [
-    { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp312-cp312-linux_x86_64.whl", hash = "sha256:b35fb02ae560b560f4af107791a3308dc97d5ca57d39bab20acec3a0f082ccf2" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "nvidia-ml-py" },
-    { name = "torch" },
-    { name = "triton" },
-]
-
-[[package]]
-name = "moe-kernels"
-version = "0.7.0"
-source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp39-cp39-linux_x86_64.whl" }
-resolution-markers = [
-    "python_full_version < '3.10'",
-]
-dependencies = [
-    { name = "nvidia-ml-py", marker = "python_full_version < '3.10'" },
-    { name = "torch", marker = "python_full_version < '3.10'" },
-    { name = "triton", marker = "python_full_version < '3.10'" },
-]
-wheels = [
-    { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp39-cp39-linux_x86_64.whl", hash = "sha256:cf8d276deb7a4d40fed3eb02e1b6f8d08ccec0f4256260922af13927ca044f56" },
+    { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.8.0/moe_kernels-0.8.0+cu123torch2.5-cp39-abi3-linux_x86_64.whl", hash = "sha256:92c4e083c037a325458e731dda6770790495cab273c9bbf5f50fb8e262c099de" },
 ]
 
 [package.metadata]
@@ -2798,11 +2712,7 @@ marlin = [
     { name = "marlin-kernels", version = "0.3.7", source = { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp39-cp39-linux_x86_64.whl" }, marker = "python_full_version < '3.10'" },
 ]
 moe = [
-    { name = "moe-kernels", version = "0.7.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "moe-kernels", version = "0.7.0", source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp310-cp310-linux_x86_64.whl" }, marker = "python_full_version == '3.10.*'" },
-    { name = "moe-kernels", version = "0.7.0", source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp311-cp311-linux_x86_64.whl" }, marker = "python_full_version == '3.11.*'" },
-    { name = "moe-kernels", version = "0.7.0", source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp312-cp312-linux_x86_64.whl" }, marker = "python_full_version == '3.12.*'" },
-    { name = "moe-kernels", version = "0.7.0", source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp39-cp39-linux_x86_64.whl" }, marker = "python_full_version < '3.10'" },
+    { name = "moe-kernels" },
 ]
 outlines = [
     { name = "outlines" },
@@ -2836,11 +2746,7 @@ requires-dist = [
     { name = "marlin-kernels", marker = "python_full_version == '3.10.*' and extra == 'marlin'", url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp310-cp310-linux_x86_64.whl" },
     { name = "marlin-kernels", marker = "python_full_version == '3.11.*' and extra == 'marlin'", url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp311-cp311-linux_x86_64.whl" },
     { name = "marlin-kernels", marker = "python_full_version == '3.12.*' and extra == 'marlin'", url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp312-cp312-linux_x86_64.whl" },
-    { name = "moe-kernels", marker = "python_full_version == '3.9.*' and extra == 'moe'", url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp39-cp39-linux_x86_64.whl" },
-    { name = "moe-kernels", marker = "(python_full_version < '3.9' and extra == 'moe') or (python_full_version >= '3.13' and extra == 'moe')" },
-    { name = "moe-kernels", marker = "python_full_version == '3.10.*' and extra == 'moe'", url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp310-cp310-linux_x86_64.whl" },
-    { name = "moe-kernels", marker = "python_full_version == '3.11.*' and extra == 'moe'", url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp311-cp311-linux_x86_64.whl" },
-    { name = "moe-kernels", marker = "python_full_version == '3.12.*' and extra == 'moe'", url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp312-cp312-linux_x86_64.whl" },
+    { name = "moe-kernels", marker = "extra == 'moe'", url = "https://github.com/danieldk/moe-kernels/releases/download/v0.8.0/moe_kernels-0.8.0+cu123torch2.5-cp39-abi3-linux_x86_64.whl" },
     { name = "mypy-protobuf", marker = "extra == 'gen'", specifier = ">=3.6.0" },
     { name = "numpy", specifier = ">=1.26,<3" },
     { name = "opentelemetry-api", specifier = ">=1.27.0" },
