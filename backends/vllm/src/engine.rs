@@ -2,6 +2,7 @@ use crate::errors::VllmBackendError;
 use crate::{sampling_params, tokens_prompt, TryToPyObject};
 use pyo3::intern;
 use pyo3::prelude::*;
+use pyo3::sync::GILOnceCell;
 use pyo3::types::{IntoPyDict, PyDict, PyList, PyString};
 use text_generation_router::validation::{ValidParameters, ValidStoppingParameters};
 use tracing::{info, instrument};
@@ -36,6 +37,8 @@ impl IntoPyDict for EngineArgs {
     }
 }
 
+static FINAL_OUTPUT_ONLY: GILOnceCell<PyObject> = GILOnceCell::new();
+
 pub struct SamplingParams<'a> {
     sampling_params: &'a ValidParameters,
     stopping_params: &'a ValidStoppingParameters,
@@ -48,8 +51,10 @@ impl TryToPyObject for SamplingParams<'_> {
         let kwargs = PyDict::from_sequence_bound(&PyList::new_bound(
             py,
             [
-                (intern!(py, "seed"), self.sampling_params.seed.into_py(py)),
+                (intern!(py, "output_kind"), 2.into_py(py)),
+                (intern!(py, "logprobs"), 1.into_py(py)),
                 (intern!(py, "n"), 1.into_py(py)),
+                (intern!(py, "seed"), self.sampling_params.seed.into_py(py)),
                 (intern!(py, "top_k"), self.sampling_params.top_k.into_py(py)),
                 (intern!(py, "top_p"), self.sampling_params.top_p.into_py(py)),
                 (
@@ -86,20 +91,40 @@ impl TryToPyObject for SamplingParams<'_> {
 }
 
 #[derive(Debug)]
-pub struct CompletionOutput {
-    pub index: usize,
-    pub text: String,                  // TODO: SmallString?
-    pub token_ids: Vec<u32>,           // TODO: TinyVec?
-    pub logprobs: Option<Vec<f32>>,    // TODO: TinyVec?
+pub(crate) struct CompletionOutput {
+    pub token_ids: Vec<u32>, // TODO: TinyVec?
+    pub text: String,        // TODO: SmallString?
+    // pub logprobs: Vec<f32>,            // TODO: TinyVec?
     pub finish_reason: Option<String>, // lora_request: LATER
+    pub index: usize,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct RequestMetrics {
+    pub arrival_time: f32,
+    pub first_scheduled_time: f32,
+    pub first_token_time: f32,
+    pub time_in_queue: f32,
+}
+
+impl<'py> FromPyObject<'py> for RequestMetrics {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let py = ob.py();
+        Ok(Self {
+            arrival_time: ob.getattr(intern!(py, "arrival_time"))?.extract()?,
+            first_scheduled_time: ob.getattr(intern!(py, "first_scheduled_time"))?.extract()?,
+            first_token_time: ob.getattr(intern!(py, "first_token_time"))?.extract()?,
+            time_in_queue: ob.getattr(intern!(py, "time_in_queue"))?.extract()?,
+        })
+    }
 }
 
 #[derive(Debug)]
-pub struct RequestOutput {
-    pub request_id: String,
+pub(crate) struct RequestOutput {
     pub outputs: Vec<CompletionOutput>,
+    // pub metrics: Vec<RequestMetrics>,
+    pub request_id: String,
     pub finished: bool,
-    // metrics: Vec<RequestMetrics>  // TODO
 }
 
 impl<'py> FromPyObject<'py> for CompletionOutput {
@@ -109,7 +134,7 @@ impl<'py> FromPyObject<'py> for CompletionOutput {
             index: ob.getattr(intern!(py, "index"))?.extract()?,
             text: ob.getattr(intern!(py, "text"))?.extract()?,
             token_ids: ob.getattr(intern!(py, "token_ids"))?.extract()?,
-            logprobs: ob.getattr(intern!(py, "logprobs"))?.extract()?,
+            // logprobs: ob.getattr(intern!(py, "logprobs"))?.extract()?,
             finish_reason: ob.getattr(intern!(py, "finish_reason"))?.extract()?,
         })
     }
@@ -122,6 +147,7 @@ impl<'py> FromPyObject<'py> for RequestOutput {
             request_id: ob.getattr(intern!(py, "request_id"))?.extract()?,
             outputs: ob.getattr(intern!(py, "outputs"))?.extract()?,
             finished: ob.getattr(intern!(py, "finished"))?.extract()?,
+            // metrics: ob.getattr(intern!(py, "metrics"))?.extract()?,
         })
     }
 }
