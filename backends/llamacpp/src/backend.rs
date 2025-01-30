@@ -24,7 +24,7 @@ use tracing::{instrument};
 pub struct LlamacppConfig {
     pub model_gguf: String,
     pub n_ctx: u32,
-    pub batch_size: usize,
+    pub max_batch_total_tokens: u32,
     pub batch_timeout: Duration,
     pub n_threads: i32,
     pub use_mmap: bool,
@@ -142,7 +142,7 @@ impl Llamacpp {
             return Err(BackendError::Llamacpp("Failed to get vocab".to_string()));
         }
         let batch = unsafe {
-            bindings::llama_batch_init(4096, 0, 5)
+            bindings::llama_batch_init(conf.max_batch_total_tokens as _, 0, 1)
         };
         // TODO check batch
         Ok(Llamacpp{model, ctx, vocab, n_ctx, batch})
@@ -313,21 +313,25 @@ impl LlamacppBackend {
         let (sync_tx, sync_rx) = mpsc::channel();
 
         spawn(async move {
+            let mut n_tokens = 0;
             let mut requests = Vec::new();
 
             loop {
                 match timeout(conf.batch_timeout, rx.recv()).await {
                     Ok(None) => break, // closed
                     Ok(Some(request)) => {
-                        requests.push(request);
-                        if requests.len() >= conf.batch_size {
+                        if n_tokens + request.input_ids.len() > conf.max_batch_total_tokens as usize {
                             let _ = sync_tx.send(requests);
-                            requests = Vec::new();
+                            n_tokens = request.input_ids.len();
+                            requests = vec![request];
+                        } else {
+                            requests.push(request);
                         }
                     },
                     Err(_) => {
                         if !requests.is_empty() {
                             let _ = sync_tx.send(requests);
+                            n_tokens = 0;
                             requests = Vec::new();
                         }
                     }

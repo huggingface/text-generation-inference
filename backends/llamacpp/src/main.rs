@@ -68,8 +68,11 @@ struct Args {
 //  waiting_served_ratio: f32,
 //  #[clap(default_value = "4096", long, env)]
 //  max_batch_prefill_tokens: u32,
-//  #[clap(long, env)]
-//  max_batch_total_tokens: Option<u32>,
+
+    /// Maximum tokens within a batch
+    #[clap(default_value = "1024", long, env)]
+    max_batch_total_tokens: u32,
+
 //  #[clap(default_value = "20", long, env)]
 //  max_waiting_tokens: usize,
 //  #[clap(long, env)]
@@ -155,14 +158,14 @@ async fn main() -> Result<(), RouterError> {
 
     let (backend, ok) = LlamacppBackend::new(
         LlamacppConfig {
-            model_gguf:      args.model_gguf,
-            n_ctx:           args.n_ctx,
-            n_threads:       args.n_threads,
-            use_mmap:        args.use_mmap,
-            use_mlock:       args.use_mlock,
-            flash_attention: args.flash_attention,
-            batch_size:      5,
-            batch_timeout:   tokio::time::Duration::from_millis(100),
+            model_gguf:             args.model_gguf,
+            n_ctx:                  args.n_ctx,
+            n_threads:              args.n_threads,
+            use_mmap:               args.use_mmap,
+            use_mlock:              args.use_mlock,
+            flash_attention:        args.flash_attention,
+            max_batch_total_tokens: args.max_batch_total_tokens,
+            batch_timeout:          tokio::time::Duration::from_millis(100),
         },
         tokenizer,
     );
