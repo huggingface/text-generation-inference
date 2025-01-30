@@ -1,7 +1,7 @@
 import json
 import os
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 from huggingface_hub import hf_hub_download
 from text_generation_server.layers.marlin.gptq import can_use_gptq_marlin
@@ -20,6 +20,7 @@ class _QuantizerConfig:
     groupsize: int
     quant_method: str
     sym: bool
+    weight_block_size: Optional[List[int]]
 
 
 @dataclass
@@ -49,16 +50,17 @@ def _get_quantizer_config(model_id, revision):
     checkpoint_format = None
     sym = False
     desc_act = False
+    weight_block_size = None
 
     filename = "config.json"
     try:
         data = _get_config_json(model_id, revision, filename)
-
         # FP8 config
         if data["quantization_config"]["quant_method"] == "fbgemm_fp8":
             return _FP8QuantizerConfig(
                 activation_scale_ub=data["quantization_config"]["activation_scale_ub"]
             )
+        weight_block_size = data["quantization_config"].get("weight_block_size", None)
 
         if "zero_point" in data["quantization_config"]:
             sym = not data["quantization_config"]["zero_point"]
@@ -107,6 +109,7 @@ def _get_quantizer_config(model_id, revision):
         checkpoint_format=checkpoint_format,
         sym=sym,
         desc_act=desc_act,
+        weight_block_size=weight_block_size,
     )
 
 
@@ -196,9 +199,14 @@ def get_loader(
         # Since the default for the quantize config is _QuantizerConfig,
         # we need to add this check to not get an attribute error
         activation_scale_ub = None
+        weight_block_size = quantizer_config.weight_block_size
         if isinstance(quantizer_config, _FP8QuantizerConfig):
             activation_scale_ub = quantizer_config.activation_scale_ub
 
-        return HybridFP8UnquantLoader(activation_scale_ub, to_fp8=quantize == "fp8")
+        return HybridFP8UnquantLoader(
+            activation_scale_ub,
+            to_fp8=quantize == "fp8",
+            weight_block_size=weight_block_size,
+        )
     else:
         raise ValueError(f"Unknown quantization method: {quantize}")

@@ -23,6 +23,8 @@ class UnquantizedSparseMoELayer(nn.Module):
         topk: int,
         topk_group: Optional[int],
         weights: Weights,
+        scoring_func: Optional[str] = "softmax",
+        e_score_correction_bias: Optional[float] = None,
         gate_proj_name: str = "gate_proj",
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
@@ -37,6 +39,9 @@ class UnquantizedSparseMoELayer(nn.Module):
         self.topk = topk
         self.topk_group = topk_group
         self.renormalize = renormalize
+        self.weight_block_size = weights.weights_loader.weight_block_size
+        self.scoring_func = scoring_func
+        self.e_score_correction_bias = e_score_correction_bias
 
         self.gate_up_proj = _load_expert_multi_weights_col(
             prefix=prefix,
@@ -68,7 +73,6 @@ class UnquantizedSparseMoELayer(nn.Module):
                 num_expert_group=self.n_expert_group,
                 topk_group=self.topk_group,
             )
-
         return fused_moe(
             x,
             w1=self.gate_up_proj,
@@ -80,6 +84,8 @@ class UnquantizedSparseMoELayer(nn.Module):
             use_grouped_topk=self.n_expert_group is not None,
             num_expert_group=self.n_expert_group,
             topk_group=self.topk_group,
+            scoring_func=self.scoring_func,
+            e_score_correction_bias=self.e_score_correction_bias,
         )
 
 

@@ -28,6 +28,8 @@ class FP8SparseMoELayer(nn.Module):
         topk: int,
         topk_group: Optional[int],
         weights: Weights,
+        scoring_func: Optional[str] = "softmax",
+        e_score_correction_bias: Optional[float] = None,
         gate_proj_name: str = "gate_proj",
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
@@ -42,6 +44,9 @@ class FP8SparseMoELayer(nn.Module):
         self.topk = topk
         self.topk_group = topk_group
         self.renormalize = renormalize
+        self.weight_block_size = weights.weights_loader.weight_block_size
+        self.scoring_func = scoring_func
+        self.e_score_correction_bias = e_score_correction_bias
 
         (
             self.gate_up_proj,
@@ -76,6 +81,8 @@ class FP8SparseMoELayer(nn.Module):
             use_grouped_topk=self.n_expert_group is not None,
             num_expert_group=self.n_expert_group,
             topk_group=self.topk_group,
+            scoring_func=self.scoring_func,
+            e_score_correction_bias=self.e_score_correction_bias,
             use_fp8_w8a8=True,
             w1_scale=self.gate_up_proj_weight_scale,
             w2_scale=self.down_proj_weight_scale,
@@ -109,7 +116,7 @@ def _load_expert_weights(
             )
         if all_weight_scales is None:
             all_weight_scales = torch.empty(
-                (n_experts,),
+                (n_experts,) + weight.weight_scale.shape,
                 dtype=torch.float32,
                 device=weight.weight.device,
             )

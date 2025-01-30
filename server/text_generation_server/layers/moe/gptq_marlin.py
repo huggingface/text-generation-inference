@@ -69,7 +69,11 @@ class GPTQMarlinSparseMoELayer(nn.Module):
         gate_proj_name: str = "gate_proj",
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
+        scoring_func: Optional[str] = None,
+        e_score_correction_bias: Optional[float] = None,
     ):
+        assert scoring_func == "softmax", f"scoring func {scoring_func} is not handled"
+        assert e_score_correction_bias is None, "scoring correction bias is not handled"
         super().__init__()
 
         if not (
