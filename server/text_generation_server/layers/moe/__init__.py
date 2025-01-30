@@ -52,6 +52,8 @@ class MoELayer(Protocol):
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
         hidden_act: str = "silu",
+        scoring_func: Optional[str] = None,
+        e_score_correction_bias: Optional[float] = None,
     ): ...
 
     def forward(
@@ -81,8 +83,13 @@ class DenseMoELayer(nn.Module):
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
         hidden_act: str = "silu",
+        scoring_func: Optional[str] = None,
+        e_score_correction_bias: Optional[float] = None,
     ):
         super().__init__()
+
+        assert scoring_func is None, "scoring func is not handled"
+        assert e_score_correction_bias is None, "scoring correction bias is not handled"
 
         log_once(
             logger.info,
