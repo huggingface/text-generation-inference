@@ -75,8 +75,10 @@ struct Args {
 
 //  #[clap(default_value = "20", long, env)]
 //  max_waiting_tokens: usize,
-//  #[clap(long, env)]
-//  max_batch_size: Option<usize>,
+
+    /// Maximum number of requests per batch
+    #[clap(long, env)]
+    max_batch_size: Option<usize>,
 
     /// The IP address to listen on
     #[clap(default_value = "0.0.0.0", long, env)]
@@ -165,6 +167,7 @@ async fn main() -> Result<(), RouterError> {
             use_mlock:              args.use_mlock,
             flash_attention:        args.flash_attention,
             max_batch_total_tokens: args.max_batch_total_tokens,
+            max_batch_size:         args.max_batch_size,
             batch_timeout:          tokio::time::Duration::from_millis(100),
         },
         tokenizer,

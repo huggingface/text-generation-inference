@@ -25,6 +25,7 @@ pub struct LlamacppConfig {
     pub model_gguf: String,
     pub n_ctx: u32,
     pub max_batch_total_tokens: u32,
+    pub max_batch_size: Option<usize>,
     pub batch_timeout: Duration,
     pub n_threads: i32,
     pub use_mmap: bool,
@@ -320,13 +321,22 @@ impl LlamacppBackend {
                 match timeout(conf.batch_timeout, rx.recv()).await {
                     Ok(None) => break, // closed
                     Ok(Some(request)) => {
+                        if let Some(max_batch_size) = conf.max_batch_size {
+                            if requests.len() + 1 == max_batch_size {
+                                requests.push(request);
+                                let _ = sync_tx.send(requests);
+                                n_tokens = 0;
+                                requests = Vec::new();
+                                continue;
+                            }
+                        }
                         if n_tokens + request.input_ids.len() > conf.max_batch_total_tokens as usize {
                             let _ = sync_tx.send(requests);
                             n_tokens = request.input_ids.len();
                             requests = vec![request];
-                        } else {
-                            requests.push(request);
+                            continue;
                         }
+                        requests.push(request);
                     },
                     Err(_) => {
                         if !requests.is_empty() {
