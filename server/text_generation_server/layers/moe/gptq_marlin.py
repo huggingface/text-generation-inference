@@ -72,7 +72,7 @@ class GPTQMarlinSparseMoELayer(nn.Module):
         scoring_func: Optional[str] = None,
         e_score_correction_bias: Optional[float] = None,
     ):
-        assert scoring_func is None, "scoring func is not handled"
+        assert scoring_func == "softmax", f"scoring func {scoring_func} is not handled"
         assert e_score_correction_bias is None, "scoring correction bias is not handled"
         super().__init__()
 
