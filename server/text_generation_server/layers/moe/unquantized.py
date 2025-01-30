@@ -73,8 +73,6 @@ class UnquantizedSparseMoELayer(nn.Module):
                 num_expert_group=self.n_expert_group,
                 topk_group=self.topk_group,
             )
-        # from loguru import logger
-        # logger.info("Fused MoE is used here")
         return fused_moe(
             x,
             w1=self.gate_up_proj,

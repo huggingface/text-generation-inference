@@ -279,9 +279,9 @@ RUN git clone https://github.com/danieldk/marlin-kernels.git && \
 
 FROM kernel-builder AS moe-kernels
 WORKDIR /usr/src
-ENV MOE_KERNELS_BRANCH=9fb72ccb00b8da96a41f9b9c48f305c7dbd266bc
+ENV MOE_KERNELS_BRANCH=d7e042bf9f7aff10c631212fc71b24895d66eb59
 ENV VLLM_TARGET_DEVICE=rocm
-RUN git clone https://github.com/mht-sharma/moe-kernels.git && \
+RUN git clone https://github.com/danieldk/moe-kernels.git && \
     cd moe-kernels && \
     git checkout ${MOE_KERNELS_BRANCH} && \
     python setup.py install
