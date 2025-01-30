@@ -161,6 +161,8 @@ async fn main() -> Result<(), RouterError> {
             use_mmap:        args.use_mmap,
             use_mlock:       args.use_mlock,
             flash_attention: args.flash_attention,
+            batch_size:      5,
+            batch_timeout:   tokio::time::Duration::from_millis(100),
         },
         tokenizer,
     );
