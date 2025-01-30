@@ -75,7 +75,7 @@ marlin-kernels = [
   { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp311-cp311-linux_x86_64.whl", marker = "python_version == '3.11'" },
   { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp312-cp312-linux_x86_64.whl", marker = "python_version == '3.12'" },
 ]
-moe-kernels.url = "https://github.com/danieldk/moe-kernels/releases/download/v0.8.0/moe_kernels-0.8.0+cu123torch2.5-cp39-abi3-linux_x86_64.whl"
+moe-kernels.url = "https://github.com/danieldk/moe-kernels/releases/download/v0.8.1/moe_kernels-0.8.1+cu123torch2.5-cp39-abi3-linux_x86_64.whl"
 
 [tool.pytest.ini_options]
 markers = ["private: marks tests as requiring an admin hf token (deselect with '-m \"not private\"')"]
