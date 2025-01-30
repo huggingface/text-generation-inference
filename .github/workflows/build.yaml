@@ -64,7 +64,7 @@ jobs:
                 export runs_on="aws-g6-12xl-plus-priv-cache"
                 export platform=""
                 export extra_pytest=""
-                export target="nil"
+                export target=""
                 ;;
             cuda-trtllm)
                 export dockerfile="Dockerfile_trtllm"
@@ -74,7 +74,13 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest=""
-                export build_type="dev"
+                if [[ "${GITHUB_REF}" == "refs/tags/*" ]]; then 
+                  export build_type="release"; 
+                  export target=""; 
+                else 
+                  export build_type="dev";
+                  export target="ci-runtime"; 
+                fi
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
@@ -85,7 +91,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest="-k test_flash_gemma_gptq_load"
-                export target="nil"
+                export target=""
                 ;;
             intel-xpu)
                 export dockerfile="Dockerfile_intel"
@@ -95,7 +101,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform="xpu"
                 export extra_pytest=""
-                export target="nil"
+                export target=""
                 ;;
             intel-cpu)
                 export dockerfile="Dockerfile_intel"
@@ -106,7 +112,7 @@ jobs:
                 export runs_on="aws-highmemory-32-plus-priv"
                 export platform="cpu"
                 export extra_pytest="-k test_flash_gemma_simple"
-                export target="nil"
+                export target=""
                 ;;
           esac
           echo $dockerfile
@@ -193,7 +199,7 @@ jobs:
             sccache_gha_enabled=on
             actions_cache_url=${{ env.ACTIONS_CACHE_URL }}
             actions_runtime_token=${{ env.ACTIONS_RUNTIME_TOKEN }}
-
+          target: ${{ env.TARGET }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=max
