@@ -18,7 +18,7 @@ RUN apt-get install -y \
 # nvidia-cuda-toolkit
 #    -DGGML_CUDA=ON \
 
-ENV LLAMA_VERSION=b4585
+ENV LLAMA_VERSION=b4599
 RUN git clone --depth 1 -b ${LLAMA_VERSION} https://github.com/ggerganov/llama.cpp \
  && cd llama.cpp \
  && cmake -B build \

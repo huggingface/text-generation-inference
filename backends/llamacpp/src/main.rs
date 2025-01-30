@@ -30,7 +30,7 @@ struct Args {
 
     /// Number of threads to use for inference.
     #[clap(default_value = "1", long, env)]
-    n_threads: isize,
+    n_threads: usize,
 
     #[clap(default_value = "true", long, env)]
     /// Whether to use memory mapping.
@@ -77,8 +77,8 @@ struct Args {
 //  max_waiting_tokens: usize,
 
     /// Maximum number of requests per batch
-    #[clap(long, env)]
-    max_batch_size: Option<usize>,
+    #[clap(default_value = "1", long, env)]
+    max_batch_size: usize,
 
     /// The IP address to listen on
     #[clap(default_value = "0.0.0.0", long, env)]
@@ -145,12 +145,10 @@ async fn main() -> Result<(), RouterError> {
             "`max_total_tokens` must be <= `max_batch_total_tokens`".to_string(),
         ));
     }
-    if let Some(max_batch_size) = args.max_batch_size {
-        if max_batch_size * args.max_total_tokens > args.max_batch_total_tokens {
-            return Err(RouterError::ArgumentValidation(
-                "`max_batch_size` * `max_total_tokens` must be <= `max_batch_total_tokens`".to_string(),
-            ));
-        }
+    if args.max_batch_size * args.max_total_tokens > args.max_batch_total_tokens {
+        return Err(RouterError::ArgumentValidation(
+            "`max_batch_size` * `max_total_tokens` must be <= `max_batch_total_tokens`".to_string(),
+        ));
     }
     if args.max_batch_total_tokens > args.n_ctx {
         return Err(RouterError::ArgumentValidation(
