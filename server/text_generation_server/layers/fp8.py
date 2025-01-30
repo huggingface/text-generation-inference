@@ -504,6 +504,7 @@ class Fp8Linear(torch.nn.Module):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if self.weight_block_size is not None:
+            # https://arxiv.org/pdf/2412.19437
             # At a more granular level. As illustrated in Figure 7 (a), (1) for activations, we group and
             # scale elements on a 1x128 tile basis (i.e., per token per 128 channels); and (2) for weights, we
             # group and scale elements on a 128x128 block basis (i.e., per 128 input channels per 128 output
