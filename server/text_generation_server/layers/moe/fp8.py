@@ -36,9 +36,9 @@ class FP8SparseMoELayer(nn.Module):
     ):
         super().__init__()
 
-        assert (n_expert_group is None) == (topk_group is None), (
-            "n_expert_group and topk_group must both be None or have some value"
-        )
+        assert (n_expert_group is None) == (
+            topk_group is None
+        ), "n_expert_group and topk_group must both be None or have some value"
 
         self.n_expert_group = n_expert_group
         self.topk = topk

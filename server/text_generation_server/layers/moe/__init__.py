@@ -89,9 +89,9 @@ class DenseMoELayer(nn.Module):
             "No fused layers are available for this model type, using (slower) dense MoE layer",
         )
 
-        assert (n_expert_group is None) == (topk_group is None), (
-            "n_expert_group and topk_group must both be None or have some value"
-        )
+        assert (n_expert_group is None) == (
+            topk_group is None
+        ), "n_expert_group and topk_group must both be None or have some value"
 
         self.n_expert_group = n_expert_group
         self.n_experts = n_experts
