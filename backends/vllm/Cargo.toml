@@ -8,6 +8,7 @@ homepage.workspace = true
 [dependencies]
 async-trait = "0.1.83"
 clap = { version = "4.5.21", features = ["derive"] }
+crossbeam-channel = "0.5"
 pyo3 = { workspace = true }
 text-generation-router = { path = "../../router" }
 thiserror = "2.0"

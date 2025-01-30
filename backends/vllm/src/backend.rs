@@ -1,38 +1,42 @@
 use crate::errors::VllmBackendError;
 use crate::{EngineArgs, LlmEngine};
 use async_trait::async_trait;
-use std::collections::HashMap;
+use crossbeam_channel::internal::SelectHandle;
+use crossbeam_channel::{unbounded, Receiver, RecvTimeoutError, Sender};
+use std::collections::{HashMap, HashSet};
+use std::hint::spin_loop;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
+use std::time::Duration;
 use text_generation_router::infer::{Backend, InferError, InferStreamResponse};
 use text_generation_router::validation::{
     ValidGenerateRequest, ValidParameters, ValidStoppingParameters,
 };
+use text_generation_router::Token;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 type InferResult = Result<InferStreamResponse, InferError>;
 
-struct Request {
+struct VllmRequestContext {
     tokens: Arc<Vec<u32>>,
     params: ValidParameters,
     stopping_params: ValidStoppingParameters,
-    streamer: UnboundedSender<InferResult>,
+    stream: UnboundedSender<InferResult>,
 }
 
 pub struct VllmBackend {
-    looper: JoinHandle<()>,
-    waiting_requests: UnboundedSender<Request>,
+    waiting_requests: Sender<VllmRequestContext>,
 }
 
 impl VllmBackend {
     pub fn from_engine_args(args: EngineArgs) -> Result<VllmBackend, VllmBackendError> {
         let engine = LlmEngine::from_engine_args(args)?;
-        let (sender, receiver) = unbounded_channel();
+        let (sender, receiver) = unbounded();
         let looper = spawn(|| engine_background_loop(engine, receiver));
         Ok(Self {
-            looper,
             waiting_requests: sender,
         })
     }
@@ -48,12 +52,12 @@ impl Backend for VllmBackend {
 
         // Send the query to the vLLM Engine
         if let Some(input_ids) = request.input_ids {
-            debug!("Attempt to queue new request");
-            if let Err(err) = self.waiting_requests.send(Request {
+            debug!("Queuing new request");
+            if let Err(err) = self.waiting_requests.send(VllmRequestContext {
                 tokens: Arc::clone(&input_ids),
                 params: request.parameters,
                 stopping_params: request.stopping_parameters,
-                streamer: sender,
+                stream: sender,
             }) {
                 warn!("Waiting Requests queue has been closed: {err}")
             }
@@ -67,35 +71,55 @@ impl Backend for VllmBackend {
     }
 }
 
-fn engine_background_loop(mut engine: LlmEngine, mut waiting_requests: UnboundedReceiver<Request>) {
+fn engine_background_loop(
+    mut engine: LlmEngine,
+    mut waiting_requests: Receiver<VllmRequestContext>,
+) {
     info!("Starting vLLM engine background loop");
-
+    static DURATION_100_MS: Duration = Duration::from_millis(100);
     let mut in_flight_requests = HashMap::with_capacity(256);
-    loop {
+    'outer: loop {
         if !waiting_requests.is_empty() {
-            let num_waiting_requests = waiting_requests.len();
-            debug!(
-                "Adding {} requests to the vLLM engine",
-                num_waiting_requests
-            );
-
-            let mut requests = Vec::with_capacity(num_waiting_requests);
-            waiting_requests.blocking_recv_many(&mut requests, num_waiting_requests);
-
-            for request in requests {
-                match engine.add_request(&request.tokens, &request.params, &request.stopping_params)
-                {
+            match waiting_requests.recv_timeout(DURATION_100_MS) {
+                Ok(context) => match engine.add_request(
+                    &context.tokens,
+                    &context.params,
+                    &context.stopping_params,
+                ) {
                     Ok(request_id) => {
                         debug!("Successfully scheduled request {request_id}");
-                        in_flight_requests.insert(request_id.to_string(), request);
+                        in_flight_requests.insert(request_id.to_string(), context);
                     }
                     Err(err) => {
                         warn!("Failed to schedule new request: {err}");
                     }
+                },
+                Err(err) => match err {
+                    RecvTimeoutError::Disconnected => break 'outer,
+                    _ => {} // timeout all fine
+                },
+            }
+        }
+
+        if !in_flight_requests.is_empty() {
+            match engine.step() {
+                Ok(outputs) => outputs.iter().for_each(|output| {
+                    let ctx = &in_flight_requests[&output.request_id];
+
+                    // We only need to check on Err meaning the channel is not open anymore, so abort the request
+                    if let Err(_) = ctx.stream.send(InferResult {}) {
+                        debug!("Request {}'s channel dropped, aborting", &output.request_id);
+                        in_flight_requests.remove(&output.request_id);
+                        engine.abort_request(&output.request_id);
+                    }
+                }),
+                Err(err) => {
+                    error!("LLMEngine::step got an error: {err}");
                 }
             }
         }
-        engine.step();
+
+        spin_loop();
     }
 
     info!("Shutting down vLLM engine background loop");

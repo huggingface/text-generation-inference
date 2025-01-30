@@ -1,9 +1,10 @@
 use crate::errors::VllmBackendError;
 use crate::{sampling_params, tokens_prompt, TryToPyObject};
+use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyDict, PyList, PyString};
 use text_generation_router::validation::{ValidParameters, ValidStoppingParameters};
-use tracing::info;
+use tracing::{info, instrument};
 use uuid::Uuid;
 
 pub struct EngineArgs {
@@ -29,9 +30,9 @@ impl IntoPyDict for EngineArgs {
                     ),
                 ],
             )
-                .as_any(),
+            .as_any(),
         )
-            .expect("Failed to create Python Dict from EngineArgs")
+        .expect("Failed to create Python Dict from EngineArgs")
     }
 }
 
@@ -47,29 +48,32 @@ impl TryToPyObject for SamplingParams<'_> {
         let kwargs = PyDict::from_sequence_bound(&PyList::new_bound(
             py,
             [
-                ("seed", self.sampling_params.seed.into_py(py)),
-                ("n", 1.into_py(py)),
-                ("top_k", self.sampling_params.top_k.into_py(py)),
-                ("top_p", self.sampling_params.top_p.into_py(py)),
-                ("temperature", self.sampling_params.temperature.into_py(py)),
+                (intern!(py, "seed"), self.sampling_params.seed.into_py(py)),
+                (intern!(py, "n"), 1.into_py(py)),
+                (intern!(py, "top_k"), self.sampling_params.top_k.into_py(py)),
+                (intern!(py, "top_p"), self.sampling_params.top_p.into_py(py)),
                 (
-                    "frequency_penalty",
+                    intern!(py, "temperature"),
+                    self.sampling_params.temperature.into_py(py),
+                ),
+                (
+                    intern!(py, "frequency_penalty"),
                     self.sampling_params.frequency_penalty.into_py(py),
                 ),
                 (
-                    "repetition_penalty",
+                    intern!(py, "repetition_penalty"),
                     self.sampling_params.repetition_penalty.into_py(py),
                 ),
                 (
-                    "ignore_eos",
+                    intern!(py, "ignore_eos"),
                     self.stopping_params.ignore_eos_token.into_py(py),
                 ),
                 (
-                    "max_tokens",
+                    intern!(py, "max_tokens"),
                     self.stopping_params.max_new_tokens.into_py(py),
                 ),
                 (
-                    "stop",
+                    intern!(py, "stop"),
                     PyList::new_bound(py, self.stopping_params.stop_sequences.iter()).into(),
                 ),
             ],
@@ -78,6 +82,47 @@ impl TryToPyObject for SamplingParams<'_> {
         Ok(py_sampling_params_class
             .call_method_bound(py, "from_optional", (), Some(&kwargs?))?
             .to_object(py))
+    }
+}
+
+#[derive(Debug)]
+pub struct CompletionOutput {
+    pub index: usize,
+    pub text: String,                  // TODO: SmallString?
+    pub token_ids: Vec<u32>,           // TODO: TinyVec?
+    pub logprobs: Option<Vec<f32>>,    // TODO: TinyVec?
+    pub finish_reason: Option<String>, // lora_request: LATER
+}
+
+#[derive(Debug)]
+pub struct RequestOutput {
+    pub request_id: String,
+    pub outputs: Vec<CompletionOutput>,
+    pub finished: bool,
+    // metrics: Vec<RequestMetrics>  // TODO
+}
+
+impl<'py> FromPyObject<'py> for CompletionOutput {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let py = ob.py();
+        Ok(Self {
+            index: ob.getattr(intern!(py, "index"))?.extract()?,
+            text: ob.getattr(intern!(py, "text"))?.extract()?,
+            token_ids: ob.getattr(intern!(py, "token_ids"))?.extract()?,
+            logprobs: ob.getattr(intern!(py, "logprobs"))?.extract()?,
+            finish_reason: ob.getattr(intern!(py, "finish_reason"))?.extract()?,
+        })
+    }
+}
+
+impl<'py> FromPyObject<'py> for RequestOutput {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        let py = ob.py();
+        Ok(Self {
+            request_id: ob.getattr(intern!(py, "request_id"))?.extract()?,
+            outputs: ob.getattr(intern!(py, "outputs"))?.extract()?,
+            finished: ob.getattr(intern!(py, "finished"))?.extract()?,
+        })
     }
 }
 
@@ -115,14 +160,14 @@ impl LlmEngine {
     ) -> Result<(), VllmBackendError> {
         Python::with_gil(|py| {
             // Create vllm.Tokens
-            let kwargs = [("prompt_token_ids", prompt)].into_py_dict_bound(py);
+            let kwargs = [(intern!(py, "prompt_token_ids"), prompt)].into_py_dict_bound(py);
             let py_tokens_prompt_class = tokens_prompt(py);
             let py_tokens_prompt = py_tokens_prompt_class.call_bound(py, (), Some(&kwargs))?;
             let py_sampling_params = sampling_params.try_to_object(py)?;
 
             self.engine.call_method1(
                 py,
-                "add_request",
+                intern!(py, "add_request"),
                 (
                     PyString::new_bound(py, request_id),
                     py_tokens_prompt,
@@ -130,10 +175,18 @@ impl LlmEngine {
                 ),
             )?;
 
-            self.engine.call_method0(py, "step")
+            self.engine.call_method0(py, intern!(py, "step"))
         })?;
 
         Ok(())
+    }
+
+    fn py_step(&self) -> Result<Vec<RequestOutput>, VllmBackendError> {
+        Ok(Python::with_gil(|py| {
+            self.engine
+                .call_method0(py, intern!(py, "step"))?
+                .extract::<Vec<RequestOutput>>(py)
+        })?)
     }
 
     pub fn from_engine_args(args: EngineArgs) -> Result<LlmEngine, VllmBackendError> {
@@ -142,6 +195,7 @@ impl LlmEngine {
         Ok(Self { engine })
     }
 
+    #[instrument(skip_all)]
     pub fn add_request(
         &self,
         prompt: &[u32],
@@ -159,5 +213,11 @@ impl LlmEngine {
         Ok(request_id)
     }
 
-    pub fn step(&mut self) {}
+    #[instrument(skip_all)]
+    pub fn abort_request(&self, _request_id: &str) {}
+
+    #[instrument(skip_all)]
+    pub fn step(&mut self) -> Result<Vec<RequestOutput>, VllmBackendError> {
+        self.py_step()
+    }
 }
