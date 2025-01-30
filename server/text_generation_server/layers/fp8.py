@@ -5,7 +5,6 @@ from typing import Optional, Tuple, Type, Union, List
 import torch
 from loguru import logger
 
-from moe_kernels.fp8_utils import w8a8_block_fp8_matmul, per_token_group_quant_fp8
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import (
     Weight,
@@ -19,6 +18,12 @@ try:
     import marlin_kernels
 except ImportError:
     marlin_kernels = None
+
+try:
+    from moe_kernels.fp8_utils import w8a8_block_fp8_matmul, per_token_group_quant_fp8
+except ImportError:
+    w8a8_block_fp8_matmul = None
+    per_token_group_quant_fp8 = None
 
 quant_dtype: torch.dtype = (
     torch.float8_e4m3fnuz if SYSTEM == "rocm" else torch.float8_e4m3fn
