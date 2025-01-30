@@ -23,11 +23,11 @@ use tracing::{instrument};
 
 pub struct LlamacppConfig {
     pub model_gguf: String,
-    pub n_ctx: u32,
-    pub max_batch_total_tokens: u32,
+    pub n_ctx: usize,
+    pub max_batch_total_tokens: usize,
     pub max_batch_size: Option<usize>,
     pub batch_timeout: Duration,
-    pub n_threads: i32,
+    pub n_threads: isize,
     pub use_mmap: bool,
     pub use_mlock: bool,
     pub flash_attention: bool,
@@ -124,9 +124,9 @@ impl Llamacpp {
         }
         let ctx = unsafe {
             let mut params = bindings::llama_context_default_params();
-            params.n_ctx = conf.n_ctx;
-            params.n_threads = conf.n_threads;
-            params.n_threads_batch = conf.n_threads;
+            params.n_ctx = conf.n_ctx as _;
+            params.n_threads = conf.n_threads as _;
+            params.n_threads_batch = conf.n_threads as _;
             params.flash_attn = conf.flash_attention;
             params.no_perf = true;
             bindings::llama_init_from_model(model, params)

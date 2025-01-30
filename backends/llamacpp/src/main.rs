@@ -26,11 +26,11 @@ struct Args {
 
     /// Context size for the model.
     #[clap(default_value = "4096", long, env)]
-    n_ctx: u32,
+    n_ctx: usize,
 
     /// Number of threads to use for inference.
     #[clap(default_value = "1", long, env)]
-    n_threads: i32,
+    n_threads: isize,
 
     #[clap(default_value = "true", long, env)]
     /// Whether to use memory mapping.
@@ -70,8 +70,8 @@ struct Args {
 //  max_batch_prefill_tokens: u32,
 
     /// Maximum tokens within a batch
-    #[clap(default_value = "1024", long, env)]
-    max_batch_total_tokens: u32,
+    #[clap(default_value = "4096", long, env)]
+    max_batch_total_tokens: usize,
 
 //  #[clap(default_value = "20", long, env)]
 //  max_waiting_tokens: usize,
@@ -138,6 +138,23 @@ async fn main() -> Result<(), RouterError> {
     if args.max_input_tokens >= args.max_total_tokens {
         return Err(RouterError::ArgumentValidation(
             "`max_input_tokens` must be < `max_total_tokens`".to_string(),
+        ));
+    }
+    if args.max_total_tokens > args.max_batch_total_tokens {
+        return Err(RouterError::ArgumentValidation(
+            "`max_total_tokens` must be <= `max_batch_total_tokens`".to_string(),
+        ));
+    }
+    if let Some(max_batch_size) = args.max_batch_size {
+        if max_batch_size * args.max_total_tokens > args.max_batch_total_tokens {
+            return Err(RouterError::ArgumentValidation(
+                "`max_batch_size` * `max_total_tokens` must be <= `max_batch_total_tokens`".to_string(),
+            ));
+        }
+    }
+    if args.max_batch_total_tokens > args.n_ctx {
+        return Err(RouterError::ArgumentValidation(
+            "`max_batch_total_tokens` must be <= `n_ctx`".to_string(),
         ));
     }
 
