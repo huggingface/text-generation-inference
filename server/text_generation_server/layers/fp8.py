@@ -148,7 +148,6 @@ def fp8_quantize(
         shape = weight.shape
         qweight, scale = marlin_kernels.scaled_fp8_quant(
             weight.reshape(-1, shape[-1]),
-            dtype=quant_dtype,
             scale=scale,
             scale_ub=scale_upper_bound,
             # TODO: don't do this when we have to use the Torch kernel.

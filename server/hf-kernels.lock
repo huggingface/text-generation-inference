@@ -1,5 +1,251 @@
 [
   {
+    "repo_id": "kernels-community/attention",
+    "sha": "20100e6a97f0fa1465560aa21eecbf4b04d3d93a",
+    "files": [
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/attention/_attention_6yvgebnqctora.abi3.so",
+        "blob_id": "29733cfb726d11a1d278fb0f3679c010cf5210e2"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/attention/_ops.py",
+        "blob_id": "1379d7cc10c5fafa877e3ea73be33d3eed57b449"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/attention/_attention_4jg2igd54wzge.abi3.so",
+        "blob_id": "a58d380aa758b8e6842e89013229bee3711286ef"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/attention/_ops.py",
+        "blob_id": "9dee16955e9d988953733fae4e743d92886c92b1"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/attention/_attention_syg6kbhkhc4xk.abi3.so",
+        "blob_id": "369150e0964eaca52c0c7906addf9f18d8ec7270"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/attention/_ops.py",
+        "blob_id": "0bac0403831e313bcf9cbab1a35c2cbe4d5ef08f"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/attention/_attention_hhzgzhvc7zviy.abi3.so",
+        "blob_id": "05529e8bcee239db92984acb3e19926697c64a3f"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/attention/_ops.py",
+        "blob_id": "270fd3d0005a3e44dc6625c3ab4948a7fa7892bb"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/attention/_attention_gbi5gm244waic.abi3.so",
+        "blob_id": "cb6cccabe445cbf7bfd797b4645300e5a2a4ec38"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/attention/_ops.py",
+        "blob_id": "a517876400c08f9800107c61d6ca3f57e0bdc2e6"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/attention/_attention_ill75rmpj7yds.abi3.so",
+        "blob_id": "bf93abf5555357ad397844421fcfc66ae0743166"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/attention/_ops.py",
+        "blob_id": "f49b90de8bda122b2049bf57f5012b60e05364fe"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/attention/_attention_6qe5ft3kiteru.abi3.so",
+        "blob_id": "0bbd1dc682174c9d7fba2ee7426e1183e668ab79"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/attention/_ops.py",
+        "blob_id": "f9b2a39308433746718b31f0d9830b27f72f5242"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/attention/_attention_ftq3cjdxqfw4m.abi3.so",
+        "blob_id": "d7fa42c3682924a46e9c5b4a7e847a6b4415c5c8"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/attention/_ops.py",
+        "blob_id": "27b44593d2252bfe5399c8dcd883aa497223f158"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/attention/_attention_lkibbjh726iwm.abi3.so",
+        "blob_id": "4a4cccfd49090ac213bbf562a9c4bb2ff2920eb0"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/attention/_ops.py",
+        "blob_id": "ac89377661ed1c5f2eca40cf199a15209af0c05c"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/attention/_attention_vbhagz24hyij6.abi3.so",
+        "blob_id": "4d87629674e87a746aaec4ccadb26bb2a72f2d43"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/attention/_ops.py",
+        "blob_id": "2f05f1ffd05c49971dfc9b45971efb5a055c7e52"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/attention/_attention_sfjvhlixssyce.abi3.so",
+        "blob_id": "ee6153972f28bd997e1fc4a7eaaf425fd5adc918"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/attention/_ops.py",
+        "blob_id": "530d483cdf8243f6c863ca49c0e87018634e69d0"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/attention/__init__.py",
+        "blob_id": "9de56043369487facc1f163df6bd319c9806e5ca"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/attention/_attention_g7oqtcveiuapk.abi3.so",
+        "blob_id": "fe58b4ce4158bf5ee55371329396ac8e573cfc85"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/attention/_custom_ops.py",
+        "blob_id": "a0c0b8db085468dee5100c98d14106a9ee917bf2"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/attention/_ops.py",
+        "blob_id": "1e504e67dd25c4aa79bcc509316f3f23e6e3e6ef"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/attention/platforms.py",
+        "blob_id": "aa06132e74cd7fb634044a76e528979b02a3559b"
+      }
+    ]
+  },
+  {
     "repo_id": "kernels-community/moe",
     "sha": "f1e9385163758eb1934677cb9e94a59f2d87bb09",
     "files": [

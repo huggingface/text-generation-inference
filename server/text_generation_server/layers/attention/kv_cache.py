@@ -1,6 +1,7 @@
 from typing import Tuple
 from dataclasses import dataclass, field
 
+from hf_kernels import load_kernel
 from loguru import logger
 import torch
 
@@ -119,7 +120,7 @@ class KVCache:
         if kv_scales.key_scale_cpu == 1.0 and kv_scales.value_scale_cpu == 1.0:
             return False
         elif self.dtype == torch.float8_e4m3fn and (
-            (ATTENTION == "flashinfer" and SYSTEM == "cuda")
+            (ATTENTION in ("paged", "flashinfer") and SYSTEM == "cuda")
             or (ATTENTION == "paged" and SYSTEM == "rocm")
         ):
             log_once(logger.info, "Using FP8 KV cache scales")
@@ -221,7 +222,7 @@ def paged_reshape_and_cache(
 
     if SYSTEM == "cuda":
         try:
-            import attention_kernels
+            attention_kernels = load_kernel("kernels-community/attention")
         except Exception as e:
             raise ImportError(
                 f"Could not import attention_kernels. Make sure your installation is correct. Complete error: {e}"
@@ -232,7 +233,14 @@ def paged_reshape_and_cache(
             kv_cache_dtype = "fp8"
 
         attention_kernels.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, kv_cache_dtype, k_scale, v_scale
+            key,
+            value,
+            key_cache,
+            value_cache,
+            slots,
+            kv_cache_dtype,
+            torch.tensor(k_scale),
+            torch.tensor(v_scale),
         )
     elif SYSTEM == "rocm":
         try:

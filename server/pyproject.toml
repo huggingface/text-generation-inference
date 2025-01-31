@@ -38,6 +38,7 @@ requires = ["hf-kernels", "setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.kernels.dependencies]
+"kernels-community/attention" = ">=0.0.1"
 "kernels-community/moe" = ">=0.0.3"
 "kernels-community/quantization" = ">=0.0.2"
 
@@ -72,14 +73,6 @@ attention = [ "attention-kernels" ]
 gen = [
     "grpcio-tools>=1.69.0",
     "mypy-protobuf>=3.6.0",
-]
-
-[tool.uv.sources]
-attention-kernels = [
-  { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.5-cp39-cp39-linux_x86_64.whl", marker = "python_version == '3.9'" },
-  { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.5-cp310-cp310-linux_x86_64.whl", marker = "python_version == '3.10'" },
-  { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.5-cp311-cp311-linux_x86_64.whl", marker = "python_version == '3.11'" },
-  { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.1.1/attention_kernels-0.1.1+cu123torch2.5-cp312-cp312-linux_x86_64.whl", marker = "python_version == '3.12'" },
 ]
 
 [tool.pytest.ini_options]
