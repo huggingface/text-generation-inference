@@ -3,7 +3,6 @@
   buildPythonPackage,
   poetry-core,
   mypy-protobuf,
-  attention-kernels,
   awq-inference-engine,
   causal-conv1d,
   compressed-tensors,
@@ -23,7 +22,6 @@
   hf-transfer,
   loguru,
   mamba-ssm,
-  moe-kernels,
   opentelemetry-api,
   opentelemetry-exporter-otlp,
   opentelemetry-instrumentation-grpc,
@@ -78,7 +76,6 @@ buildPythonPackage {
   pythonRemoveDeps = [ "scipy" ];
 
   dependencies = [
-    attention-kernels
     awq-inference-engine
     eetq
     causal-conv1d

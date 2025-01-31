@@ -1,3 +1,4 @@
+from hf_kernels import load_kernel
 import torch
 from text_generation_server.layers.attention.kv_cache import KVCache, KVScales
 from text_generation_server.utils.import_utils import SYSTEM
@@ -107,9 +108,11 @@ def paged_attention(
         if softcap is not None:
             raise RuntimeError("Paged attention doesn't support softcapping")
         input_lengths = seqlen.input_lengths + seqlen.cache_lengths
-        import attention_kernels
+        attention_kernels = load_kernel("kernels-community/attention")
 
         out = torch.empty_like(query)
+
+        kv_cache_dtype = "fp8" if kv_cache.dtype == torch.float8_e4m3fn else "auto"
 
         use_v1 = max_s <= 8192 and (
             max_num_partitions == 1 or num_seqs * num_heads > 512
@@ -120,15 +123,16 @@ def paged_attention(
                 query,
                 kv_cache.key,
                 kv_cache.value,
-                kv_head_mapping,
+                kv_cache.key.shape[1],
                 softmax_scale,
                 block_tables,
                 input_lengths,
                 block_size,
                 max_s,
                 None,
-                "auto",
-                1.0,
+                kv_cache_dtype,
+                torch.tensor(kv_scales.key_scale_cpu if can_scale else 1.0),
+                torch.tensor(kv_scales.value_scale_cpu if can_scale else 1.0),
             )
         else:
             # Run PagedAttention V2.
@@ -153,15 +157,16 @@ def paged_attention(
                 query,
                 kv_cache.key,
                 kv_cache.value,
-                kv_head_mapping,
+                kv_cache.key.shape[1],
                 softmax_scale,
                 block_tables,
                 input_lengths,
                 block_size,
                 max_s,
                 None,
-                "auto",
-                1.0,
+                kv_cache_dtype,
+                torch.tensor(kv_scales.key_scale_cpu if can_scale else 1.0),
+                torch.tensor(kv_scales.value_scale_cpu if can_scale else 1.0),
             )
     return out
 
