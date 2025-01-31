@@ -1,73 +1,469 @@
 {
   "details": {
     "best_of_sequences": null,
-    "finish_reason": "length",
-    "generated_tokens": 10,
+    "finish_reason": "eos_token",
+    "generated_tokens": 76,
     "prefill": [],
     "seed": null,
     "tokens": [
       {
         "id": 18183,
-        "logprob": -1.6669922,
+        "logprob": -1.5195312,
         "special": false,
         "text": " Deep"
       },
       {
         "id": 6832,
-        "logprob": -0.08959961,
+        "logprob": -0.06817627,
         "special": false,
         "text": " learning"
       },
       {
         "id": 374,
-        "logprob": -0.14685059,
+        "logprob": -0.13122559,
         "special": false,
         "text": " is"
       },
       {
         "id": 264,
-        "logprob": -0.125,
+        "logprob": -0.13415527,
         "special": false,
         "text": " a"
       },
       {
         "id": 25993,
-        "logprob": -0.81640625,
+        "logprob": -0.8769531,
         "special": false,
         "text": " subset"
       },
       {
         "id": 315,
-        "logprob": -0.0013418198,
+        "logprob": -0.0011396408,
         "special": false,
         "text": " of"
       },
       {
         "id": 5662,
-        "logprob": -0.16027832,
+        "logprob": -0.16442871,
         "special": false,
         "text": " machine"
       },
       {
         "id": 6832,
-        "logprob": -0.0016393661,
+        "logprob": -0.0026416779,
         "special": false,
         "text": " learning"
       },
       {
         "id": 429,
-        "logprob": -0.4477539,
+        "logprob": -0.48754883,
         "special": false,
         "text": " that"
       },
       {
         "id": 5711,
-        "logprob": -1.2802734,
+        "logprob": -1.2294922,
         "special": false,
         "text": " uses"
+      },
+      {
+        "id": 29728,
+        "logprob": -0.66503906,
+        "special": false,
+        "text": " neural"
+      },
+      {
+        "id": 14155,
+        "logprob": -0.02960205,
+        "special": false,
+        "text": " networks"
+      },
+      {
+        "id": 311,
+        "logprob": -0.7236328,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 3960,
+        "logprob": -1.1914062,
+        "special": false,
+        "text": " learn"
+      },
+      {
+        "id": 504,
+        "logprob": -0.7089844,
+        "special": false,
+        "text": " from"
+      },
+      {
+        "id": 821,
+        "logprob": -0.7729492,
+        "special": false,
+        "text": " data"
+      },
+      {
+        "id": 13,
+        "logprob": -0.7836914,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 1084,
+        "logprob": -0.9941406,
+        "special": false,
+        "text": " It"
+      },
+      {
+        "id": 374,
+        "logprob": -0.52441406,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 264,
+        "logprob": -0.9511719,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 943,
+        "logprob": -0.8642578,
+        "special": false,
+        "text": " type"
+      },
+      {
+        "id": 315,
+        "logprob": -0.00030231476,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 20443,
+        "logprob": -0.14416504,
+        "special": false,
+        "text": " artificial"
+      },
+      {
+        "id": 11229,
+        "logprob": -0.013824463,
+        "special": false,
+        "text": " intelligence"
+      },
+      {
+        "id": 429,
+        "logprob": -0.18762207,
+        "special": false,
+        "text": " that"
+      },
+      {
+        "id": 646,
+        "logprob": -1.0087891,
+        "special": false,
+        "text": " can"
+      },
+      {
+        "id": 3960,
+        "logprob": -0.90234375,
+        "special": false,
+        "text": " learn"
+      },
+      {
+        "id": 504,
+        "logprob": -0.54345703,
+        "special": false,
+        "text": " from"
+      },
+      {
+        "id": 323,
+        "logprob": -1.0400391,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 1281,
+        "logprob": -0.072509766,
+        "special": false,
+        "text": " make"
+      },
+      {
+        "id": 19898,
+        "logprob": -0.16516113,
+        "special": false,
+        "text": " predictions"
+      },
+      {
+        "id": 389,
+        "logprob": -0.4416504,
+        "special": false,
+        "text": " on"
+      },
+      {
+        "id": 3460,
+        "logprob": -0.5385742,
+        "special": false,
+        "text": " large"
+      },
+      {
+        "id": 14713,
+        "logprob": -0.4387207,
+        "special": false,
+        "text": " amounts"
+      },
+      {
+        "id": 315,
+        "logprob": -0.00015091896,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 821,
+        "logprob": -0.061431885,
+        "special": false,
+        "text": " data"
+      },
+      {
+        "id": 13,
+        "logprob": -0.71875,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 18183,
+        "logprob": -0.23632812,
+        "special": false,
+        "text": " Deep"
+      },
+      {
+        "id": 6832,
+        "logprob": -0.0017204285,
+        "special": false,
+        "text": " learning"
+      },
+      {
+        "id": 374,
+        "logprob": -1.1738281,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 1483,
+        "logprob": -0.61083984,
+        "special": false,
+        "text": " used"
+      },
+      {
+        "id": 304,
+        "logprob": -0.035003662,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 264,
+        "logprob": -0.118652344,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 8045,
+        "logprob": -0.42016602,
+        "special": false,
+        "text": " variety"
+      },
+      {
+        "id": 315,
+        "logprob": -1.6212463e-05,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 8357,
+        "logprob": -0.1315918,
+        "special": false,
+        "text": " applications"
+      },
+      {
+        "id": 11,
+        "logprob": -0.12915039,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 2670,
+        "logprob": -0.12463379,
+        "special": false,
+        "text": " including"
+      },
+      {
+        "id": 2168,
+        "logprob": -0.37402344,
+        "special": false,
+        "text": " image"
+      },
+      {
+        "id": 323,
+        "logprob": -0.1451416,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 8806,
+        "logprob": -0.028869629,
+        "special": false,
+        "text": " speech"
+      },
+      {
+        "id": 17843,
+        "logprob": -0.00024068356,
+        "special": false,
+        "text": " recognition"
+      },
+      {
+        "id": 11,
+        "logprob": -0.00031018257,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 5810,
+        "logprob": -0.019821167,
+        "special": false,
+        "text": " natural"
+      },
+      {
+        "id": 4128,
+        "logprob": -0.00012528896,
+        "special": false,
+        "text": " language"
+      },
+      {
+        "id": 8692,
+        "logprob": -0.00089263916,
+        "special": false,
+        "text": " processing"
+      },
+      {
+        "id": 11,
+        "logprob": -0.00073862076,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 323,
+        "logprob": -0.040161133,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 38193,
+        "logprob": -0.4519043,
+        "special": false,
+        "text": " autonomous"
+      },
+      {
+        "id": 11474,
+        "logprob": -0.39941406,
+        "special": false,
+        "text": " vehicles"
+      },
+      {
+        "id": 13,
+        "logprob": -0.21166992,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 1084,
+        "logprob": -0.9082031,
+        "special": false,
+        "text": " It"
+      },
+      {
+        "id": 374,
+        "logprob": -0.44213867,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 264,
+        "logprob": -1.2177734,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 18512,
+        "logprob": -0.5205078,
+        "special": false,
+        "text": " rapidly"
+      },
+      {
+        "id": 7826,
+        "logprob": -0.15332031,
+        "special": false,
+        "text": " growing"
+      },
+      {
+        "id": 2070,
+        "logprob": -0.0039978027,
+        "special": false,
+        "text": " field"
+      },
+      {
+        "id": 448,
+        "logprob": -0.9091797,
+        "special": false,
+        "text": " with"
+      },
+      {
+        "id": 1657,
+        "logprob": -0.17114258,
+        "special": false,
+        "text": " many"
+      },
+      {
+        "id": 4650,
+        "logprob": -0.70703125,
+        "special": false,
+        "text": " potential"
+      },
+      {
+        "id": 8357,
+        "logprob": -0.025131226,
+        "special": false,
+        "text": " applications"
+      },
+      {
+        "id": 304,
+        "logprob": -0.6699219,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 279,
+        "logprob": -0.35205078,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 3853,
+        "logprob": -0.049194336,
+        "special": false,
+        "text": " future"
+      },
+      {
+        "id": 13,
+        "logprob": -0.21972656,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 151643,
+        "logprob": -2.0019531,
+        "special": true,
+        "text": "<|endoftext|>"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": " Deep learning is a subset of machine learning that uses"
+  "generated_text": " Deep learning is a subset of machine learning that uses neural networks to learn from data. It is a type of artificial intelligence that can learn from and make predictions on large amounts of data. Deep learning is used in a variety of applications, including image and speech recognition, natural language processing, and autonomous vehicles. It is a rapidly growing field with many potential applications in the future."
 }

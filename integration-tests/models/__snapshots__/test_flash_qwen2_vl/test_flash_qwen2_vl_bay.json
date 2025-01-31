@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The image showcases a stunning cityscape, featuring the iconic Statue of Liberty in the foreground. The image displays Lady Liberty's imposing presence, with her towering base standing beside her. Behind the statue, the city's skyline extends across the horizon, adorned with numerous tall buildings, including the Empire State Building and other notable skyscrapers. The water reflecting the sun's rays creates a serene and picturesque scene, emphasizing the beauty and resilience of this global landmark. The sky is a clear, pale blue, adding to the overall tranquility of the scene.",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1738348090,
+  "id": "",
+  "model": "Qwen/Qwen2-VL-7B-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.1.1-dev0-native",
+  "usage": {
+    "completion_tokens": 110,
+    "prompt_tokens": 8736,
+    "total_tokens": 8846
+  }
+}

@@ -7,67 +7,67 @@
     "seed": 0,
     "tokens": [
       {
-        "id": 1939,
-        "logprob": -2.2460938,
+        "id": 5267,
+        "logprob": -1.1464844,
         "special": false,
-        "text": "?\n\n"
+        "text": "?\n"
       },
       {
         "id": 33464,
-        "logprob": 0.0,
+        "logprob": -0.83203125,
         "special": false,
         "text": "Deep"
       },
       {
         "id": 20909,
-        "logprob": -0.48608398,
+        "logprob": -0.5625,
         "special": false,
         "text": " Learning"
       },
       {
-        "id": 4102,
-        "logprob": -2.265625,
-        "special": false,
-        "text": " "
-      },
-      {
-        "id": 285,
-        "logprob": 0.0,
-        "special": false,
-        "text": "is"
-      },
-      {
-        "id": 458,
-        "logprob": -0.6328125,
-        "special": false,
-        "text": " an"
-      },
-      {
-        "id": 20443,
-        "logprob": -0.1796875,
-        "special": false,
-        "text": " artificial"
-      },
-      {
-        "id": 11229,
-        "logprob": 0.0,
-        "special": false,
-        "text": " intelligence"
-      },
-      {
         "id": 320,
-        "logprob": -0.37695312,
+        "logprob": -2.1464844,
         "special": false,
         "text": " ("
       },
       {
-        "id": 15469,
+        "id": 16524,
         "logprob": 0.0,
         "special": false,
-        "text": "AI"
+        "text": "DL"
+      },
+      {
+        "id": 701,
+        "logprob": -2.2089844,
+        "special": false,
+        "text": "),"
+      },
+      {
+        "id": 476,
+        "logprob": -0.27368164,
+        "special": false,
+        "text": " or"
+      },
+      {
+        "id": 20443,
+        "logprob": -0.09442139,
+        "special": false,
+        "text": " artificial"
+      },
+      {
+        "id": 29728,
+        "logprob": 0.0,
+        "special": false,
+        "text": " neural"
+      },
+      {
+        "id": 14155,
+        "logprob": 0.0,
+        "special": false,
+        "text": " networks"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "What is deep learning?\n\nDeep Learning is an artificial intelligence (AI"
+  "generated_text": "What is deep learning?\nDeep Learning (DL), or artificial neural networks"
 }

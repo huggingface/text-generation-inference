@@ -2049,7 +2049,16 @@ fn main() -> Result<(), LauncherError> {
             None => {
                 let compute_type = compute_type(num_shard);
                 let compute_optimal = compute_optimal(config.as_ref(), compute_type.as_ref());
-                let default = compute_optimal.unwrap_or(4096);
+                // TODO: remove this when we correctly esimate the flops for VLMs
+                // this is a short term temporary fix to enable vlms to avoid rejecting images
+                let default_optimal = match config {
+                    Some(ref config) => match config.model_type.as_deref() {
+                        Some("qwen2_vl") => 10_000,
+                        _ => 4096,
+                    },
+                    None => 4096,
+                };
+                let default = compute_optimal.unwrap_or(default_optimal);
                 let vram_maximum = vram_maximum(
                     config.as_ref(),
                     compute_type.as_ref(),

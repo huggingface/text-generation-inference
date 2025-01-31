@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The image shows a stylized scene set in what appears to be a diner or restaurant. In the foreground, there is a table with various food items, including a burger with lettuce and tomato, a bowl of fries, and a drink in a cup with a straw. On the right side of the table, there is an owl sitting alertly, looking directly at the camera. Behind the owl and the table, there is a large, green, dinosaur-like creature resembling Godzilla, with its mouth open and tongue visible. In the background, the diner's decor includes various signs and posters, with a green sign reading \"Basta\" and another sign that says \"Tabasco.\" The setting has a retro or vintage feel, with fluorescent lighting overhead and clean, polished surfaces.",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1738348100,
+  "id": "",
+  "model": "Qwen/Qwen2-VL-7B-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.1.1-dev0-native",
+  "usage": {
+    "completion_tokens": 156,
+    "prompt_tokens": 5375,
+    "total_tokens": 5531
+  }
+}

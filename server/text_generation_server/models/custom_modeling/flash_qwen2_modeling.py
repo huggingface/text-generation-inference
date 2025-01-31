@@ -61,11 +61,6 @@ class Qwen2Attention(torch.nn.Module):
             config.sliding_window if config.sliding_window is not None else -1
         )
         self.num_heads = config.num_attention_heads
-        self.mrope_section = (
-            config.rope_scaling.get("mrope_section", None)
-            if config.rope_scaling is not None
-            else None
-        )
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
 
@@ -126,17 +121,6 @@ class Qwen2Attention(torch.nn.Module):
         )
         query = query.view(-1, self.num_heads, self.head_size)
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
-
-        if self.mrope_section is not None:
-            # if mrope_section is set, we need to split the cos and sin into 3 parts and concatenate them in a specific order
-            cos = torch.cat(
-                [m[i % 3] for i, m in enumerate(cos.split(self.mrope_section, dim=-1))],
-                dim=-1,
-            )
-            sin = torch.cat(
-                [m[i % 3] for i, m in enumerate(sin.split(self.mrope_section, dim=-1))],
-                dim=-1,
-            )
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
@@ -251,7 +235,8 @@ class Qwen2Layer(nn.Module):
         max_s,
         prefill_cache_indices,
     ):
-        normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
+        residual = hidden_states
+        normed_hidden_states, _ = self.input_layernorm(hidden_states)
 
         # Self Attention
         attn_output = self.self_attn(
@@ -266,15 +251,14 @@ class Qwen2Layer(nn.Module):
             max_s,
             prefill_cache_indices,
         )
+        hidden_states = attn_output + residual
 
         # faster post attention rms norm
-        normed_attn_res_output, attn_res = self.post_attention_layernorm(
-            attn_output, res
-        )
-
-        mlp_output = self.mlp(normed_attn_res_output)
-
-        return mlp_output, attn_res
+        residual = hidden_states
+        hidden_states, _ = self.post_attention_layernorm(hidden_states)
+        mlp_output = self.mlp(hidden_states)
+        hidden_states = mlp_output + residual
+        return hidden_states
 
 
 class Qwen2Model(torch.nn.Module):
@@ -322,18 +306,15 @@ class Qwen2Model(torch.nn.Module):
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
-        # flatten position ids from 2D to 1D
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids.flatten(), true_max_s, hidden_states.dtype
+            position_ids,
+            true_max_s,
+            hidden_states.dtype,
         )
-        # reshape back to 2D if the position_ids were 2D
-        if position_ids.size(0) != cos.size(0):
-            cos = cos.view(position_ids.size(0), position_ids.size(-1), -1).unsqueeze(2)
-            sin = sin.view(position_ids.size(0), position_ids.size(-1), -1).unsqueeze(2)
 
         residual = None
         for i, layer in enumerate(self.layers):
-            hidden_states, residual = layer(
+            hidden_states = layer(
                 hidden_states,
                 residual,
                 cos,
@@ -347,7 +328,7 @@ class Qwen2Model(torch.nn.Module):
                 prefill_cache_indices,
             )
 
-        hidden_states, _ = self.norm(hidden_states, residual)
+        hidden_states, _ = self.norm(hidden_states)
 
         return hidden_states
 
