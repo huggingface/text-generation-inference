@@ -325,7 +325,8 @@ mod tests {
 
         let source = r#"
         {% set today = strftime_now("%Y-%m-%d") %}
-        {% set default_system_message = "The current date is " + today + ".\n" %}
+        {% set default_system_message = "The current date is " + today + "." %}
+        {{ default_system_message }}
         {{ bos_token }}
         {% if messages[0]['role'] == 'system' %}
             {% set loop_messages = messages[1:] %}
@@ -379,7 +380,7 @@ mod tests {
 
         let current_date = Local::now().format("%Y-%m-%d").to_string();
         let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
-        assert_eq!(result, format!("The current date is {}. [BOS][INST] Hi! [/INST]Hello how can I help?[EOS][INST] What is Deep Learning? [/INST]magic![EOS]", current_date));
+        assert_eq!(result, format!("The current date is {}.[BOS][INST] Hi! [/INST]Hello how can I help?[EOS][INST] What is Deep Learning? [/INST]magic![EOS]", current_date));
     }
 
     #[test]
