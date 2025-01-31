@@ -20,6 +20,28 @@ use tokio::time::{Duration, Instant, timeout};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, info, warn, error, trace};
 use tracing::{instrument};
+use std::str::FromStr;
+
+#[derive(Debug, Clone, Copy)]
+pub enum LlamacppSplitMode {
+    GPU(usize),
+    Layer,
+    Row,
+}
+
+impl FromStr for LlamacppSplitMode {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "layer" => Ok(LlamacppSplitMode::Layer),
+            "row"   => Ok(LlamacppSplitMode::Row),
+            _ => match s.parse::<usize>() {
+                Ok(n)  => Ok(LlamacppSplitMode::GPU(n)),
+                Err(_) => Err(format!("Choose a GPU number or `layer` or `row`")),
+            }
+        }
+    }
+}
 
 pub struct LlamacppConfig {
     pub model_gguf: String,
@@ -28,6 +50,8 @@ pub struct LlamacppConfig {
     pub max_batch_size: usize,
     pub batch_timeout: Duration,
     pub n_threads: usize,
+    pub n_gpu_layers: usize,
+    pub split_mode: LlamacppSplitMode,
     pub use_mmap: bool,
     pub use_mlock: bool,
     pub flash_attention: bool,
@@ -116,6 +140,18 @@ impl Llamacpp {
 
         let model = unsafe {
             let mut params = bindings::llama_model_default_params();
+            params.n_gpu_layers = conf.n_gpu_layers as _;
+            params.split_mode = match conf.split_mode {
+                LlamacppSplitMode::GPU(_) => bindings::LLAMA_SPLIT_MODE_NONE,
+                LlamacppSplitMode::Layer  => bindings::LLAMA_SPLIT_MODE_LAYER,
+                LlamacppSplitMode::Row    => bindings::LLAMA_SPLIT_MODE_ROW,
+            };
+            params.main_gpu = match conf.split_mode {
+                LlamacppSplitMode::GPU(n) => n as _,
+                _ => 0,
+            };
+            info!(?params.split_mode);
+            info!(?params.main_gpu);
             params.use_mmap  = conf.use_mmap;
             params.use_mlock = conf.use_mlock;
             bindings::llama_model_load_from_file(gguf.as_ptr(), params)

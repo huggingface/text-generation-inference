@@ -1,6 +1,6 @@
 mod backend;
 
-use backend::{LlamacppConfig, LlamacppBackend, BackendError};
+use backend::{LlamacppSplitMode, LlamacppConfig, LlamacppBackend, BackendError};
 use clap::{Parser};
 use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
@@ -31,6 +31,14 @@ struct Args {
     /// Number of threads to use for inference.
     #[clap(default_value = "1", long, env)]
     n_threads: usize,
+
+    /// Number of layers to store in VRAM.
+    #[clap(default_value = "0", long, env)]
+    n_gpu_layers: usize,
+
+    /// Split the model across multiple GPUs.
+    #[clap(default_value = "Layer", value_enum, long, env)]
+    split_mode: LlamacppSplitMode,
 
     #[clap(default_value = "true", long, env)]
     /// Whether to use memory mapping.
@@ -178,6 +186,8 @@ async fn main() -> Result<(), RouterError> {
             model_gguf:             args.model_gguf,
             n_ctx:                  args.n_ctx,
             n_threads:              args.n_threads,
+            n_gpu_layers:           args.n_gpu_layers,
+            split_mode:             args.split_mode,
             use_mmap:               args.use_mmap,
             use_mlock:              args.use_mlock,
             flash_attention:        args.flash_attention,
