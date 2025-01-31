@@ -543,7 +543,6 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,
         )
-        hidden_states, _ = self.norm(hidden_states)
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits, speculative_logits = self.lm_head(hidden_states)
