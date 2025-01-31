@@ -226,7 +226,7 @@ impl Llamacpp {
         pos: bindings::llama_pos,
         seq_id: bindings::llama_seq_id,
         logits: bool,
-    ) {
+    ) -> usize {
         let n = self.batch.n_tokens as usize;
         unsafe {
             *self.batch.token.add(n) = token;
@@ -236,6 +236,7 @@ impl Llamacpp {
             *self.batch.logits.add(n) = logits as i8;
         }
         self.batch.n_tokens += 1;
+        n
     }
 
     // useless ?
@@ -578,8 +579,7 @@ impl LlamacppBackend {
 
                     for seq in seqs.iter_mut() {
                         if seq.running {
-                            llamacpp.batch_push(seq.token, seq.pos, seq.id as _, true);
-                            seq.batch_pos = 0;
+                            seq.batch_pos = llamacpp.batch_push(seq.token, seq.pos, seq.id as _, true);
                             seq.pos += 1;
                         }
                     }
