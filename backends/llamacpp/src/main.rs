@@ -57,7 +57,7 @@ struct Args {
     use_mlock: bool,
 
     /// Enable flash attention for faster inference. (EXPERIMENTAL)
-    #[clap(default_value = "false", long, env)]
+    #[clap(default_value = "true", long, env)]
     flash_attention: bool,
 
     /// TODO
