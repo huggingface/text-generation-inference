@@ -198,7 +198,7 @@ async fn main() -> Result<(), RouterError> {
             flash_attention:        args.flash_attention,
             max_batch_total_tokens: args.max_batch_total_tokens,
             max_batch_size:         args.max_batch_size,
-            batch_timeout:          tokio::time::Duration::from_millis(100),
+            batch_timeout:          tokio::time::Duration::from_millis(5),
         },
         tokenizer,
     );
