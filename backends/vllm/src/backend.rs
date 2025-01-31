@@ -63,6 +63,12 @@ impl TryFrom<&RequestOutput> for InferStreamResponse {
                                 .unwrap(),
                             seed: None,
                         },
+                        // start: STARTUP_INSTANT
+                        //     .checked_sub(Duration::from_secs_f32(metrics.first_scheduled_time))
+                        //     .unwrap_or_else(Instant::now),
+                        // queued: STARTUP_INSTANT
+                        //     .checked_sub(Duration::from_secs_f32(metrics.arrival_time))
+                        //     .unwrap_or_else(Instant::now),
                         start: Instant::now(),
                         queued: Instant::now(),
                     })

@@ -11,7 +11,7 @@ use pyo3::types::PyModule;
 use pyo3::{Py, PyAny, PyErr, PyObject, Python};
 use tokio::time::Instant;
 
-pub(crate) const STARTUP_INSTANT: Instant = Instant::now();
+pub(crate) static STARTUP_INSTANT: Instant = Instant::now();
 
 static PY_TOKENS_PROMPT_CLASS: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
 static PY_SAMPLING_PARAMS_CLASS: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
