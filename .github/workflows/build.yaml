@@ -74,7 +74,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest=""
-                if [[ "${GITHUB_REF}" == "refs/tags/*" ]]; then
+                if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
                   export build_type="release";
                   export target="";
                 else
