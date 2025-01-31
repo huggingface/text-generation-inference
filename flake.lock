@@ -978,16 +978,16 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1738229197,
-        "narHash": "sha256-K/YJSFhzP0vN23GMfM1HVMtSzaM488hh12ggsMtKMG0=",
+        "lastModified": 1738315729,
+        "narHash": "sha256-tizNB3LbhPWgqs/PGgFdTxudqkttqo+R0NBkaaQP3ak=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "cfcddaf3044f59c3fbd335935ac3c0e9f458d824",
+        "rev": "a3872305034ead72328e84628974d66969b46074",
         "type": "github"
       },
       "original": {
         "owner": "huggingface",
-        "ref": "moe_0_8_1",
+        "ref": "moe_0.8.2",
         "repo": "text-generation-inference-nix",
         "type": "github"
       }
