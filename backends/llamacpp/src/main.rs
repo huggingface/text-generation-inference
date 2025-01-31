@@ -37,7 +37,7 @@ struct Args {
     n_gpu_layers: usize,
 
     /// Split the model across multiple GPUs.
-    #[clap(default_value = "Layer", long, env)]
+    #[clap(default_value = "layer", long, env)]
     split_mode: LlamacppSplitMode,
 
     /// Defragment the KV cache if holes/size > threshold.
@@ -45,7 +45,7 @@ struct Args {
     defrag_threshold: f32,
 
     /// Setup NUMA optimizations.
-    #[clap(default_value = "Disabled", value_enum, long, env)]
+    #[clap(default_value = "disabled", value_enum, long, env)]
     numa: LlamacppNuma,
 
     /// Whether to use memory mapping.
