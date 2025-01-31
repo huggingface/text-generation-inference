@@ -65,6 +65,7 @@ pub struct LlamacppConfig {
     pub defrag_threshold: f32,
     pub use_mmap: bool,
     pub use_mlock: bool,
+    pub offload_kqv: bool,
     pub flash_attention: bool,
 }
 
@@ -177,6 +178,7 @@ impl Llamacpp {
             params.n_threads       = conf.n_threads as _;
             params.n_threads_batch = conf.n_threads as _; // TODO ?
             params.defrag_thold    = conf.defrag_threshold;
+            params.offload_kqv     = conf.offload_kqv;
             params.flash_attn      = conf.flash_attention;
             params.no_perf         = true;
             bindings::llama_init_from_model(model, params)

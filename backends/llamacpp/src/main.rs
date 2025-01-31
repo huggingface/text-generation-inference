@@ -56,6 +56,10 @@ struct Args {
     #[clap(default_value = "false", long, env)]
     use_mlock: bool,
 
+    /// Enable offloading of KQV operations to the GPU.
+    #[clap(default_value = "false", long, env)]
+    offload_kqv: bool,
+
     /// Enable flash attention for faster inference. (EXPERIMENTAL)
     #[clap(default_value = "true", long, env)]
     flash_attention: bool,
@@ -201,6 +205,7 @@ async fn main() -> Result<(), RouterError> {
             use_mmap:               args.use_mmap,
             use_mlock:              args.use_mlock,
             flash_attention:        args.flash_attention,
+            offload_kqv:            args.offload_kqv,
             max_batch_total_tokens: args.max_batch_total_tokens,
             max_batch_size:         args.max_batch_size,
             batch_timeout:          tokio::time::Duration::from_millis(5),
