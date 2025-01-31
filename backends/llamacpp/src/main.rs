@@ -40,6 +40,10 @@ struct Args {
     #[clap(default_value = "Layer", value_enum, long, env)]
     split_mode: LlamacppSplitMode,
 
+    /// Defragment the KV cache if holes/size > threshold.
+    #[clap(default_value = "-1.0", long, env)]
+    defrag_threshold: f32,
+
     #[clap(default_value = "true", long, env)]
     /// Whether to use memory mapping.
     use_mmap: bool,
@@ -188,6 +192,7 @@ async fn main() -> Result<(), RouterError> {
             n_threads:              args.n_threads,
             n_gpu_layers:           args.n_gpu_layers,
             split_mode:             args.split_mode,
+            defrag_threshold:       args.defrag_threshold,
             use_mmap:               args.use_mmap,
             use_mlock:              args.use_mlock,
             flash_attention:        args.flash_attention,

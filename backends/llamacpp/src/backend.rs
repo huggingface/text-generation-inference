@@ -52,6 +52,7 @@ pub struct LlamacppConfig {
     pub n_threads: usize,
     pub n_gpu_layers: usize,
     pub split_mode: LlamacppSplitMode,
+    pub defrag_threshold: f32,
     pub use_mmap: bool,
     pub use_mlock: bool,
     pub flash_attention: bool,
@@ -167,6 +168,7 @@ impl Llamacpp {
             params.n_seq_max       = conf.max_batch_size as _;
             params.n_threads       = conf.n_threads as _;
             params.n_threads_batch = conf.n_threads as _; // TODO ?
+            params.defrag_thold    = conf.defrag_threshold;
             params.flash_attn      = conf.flash_attention;
             params.no_perf         = true;
             bindings::llama_init_from_model(model, params)
