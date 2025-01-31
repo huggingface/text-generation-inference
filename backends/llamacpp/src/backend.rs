@@ -43,6 +43,15 @@ impl FromStr for LlamacppSplitMode {
     }
 }
 
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+pub enum LlamacppNuma {
+    Disabled,
+    Distribute,
+    Isolate,
+    Numactl,
+    Mirror,
+}
+
 pub struct LlamacppConfig {
     pub model_gguf: String,
     pub n_ctx: usize,
@@ -52,6 +61,7 @@ pub struct LlamacppConfig {
     pub n_threads: usize,
     pub n_gpu_layers: usize,
     pub split_mode: LlamacppSplitMode,
+    pub numa: LlamacppNuma,
     pub defrag_threshold: f32,
     pub use_mmap: bool,
     pub use_mlock: bool,
@@ -387,7 +397,13 @@ impl LlamacppBackend {
         INIT.call_once(|| unsafe {
             bindings::llama_log_set(Some(llamacpp_log_callback), std::ptr::null_mut());
             bindings::llama_backend_init();
-            bindings::llama_numa_init(bindings::GGML_NUMA_STRATEGY_NUMACTL); // TODO add option & test
+            bindings::llama_numa_init(match conf.numa {
+                LlamacppNuma::Disabled   => bindings::GGML_NUMA_STRATEGY_DISABLED,
+                LlamacppNuma::Distribute => bindings::GGML_NUMA_STRATEGY_DISTRIBUTE,
+                LlamacppNuma::Isolate    => bindings::GGML_NUMA_STRATEGY_ISOLATE,
+                LlamacppNuma::Numactl    => bindings::GGML_NUMA_STRATEGY_NUMACTL,
+                LlamacppNuma::Mirror     => bindings::GGML_NUMA_STRATEGY_MIRROR,
+            });
         });
 
         let (status_tx, status_rx) = watch::channel(false);

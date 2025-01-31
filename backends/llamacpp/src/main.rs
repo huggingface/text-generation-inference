@@ -1,6 +1,6 @@
 mod backend;
 
-use backend::{LlamacppSplitMode, LlamacppConfig, LlamacppBackend, BackendError};
+use backend::{LlamacppNuma, LlamacppSplitMode, LlamacppConfig, LlamacppBackend, BackendError};
 use clap::{Parser};
 use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
@@ -43,6 +43,10 @@ struct Args {
     /// Defragment the KV cache if holes/size > threshold.
     #[clap(default_value = "-1.0", long, env)]
     defrag_threshold: f32,
+
+    /// Setup NUMA optimizations.
+    #[clap(default_value = "Disabled", value_enum, long, env)]
+    numa: LlamacppNuma,
 
     /// Whether to use memory mapping.
     #[clap(default_value = "true", long, env)]
@@ -193,6 +197,7 @@ async fn main() -> Result<(), RouterError> {
             n_gpu_layers:           args.n_gpu_layers,
             split_mode:             args.split_mode,
             defrag_threshold:       args.defrag_threshold,
+            numa:                   args.numa,
             use_mmap:               args.use_mmap,
             use_mlock:              args.use_mlock,
             flash_attention:        args.flash_attention,
