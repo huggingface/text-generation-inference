@@ -57,13 +57,18 @@ impl RadixAllocator {
             // temporary, the trie needs to be able to report whether it can
             // allocate the requested amount. Just not implemented yet.
             tracing::debug!(
-                "Free blocks {}  need {n_blocks_needed}",
+                "Free blocks {} need {n_blocks_needed}",
                 self.free_blocks.len()
             );
-            self.free_blocks.extend(
-                self.cache_blocks
-                    .evict(n_blocks_needed - self.free_blocks.len()),
+            let free_blocks = self
+                .cache_blocks
+                .evict(n_blocks_needed - self.free_blocks.len());
+            tracing::debug!(
+                "Freed {} blocks: Now having {} free blocks",
+                free_blocks.len(),
+                free_blocks.len() + self.free_blocks.len()
             );
+            self.free_blocks.extend(free_blocks);
         }
 
         if self.free_blocks.len() >= n_blocks_needed {
@@ -105,7 +110,15 @@ impl Allocator for RadixAllocator {
 
         let suffix_blocks = suffix_len.div_ceil(self.block_size);
 
+        let prefix_len_uncached = prefill_tokens.as_ref().map(|p| p.len()).unwrap_or_default();
         tracing::info!("Prefix {prefix_len} - Suffix {suffix_len}");
+        metrics::counter!("tgi_cache_hit", "allocator" => "radix")
+            .increment(prefix_len.try_into().expect("Can convert usize to u64"));
+        metrics::counter!("tgi_cache_total", "allocator" => "radix").increment(
+            prefix_len_uncached
+                .try_into()
+                .expect("Can convert usize to u64"),
+        );
 
         match self.alloc_or_reclaim(suffix_blocks as usize) {
             Some(suffix_blocks) => blocks.extend(suffix_blocks),

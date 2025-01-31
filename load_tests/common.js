@@ -50,7 +50,7 @@ export function get_options() {
             throughput: {
                 executor: 'shared-iterations',
                 vus: 100,
-                iterations: 200,
+                iterations: 500,
                 maxDuration: '40s',
             },
         },
