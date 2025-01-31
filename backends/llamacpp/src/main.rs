@@ -37,19 +37,19 @@ struct Args {
     n_gpu_layers: usize,
 
     /// Split the model across multiple GPUs.
-    #[clap(default_value = "Layer", value_enum, long, env)]
+    #[clap(default_value = "Layer", long, env)]
     split_mode: LlamacppSplitMode,
 
     /// Defragment the KV cache if holes/size > threshold.
     #[clap(default_value = "-1.0", long, env)]
     defrag_threshold: f32,
 
-    #[clap(default_value = "true", long, env)]
     /// Whether to use memory mapping.
+    #[clap(default_value = "true", long, env)]
     use_mmap: bool,
 
-    #[clap(default_value = "false", long, env)]
     /// Whether to use memory locking.
+    #[clap(default_value = "false", long, env)]
     use_mlock: bool,
 
     /// Enable flash attention for faster inference. (EXPERIMENTAL)

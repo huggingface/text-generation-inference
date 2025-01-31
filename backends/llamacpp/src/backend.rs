@@ -151,8 +151,6 @@ impl Llamacpp {
                 LlamacppSplitMode::GPU(n) => n as _,
                 _ => 0,
             };
-            info!(?params.split_mode);
-            info!(?params.main_gpu);
             params.use_mmap  = conf.use_mmap;
             params.use_mlock = conf.use_mlock;
             bindings::llama_model_load_from_file(gguf.as_ptr(), params)
