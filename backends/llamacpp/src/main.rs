@@ -29,8 +29,8 @@ struct Args {
     n_ctx: usize,
 
     /// Number of threads to use for inference.
-    #[clap(default_value = "1", long, env)]
-    n_threads: usize,
+    #[clap(long, env)]
+    n_threads: Option<usize>,
 
     /// Number of layers to store in VRAM.
     #[clap(default_value = "0", long, env)]
@@ -155,6 +155,10 @@ async fn main() -> Result<(), RouterError> {
         args.json_output
     );
 
+    let n_threads = match args.n_threads {
+        Some(0) | None => num_cpus::get(),
+        Some(threads) => threads,
+    };
     if args.max_input_tokens >= args.max_total_tokens {
         return Err(RouterError::ArgumentValidation(
             "`max_input_tokens` must be < `max_total_tokens`".to_string(),
@@ -197,7 +201,7 @@ async fn main() -> Result<(), RouterError> {
         LlamacppConfig {
             model_gguf:             args.model_gguf,
             n_ctx:                  args.n_ctx,
-            n_threads:              args.n_threads,
+            n_threads:              n_threads,
             n_gpu_layers:           args.n_gpu_layers,
             split_mode:             args.split_mode,
             defrag_threshold:       args.defrag_threshold,

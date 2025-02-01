@@ -4643,6 +4643,7 @@ dependencies = [
  "async-trait",
  "bindgen 0.71.1",
  "clap 4.5.27",
+ "num_cpus",
  "pkg-config",
  "text-generation-router",
  "thiserror 2.0.11",
