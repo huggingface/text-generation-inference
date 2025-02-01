@@ -470,6 +470,7 @@ impl LlamacppBackend {
 
                 for (seq_id, request) in requests.iter().enumerate() {
                     debug!("Request: {:?}", request);
+                    // TODO remove this
                     let sampler = match LlamacppSampler::new(&request) {
                         Some(sampler) => sampler,
                         _ => {
@@ -506,11 +507,9 @@ impl LlamacppBackend {
                         bindings::llama_decode(llamacpp.ctx, llamacpp.batch)
                     };
                     if decode != 0 {
-                        error!("Failed to decode batch: {decode}");
-
                         if decode == 1 {
                             unsafe {
-                                bindings::llama_kv_cache_clear(llamacpp.ctx); // TODO
+                                bindings::llama_kv_cache_clear(llamacpp.ctx); // TODO: remove this ?
                             }
                         }
                         for seq in seqs.iter_mut() {
@@ -523,6 +522,9 @@ impl LlamacppBackend {
                         bindings::llama_get_kv_cache_used_cells(llamacpp.ctx)
                     };
                     for seq in seqs.iter_mut() {
+                        if !seq.running {
+                            continue;
+                        }
                         let (next, logprob) = seq.sampler.sample(&mut llamacpp, seq.batch_pos);
                         seq.n_new_tokens += 1;
                         seq.token = next;
@@ -533,7 +535,7 @@ impl LlamacppBackend {
                                 error!("Failed to decode token: {e}");
                                 let _ = requests[seq.id].tx.send(Err(InferError::IncompleteGeneration));
                                 seq.running = false;
-                                break;
+                                continue;
                             },
                         };
                         let special = vocab.is_special_token(&piece);
@@ -572,7 +574,7 @@ impl LlamacppBackend {
                                 queued: requests[seq.id].time,
                             }));
                             seq.running = false;
-                            break;
+                            continue;
                         }
                         let _ = requests[seq.id].tx.send(Ok(InferStreamResponse::Intermediate {
                             token: token,
