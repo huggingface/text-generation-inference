@@ -238,38 +238,6 @@ impl Llamacpp {
         self.batch.n_tokens += 1;
         n
     }
-
-    // useless ?
-    fn warmup(&self) {
-        let mut buf: Vec<bindings::llama_token> = Vec::new();
-
-        let bos = unsafe {
-            bindings::llama_vocab_bos(self.vocab)
-        };
-        if bos != bindings::LLAMA_TOKEN_NULL {
-            buf.push(bos);
-        }
-        let eos = unsafe {
-            bindings::llama_vocab_eos(self.vocab)
-        };
-        if eos != bindings::LLAMA_TOKEN_NULL {
-            buf.push(eos);
-        }
-        if buf.is_empty() {
-            warn!("Warmup failed: no bos/eos...");
-            return;
-        }
-        let batch = unsafe {
-            bindings::llama_batch_get_one(buf.as_ptr() as _, buf.len() as _)
-        };
-        if unsafe { bindings::llama_decode(self.ctx, batch) } != 0 {
-            error!("Warmup failed: llama_decode() returned an error");
-        }
-        unsafe {
-            bindings::llama_kv_cache_clear(self.ctx);
-            bindings::llama_synchronize(self.ctx);
-        }
-    }
 }
 
 impl Drop for Llamacpp {
@@ -456,8 +424,6 @@ impl LlamacppBackend {
                 Ok(v)  => { let _ = ok_tx.send(Ok(())); v       },
                 Err(e) => { let _ = ok_tx.send(Err(e)); return; },
             };
-            llamacpp.warmup();
-
             let vocab = tokenizer.get_added_vocabulary();
 
             // health() returns true
