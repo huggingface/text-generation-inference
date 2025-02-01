@@ -249,7 +249,7 @@ jobs:
 
   backend_trtllm_cxx_tests:
     needs: build-and-push
-    if: needs.build-and-push.outputs.label == '-trtllm'
+    if: needs.build-and-push.outputs.label == '-trtllm' && env.TARGET == 'ci-runtime'
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
