@@ -429,12 +429,15 @@ impl LlamacppBackend {
                             requests = Vec::new();
                             continue;
                         }
-                        if n_tokens + request.input_ids.len() > conf.max_batch_total_tokens as usize {
+                        let n_tokens_to_add = request.input_ids.len();
+
+                        if n_tokens + n_tokens_to_add > conf.max_batch_total_tokens as usize {
                             let _ = sync_tx.send(requests);
-                            n_tokens = request.input_ids.len();
+                            n_tokens = n_tokens_to_add;
                             requests = vec![request];
                             continue;
                         }
+                        n_tokens += n_tokens_to_add;
                         requests.push(request);
                     },
                     Err(_) => {
@@ -487,7 +490,7 @@ impl LlamacppBackend {
                     seqs.push(LlamacppSeq {
                         id: seq_id,
                         batch_pos: llamacpp.batch.n_tokens as usize - 1,
-                        token: -1,
+                        token: bindings::LLAMA_TOKEN_NULL,
                         pos: last_pos as bindings::llama_pos + 1,
                         sampler: sampler,
                         text: String::with_capacity(1024),
