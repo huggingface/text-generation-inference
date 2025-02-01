@@ -364,7 +364,7 @@ impl LlamacppSampler {
             bindings::llama_sampler_apply(self.chain, &mut view);
             let logprob = *view.data.offset(view.selected as _);
             bindings::llama_sampler_accept(self.chain, logprob.id);
-            (logprob.id, logprob.logit) // maybe p.ln() ?
+            (logprob.id, logprob.p.ln())
         }
     }
 }
