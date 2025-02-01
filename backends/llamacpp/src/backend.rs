@@ -507,10 +507,10 @@ impl LlamacppBackend {
                         bindings::llama_decode(llamacpp.ctx, llamacpp.batch)
                     };
                     if decode != 0 {
-                        if decode == 1 {
-                            unsafe {
-                                bindings::llama_kv_cache_clear(llamacpp.ctx); // TODO: remove this ?
-                            }
+                        warn!("llama_decode failed: kv cache clear + sync");
+                        unsafe {
+                            bindings::llama_kv_cache_clear(llamacpp.ctx);
+                            bindings::llama_synchronize(llamacpp.ctx);
                         }
                         for seq in seqs.iter_mut() {
                             let _ = requests[seq.id].tx.send(Err(InferError::IncompleteGeneration));
@@ -588,6 +588,10 @@ impl LlamacppBackend {
                         if seq.running {
                             seq.batch_pos = llamacpp.batch_push(seq.token, seq.pos, seq.id as _, true);
                             seq.pos += 1;
+                        } else {
+                            unsafe {
+                                bindings::llama_kv_cache_seq_rm(llamacpp.ctx, seq.id as _, -1, -1);
+                            }
                         }
                     }
                 }
