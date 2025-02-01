@@ -727,7 +727,7 @@ pub(crate) struct ChatCompletionChoice {
 pub struct ToolCallDelta {
     #[schema(example = "assistant")]
     role: String,
-    tool_calls: DeltaToolCall,
+    tool_calls: Vec<DeltaToolCall>, // Changed to Vec<DeltaToolCall>
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
@@ -770,15 +770,15 @@ impl ChatCompletionChunk {
             }),
             (None, Some(tool_calls)) => ChatCompletionDelta::Tool(ToolCallDelta {
                 role: "assistant".to_string(),
-                tool_calls: DeltaToolCall {
-                    index: 0,
+                tool_calls: tool_calls.iter().enumerate().map(|(index, tool_call)| DeltaToolCall {
+                    index: index as u32,
                     id: String::new(),
                     r#type: "function".to_string(),
                     function: Function {
                         name: None,
-                        arguments: tool_calls[0].to_string(),
+                        arguments: tool_call.to_string(),
                     },
-                },
+                }).collect(),
             }),
             (None, None) => ChatCompletionDelta::Chat(TextMessage {
                 role: "assistant".to_string(),
