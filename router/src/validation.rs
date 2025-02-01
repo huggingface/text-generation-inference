@@ -537,7 +537,6 @@ fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), Validatio
     if input.starts_with("![](http://") || input.starts_with("![](https://") {
         let url = &input["![](".len()..input.len() - 1];
         let data = reqwest::blocking::get(url)?.bytes()?;
-
         let format = image::guess_format(&data)?;
         // TODO Remove this clone
         let img = ImageReader::with_format(Cursor::new(data.clone()), format).decode()?;
@@ -572,6 +571,16 @@ fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), Validatio
         let height: usize = img.height().try_into()?;
         let width: usize = img.width().try_into()?;
         Ok((data, mimetype.to_string(), height, width))
+    } else if input.starts_with("![](file://") {
+        let url = &input["![](file:".len()..input.len() - 1];
+        let data = std::fs::read(url)?;
+        let format = image::guess_format(&data)?;
+        // TODO Remove this clone
+        let img = ImageReader::with_format(Cursor::new(data.clone()), format).decode()?;
+        let height: usize = img.height().try_into()?;
+        let width: usize = img.width().try_into()?;
+        let mimetype = format_to_mimetype(format);
+        Ok((data, mimetype, height, width))
     } else {
         Err(ValidationError::InvalidImageContent(input.to_string()))
     }
@@ -909,6 +918,8 @@ pub enum ValidationError {
     InvalidImageContent(String),
     #[error("Could not fetch image: {0}")]
     FailedFetchImage(#[from] reqwest::Error),
+    #[error("Could not read image from local: {0}")]
+    FailedReadImage(#[from] std::io::Error),
     #[error("{0} modality is not supported")]
     UnsupportedModality(&'static str),
 }
