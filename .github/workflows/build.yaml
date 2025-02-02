@@ -74,7 +74,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest=""
-                if [[ "${GITHUB_REF}" == "refs/tags/*" ]]; then
+                if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
                   export build_type="release";
                   export target="";
                 else
@@ -263,4 +263,5 @@ jobs:
 
     steps:
       - name: Run C++/CUDA tests
+        if: ${{ env.LABEL == 'ci-runtime' }}
         run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
