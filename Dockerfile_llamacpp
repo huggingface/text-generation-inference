@@ -1,5 +1,6 @@
 ARG llama_version=b4599
 ARG llama_hardware_target=cpu
+ARG llama_cuda_arch=75-real;80-real;86-real;89-real;90-real
 
 FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS base
 
@@ -26,6 +27,7 @@ RUN apt install -y \
 
 FROM deps AS llamacpp-builder
 ARG llama_version
+ARG llama_cuda_arch
 ENV LLAMA_VERSION=${llama_version}
 
 ADD https://github.com/ggerganov/llama.cpp/archive/refs/tags/${LLAMA_VERSION}.tar.gz /opt/src/
@@ -36,6 +38,7 @@ RUN tar -xzf ${LLAMA_VERSION}.tar.gz && \
     -DCMAKE_INSTALL_PREFIX=/usr/llama \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
+    -DCMAKE_CUDA_ARCHITECTURES=${llama_cuda_arch} \
     -DGGML_CUDA=1 \
     -DLLAMA_BUILD_COMMON=OFF \
     -DLLAMA_BUILD_TESTS=OFF \
@@ -74,7 +77,7 @@ RUN apt update && apt install -y \
     python3-pip
 
 RUN python3 -m venv /venv && \
-    pip3 install --no-cache-dir -r backends/llamacpp/requirements.txt
+    pip3 install --no-cache-dir -r transformers
 
 COPY --from=llamacpp-builder /usr/llama/lib/ /usr/lib/
 COPY --from=llamacpp-builder /usr/llama/include/ /usr/include/
