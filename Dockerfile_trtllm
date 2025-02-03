@@ -1,7 +1,7 @@
 ARG cuda_arch_list="75-real;80-real;86-real;89-real;90-real"
 ARG build_type=release
 ARG ompi_version=4.1.7
-ARG sccache_gha_enabled=no
+ARG sccache_gha_enabled=off
 ARG actions_cache_url=""
 ARG actions_runtime_token=""
 
