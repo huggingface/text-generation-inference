@@ -196,7 +196,6 @@ jobs:
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
-          push: true
           platforms: 'linux/amd64'
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
