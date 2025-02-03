@@ -1,4 +1,4 @@
-ARG llama_version=b4599
+ARG llama_version=b4623
 ARG llama_hardware_target=cpu
 ARG llama_cuda_arch=75-real;80-real;86-real;89-real;90-real
 
