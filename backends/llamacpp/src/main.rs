@@ -1,6 +1,6 @@
 mod backend;
 
-use backend::{LlamacppNuma, LlamacppSplitMode, LlamacppConfig, LlamacppBackend, BackendError};
+use backend::{LlamacppNuma, LlamacppGGMLType, LlamacppSplitMode, LlamacppConfig, LlamacppBackend, BackendError};
 use clap::{Parser};
 use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
@@ -67,6 +67,14 @@ struct Args {
     /// Enable flash attention for faster inference. (EXPERIMENTAL)
     #[clap(default_value = "true", long, env)]
     flash_attention: bool,
+
+    /// Use data type for K cache.
+    #[clap(default_value = "f16", value_enum, long, env)]
+    type_k: LlamacppGGMLType,
+
+    /// Use data type for V cache.
+    #[clap(default_value = "f16", value_enum, long, env)]
+    type_v: LlamacppGGMLType,
 
     /// TODO
     #[clap(default_value = "2", long, env)]
@@ -226,6 +234,8 @@ async fn main() -> Result<(), RouterError> {
             use_mmap:                        args.use_mmap,
             use_mlock:                       args.use_mlock,
             flash_attention:                 args.flash_attention,
+            type_k:                          args.type_k,
+            type_v:                          args.type_v,
             offload_kqv:                     args.offload_kqv,
             max_batch_total_tokens:          args.max_batch_total_tokens,
             max_physical_batch_total_tokens: max_physical_batch_total_tokens,
