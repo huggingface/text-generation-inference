@@ -169,20 +169,6 @@ wheels = [
 ]
 
 [[package]]
-name = "attention-kernels"
-version = "0.2.0.post2"
-source = { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.2.0.post2/attention_kernels-0.2.0.post2+cu123torch2.5-cp39-abi3-linux_x86_64.whl" }
-dependencies = [
-    { name = "torch" },
-]
-wheels = [
-    { url = "https://github.com/danieldk/attention-kernels/releases/download/v0.2.0.post2/attention_kernels-0.2.0.post2+cu123torch2.5-cp39-abi3-linux_x86_64.whl", hash = "sha256:863e02dda4b30e9d04ef6cf4d17d16c154f54bdcb8a8b87b8b46075eabf62d25" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "torch" }]
-
-[[package]]
 name = "attrs"
 version = "24.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -677,6 +663,17 @@ wheels = [
 ]
 
 [[package]]
+name = "hf-kernels"
+version = "0.1.3"
+source = { git = "https://github.com/huggingface/hf-kernels.git?rev=hub-cache-env#a145c75733809d4426e4b716ff201867ac6452bc" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "packaging" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
+    { name = "torch" },
+]
+
+[[package]]
 name = "hf-transfer"
 version = "0.1.9"
 source = { registry = "https://pypi.org/simple" }
@@ -907,112 +904,12 @@ wheels = [
 ]
 
 [[package]]
-name = "marlin-kernels"
-version = "0.3.7"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.13'",
-]
-dependencies = [
-    { name = "torch", marker = "python_full_version >= '3.13'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b2/82/886d1eece474ef23668c4780f5053ea654999704a0195aadc651631b740d/marlin-kernels-0.3.7.tar.gz", hash = "sha256:8be8a65fd9ae21b2406afba9e460e3922582479b85a1372096e87e3a15684a77", size = 15662 }
-
-[[package]]
-name = "marlin-kernels"
-version = "0.3.7"
-source = { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp310-cp310-linux_x86_64.whl" }
-resolution-markers = [
-    "python_full_version == '3.10.*'",
-]
-dependencies = [
-    { name = "torch", marker = "python_full_version == '3.10.*'" },
-]
-wheels = [
-    { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp310-cp310-linux_x86_64.whl", hash = "sha256:dd91a4e2c3b5e954833c5c34b0322e4c02cd92a967eb94654b6bbcece131340b" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "torch" }]
-
-[[package]]
-name = "marlin-kernels"
-version = "0.3.7"
-source = { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp311-cp311-linux_x86_64.whl" }
-resolution-markers = [
-    "python_full_version == '3.11.*'",
-]
-dependencies = [
-    { name = "torch", marker = "python_full_version == '3.11.*'" },
-]
-wheels = [
-    { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp311-cp311-linux_x86_64.whl", hash = "sha256:b24d92135fbd156c55ce43158ab4a90fa880ba0df965528895cf1870b03a64bf" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "torch" }]
-
-[[package]]
-name = "marlin-kernels"
-version = "0.3.7"
-source = { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp312-cp312-linux_x86_64.whl" }
-resolution-markers = [
-    "python_full_version == '3.12.*'",
-]
-dependencies = [
-    { name = "torch", marker = "python_full_version == '3.12.*'" },
-]
-wheels = [
-    { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp312-cp312-linux_x86_64.whl", hash = "sha256:8a407f1435a571a8d4ca3b9f533da83fde323043a9836b739cf8018c77782d49" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "torch" }]
-
-[[package]]
-name = "marlin-kernels"
-version = "0.3.7"
-source = { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp39-cp39-linux_x86_64.whl" }
-resolution-markers = [
-    "python_full_version < '3.10'",
-]
-dependencies = [
-    { name = "torch", marker = "python_full_version < '3.10'" },
-]
-wheels = [
-    { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp39-cp39-linux_x86_64.whl", hash = "sha256:bf7003753c364c504b3998fffdfcf619a42ab04f908903dbad8d54347b6b142b" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "torch" }]
-
-[[package]]
 name = "mdurl"
 version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979 },
-]
-
-[[package]]
-name = "moe-kernels"
-version = "0.8.2"
-source = { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.8.2/moe_kernels-0.8.2+cu123torch2.5-cp39-abi3-linux_x86_64.whl" }
-dependencies = [
-    { name = "nvidia-ml-py" },
-    { name = "torch" },
-    { name = "triton" },
-]
-wheels = [
-    { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.8.2/moe_kernels-0.8.2+cu123torch2.5-cp39-abi3-linux_x86_64.whl", hash = "sha256:1ed5b26f52339d25ea2513e99e8b6239cf1921af3eac54e03a46bb8f8efb380b" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "nvidia-ml-py" },
-    { name = "torch" },
-    { name = "triton" },
 ]
 
 [[package]]
@@ -1387,15 +1284,6 @@ dependencies = [
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/db/f7/97a9ea26ed4bbbfc2d470994b8b4f338ef663be97b8f677519ac195e113d/nvidia_cusparse_cu12-12.3.1.170-py3-none-manylinux2014_x86_64.whl", hash = "sha256:ea4f11a2904e2a8dc4b1833cc1b5181cde564edd0d5cd33e3c168eff2d1863f1", size = 207454763 },
-]
-
-[[package]]
-name = "nvidia-ml-py"
-version = "12.560.30"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/53/10/5f34de4a71db8b2b7ec4269f4a33287f24c23e2857ea3187c977b7bc3604/nvidia-ml-py-12.560.30.tar.gz", hash = "sha256:f0254dc7400647680a072ee02509bfd46102b60bdfeca321576d4d4817e7fe97", size = 39194 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/f3/a69ce0b1a1e12fbf6b2ad9f4c14c9999fdbdf15f2478d210f0fd501ddc98/nvidia_ml_py-12.560.30-py3-none-any.whl", hash = "sha256:fea371c94d63e38a611c17bbb85fe400e9c8ddb9e8684a9cd0e47786a4bc3c73", size = 40526 },
 ]
 
 [[package]]
@@ -2653,6 +2541,7 @@ dependencies = [
     { name = "grpcio" },
     { name = "grpcio-reflection" },
     { name = "grpcio-status" },
+    { name = "hf-kernels" },
     { name = "hf-transfer" },
     { name = "loguru" },
     { name = "numpy", version = "2.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
@@ -2678,9 +2567,6 @@ dependencies = [
 accelerate = [
     { name = "accelerate" },
 ]
-attention = [
-    { name = "attention-kernels" },
-]
 bnb = [
     { name = "bitsandbytes" },
 ]
@@ -2694,16 +2580,6 @@ dev = [
 gen = [
     { name = "grpcio-tools" },
     { name = "mypy-protobuf" },
-]
-marlin = [
-    { name = "marlin-kernels", version = "0.3.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "marlin-kernels", version = "0.3.7", source = { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp310-cp310-linux_x86_64.whl" }, marker = "python_full_version == '3.10.*'" },
-    { name = "marlin-kernels", version = "0.3.7", source = { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp311-cp311-linux_x86_64.whl" }, marker = "python_full_version == '3.11.*'" },
-    { name = "marlin-kernels", version = "0.3.7", source = { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp312-cp312-linux_x86_64.whl" }, marker = "python_full_version == '3.12.*'" },
-    { name = "marlin-kernels", version = "0.3.7", source = { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp39-cp39-linux_x86_64.whl" }, marker = "python_full_version < '3.10'" },
-]
-moe = [
-    { name = "moe-kernels" },
 ]
 outlines = [
     { name = "outlines" },
@@ -2719,7 +2595,6 @@ quantize = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", marker = "extra == 'accelerate'", specifier = ">=1.2.1,<2" },
-    { name = "attention-kernels", marker = "extra == 'attention'", url = "https://github.com/danieldk/attention-kernels/releases/download/v0.2.0.post2/attention_kernels-0.2.0.post2+cu123torch2.5-cp39-abi3-linux_x86_64.whl" },
     { name = "bitsandbytes", marker = "extra == 'bnb'", specifier = ">=0.45.0" },
     { name = "compressed-tensors", marker = "extra == 'compressed-tensors'", specifier = ">=0.9.0" },
     { name = "datasets", marker = "extra == 'quantize'", specifier = ">=2.21,<3" },
@@ -2730,14 +2605,9 @@ requires-dist = [
     { name = "grpcio-status", specifier = ">=1.67.0" },
     { name = "grpcio-tools", marker = "extra == 'dev'", specifier = ">=1.51.1,<2.0" },
     { name = "grpcio-tools", marker = "extra == 'gen'", specifier = ">=1.69.0" },
+    { name = "hf-kernels", git = "https://github.com/huggingface/hf-kernels.git?rev=hub-cache-env" },
     { name = "hf-transfer", specifier = ">=0.1.8" },
     { name = "loguru", specifier = ">=0.7.3" },
-    { name = "marlin-kernels", marker = "python_full_version == '3.9.*' and extra == 'marlin'", url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp39-cp39-linux_x86_64.whl" },
-    { name = "marlin-kernels", marker = "(python_full_version < '3.9' and extra == 'marlin') or (python_full_version >= '3.13' and extra == 'marlin')" },
-    { name = "marlin-kernels", marker = "python_full_version == '3.10.*' and extra == 'marlin'", url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp310-cp310-linux_x86_64.whl" },
-    { name = "marlin-kernels", marker = "python_full_version == '3.11.*' and extra == 'marlin'", url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp311-cp311-linux_x86_64.whl" },
-    { name = "marlin-kernels", marker = "python_full_version == '3.12.*' and extra == 'marlin'", url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp312-cp312-linux_x86_64.whl" },
-    { name = "moe-kernels", marker = "extra == 'moe'", url = "https://github.com/danieldk/moe-kernels/releases/download/v0.8.2/moe_kernels-0.8.2+cu123torch2.5-cp39-abi3-linux_x86_64.whl" },
     { name = "mypy-protobuf", marker = "extra == 'gen'", specifier = ">=3.6.0" },
     { name = "numpy", specifier = ">=1.26,<3" },
     { name = "opentelemetry-api", specifier = ">=1.27.0" },
@@ -2919,7 +2789,7 @@ name = "triton"
 version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "filelock" },
+    { name = "filelock", marker = "python_full_version < '3.13'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/98/29/69aa56dc0b2eb2602b553881e34243475ea2afd9699be042316842788ff5/triton-3.1.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6b0dd10a925263abbe9fa37dcde67a5e9b2383fc269fdf59f5657cac38c5d1d8", size = 209460013 },
