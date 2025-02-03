@@ -28,9 +28,13 @@ struct Args {
     #[clap(default_value = "4096", long, env)]
     n_ctx: usize,
 
-    /// Number of threads to use for inference.
+    /// Number of threads to use for generation.
     #[clap(long, env)]
     n_threads: Option<usize>,
+
+    /// Number of threads to use for batch processing.
+    #[clap(long, env)]
+    n_threads_batch: Option<usize>,
 
     /// Number of layers to store in VRAM.
     #[clap(default_value = "0", long, env)]
@@ -89,9 +93,13 @@ struct Args {
 //  #[clap(default_value = "4096", long, env)]
 //  max_batch_prefill_tokens: u32,
 
-    /// Maximum tokens within a batch
+    /// Maximum number of tokens that can be submitted within a batch
     #[clap(default_value = "4096", long, env)]
     max_batch_total_tokens: usize,
+
+    /// Maximum number of tokens within a batch
+    #[clap(long, env)]
+    max_physical_batch_total_tokens: Option<usize>,
 
 //  #[clap(default_value = "20", long, env)]
 //  max_waiting_tokens: usize,
@@ -159,6 +167,14 @@ async fn main() -> Result<(), RouterError> {
         Some(0) | None => num_cpus::get(),
         Some(threads) => threads,
     };
+    let n_threads_batch = match args.n_threads_batch {
+        Some(0) | None => n_threads,
+        Some(threads) => threads,
+    };
+    let max_physical_batch_total_tokens = match args.max_physical_batch_total_tokens {
+        None => args.max_batch_total_tokens,
+        Some(size) => size,
+    };
     if args.max_input_tokens >= args.max_total_tokens {
         return Err(RouterError::ArgumentValidation(
             "`max_input_tokens` must be < `max_total_tokens`".to_string(),
@@ -199,20 +215,22 @@ async fn main() -> Result<(), RouterError> {
 
     let (backend, ok) = LlamacppBackend::new(
         LlamacppConfig {
-            model_gguf:             args.model_gguf,
-            n_ctx:                  args.n_ctx,
-            n_threads:              n_threads,
-            n_gpu_layers:           args.n_gpu_layers,
-            split_mode:             args.split_mode,
-            defrag_threshold:       args.defrag_threshold,
-            numa:                   args.numa,
-            use_mmap:               args.use_mmap,
-            use_mlock:              args.use_mlock,
-            flash_attention:        args.flash_attention,
-            offload_kqv:            args.offload_kqv,
-            max_batch_total_tokens: args.max_batch_total_tokens,
-            max_batch_size:         args.max_batch_size,
-            batch_timeout:          tokio::time::Duration::from_millis(5),
+            model_gguf:                      args.model_gguf,
+            n_ctx:                           args.n_ctx,
+            n_threads:                       n_threads,
+            n_threads_batch:                 n_threads_batch,
+            n_gpu_layers:                    args.n_gpu_layers,
+            split_mode:                      args.split_mode,
+            defrag_threshold:                args.defrag_threshold,
+            numa:                            args.numa,
+            use_mmap:                        args.use_mmap,
+            use_mlock:                       args.use_mlock,
+            flash_attention:                 args.flash_attention,
+            offload_kqv:                     args.offload_kqv,
+            max_batch_total_tokens:          args.max_batch_total_tokens,
+            max_physical_batch_total_tokens: max_physical_batch_total_tokens,
+            max_batch_size:                  args.max_batch_size,
+            batch_timeout:                   tokio::time::Duration::from_millis(5),
         },
         tokenizer,
     );

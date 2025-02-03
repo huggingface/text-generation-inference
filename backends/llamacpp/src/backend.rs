@@ -56,9 +56,11 @@ pub struct LlamacppConfig {
     pub model_gguf: String,
     pub n_ctx: usize,
     pub max_batch_total_tokens: usize,
+    pub max_physical_batch_total_tokens: usize,
     pub max_batch_size: usize,
     pub batch_timeout: Duration,
     pub n_threads: usize,
+    pub n_threads_batch: usize,
     pub n_gpu_layers: usize,
     pub split_mode: LlamacppSplitMode,
     pub numa: LlamacppNuma,
@@ -173,10 +175,10 @@ impl Llamacpp {
             let mut params = bindings::llama_context_default_params();
             params.n_ctx           = conf.n_ctx as _;
             params.n_batch         = conf.max_batch_total_tokens as _;
-            params.n_ubatch        = conf.max_batch_total_tokens as _; // TODO ?
+            params.n_ubatch        = conf.max_physical_batch_total_tokens as _;
             params.n_seq_max       = conf.max_batch_size as _;
             params.n_threads       = conf.n_threads as _;
-            params.n_threads_batch = conf.n_threads as _; // TODO ?
+            params.n_threads_batch = conf.n_threads_batch as _;
             params.defrag_thold    = conf.defrag_threshold;
             params.offload_kqv     = conf.offload_kqv;
             params.flash_attn      = conf.flash_attention;
