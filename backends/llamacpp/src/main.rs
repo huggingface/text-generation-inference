@@ -6,7 +6,7 @@ use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
 use tokenizers::{Tokenizer, FromPretrainedParameters};
 use tokio::sync::oneshot::error::RecvError;
-use tracing::error;
+use tracing::{warn, error};
 
 /// Backend Configuration
 #[derive(Parser, Debug)]
@@ -221,7 +221,7 @@ async fn main() -> Result<(), RouterError> {
         )?
     };
 
-    let (backend, ok) = LlamacppBackend::new(
+    let (backend, ok, shutdown) = LlamacppBackend::new(
         LlamacppConfig {
             model_gguf:                      args.model_gguf,
             n_ctx:                           args.n_ctx,
@@ -245,6 +245,14 @@ async fn main() -> Result<(), RouterError> {
         tokenizer,
     );
     ok.await??;
+
+    if cfg!(debug_assertions) {
+        warn!("Graceful shutdown disabled!");
+        let _ = tokio::task::spawn(async move {
+            let _ = tokio::signal::ctrl_c().await;
+            let _ = shutdown.send(true);
+        });
+    }
 
     server::run(
         backend,

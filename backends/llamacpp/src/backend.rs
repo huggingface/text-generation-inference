@@ -441,7 +441,7 @@ impl LlamacppBackend {
     pub fn new(
         conf: LlamacppConfig,
         tokenizer: Tokenizer,
-    ) -> (Self, oneshot::Receiver<Result<(),BackendError>>) {
+    ) -> (Self, oneshot::Receiver<Result<(),BackendError>>, watch::Sender<bool>) {
 
         // Setup llama & export logs, once and for all
         INIT.call_once(|| unsafe {
@@ -457,6 +457,7 @@ impl LlamacppBackend {
         });
 
         let (status_tx, status_rx) = watch::channel(false);
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let (ok_tx, ok_rx) = oneshot::channel();
         let (tx, mut rx) = unbounded_channel::<LlamacppRequest>();
         let (sync_tx, sync_rx) = mpsc::channel();
@@ -509,6 +510,9 @@ impl LlamacppBackend {
             let _ = status_tx.send(true);
 
             while let Ok(requests) = sync_rx.recv() {
+                if shutdown_rx.borrow().clone() {
+                    break;
+                }
                 let start_time = Instant::now();
                 let mut seqs: Vec<LlamacppSeq> = Vec::with_capacity(requests.len());
                 llamacpp.batch.n_tokens = 0;
@@ -637,7 +641,7 @@ impl LlamacppBackend {
                 }
             }
         });
-        (Self{tx, status: status_rx}, ok_rx)
+        (Self{tx, status: status_rx}, ok_rx, shutdown_tx)
     }
 }
 
