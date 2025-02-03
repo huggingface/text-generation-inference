@@ -103,7 +103,7 @@ impl Allocator for RadixAllocator {
         let prefix_len = blocks.len() * self.block_size as usize;
         let suffix_len = tokens - prefix_len as u32;
 
-        let suffix_blocks = (suffix_len + self.block_size - 1) / self.block_size;
+        let suffix_blocks = suffix_len.div_ceil(self.block_size);
 
         tracing::info!("Prefix {prefix_len} - Suffix {suffix_len}");
 

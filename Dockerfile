@@ -1,5 +1,5 @@
 # Rust builder
-FROM lukemathwalker/cargo-chef:latest-rust-1.80.1 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.84.0 AS chef
 WORKDIR /usr/src
 
 ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
@@ -47,7 +47,7 @@ RUN cargo build --profile release-opt --frozen
 FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS pytorch-install
 
 # NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
-ARG PYTORCH_VERSION=2.4.0
+ARG PYTORCH_VERSION=2.5.1
 
 ARG PYTHON_VERSION=3.11
 # Keep in sync with `server/pyproject.toml
@@ -58,7 +58,7 @@ ARG INSTALL_CHANNEL=pytorch
 # Automatically set by buildx
 ARG TARGETPLATFORM
 
-ENV PATH /opt/conda/bin:$PATH
+ENV PATH=/opt/conda/bin:$PATH
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
@@ -224,17 +224,19 @@ COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-
 COPY --from=flashinfer-builder /opt/conda/lib/python3.11/site-packages/flashinfer/ /opt/conda/lib/python3.11/site-packages/flashinfer/
 
 # Install flash-attention dependencies
-RUN pip install einops --no-cache-dir
+# RUN pip install einops --no-cache-dir
 
 # Install server
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
+ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements_cuda.txt && \
-    pip install ".[attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir && \
-    pip install nvidia-nccl-cu12==2.22.3
+    python -c "from text_generation_server.pb import generate_pb2" && \
+    pip install -U pip uv && \
+    uv pip install -e ".[attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir # && \
+    # uv pip install nvidia-nccl-cu12==2.22.3
 
 ENV LD_PRELOAD=/opt/conda/lib/python3.11/site-packages/nvidia/nccl/lib/libnccl.so.2
 # Required to find libpython within the rust binaries

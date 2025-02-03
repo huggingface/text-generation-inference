@@ -19,6 +19,15 @@ try:
 except ImportError:
     marlin_kernels = None
 
+try:
+    from moe_kernels.fp8_utils import w8a8_block_fp8_matmul, per_token_group_quant_fp8
+except ImportError:
+    w8a8_block_fp8_matmul = None
+    per_token_group_quant_fp8 = None
+
+quant_dtype: torch.dtype = (
+    torch.float8_e4m3fnuz if SYSTEM == "rocm" else torch.float8_e4m3fn
+)
 
 if SYSTEM == "cuda" and marlin_kernels is not None:
     major, minor = torch.cuda.get_device_capability()
@@ -35,7 +44,6 @@ def get_fp8_linear(force_w8a16: bool = False) -> Type[torch.nn.Module]:
     """
 
     if SYSTEM == "cuda":
-
         major, _ = torch.cuda.get_device_capability()
         # Marlin is W8A16, use it when:
         #
@@ -49,34 +57,77 @@ def get_fp8_linear(force_w8a16: bool = False) -> Type[torch.nn.Module]:
             #       gives better decoding throughput on L4 and L40.
             from text_generation_server.layers.marlin import GPTQMarlinFP8Linear
 
+            if major == 8 and minor == 9:
+                log_once(
+                    logger.info,
+                    "GPU supports FP8, but using Marlin FP8 kernel for better performance",
+                )
+            else:
+                log_once(
+                    logger.info, "GPU does not support FP8, using Marlin FP8 kernel"
+                )
+
             return GPTQMarlinFP8Linear
 
     # On other systems let Torch decide if the hardware supports FP8.
     return Fp8Linear
 
 
-def normalize_e4m3fn_to_e4m3fnuz(
+def normalize_e4m3fn_to_native_float8(
     weight: torch.Tensor,
     weight_scale: torch.Tensor,
     input_scale: Optional[torch.Tensor] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
-    assert weight.dtype == torch.float8_e4m3fn
-    # The bits pattern 10000000(-128) represents zero in e4m3fn
-    # but NaN in e4m3fnuz. So here we set it to 0.
-    # https://onnx.ai/onnx/technical/float8.html
-    weight_as_int8 = weight.view(torch.int8)
-    ROCM_FP8_NAN_AS_INT = -128
-    weight_as_int8[weight_as_int8 == ROCM_FP8_NAN_AS_INT] = 0
-    weight = weight_as_int8.view(torch.float8_e4m3fnuz)
+    if weight.dtype == torch.float8_e4m3fn and SYSTEM == "rocm":
+        # The bits pattern 10000000(-128) represents zero in e4m3fn
+        # but NaN in e4m3fnuz. So here we set it to 0.
+        # https://onnx.ai/onnx/technical/float8.html
+        weight_as_int8 = weight.view(torch.int8)
+        ROCM_FP8_NAN_AS_INT = -128
+        weight_as_int8[weight_as_int8 == ROCM_FP8_NAN_AS_INT] = 0
+        weight = weight_as_int8.view(torch.float8_e4m3fnuz)
 
-    # For the same bits representation, e4m3fnuz value is half of
-    # the e4m3fn value, so we should double the scaling factor to
-    # get the same dequantized value.
-    # https://onnx.ai/onnx/technical/float8.html
-    weight_scale = weight_scale * 2.0
-    if input_scale is not None:
-        input_scale = input_scale * 2.0
+        # For the same bits representation, e4m3fnuz value is half of
+        # the e4m3fn value, so we should double the scaling factor to
+        # get the same dequantized value.
+        # https://onnx.ai/onnx/technical/float8.html
+        weight_scale = weight_scale * 2.0
+        if input_scale is not None:
+            input_scale = input_scale * 2.0
     return weight, weight_scale, input_scale
+
+
+def per_tensor_dequantize(
+    tensor: torch.Tensor,
+    inv_scale: Union[float, torch.Tensor],
+    dtype: torch.dtype = torch.float16,
+) -> torch.Tensor:
+    fake_qweight = tensor.to(dtype)
+    dq_weight = fake_qweight * inv_scale
+    return dq_weight
+
+
+def requantize_with_max_scale(
+    weight: torch.Tensor,
+    weight_scale: torch.Tensor,
+    logical_widths: int,
+    dtype: torch.dtype,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    # Max scale to be used for requanitzation.
+    max_w_scale = weight_scale.max().float()
+
+    start = 0
+    for idx, logical_width in enumerate(logical_widths):
+        end = start + logical_width
+        weight_dq = per_tensor_dequantize(
+            weight[start:end, :], weight_scale[idx], dtype
+        )
+        weight[start:end, :], max_w_scale_normalized = fp8_quantize(
+            weight_dq, max_w_scale
+        )
+        start = end
+
+    return weight, max_w_scale_normalized
 
 
 def fp8_quantize(
@@ -96,7 +147,7 @@ def fp8_quantize(
         shape = weight.shape
         qweight, scale = marlin_kernels.scaled_fp8_quant(
             weight.reshape(-1, shape[-1]),
-            dtype=qdtype,
+            dtype=quant_dtype,
             scale=scale,
             scale_ub=scale_upper_bound,
             # TODO: don't do this when we have to use the Torch kernel.
@@ -116,6 +167,8 @@ def fp8_quantize(
         qweight = (weight * scale).clamp(min=finfo.min, max=finfo.max)
         scale = scale.float().reciprocal()
     else:
+        if SYSTEM == "rocm":
+            scale = scale / 2.0
         # Use reciprocal to avoid more expensive division.
         qweight = (weight * scale.reciprocal()).clamp(min=finfo.min, max=finfo.max)
 
@@ -124,7 +177,7 @@ def fp8_quantize(
     qweight = qweight.to(qdtype)
 
     if SYSTEM == "rocm":
-        qweight, scale, _ = normalize_e4m3fn_to_e4m3fnuz(qweight, scale)
+        qweight, scale, _ = normalize_e4m3fn_to_native_float8(qweight, scale)
 
     return qweight, scale
 
@@ -132,26 +185,42 @@ def fp8_quantize(
 class HybridFP8UnquantLoader(WeightsLoader):
     """Weight loader that loads FP8 and unquantized Torch tensors."""
 
-    def __init__(self, activation_scale_ub: Optional[float], to_fp8: bool):
+    def __init__(
+        self,
+        activation_scale_ub: Optional[float],
+        to_fp8: bool,
+        weight_block_size: Optional[List[int]] = None,
+    ):
         self.activation_scale_ub = activation_scale_ub
         self.to_fp8 = to_fp8
+        self.weight_block_size = weight_block_size
 
     def get_weights(self, weights: "Weights", prefix: str):
         w = weights.get_tensor(f"{prefix}.weight")
 
         if w.dtype == torch.float8_e4m3fn:
+            if self.weight_block_size is not None:
+                scale = weights.get_tensor(f"{prefix}.weight_scale_inv")
+                return Fp8Weight(
+                    weight=w,
+                    weight_scale=scale,
+                    activation_scale_ub=self.activation_scale_ub,
+                    dtype=weights.dtype,
+                    weight_block_size=self.weight_block_size,
+                )
             # FP8 branch
-            scale = (
-                weights.get_tensor(f"{prefix}.weight_scale", to_dtype=False)
-                .reshape(-1)
-                .expand(w.shape[0])
-            )
+            scale = weights.get_tensor(f"{prefix}.weight_scale", to_dtype=False)
+
+            if SYSTEM == "cuda":
+                scale.reshape(-1).expand(w.shape[0])
 
             input_scale = None
             if weights.has_tensor(f"{prefix}.input_scale"):
-                input_scale = weights.get_tensor(
-                    f"{prefix}.input_scale", to_dtype=False
-                ).reshape(-1)
+                input_scale = (
+                    weights.get_tensor(f"{prefix}.input_scale", to_dtype=False)
+                    .reshape(-1)
+                    .max()
+                )
 
             return Fp8Weight(
                 weight=w,
@@ -178,6 +247,7 @@ class HybridFP8UnquantLoader(WeightsLoader):
         if w.dtype == torch.float8_e4m3fn:
             # FP8 branch
             scale = weights.get_tensor(f"{prefix}.weight_scale", to_dtype=False)
+
             if scale.numel() > 1:
                 scale = weights.get_packed_sharded(
                     f"{prefix}.weight_scale",
@@ -185,7 +255,8 @@ class HybridFP8UnquantLoader(WeightsLoader):
                     block_sizes=block_sizes,
                     to_dtype=False,
                 )
-            scale = scale.reshape(-1).expand(w.shape[0])
+            if SYSTEM == "cuda":
+                scale = scale.reshape(-1).expand(w.shape[0])
 
             input_scale = None
             if weights.has_tensor(f"{prefix}.input_scale"):
@@ -225,6 +296,21 @@ class HybridFP8UnquantLoader(WeightsLoader):
 
         # FP8 branch
         if w.dtype == torch.float8_e4m3fn:
+            if self.weight_block_size is not None:
+                scale = [
+                    weights.get_sharded(f"{p}.weight_scale_inv", dim=0, to_device=False)
+                    for p in prefixes
+                ]
+                scale = torch.cat(scale, dim=dim)
+                scale = scale.to(weights.device)
+                return Fp8Weight(
+                    weight=w,
+                    weight_scale=scale,
+                    activation_scale_ub=self.activation_scale_ub,
+                    dtype=weights.dtype,
+                    weight_block_size=self.weight_block_size,
+                )
+
             scale = [
                 _load_scalar_or_matrix_scale(weights, f"{p}.weight_scale", shape)
                 for p, shape in zip(prefixes, shapes)
@@ -243,6 +329,17 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 else None
             )
 
+            if SYSTEM == "rocm":
+                w, scale, input_scale = normalize_e4m3fn_to_native_float8(
+                    w, scale, input_scale
+                )
+
+                if scale.numel() == len(prefixes):
+                    logical_widths = [x[0] for x in shapes]
+                    w, scale = requantize_with_max_scale(
+                        w, scale.to(weights.device), logical_widths, weights.dtype
+                    )
+
             return Fp8Weight(
                 weight=w,
                 weight_scale=scale,
@@ -259,16 +356,30 @@ class HybridFP8UnquantLoader(WeightsLoader):
         w = weights.get_sharded(f"{prefix}.weight", dim=1)
         # FP8 branch
         if w.dtype == torch.float8_e4m3fn:
-            scale = (
-                weights.get_tensor(f"{prefix}.weight_scale", to_dtype=False)
-                .reshape(-1)
-                .expand(w.shape[0])
-            )
+            if self.weight_block_size is not None:
+                # XXX: Yes the weights is named scale_inv, but corresponds to scale it seems.
+                scale = weights.get_sharded(f"{prefix}.weight_scale_inv", dim=1)
+
+                return Fp8Weight(
+                    weight=w,
+                    weight_scale=scale,
+                    activation_scale_ub=self.activation_scale_ub,
+                    dtype=weights.dtype,
+                    weight_block_size=self.weight_block_size,
+                )
+
+            scale = weights.get_tensor(f"{prefix}.weight_scale", to_dtype=False)
+
+            if SYSTEM == "cuda":
+                scale = scale.reshape(-1).expand(w.shape[0])
+
             input_scale = None
             if weights.has_tensor(f"{prefix}.input_scale"):
-                input_scale = weights.get_tensor(
-                    f"{prefix}.input_scale", to_dtype=False
-                ).reshape(-1)
+                input_scale = (
+                    weights.get_tensor(f"{prefix}.input_scale", to_dtype=False)
+                    .reshape(-1)
+                    .max()
+                )
 
             return Fp8Weight(
                 weight=w,
@@ -291,6 +402,7 @@ class Fp8Weight(Weight):
     input_scale: Optional[torch.Tensor] = None
     activation_scale_ub: Optional[float] = None
     force_w8a16: bool = False
+    weight_block_size: Optional[List[int]] = None
 
     def get_linear(self, bias: torch.Tensor):
         if self.weight_scale is None:
@@ -307,6 +419,7 @@ class Fp8Weight(Weight):
             bias=bias,
             input_scale=self.input_scale,
             scale_upper_bound=self.activation_scale_ub,
+            weight_block_size=self.weight_block_size,
         )
 
 
@@ -321,19 +434,21 @@ class Fp8Linear(torch.nn.Module):
         bias: Optional[torch.Tensor] = None,
         input_scale: Optional[torch.Tensor] = None,
         scale_upper_bound: Optional[float] = None,
+        weight_block_size: Optional[List[int]] = None,
     ) -> None:
         super().__init__()
         if CUTLASS_FP8_AVAILABLE:
             log_once(logger.info, "Using cutlass w8a8 kernels")
         if SYSTEM == "rocm" and qweight.dtype == torch.float8_e4m3fn:
-            qweight, scale, _ = normalize_e4m3fn_to_e4m3fnuz(
-                weight=qweight, weight_scale=scale
+            qweight, scale, input_scale = normalize_e4m3fn_to_native_float8(
+                weight=qweight, weight_scale=scale, input_scale=input_scale
             )
 
         self.dtype = dtype
         self.qweight = qweight
         self.scale = scale.float()
         self.input_scale = input_scale.float() if input_scale is not None else None
+        self.weight_block_size = weight_block_size
 
         if CUTLASS_FP8_AVAILABLE and scale_upper_bound is not None:
             self.scale_upper_bound = torch.tensor(
@@ -367,6 +482,7 @@ class Fp8Linear(torch.nn.Module):
     ) -> "Fp8Linear":
         input_scale = kwargs.get("input_scale", None)
         scale_upper_bound = kwargs.get("scale_upper_bound", None)
+        weight_block_size = kwargs.get("weight_block_size", None)
 
         return cls(
             qweight=weight,
@@ -375,6 +491,7 @@ class Fp8Linear(torch.nn.Module):
             scale_upper_bound=scale_upper_bound,
             bias=bias,
             dtype=dtype,
+            weight_block_size=weight_block_size,
         )
 
     @classmethod
@@ -386,6 +503,25 @@ class Fp8Linear(torch.nn.Module):
         return cls._device_identity_cache[device]
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        if self.weight_block_size is not None:
+            # https://arxiv.org/pdf/2412.19437
+            # At a more granular level. As illustrated in Figure 7 (a), (1) for activations, we group and
+            # scale elements on a 1x128 tile basis (i.e., per token per 128 channels); and (2) for weights, we
+            # group and scale elements on a 128x128 block basis (i.e., per 128 input channels per 128 output
+            # channels).
+            qinput, scale = per_token_group_quant_fp8(input, self.weight_block_size[1])
+            output = w8a8_block_fp8_matmul(
+                qinput,
+                self.qweight,
+                scale,
+                self.scale,
+                self.weight_block_size,
+                output_dtype=input.dtype,
+            )
+
+            if self.bias is not None:
+                output = output + self.bias
+            return output.to(dtype=input.dtype)
         if CUTLASS_FP8_AVAILABLE:
             # cutlass FP8 supports per-token scales, so get non-scalar scales.
             qinput, scale = fp8_quantize(
@@ -443,6 +579,9 @@ class Fp8Linear(torch.nn.Module):
 
 def _load_scalar_or_matrix_scale(weights: Weights, prefix: str, shape: torch.Size):
     scale = weights.get_tensor(prefix, to_dtype=False)
+
     if scale.numel() > 1:
         scale = weights.get_sharded(prefix, dim=0, to_dtype=False)
+    elif SYSTEM == "rocm":
+        return scale.reshape(-1)
     return scale.reshape(-1).expand(shape[0])

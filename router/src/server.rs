@@ -54,6 +54,9 @@ use std::fs::File;
 use std::io::BufReader;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 use tokio::select;
 use tokio::signal;
@@ -1819,9 +1822,9 @@ pub async fn run(
         HubTokenizerConfig::default()
     });
 
-    let tokenizer: Tokenizer = {
+    let tokenizer: Result<Tokenizer, WebServerError> = {
         use pyo3::prelude::*;
-        pyo3::Python::with_gil(|py| -> PyResult<()> {
+        Python::with_gil(|py| -> PyResult<()> {
             py_resolve_tokenizer(py, &tokenizer_name, revision.as_deref(), trust_remote_code)?;
             Ok(())
         })
@@ -1832,16 +1835,16 @@ pub async fn run(
             let out = legacy_tokenizer_handle(config_filename.as_ref());
             out.ok_or(err)
         })
-        .expect("We cannot load a tokenizer");
+        .map_err(|_| WebServerError::Tokenizer("Unable to load tokenizer.".to_string()))?;
         let filename = "out/tokenizer.json";
         if let Ok(tok) = tokenizers::Tokenizer::from_file(filename) {
-            Tokenizer::Rust(tok)
+            Ok(Tokenizer::Rust(tok))
         } else {
-            Tokenizer::Python {
+            Ok(Tokenizer::Python {
                 tokenizer_name: tokenizer_name.clone(),
                 revision: revision.clone(),
                 trust_remote_code,
-            }
+            })
         }
     };
 
@@ -1895,17 +1898,34 @@ pub async fn run(
                 disable_grammar_support,
                 max_client_batch_size,
                 usage_stats_level,
+                backend.name(),
             );
             Some(usage_stats::UserAgent::new(reduced_args))
         }
         _ => None,
     };
 
-    if let Some(ref ua) = user_agent {
+    let stop_usage_thread = Arc::new(AtomicBool::new(false));
+    let stop_usage_thread_clone = stop_usage_thread.clone();
+    if let Some(ua) = user_agent.clone() {
         let start_event =
             usage_stats::UsageStatsEvent::new(ua.clone(), usage_stats::EventType::Start, None);
         tokio::spawn(async move {
+            // send start event
             start_event.send().await;
+            let mut last_report = Instant::now();
+            while !stop_usage_thread_clone.load(Ordering::Relaxed) {
+                if last_report.elapsed() > Duration::from_secs(900) {
+                    let report_event = usage_stats::UsageStatsEvent::new(
+                        ua.clone(),
+                        usage_stats::EventType::Ping,
+                        None,
+                    );
+                    report_event.send().await;
+                    last_report = Instant::now();
+                }
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
         });
     };
     let compat_return_full_text = match &model_info.pipeline_tag {
@@ -1926,7 +1946,7 @@ pub async fn run(
         validation_workers,
         api_key,
         config,
-        (tokenizer, tokenizer_config),
+        (tokenizer?, tokenizer_config),
         (preprocessor_config, processor_config),
         hostname,
         port,
@@ -1943,6 +1963,7 @@ pub async fn run(
     .await;
 
     if let Some(ua) = user_agent {
+        stop_usage_thread.store(true, Ordering::Relaxed);
         match result {
             Ok(_) => {
                 let stop_event = usage_stats::UsageStatsEvent::new(
@@ -2419,8 +2440,13 @@ async fn start(
         }
     } else {
         // Run server
-
-        let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+        let listener = match tokio::net::TcpListener::bind(&addr).await {
+            Ok(listener) => listener,
+            Err(e) => {
+                tracing::error!("Failed to bind to {addr}: {e}");
+                return Err(WebServerError::Axum(Box::new(e)));
+            }
+        };
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
             .await
@@ -2535,4 +2561,6 @@ impl From<InferError> for Event {
 pub enum WebServerError {
     #[error("Axum error: {0}")]
     Axum(#[from] axum::BoxError),
+    #[error("Tokenizer error: {0}")]
+    Tokenizer(String),
 }

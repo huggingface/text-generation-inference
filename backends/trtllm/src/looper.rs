@@ -18,10 +18,12 @@ use text_generation_router::validation::ValidationError::{
     EmptyInput, Grammar, TopNTokensDisabled, UnsupportedModality,
 };
 use text_generation_router::validation::{Chunk, ValidGenerateRequest};
-use text_generation_router::{FinishReason, Token};
+use text_generation_router::Token;
 
 use crate::errors::TensorRtLlmBackendError;
-use crate::ffi::{create_backend_from_engine_folder, GenerationStep, TensorRtLlmBackendImpl};
+use crate::ffi::{
+    create_backend_from_engine_folder, FinishReason, GenerationStep, TensorRtLlmBackendImpl,
+};
 use crate::utils::first_line;
 
 type InferResult<T> = Result<T, InferError>;
@@ -40,6 +42,7 @@ struct DecodedToken {
     id: u32,
     log_prob: f32,
     is_final: bool,
+    finish_reason: FinishReason,
 }
 
 impl<'step> TryFrom<&'step GenerationStep> for DecodedToken {
@@ -51,6 +54,7 @@ impl<'step> TryFrom<&'step GenerationStep> for DecodedToken {
                 id: step.token_id,
                 log_prob: step.log_prob,
                 is_final: step.is_final,
+                finish_reason: step.finish_reason,
             })
         } else {
             Err(GenerationError(step.error_msg.clone()))
@@ -192,7 +196,7 @@ fn post_process_decoded_token(
                 let generated_text = GeneratedText {
                     text: text.unwrap(),
                     generated_tokens: ctx.tokens.len() as u32,
-                    finish_reason: FinishReason::EndOfSequenceToken, // TODO : Map FinishReason
+                    finish_reason: decoded_token.finish_reason.into(),
                     seed: None,
                 };
 
@@ -335,5 +339,9 @@ impl Backend for TensorRtLlmBackendV2 {
 
     async fn health(&self, _: bool) -> bool {
         true
+    }
+
+    fn name(&self) -> &'static str {
+        "TensorRT-LLM"
     }
 }

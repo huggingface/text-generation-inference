@@ -6,11 +6,11 @@ on:
       hardware:
         type: string
         description: Hardware
-          # options:
-          # - cuda
-          # - cuda-trtllm
-          # - rocm
-          # - intel
+        # options:
+        # - cuda
+        # - cuda-trtllm
+        # - rocm
+        # - intel
         required: true
       release-tests:
         description: "Run release integration tests"
@@ -31,16 +31,28 @@ jobs:
       group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     runs-on:
-      group: aws-highmemory-32-plus-priv
+      group: aws-highmemory-64-plus-priv
     permissions:
       contents: write
       packages: write
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4.4.1
-      - name: Construct harware variables
+      - name: Inject required variables for sccache to interact with Github Actions Cache
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Extract TensorRT-LLM version
+        run: |
+          echo "TENSORRT_LLM_VERSION=$(grep -oP '([a-z,0-9]{40})' $GITHUB_WORKSPACE/backends/trtllm/cmake/trtllm.cmake)" >> $GITHUB_ENV
+          echo "TensorRT-LLM version: ${{ env.TENSORRT_LLM_VERSION }}"
+      - name: Construct hardware variables
         shell: bash
         run: |
           case ${{ inputs.hardware }} in
@@ -52,6 +64,7 @@ jobs:
                 export runs_on="aws-g6-12xl-plus-priv-cache"
                 export platform=""
                 export extra_pytest=""
+                export target=""
                 ;;
             cuda-trtllm)
                 export dockerfile="Dockerfile_trtllm"
@@ -61,15 +74,24 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest=""
+                if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+                  export build_type="release";
+                  export target="";
+                else
+                  export build_type="dev";
+                  export target="ci-runtime";
+                fi
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
                 export label_extension="-rocm"
                 export docker_devices="/dev/kfd,/dev/dri"
                 export docker_volume="/mnt"
-                export runs_on="amd-gpu-runners"
+                # This runner was deactivated.
+                export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest="-k test_flash_gemma_gptq_load"
+                export target=""
                 ;;
             intel-xpu)
                 export dockerfile="Dockerfile_intel"
@@ -79,6 +101,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform="xpu"
                 export extra_pytest=""
+                export target=""
                 ;;
             intel-cpu)
                 export dockerfile="Dockerfile_intel"
@@ -89,6 +112,7 @@ jobs:
                 export runs_on="aws-highmemory-32-plus-priv"
                 export platform="cpu"
                 export extra_pytest="-k test_flash_gemma_simple"
+                export target=""
                 ;;
           esac
           echo $dockerfile
@@ -105,6 +129,8 @@ jobs:
           echo "RUNS_ON=${runs_on}" >> $GITHUB_ENV
           echo "EXTRA_PYTEST=${extra_pytest}" >> $GITHUB_ENV
           echo REGISTRY_MIRROR=$REGISTRY_MIRROR >> $GITHUB_ENV
+          echo "TARGET=${target}" >> $GITHUB_ENV
+          echo "BUILD_TYPE=${build_type}" >> $GITHUB_ENV
       - name: Initialize Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
@@ -169,10 +195,15 @@ jobs:
             GIT_SHA=${{ env.GITHUB_SHA }}
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
             PLATFORM=${{ env.PLATFORM }}
+            build_type=${{ env.BUILD_TYPE }}
+            sccache_gha_enabled=on
+            actions_cache_url=${{ env.ACTIONS_CACHE_URL }}
+            actions_runtime_token=${{ env.ACTIONS_RUNTIME_TOKEN }}
+          target: ${{ env.TARGET }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
-          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=max
+          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=max
       - name: Final
         id: final
         run: |
@@ -214,3 +245,23 @@ jobs:
           echo $DOCKER_IMAGE
           docker pull $DOCKER_IMAGE
           pytest -s -vv integration-tests ${PYTEST_FLAGS} ${EXTRA_PYTEST}
+
+  backend_trtllm_cxx_tests:
+    needs: build-and-push
+    if: needs.build-and-push.outputs.label == '-trtllm'
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    runs-on:
+      group: aws-g6-12xl-plus-priv-cache
+    container:
+      image: ${{ needs.build-and-push.outputs.docker_image }}
+      credentials:
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+      options: --gpus all --shm-size=8g
+
+    steps:
+      - name: Run C++/CUDA tests
+        if: ${{ env.LABEL == 'ci-runtime' }}
+        run: /usr/local/tgi/bin/tgi_trtllm_backend_tests

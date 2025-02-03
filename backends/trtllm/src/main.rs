@@ -11,7 +11,7 @@ use text_generation_router::server::{
     get_hub_model_info, legacy_tokenizer_handle, py_resolve_tokenizer,
 };
 use text_generation_router::usage_stats::UsageStatsLevel;
-use text_generation_router::{server, HubTokenizerConfig, Tokenizer};
+use text_generation_router::{server, Tokenizer};
 
 /// App Configuration
 #[derive(Parser, Debug)]
@@ -67,11 +67,7 @@ struct Args {
     payload_limit: usize,
 }
 
-async fn get_tokenizer(
-    tokenizer_name: &str,
-    tokenizer_config_path: Option<&str>,
-    revision: Option<&str>,
-) -> Option<Tokenizer> {
+async fn get_tokenizer(tokenizer_name: &str, revision: Option<&str>) -> Option<Tokenizer> {
     // Parse Huggingface hub token
     let authorization_token = std::env::var("HF_TOKEN")
         .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
@@ -182,19 +178,6 @@ async fn get_tokenizer(
         }
     };
 
-    // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
-    // let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
-    // {
-    //     HubTokenizerConfig::from_file(filename)
-    // } else {
-    //     tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
-    // };
-
-    // let tokenizer_config = tokenizer_config.unwrap_or_else(|| {
-    //     tracing::warn!("Could not find tokenizer config locally and no API specified");
-    //     HubTokenizerConfig::default()
-    // });
-
     let tokenizer: Tokenizer = {
         use pyo3::prelude::*;
         pyo3::Python::with_gil(|py| -> PyResult<()> {
@@ -292,13 +275,9 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
     }
 
     // Create the backend
-    match get_tokenizer(
-        &tokenizer_name,
-        tokenizer_config_path.as_deref(),
-        revision.as_deref(),
-    )
-    .await
-    .expect("Failed to retrieve tokenizer implementation")
+    match get_tokenizer(&tokenizer_name, revision.as_deref())
+        .await
+        .expect("Failed to retrieve tokenizer implementation")
     {
         Tokenizer::Python { .. } => Err(TensorRtLlmBackendError::Tokenizer(
             "Failed to retrieve Rust based tokenizer".to_string(),

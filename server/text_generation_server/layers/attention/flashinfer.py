@@ -84,7 +84,7 @@ def use_prefill_with_paged_kv_state(
 
     token = prefill_with_paged_kv_state.set(state)
     try:
-        state.begin_forward(
+        state.plan(
             qo_indptr=cu_seqlens,
             paged_kv_indptr=indptr,
             paged_kv_indices=block_tables,
@@ -99,7 +99,6 @@ def use_prefill_with_paged_kv_state(
         )
         yield
     finally:
-        state.end_forward()
         if token is not None:
             prefill_with_paged_kv_state.reset(token)
 
@@ -200,7 +199,7 @@ def use_decode_state(
     token = decode_state.set(state)
 
     try:
-        state.begin_forward(
+        state.plan(
             indptr=indptr,
             indices=block_tables,
             last_page_len=last_page_len,
@@ -214,6 +213,5 @@ def use_decode_state(
         )
         yield
     finally:
-        state.end_forward()
         if token is not None:
             decode_state.reset(token)

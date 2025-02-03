@@ -79,7 +79,7 @@ impl TokenizerTrait for tokenizers::Tokenizer {
     }
 }
 
-impl<'a> TokenizerTrait for PyTokenizer<'a> {
+impl TokenizerTrait for PyTokenizer<'_> {
     fn encode_trait(
         &self,
         query: String,
@@ -460,7 +460,7 @@ pub struct CompletionRequest {
     pub prompt: Prompt,
 
     /// The maximum number of tokens that can be generated in the chat completion.
-    #[serde(default, alias = "max_completion_tokens")]
+    #[serde(default)]
     #[schema(default = "1024", example = "32")]
     pub max_tokens: Option<u32>,
 
@@ -840,7 +840,7 @@ pub(crate) struct ChatRequest {
     pub top_logprobs: Option<u32>,
 
     /// The maximum number of tokens that can be generated in the chat completion.
-    #[serde(default)]
+    #[serde(default, alias = "max_completion_tokens")]
     #[schema(default = "1024", example = "32")]
     pub max_tokens: Option<u32>,
 

@@ -14,19 +14,24 @@ PREFIX_CACHING = os.environ["PREFIX_CACHING"].lower() in {
 }
 PREFILL_CHUNKING = os.getenv("PREFILL_CHUNKING", "1").lower() in {"1", "true"}
 log_master(logger.info, f"Using prefix caching = {PREFIX_CACHING}")
-_expected = {"paged", "flashdecoding", "flashinfer"}
+_expected = {"paged", "flashdecoding", "flashdecoding-ipex", "flashinfer"}
 assert (
     ATTENTION in _expected
 ), f"Attention is not valid {ATTENTION}, expected {_expected}"
 log_master(logger.info, f"Using Attention = {ATTENTION}")
 
-if PREFIX_CACHING and ATTENTION not in {"flashinfer", "flashdecoding"}:
+if PREFIX_CACHING and ATTENTION not in {
+    "flashinfer",
+    "flashdecoding",
+    "flashdecoding-ipex",
+}:
     raise RuntimeError("Prefix caching is only supported with flashinfer")
 
 MEM_POOL = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
-TGI_WIGGLE_ROOM = float(os.getenv("TGI_WIGGLE_ROOM", "0.95"))
+TGI_WIGGLE_ROOM = float(os.getenv("TGI_WIGGLE_ROOM", "0.93"))
 assert TGI_WIGGLE_ROOM > 0
 assert TGI_WIGGLE_ROOM < 1
+
 
 # This is overridden by the cli
 BLOCK_SIZE: int
@@ -34,6 +39,8 @@ if ATTENTION == "flashdecoding":
     BLOCK_SIZE = 256
 elif ATTENTION == "flashinfer":
     BLOCK_SIZE = 1
+elif ATTENTION == "flashdecoding-ipex":
+    BLOCK_SIZE = 64
 else:
     BLOCK_SIZE = 16
 

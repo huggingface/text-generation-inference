@@ -42,6 +42,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      id-token: write
     with:
       hardware: ${{ matrix.hardware }}
       # https://github.com/actions/runner/issues/2206

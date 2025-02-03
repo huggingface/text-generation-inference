@@ -1,0 +1,373 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 60,
+    "prefill": [],
+    "seed": 0,
+    "tokens": [
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 40,
+        "logprob": -0.7944336,
+        "special": false,
+        "text": "#"
+      },
+      {
+        "id": 494,
+        "logprob": 0.0,
+        "special": false,
+        "text": " +"
+      },
+      {
+        "id": 447,
+        "logprob": -0.1796875,
+        "special": false,
+        "text": " ["
+      },
+      {
+        "id": 9009,
+        "logprob": 0.0,
+        "special": false,
+        "text": "markdown"
+      },
+      {
+        "id": 98,
+        "logprob": 0.0,
+        "special": false,
+        "text": "]"
+      },
+      {
+        "id": 37402,
+        "logprob": 0.0,
+        "special": false,
+        "text": " slideshow"
+      },
+      {
+        "id": 8492,
+        "logprob": 0.0,
+        "special": false,
+        "text": "={\""
+      },
+      {
+        "id": 7277,
+        "logprob": 0.0,
+        "special": false,
+        "text": "slide"
+      },
+      {
+        "id": 100,
+        "logprob": 0.0,
+        "special": false,
+        "text": "_"
+      },
+      {
+        "id": 700,
+        "logprob": 0.0,
+        "special": false,
+        "text": "type"
+      },
+      {
+        "id": 582,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\":"
+      },
+      {
+        "id": 332,
+        "logprob": 0.0,
+        "special": false,
+        "text": " \""
+      },
+      {
+        "id": 7277,
+        "logprob": -0.06994629,
+        "special": false,
+        "text": "slide"
+      },
+      {
+        "id": 3667,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\"}"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 40,
+        "logprob": 0.0,
+        "special": false,
+        "text": "#"
+      },
+      {
+        "id": 607,
+        "logprob": -0.8261719,
+        "special": false,
+        "text": " #"
+      },
+      {
+        "id": 244,
+        "logprob": -1.8574219,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 55,
+        "logprob": -1.4541016,
+        "special": false,
+        "text": "2"
+      },
+      {
+        "id": 51,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 6208,
+        "logprob": -0.9794922,
+        "special": false,
+        "text": " What"
+      },
+      {
+        "id": 458,
+        "logprob": 0.0,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 341,
+        "logprob": 0.0,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 10609,
+        "logprob": -0.69189453,
+        "special": false,
+        "text": " difference"
+      },
+      {
+        "id": 3761,
+        "logprob": 0.0,
+        "special": false,
+        "text": " between"
+      },
+      {
+        "id": 331,
+        "logprob": 0.0,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 1168,
+        "logprob": -0.27172852,
+        "special": false,
+        "text": " list"
+      },
+      {
+        "id": 480,
+        "logprob": 0.0,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 331,
+        "logprob": 0.0,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 8871,
+        "logprob": 0.0,
+        "special": false,
+        "text": " tuple"
+      },
+      {
+        "id": 68,
+        "logprob": 0.0,
+        "special": false,
+        "text": "?"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 40,
+        "logprob": -1.3359375,
+        "special": false,
+        "text": "#"
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 40,
+        "logprob": 0.0,
+        "special": false,
+        "text": "#"
+      },
+      {
+        "id": 449,
+        "logprob": -0.03164673,
+        "special": false,
+        "text": " -"
+      },
+      {
+        "id": 418,
+        "logprob": -1.0947266,
+        "special": false,
+        "text": " A"
+      },
+      {
+        "id": 1168,
+        "logprob": 0.0,
+        "special": false,
+        "text": " list"
+      },
+      {
+        "id": 458,
+        "logprob": 0.0,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 331,
+        "logprob": -0.3305664,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 14792,
+        "logprob": 0.0,
+        "special": false,
+        "text": " mutable"
+      },
+      {
+        "id": 6645,
+        "logprob": -0.40478516,
+        "special": false,
+        "text": " sequence"
+      },
+      {
+        "id": 451,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 4725,
+        "logprob": -0.50390625,
+        "special": false,
+        "text": " elements"
+      },
+      {
+        "id": 49,
+        "logprob": -2.1269531,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 2236,
+        "logprob": -0.1427002,
+        "special": false,
+        "text": " while"
+      },
+      {
+        "id": 331,
+        "logprob": 0.0,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 8871,
+        "logprob": 0.0,
+        "special": false,
+        "text": " tuple"
+      },
+      {
+        "id": 458,
+        "logprob": 0.0,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 619,
+        "logprob": 0.0,
+        "special": false,
+        "text": " an"
+      },
+      {
+        "id": 26079,
+        "logprob": 0.0,
+        "special": false,
+        "text": " immutable"
+      },
+      {
+        "id": 6645,
+        "logprob": 0.0,
+        "special": false,
+        "text": " sequence"
+      },
+      {
+        "id": 451,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 4725,
+        "logprob": 0.0,
+        "special": false,
+        "text": " elements"
+      },
+      {
+        "id": 51,
+        "logprob": 0.0,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 222,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 40,
+        "logprob": 0.0,
+        "special": false,
+        "text": "#"
+      },
+      {
+        "id": 449,
+        "logprob": 0.0,
+        "special": false,
+        "text": " -"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": "\n\n# + [markdown] slideshow={\"slide_type\": \"slide\"}\n# # 2. What is the difference between a list and a tuple?\n#\n# - A list is a mutable sequence of elements, while a tuple is an immutable sequence of elements.\n# -"
+}

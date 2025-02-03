@@ -16,10 +16,12 @@ from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional, List, Dict
 from pathlib import Path
+import transformers
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM, CausalLMBatchKeysLast
+
 from text_generation_server.models.custom_modeling.opt_modeling import OPTForCausalLM
 from text_generation_server.models.custom_modeling.mpt_modeling import (
     MPTForCausalLM,
@@ -86,6 +88,10 @@ try:
     from text_generation_server.models.custom_modeling.flash_deepseek_v2_modeling import (
         FlashDeepseekV2ForCausalLM,
         DeepseekV2Config,
+    )
+    from text_generation_server.models.custom_modeling.flash_deepseek_v3_modeling import (
+        FlashDeepseekV3ForCausalLM,
+        DeepseekV3Config,
     )
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
@@ -178,12 +184,25 @@ except ImportError as e:
 if MAMBA_AVAILABLE:
     __all__.append(Mamba)
 
+FLASH_TRANSFORMERS_BACKEND = torch.cuda.is_available()
+try:
+    from text_generation_server.models.transformers_flash_causal_lm import (
+        TransformersFlashCausalLM,
+    )
+except ImportError:
+    FLASH_TRANSFORMERS_BACKEND = False
+
 
 class ModelType(enum.Enum):
     DEEPSEEK_V2 = {
         "type": "deepseek_v2",
         "name": "Deepseek V2",
         "url": "https://huggingface.co/deepseek-ai/DeepSeek-V2",
+    }
+    DEEPSEEK_V3 = {
+        "type": "deepseek_v3",
+        "name": "Deepseek V3",
+        "url": "https://huggingface.co/deepseek-ai/DeepSeek-V3",
     }
     IDEFICS2 = {
         "type": "idefics2",
@@ -632,6 +651,40 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
+    elif model_type == DEEPSEEK_V3:
+        if FLASH_ATTENTION:
+            head_size = max(
+                config_dict.get("qk_nope_dim", 128)
+                + config_dict.get("qk_rope_dim", 64),
+                config_dict.get("v_head_dim", 128),
+            )
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashDeepseekV3ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                default_dtype=torch.bfloat16,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                config_class=DeepseekV3Config,
+                head_size=head_size,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Deepseek V3")
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
     elif model_type == MAMBA:
         return Mamba(
             model_id,
@@ -683,7 +736,7 @@ def get_model(
                 FLASH_ATT_ERROR_MESSAGE.format("Sharded Santacoder")
             )
         else:
-            return CausalLM.fallback(
+            return transformers_causal_lm_class.fallback(
                 model_id=model_id,
                 revision=revision,
                 quantize=quantize,
@@ -838,7 +891,7 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
             )
         else:
-            return CausalLM.fallback(
+            return TransformersFlashCausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -888,12 +941,43 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    elif (
-        model_type == LLAMA
-        or model_type == BAICHUAN
-        or model_type == PHI3
-        or model_type == GRANITE
-    ):
+    elif model_type == LLAMA or model_type == PHI3 or model_type == GRANITE:
+        if FLASH_ATTENTION:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashLlamaForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format(f"Sharded {model_type}")
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+
+    elif model_type == BAICHUAN:
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
@@ -919,6 +1003,7 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
+
     if model_type == GEMMA:
         if FLASH_ATTENTION:
             return FlashCausalLM(
@@ -933,6 +1018,15 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma"))
@@ -984,6 +1078,15 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Cohere"))
@@ -1088,6 +1191,15 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mistral"))
         else:
@@ -1113,6 +1225,15 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mixtral"))
         else:
@@ -1137,6 +1258,15 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
             )
         elif sharded:
             raise NotImplementedError(
@@ -1164,6 +1294,15 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Qwen2"))
@@ -1314,8 +1453,6 @@ def get_model(
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("LlavaNext"))
 
-    if sharded:
-        raise NotImplementedError("sharded is not supported for AutoModel")
     if quantize == "gptq":
         raise NotImplementedError(
             "gptq quantization is not supported for AutoModel, you can try to quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
@@ -1328,8 +1465,19 @@ def get_model(
         raise NotImplementedError("Eetq quantization is not supported for AutoModel")
     elif quantize == "exl2":
         raise NotImplementedError("exl2 quantization is not supported for AutoModel")
-    if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-        return CausalLM.fallback(
+
+    # Fast transformers if available
+    transformers_model_class = getattr(
+        transformers,
+        modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.get(model_type, ""),
+        None,
+    )
+    if (
+        FLASH_TRANSFORMERS_BACKEND
+        and transformers_model_class is not None
+        and transformers_model_class._supports_flex_attn
+    ):
+        return TransformersFlashCausalLM.fallback(
             model_id,
             revision,
             quantize=quantize,
@@ -1337,6 +1485,10 @@ def get_model(
             dtype=dtype,
             trust_remote_code=trust_remote_code,
         )
+
+    if sharded:
+        raise NotImplementedError("sharded is not supported for AutoModel")
+
     if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
         return Seq2SeqLM.fallback(
             model_id,
@@ -1449,6 +1601,9 @@ def get_model_with_lora_adapters(
                 "up_proj",
                 "down_proj",
                 "qkv_proj",
+                # add c_* layers used in starcoder2
+                "c_proj",
+                "c_fc",
             ]
 
             for layer_name in adapter_layers:
