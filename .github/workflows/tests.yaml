@@ -48,6 +48,9 @@ jobs:
           uv venv
           source ./.venv/bin/activate
           make install-cpu
+      - name: Download locked kernels
+        run: |
+          hf-kernels download server
       - name: Run server tests
         run: |
           source ./.venv/bin/activate
