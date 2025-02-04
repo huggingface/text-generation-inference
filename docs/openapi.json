@@ -1527,6 +1527,23 @@
           }
         }
       },
+      "FunctionDefinitionDeprecated": {
+        "type": "object",
+        "required": [
+          "name",
+          "arguments"
+        ],
+        "properties": {
+          "arguments": {},
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "FunctionDefinition": {
         "type": "object",
         "required": [
@@ -2251,7 +2268,7 @@
                 "$ref": "#/components/schemas/FunctionDefinition"
               },
               {
-                "$ref": "#/components/schemas/FunctionCall"
+                "$ref": "#/components/schemas/FunctionDefinitionDeprecated"
               }
             ]
           },
