@@ -252,7 +252,6 @@ def fused_marlin_moe(
     topk: int,
     renormalize: bool,
     num_bits: int = 8,
-    override_config: Optional[Dict[str, Any]] = None,
     use_grouped_topk: bool = False,
     num_expert_group: Optional[int] = None,
     custom_routing_function: Optional[Callable] = None,
@@ -279,8 +278,6 @@ def fused_marlin_moe(
     - w1_zeros (Optional[torch.Tensor]): Optional zero points to be used for w1.
     - w2_zeros (Optional[torch.Tensor]): Optional zero points to be used for w2.
     - renormalize (bool): If True, renormalize the top-k weights to sum to 1.
-    - override_config (Optional[Dict[str, Any]]): Optional override
-        for the kernel configuration.
     - num_bits (bool): The number of bits in expert weights quantization.
 
     Returns:
@@ -340,7 +337,6 @@ def fused_marlin_moe(
         sort_indices2=sort_indices2,
         w1_zeros=w1_zeros,
         w2_zeros=w2_zeros,
-        override_config=override_config,
         num_bits=num_bits,
         is_k_full=is_k_full,
     )
