@@ -50,6 +50,7 @@ jobs:
           make install-cpu
       - name: Download locked kernels
         run: |
+          source ./.venv/bin/activate
           hf-kernels download server
       - name: Run server tests
         run: |
