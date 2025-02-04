@@ -94,8 +94,18 @@ mkShell {
     ( cd clients/python ; python -m pip install --no-dependencies -e . )
   '';
 
-  postShellHook = ''
-    unset SOURCE_DATE_EPOCH
-    export PATH=$PATH:~/.cargo/bin
-  '';
+  postShellHook =
+    ''
+      unset SOURCE_DATE_EPOCH
+      export PATH=${cudaPackages.backendStdenv.cc}/bin:$PATH:~/.cargo/bin
+    ''
+    # At various points in time, the latest gcc supported by CUDA differs
+    # from the default version in nixpkgs. A lot of the dependencies in
+    # the impure environment pull in the default gcc from nixpkgs, so we
+    # end up with the CUDA-supported gcc and the nixpkgs default gcc in
+    # the path. To ensure that we can build CUDA kernels, put the CUDA
+    # first in the path. It's a hack, but it works.
+    + lib.optionalString withCuda ''
+      export PATH=${cudaPackages.backendStdenv.cc}/bin:$PATH
+    '';
 }
