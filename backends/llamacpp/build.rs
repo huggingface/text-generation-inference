@@ -21,6 +21,7 @@ fn inject_transient_dependencies(lib_search_path: Option<&str>, lib_target_hardw
 }
 
 fn main() {
+    let pkg_cuda = option_env!("TGI_LLAMA_PKG_CUDA");
     let lib_search_path = option_env!("TGI_LLAMA_LD_LIBRARY_PATH");
     let lib_target_hardware = option_env!("TGI_LLAMA_HARDWARE_TARGET").unwrap_or("cpu");
 
@@ -36,6 +37,9 @@ fn main() {
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
 
+    if let Some(pkg_cuda) = pkg_cuda {
+        pkg_config::Config::new().probe(pkg_cuda).unwrap();
+    }
     pkg_config::Config::new().probe("llama").unwrap();
 
     inject_transient_dependencies(lib_search_path, lib_target_hardware);

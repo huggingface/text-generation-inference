@@ -1,41 +1,27 @@
-ARG llama_version=b4623
-ARG llama_hardware_target=cpu
+FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS deps
+
+ARG llama_version=b4628
 ARG llama_cuda_arch=75-real;80-real;86-real;89-real;90-real
 
-FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS base
+WORKDIR /opt/src
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install -y \
-    python3-venv \
-    python3-pip
-
-RUN python3 -m venv /venv
-ENV PATH="/venv/bin:$PATH"
-RUN pip3 install --no-cache-dir transformers
-
-FROM base AS deps
-WORKDIR /opt/src
-
-RUN apt install -y \
     clang \
     cmake \
     curl \
     git \
+    python3-dev \
     libssl-dev \
     pkg-config \
     tar
 
-FROM deps AS llamacpp-builder
-ARG llama_version
-ARG llama_cuda_arch
-ENV LLAMA_VERSION=${llama_version}
-
-ADD https://github.com/ggerganov/llama.cpp/archive/refs/tags/${LLAMA_VERSION}.tar.gz /opt/src/
-RUN tar -xzf ${LLAMA_VERSION}.tar.gz && \
-    cd llama.cpp-${LLAMA_VERSION} && \
-    cmake \
-    -B build \
-    -DCMAKE_INSTALL_PREFIX=/usr/llama \
+ADD https://github.com/ggerganov/llama.cpp/archive/refs/tags/${llama_version}.tar.gz /opt/src/
+RUN tar -xzf ${llama_version}.tar.gz \
+ && cd llama.cpp-${llama_version} \
+ && cmake -B build \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBDIR=/usr/lib \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_CUDA_ARCHITECTURES=${llama_cuda_arch} \
@@ -44,44 +30,49 @@ RUN tar -xzf ${LLAMA_VERSION}.tar.gz && \
     -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_EXAMPLES=OFF \
     -DLLAMA_BUILD_SERVER=OFF \
- && cmake --build build --parallel --config Release -j \
+ && cmake --build build --parallel --config Release \
  && cmake --install build
 
-FROM deps AS rust-builder
+WORKDIR /app
 COPY rust-toolchain.toml rust-toolchain.toml
 RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none
 ENV PATH="/root/.cargo/bin:$PATH"
+RUN cargo install cargo-chef --locked
 
+FROM deps AS planner
 COPY . .
-COPY --from=llamacpp-builder /usr/llama/lib/ /usr/lib/
-COPY --from=llamacpp-builder /usr/llama/include/ /usr/include/
+RUN cargo chef prepare --recipe-path recipe.json
 
-
-ARG llama_hardware_target
-ENV TGI_LLAMA_HARDWARE_TARGET=${llama_hardware_target}
-RUN export TGI_LIB_SEARCH_PATH=/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs && \
-    ln -s /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 && \
-    cargo build \
+FROM deps AS builder
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook \
+    --recipe-path recipe.json \
     --profile release-opt \
     --package text-generation-router-llamacpp
+COPY . .
+ENV TGI_LLAMA_PKG_CUDA=cuda-12.6
+RUN cargo build \
+    --profile release-opt \
+    --package text-generation-router-llamacpp --frozen
+
+# fix libcuda.so.1 ?
+RUN cp "$(pkg-config --variable=libdir cuda-12.6)"/stubs/libcuda.so /usr/lib/libcuda.so.1
 
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
-WORKDIR /usr/bin
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/venv/bin:$PATH"
 
 RUN apt update && apt install -y \
-    openssl \
     python3-venv \
     python3-pip
 
-RUN python3 -m venv /venv && \
-    pip3 install --no-cache-dir -r transformers
+RUN python3 -m venv /venv
+ENV PATH="/venv/bin:$PATH"
 
-COPY --from=llamacpp-builder /usr/llama/lib/ /usr/lib/
-COPY --from=llamacpp-builder /usr/llama/include/ /usr/include/
-COPY --from=llamacpp-builder /usr/llama/bin/ /usr/bin/
-COPY --from=rust-builder /opt/src/target/release-opt/text-generation-router-llamacpp /usr/bin/text-generation-launcher
+COPY backends/llamacpp/requirements.txt requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-ENTRYPOINT ["text-generation-launcher"]
+COPY --from=builder /usr/lib/libllama.so /usr/lib/
+COPY --from=builder /usr/lib/libggml*.so /usr/lib/
+COPY --from=builder /usr/lib/libcuda.so.1 /usr/lib/
+COPY --from=builder /app/target/release-opt/text-generation-router-llamacpp /usr/bin/
+
+ENTRYPOINT ["text-generation-router-llamacpp"]
