@@ -6,15 +6,16 @@ import torch
 from compressed_tensors.quantization import QuantizationArgs, QuantizationType
 
 from text_generation_server.layers.fp8 import _load_scalar_or_matrix_scale
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
-try:
+if SYSTEM == "cuda":
     marlin_kernels = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
-except ImportError:
+else:
     marlin_kernels = None
 
 

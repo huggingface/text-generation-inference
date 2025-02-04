@@ -16,12 +16,13 @@ from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
-try:
+if SYSTEM == "cuda":
     marlin_kernels = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
-except ImportError:
+else:
     marlin_kernels = None
+
 
 try:
     major, _minor = torch.cuda.get_device_capability()

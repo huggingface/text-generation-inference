@@ -15,14 +15,15 @@ from text_generation_server.utils.weights import (
 )
 from text_generation_server.utils.log import log_once
 
-try:
+if SYSTEM == "cuda":
     marlin_kernels = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
-except ImportError:
+else:
     marlin_kernels = None
 
 try:
+    # TODO: needs to be ported over to MoE and used on CUDA.
     from moe_kernels.fp8_utils import w8a8_block_fp8_matmul, per_token_group_quant_fp8
 except ImportError:
     w8a8_block_fp8_matmul = None

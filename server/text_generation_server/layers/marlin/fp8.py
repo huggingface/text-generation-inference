@@ -8,13 +8,14 @@ from text_generation_server.layers.marlin.util import (
     _check_marlin_kernels,
     permute_scales,
 )
+from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.kernels import load_kernel
 
-try:
+if SYSTEM == "cuda":
     marlin_kernels = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
-except ImportError:
+else:
     marlin_kernels = None
 
 
