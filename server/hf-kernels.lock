@@ -247,19 +247,19 @@
   },
   {
     "repo_id": "kernels-community/moe",
-    "sha": "6c5a23aee6c11309d8acbdc1fc6b9a4ae7760084",
+    "sha": "0de185e2b3a88819e3f83daaa4cdd7225c7d6c21",
     "files": [
       {
         "filename": "build/torch25-cxx11-cu118-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch25-cxx11-cu118-x86_64-linux/moe/_moe_z6j3gzsycn542.abi3.so",
-        "blob_id": "3103c40b5f3ec29b903b640ebc9828b0b4663781"
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/moe/_moe_kl62rbmhz23l2.abi3.so",
+        "blob_id": "b0ddaabee48ef2785864b4216ac6dfc5ff5efc07"
       },
       {
         "filename": "build/torch25-cxx11-cu118-x86_64-linux/moe/_ops.py",
-        "blob_id": "885954104d4adf106abc62466a24346d13929950"
+        "blob_id": "9a96e91a6fd3c8a7a59526d2ca136bfcf4e95e23"
       },
       {
         "filename": "build/torch25-cxx11-cu118-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -527,15 +527,15 @@
       },
       {
         "filename": "build/torch25-cxx11-cu121-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch25-cxx11-cu121-x86_64-linux/moe/_moe_tuji4gj3mmhfo.abi3.so",
-        "blob_id": "7163928e79c22d01198c756f24b01ab3bb90d77d"
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/moe/_moe_ukxxchrl67era.abi3.so",
+        "blob_id": "99173ce6cdcf630445a723bff62807c616a94b72"
       },
       {
         "filename": "build/torch25-cxx11-cu121-x86_64-linux/moe/_ops.py",
-        "blob_id": "f7a5281ff3a1037b4f4bdd6367522eef4c3fbe6a"
+        "blob_id": "dd7d4a1bcb7a9c0caf85cfbde7df5825f5995aa9"
       },
       {
         "filename": "build/torch25-cxx11-cu121-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -803,15 +803,15 @@
       },
       {
         "filename": "build/torch25-cxx11-cu124-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch25-cxx11-cu124-x86_64-linux/moe/_moe_pss5doo675cd4.abi3.so",
-        "blob_id": "3e9ddaa6894923fa39c435d2a29c6b7b042c6bd9"
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/moe/_moe_dffrrncuzubq2.abi3.so",
+        "blob_id": "c513646a5ce6e32ebe829cf5450eebb45f4d6109"
       },
       {
         "filename": "build/torch25-cxx11-cu124-x86_64-linux/moe/_ops.py",
-        "blob_id": "8d365e2f733029542609537d8d2b09fd41d2acde"
+        "blob_id": "eb864089c485ad92020734a5543210d7ec6ce426"
       },
       {
         "filename": "build/torch25-cxx11-cu124-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -1079,15 +1079,15 @@
       },
       {
         "filename": "build/torch25-cxx98-cu118-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch25-cxx98-cu118-x86_64-linux/moe/_moe_5uyw6qhdybj5e.abi3.so",
-        "blob_id": "e103cda878e42a7bcc8aafbda24c89bc8a2c29d1"
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/moe/_moe_2xnyvi7hnumao.abi3.so",
+        "blob_id": "925e0818c40e836b553fea106358f76193ec7877"
       },
       {
         "filename": "build/torch25-cxx98-cu118-x86_64-linux/moe/_ops.py",
-        "blob_id": "10dfd2ce84a2e4dad3c6c20c3dd20d240f07e908"
+        "blob_id": "7a467db497b9476650446ce2ba9ab0fbf22d0a87"
       },
       {
         "filename": "build/torch25-cxx98-cu118-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -1355,15 +1355,15 @@
       },
       {
         "filename": "build/torch25-cxx98-cu121-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch25-cxx98-cu121-x86_64-linux/moe/_moe_tj3osoay2niyk.abi3.so",
-        "blob_id": "6499dc1a1f242ba3c9ca65b0f74069c2c03d4a24"
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/moe/_moe_tirshgrhi2pey.abi3.so",
+        "blob_id": "01c593b6673e9fd6b7af42db5081462f44ab3adf"
       },
       {
         "filename": "build/torch25-cxx98-cu121-x86_64-linux/moe/_ops.py",
-        "blob_id": "3ed9088bee211a60b447dc35e160f5ea917d5d21"
+        "blob_id": "4d3f645f64fadd4660ae097f54a6543e9fe86327"
       },
       {
         "filename": "build/torch25-cxx98-cu121-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -1631,15 +1631,15 @@
       },
       {
         "filename": "build/torch25-cxx98-cu124-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch25-cxx98-cu124-x86_64-linux/moe/_moe_phlujktdbqekw.abi3.so",
-        "blob_id": "2aee57726907c3409a2d9f397ba386ed923b71ca"
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/moe/_moe_4kko7ic535qtk.abi3.so",
+        "blob_id": "f1c69005b9147d05e2dfa2f56c74977b43c2a253"
       },
       {
         "filename": "build/torch25-cxx98-cu124-x86_64-linux/moe/_ops.py",
-        "blob_id": "43cbbf7d2c681debf3f2a261091cf2e88151e1ec"
+        "blob_id": "5e79dfc434ed2278a42393eb8d9d86110941820f"
       },
       {
         "filename": "build/torch25-cxx98-cu124-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -1907,15 +1907,15 @@
       },
       {
         "filename": "build/torch26-cxx11-cu118-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch26-cxx11-cu118-x86_64-linux/moe/_moe_zlz7rpd2goyn2.abi3.so",
-        "blob_id": "164068fd1a85272b8ab3bdb3b6d57ebc24ba1453"
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/moe/_moe_5eayygfagmmhg.abi3.so",
+        "blob_id": "79109969f15a55fb26103f2fa9b75e3bb7efe043"
       },
       {
         "filename": "build/torch26-cxx11-cu118-x86_64-linux/moe/_ops.py",
-        "blob_id": "119443358d02a603d12a22e7bf95d416094ba9d5"
+        "blob_id": "475a0ce520b188e9376a66591a91e2ae71fe5fa4"
       },
       {
         "filename": "build/torch26-cxx11-cu118-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -2183,15 +2183,15 @@
       },
       {
         "filename": "build/torch26-cxx11-cu124-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch26-cxx11-cu124-x86_64-linux/moe/_moe_wua27hyvpwmli.abi3.so",
-        "blob_id": "7ec24da2cc15da13e59aa016350f01f56535301d"
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/moe/_moe_zg2mvvtxox7bw.abi3.so",
+        "blob_id": "7e251e7dc16b163bce37895731298288daff7bc9"
       },
       {
         "filename": "build/torch26-cxx11-cu124-x86_64-linux/moe/_ops.py",
-        "blob_id": "8aa91e54dfdf049e1ec0b9407b3b97e6ad6a4369"
+        "blob_id": "e6b5f88d5a1152a7395be0e52b2a85d0bb615cd6"
       },
       {
         "filename": "build/torch26-cxx11-cu124-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -2459,15 +2459,15 @@
       },
       {
         "filename": "build/torch26-cxx11-cu126-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch26-cxx11-cu126-x86_64-linux/moe/_moe_3z4bgea4nke26.abi3.so",
-        "blob_id": "5a9c623d988a1fdd82e68b6549199d498f455e6b"
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/moe/_moe_qkqm4vo3r7uoa.abi3.so",
+        "blob_id": "8490fef51f7348522b3287ed019d91e2068e067e"
       },
       {
         "filename": "build/torch26-cxx11-cu126-x86_64-linux/moe/_ops.py",
-        "blob_id": "9e21d2214643c15a2c652dab6f5afaa3ecc02748"
+        "blob_id": "a345eb4dd6013f1a6c2b95c8d7993e71a9859cd9"
       },
       {
         "filename": "build/torch26-cxx11-cu126-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -2735,15 +2735,15 @@
       },
       {
         "filename": "build/torch26-cxx98-cu118-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch26-cxx98-cu118-x86_64-linux/moe/_moe_ecknt47nyrfxy.abi3.so",
-        "blob_id": "92695c5f52d50d793411a6e9dd993ac5fd7f58a3"
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/moe/_moe_puz6dxkmbuvo4.abi3.so",
+        "blob_id": "b2aa8ff9b0adc2cd2a9294b48b2e76686cfbec76"
       },
       {
         "filename": "build/torch26-cxx98-cu118-x86_64-linux/moe/_ops.py",
-        "blob_id": "1a554ec166b5d7bd7fbe5923b07015fe9524fafa"
+        "blob_id": "c35356d0ca25b50eec89e9a8bfb636e9f622583a"
       },
       {
         "filename": "build/torch26-cxx98-cu118-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -3011,15 +3011,15 @@
       },
       {
         "filename": "build/torch26-cxx98-cu124-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch26-cxx98-cu124-x86_64-linux/moe/_moe_zirytomtyvq4i.abi3.so",
-        "blob_id": "9ec1b893f30459b17f911a1b7f6ed0e7d79e2811"
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/moe/_moe_c5q6noq7u34gy.abi3.so",
+        "blob_id": "5f62428390dccb9eb1012d25190be5fb228a0509"
       },
       {
         "filename": "build/torch26-cxx98-cu124-x86_64-linux/moe/_ops.py",
-        "blob_id": "1258cbfe4e9f2c65476d403bf31763d0704497aa"
+        "blob_id": "7a0e7f493ac40f1a90bd6da6555e5110501b67f8"
       },
       {
         "filename": "build/torch26-cxx98-cu124-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
@@ -3287,15 +3287,15 @@
       },
       {
         "filename": "build/torch26-cxx98-cu126-x86_64-linux/moe/__init__.py",
-        "blob_id": "167092b5a614fe006958c8c6c59c7de7e52d3eab"
+        "blob_id": "60112d25a254293c70c6a29b3c23be337ce02678"
       },
       {
-        "filename": "build/torch26-cxx98-cu126-x86_64-linux/moe/_moe_cvfkca6s5srfc.abi3.so",
-        "blob_id": "a629b6120599fd93b5e29b599a7ffb4f3aa95d57"
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/moe/_moe_mywzynz4p75mc.abi3.so",
+        "blob_id": "fa3ef701e9c90a8b7504c473fcacac71eb46701f"
       },
       {
         "filename": "build/torch26-cxx98-cu126-x86_64-linux/moe/_ops.py",
-        "blob_id": "d3619818f58d76f3314abecde96052b5e82a7579"
+        "blob_id": "85b1c0ec604c1076233439075ce2de7bb3d1d27e"
       },
       {
         "filename": "build/torch26-cxx98-cu126-x86_64-linux/moe/configs/E=1,N=14336,device_name=NVIDIA_A100-SXM4-80GB,dtype=int8_w8a16.json",
