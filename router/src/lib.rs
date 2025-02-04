@@ -1130,6 +1130,7 @@ pub(crate) struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
+    #[serde(alias = "arguments")]
     pub parameters: serde_json::Value,
 }
 
