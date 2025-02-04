@@ -1401,6 +1401,13 @@ class FlashCausalLM(Model):
         if max_bs is None:
             input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
             position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
+            config = getattr(self.model, "config", None)
+            rope_scaling = getattr(config, "rope_scaling", None) if config else None
+            if (  # mrope have position_ids per section, if so repeat n times
+                isinstance(rope_scaling, dict) and rope_scaling["rope_type"] == "mrope"
+            ):
+                n_sections = len(self.model.config.rope_scaling["mrope_section"])
+                position_ids = position_ids.unsqueeze(1).repeat(1, n_sections)
             slots = torch.arange(bs, dtype=torch.int64, device=self.device)
             input_lengths_tensor = (
                 torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
@@ -1455,14 +1462,6 @@ class FlashCausalLM(Model):
             )
         else:
             state = None
-
-        if (
-            hasattr(self.model, "config")
-            and hasattr(self.model.config, "model_type")
-            and self.model.config.model_type == "qwen2_vl"
-        ):
-            if position_ids.dim() == 1:
-                position_ids = self.model.get_position_ids(input_ids)
 
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs] = {
@@ -2050,7 +2049,7 @@ class FlashCausalLM(Model):
         # instantly become of shape [BATCH_SIZE]
         if prefill and finished_prefilling:
             indices = batch.cu_seqlen_prefill[1:] - 1
-            batch.position_ids = batch.position_ids[(..., indices)]
+            batch.position_ids = batch.position_ids[indices]
             batch.slot_indices = batch.slot_indices[indices]
             batch.adapter_meta.adapter_indices = batch.adapter_meta.adapter_indices[
                 indices
