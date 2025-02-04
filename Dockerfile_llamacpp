@@ -55,9 +55,6 @@ RUN cargo build \
     --profile release-opt \
     --package text-generation-router-llamacpp --frozen
 
-# fix libcuda.so.1 ?
-RUN cp "$(pkg-config --variable=libdir cuda-12.6)"/stubs/libcuda.so /usr/lib/libcuda.so.1
-
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
 
 RUN apt update && apt install -y \
@@ -72,7 +69,6 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY --from=builder /usr/lib/libllama.so /usr/lib/
 COPY --from=builder /usr/lib/libggml*.so /usr/lib/
-COPY --from=builder /usr/lib/libcuda.so.1 /usr/lib/
 COPY --from=builder /app/target/release-opt/text-generation-router-llamacpp /usr/bin/
 
 ENTRYPOINT ["text-generation-router-llamacpp"]
