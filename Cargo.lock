@@ -4638,7 +4638,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router-llamacpp"
-version = "3.0.2-dev0"
+version = "3.1.1-dev0"
 dependencies = [
  "async-trait",
  "bindgen 0.71.1",
