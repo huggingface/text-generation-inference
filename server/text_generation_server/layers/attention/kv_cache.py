@@ -1,13 +1,13 @@
 from typing import Tuple
 from dataclasses import dataclass, field
 
-from hf_kernels import load_kernel
 from loguru import logger
 import torch
 
 from text_generation_server.layers.fp8 import fp8_quantize
 from text_generation_server.models.globals import ATTENTION, BLOCK_SIZE
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weights
 
@@ -222,7 +222,9 @@ def paged_reshape_and_cache(
 
     if SYSTEM == "cuda":
         try:
-            attention_kernels = load_kernel("kernels-community/attention")
+            attention_kernels = load_kernel(
+                module="attention", repo_id="kernels-community/attention"
+            )
         except Exception as e:
             raise ImportError(
                 f"Could not import attention_kernels. Make sure your installation is correct. Complete error: {e}"

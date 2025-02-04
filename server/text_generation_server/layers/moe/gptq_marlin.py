@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
-from hf_kernels import load_kernel
 import torch
 import torch.nn as nn
 
 from text_generation_server.layers import moe
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.weights import Weights
 from text_generation_server.layers.marlin.gptq import (
     GPTQMarlinWeight,
@@ -14,7 +14,7 @@ from text_generation_server.layers.marlin.gptq import (
 )
 
 if SYSTEM == "cuda":
-    moe_kernels = load_kernel("kernels-community/moe")
+    moe_kernels = load_kernel(module="moe", repo_id="kernels-community/moe")
 else:
     moe_kernels = None
 

@@ -1,16 +1,16 @@
 from typing import Optional
 
-from hf_kernels import load_kernel
 import torch
 import torch.nn as nn
 
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.weights import UnquantizedWeight, Weights
 
 if SYSTEM == "ipex":
     from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
 elif SYSTEM == "cuda":
-    moe_kernels = load_kernel("kernels-community/moe")
+    moe_kernels = load_kernel(module="moe", repo_id="kernels-community/moe")
 else:
     import moe_kernels
 

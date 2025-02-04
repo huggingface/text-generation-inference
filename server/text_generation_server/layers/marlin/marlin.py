@@ -1,14 +1,17 @@
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
-from hf_kernels import load_kernel
 import torch
 import torch.nn as nn
+
 from text_generation_server.layers.marlin.util import _check_marlin_kernels
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 try:
-    marlin_kernels = load_kernel("kernels-community/quantization")
+    marlin_kernels = load_kernel(
+        module="quantization", repo_id="kernels-community/quantization"
+    )
 except ImportError:
     marlin_kernels = None
 

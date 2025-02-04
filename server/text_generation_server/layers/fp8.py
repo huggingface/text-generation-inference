@@ -2,11 +2,11 @@ from dataclasses import dataclass
 import os
 from typing import Optional, Tuple, Type, Union, List
 
-from hf_kernels import load_kernel
 import torch
 from loguru import logger
 
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.weights import (
     Weight,
     WeightsLoader,
@@ -16,7 +16,9 @@ from text_generation_server.utils.weights import (
 from text_generation_server.utils.log import log_once
 
 try:
-    marlin_kernels = load_kernel("kernels-community/quantization")
+    marlin_kernels = load_kernel(
+        module="quantization", repo_id="kernels-community/quantization"
+    )
 except ImportError:
     marlin_kernels = None
 

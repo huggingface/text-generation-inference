@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from hf_kernels import load_kernel
 import torch
 import torch.distributed
 
@@ -23,11 +22,12 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple, Any
 from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 
 if SYSTEM == "ipex":
     from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
 elif SYSTEM == "cuda":
-    moe_kernels = load_kernel("kernels-community/moe")
+    moe_kernels = load_kernel(module="moe", repo_id="kernels-community/moe")
 else:
     import moe_kernels
 

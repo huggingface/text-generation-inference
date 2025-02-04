@@ -1,6 +1,5 @@
 from typing import Optional, Protocol, runtime_checkable
 
-from hf_kernels import load_kernel
 import torch
 import torch.nn as nn
 from loguru import logger
@@ -19,6 +18,7 @@ from text_generation_server.layers.moe.gptq_marlin import (
 from text_generation_server.layers.moe.unquantized import UnquantizedSparseMoELayer
 from text_generation_server.layers.moe.fp8 import FP8SparseMoELayer
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import (
     DefaultWeightsLoader,
@@ -29,7 +29,7 @@ from text_generation_server.utils.weights import (
 if SYSTEM == "ipex":
     from .fused_moe_ipex import fused_topk, grouped_topk
 if SYSTEM == "cuda":
-    moe_kernels = load_kernel("kernels-community/moe")
+    moe_kernels = load_kernel(module="moe", repo_id="kernels-community/moe")
     fused_topk = moe_kernels.fused_topk
     grouped_topk = moe_kernels.grouped_topk
 else:

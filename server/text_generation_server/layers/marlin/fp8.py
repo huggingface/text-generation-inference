@@ -2,16 +2,18 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from hf_kernels import load_kernel
 from text_generation_server.layers.fp8 import fp8_quantize
 from text_generation_server.layers.marlin.gptq import _check_valid_shape
 from text_generation_server.layers.marlin.util import (
     _check_marlin_kernels,
     permute_scales,
 )
+from text_generation_server.utils.kernels import load_kernel
 
 try:
-    marlin_kernels = load_kernel("kernels-community/quantization")
+    marlin_kernels = load_kernel(
+        module="quantization", repo_id="kernels-community/quantization"
+    )
 except ImportError:
     marlin_kernels = None
 

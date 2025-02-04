@@ -1,7 +1,7 @@
-from hf_kernels import load_kernel
 import torch
 from text_generation_server.layers.attention.kv_cache import KVCache, KVScales
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.models.globals import (
     ATTENTION,
     BLOCK_SIZE,
@@ -108,7 +108,9 @@ def paged_attention(
         if softcap is not None:
             raise RuntimeError("Paged attention doesn't support softcapping")
         input_lengths = seqlen.input_lengths + seqlen.cache_lengths
-        attention_kernels = load_kernel("kernels-community/attention")
+        attention_kernels = load_kernel(
+            module="attention", repo_id="kernels-community/attention"
+        )
 
         out = torch.empty_like(query)
 
