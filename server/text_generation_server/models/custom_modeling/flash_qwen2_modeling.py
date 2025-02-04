@@ -235,8 +235,7 @@ class Qwen2Layer(nn.Module):
         max_s,
         prefill_cache_indices,
     ):
-        residual = hidden_states
-        normed_hidden_states, _ = self.input_layernorm(hidden_states)
+        normed_hidden_states, residual = self.input_layernorm(hidden_states)
 
         # Self Attention
         attn_output = self.self_attn(
@@ -254,8 +253,7 @@ class Qwen2Layer(nn.Module):
         hidden_states = attn_output + residual
 
         # faster post attention rms norm
-        residual = hidden_states
-        hidden_states, _ = self.post_attention_layernorm(hidden_states)
+        hidden_states, residual = self.post_attention_layernorm(hidden_states)
         mlp_output = self.mlp(hidden_states)
         hidden_states = mlp_output + residual
         return hidden_states

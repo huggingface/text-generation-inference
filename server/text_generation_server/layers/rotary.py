@@ -88,22 +88,16 @@ class PositionRotaryEmbedding(nn.Module):
             rope_type = rope_scaling.get("rope_type", rope_scaling.get("type", None))
             mrope_section = rope_scaling.get("mrope_section", None)
 
-            # only apply mrope if sections are provided and the rope type is mrope and a section is provided
-            if mrope_section is not None and rope_type == "mrope":
-                mrope_section = rope_scaling.get("mrope_section")
-                return RotaryPositionEmbeddingMultimodalSections(
-                    inv_freq, scaling_factor, mrope_section
-                )
-
             if rope_type == "linear":
                 pass
             elif rope_type == "default":
                 pass
             elif rope_type == "mrope":
                 mrope_section = rope_scaling["mrope_section"]
-                return RotaryPositionEmbeddingMultimodalSections(
-                    inv_freq, scaling_factor, mrope_section
-                )
+                if mrope_section is not None:
+                    return RotaryPositionEmbeddingMultimodalSections(
+                        inv_freq, scaling_factor, mrope_section
+                    )
             elif rope_type == "dynamic":
                 scaling_factor = rope_scaling["factor"]
                 return DynamicPositionRotaryEmbedding(
@@ -569,6 +563,12 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
         self.sections = sections
         self._cos_cached = None
         self._sin_cached = None
+        self.section_indices = (
+            torch.arange(len(self.sections))
+            .repeat_interleave(torch.tensor(self.sections))
+            .view(1, 1, -1)
+            .to(inv_freq.device)
+        )
 
     def forward(
         self,
@@ -599,6 +599,7 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
             freqs = torch.outer(t, self.inv_freq.to(device=t.device))
             self._cos_cached = torch.cos(freqs).to(dtype)
             self._sin_cached = torch.sin(freqs).to(dtype)
+            self._sections = self.section_indices.expand(seqlen, -1, -1)
 
     def get_cos_sin(
         self,
@@ -607,24 +608,11 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
         dtype: torch.dtype,
     ):
         self._update_cos_sin_cache(dtype, position_ids.device, max_s)
+        slen = position_ids.shape[0]
 
-        # access freqs for each of the 3 sections and stack them
-        cos_c = torch.stack(
-            [self._cos_cached[position_ids[:, i]] for i in range(3)], dim=0
-        )
-        sin_c = torch.stack(
-            [self._sin_cached[position_ids[:, i]] for i in range(3)], dim=0
-        )
+        cos = self._cos_cached[position_ids].gather(1, self._sections[:slen])
+        sin = self._sin_cached[position_ids].gather(1, self._sections[:slen])
 
-        # chunk based on sections
-        split_cos = torch.split(cos_c, self.sections, dim=-1)
-        split_sin = torch.split(sin_c, self.sections, dim=-1)
-
-        # for each section, select the corresponding cos/sin (0, 1, 2, ...)
-        cos_sliced = torch.cat([m[i % 3] for i, m in enumerate(split_cos)], dim=-1)
-        sin_sliced = torch.cat([m[i % 3] for i, m in enumerate(split_sin)], dim=-1)
-
-        # double the size and add a batch dimension
-        cos = torch.cat([cos_sliced, cos_sliced], dim=-1).unsqueeze(1)
-        sin = torch.cat([sin_sliced, sin_sliced], dim=-1).unsqueeze(1)
+        cos = torch.cat([cos, cos], dim=-1)
+        sin = torch.cat([sin, sin], dim=-1)
         return cos, sin
