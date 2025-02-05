@@ -15,8 +15,6 @@ unit-tests:
 
 gen-server:
 	# Compile protos
-	pip install -U pip uv
-	uv pip install ".[gen]"
 	mkdir text_generation_server/pb || true
 	python -m grpc_tools.protoc -I../proto/v3 --python_out=text_generation_server/pb \
 		--grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/v3/generate.proto
@@ -37,6 +35,7 @@ install-cuda: install-server install-flash-attention-v2-cuda install-flash-atten
 install-rocm: install-server install-flash-attention-v2-rocm  install-vllm-rocm
 
 export-requirements:
+	uv pip compile pyproject.toml --extra gen -o requirements_gen.txt --python-version 3.11
 	uv pip compile pyproject.toml --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines -o requirements_cuda.txt --python-version 3.11
 	uv pip compile pyproject.toml --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines -o requirements_intel.txt --python-version 3.11
 	uv pip compile pyproject.toml --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines -o requirements_rocm.txt --python-version 3.11
