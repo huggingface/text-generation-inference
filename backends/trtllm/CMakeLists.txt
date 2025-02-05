@@ -59,6 +59,8 @@ target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugi
 
 # This install all the artifacts in CMAKE_INSTALL_PREFIX under include/ lib/ bin/ to make easy to link / find it back
 install(TARGETS tgi_trtllm_backend_impl)
+#install(TARGETS cutlass_src fb_gemm_src fpA_intB_gemm_src gemm_swiglu_sm90_src kernels_src)
+install(TARGETS decoder_attention_0 decoder_attention_1)
 install(TARGETS tensorrt_llm nvinfer_plugin_tensorrt_llm decoder_attention_src executorWorker)
 install(FILES ${TRTLLM_NVRTC_WRAPPER_LIBRARY_PATH} TYPE LIB)
 if (NOT ${TGI_TRTLLM_BACKEND_DEBUG})
