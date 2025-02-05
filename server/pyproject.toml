@@ -39,7 +39,7 @@ requires = ["hf-kernels>=0.1.2", "setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.kernels.dependencies]
-"kernels-community/attention" = ">=0.0.1"
+"kernels-community/paged-attention" = ">=0.0.2"
 "kernels-community/moe" = ">=0.1.1"
 "kernels-community/quantization" = ">=0.0.3"
 

@@ -16,15 +16,15 @@ _PARTITION_SIZE = 512
 
 if SYSTEM == "cuda":
     try:
-        attention_kernels = load_kernel(
-            module="attention", repo_id="kernels-community/attention"
+        paged_attention_kernels = load_kernel(
+            module="paged_attention", repo_id="kernels-community/paged-attention"
         )
     except Exception as e:
         raise ImportError(
             f"Could not import attention kernels. Make sure your installation is correct. Complete error: {e}"
         )
 else:
-    attention_kernels = None
+    paged_attention_kernels = None
 
 
 def paged_attention(
@@ -129,7 +129,7 @@ def paged_attention(
             max_num_partitions == 1 or num_seqs * num_heads > 512
         )
         if use_v1:
-            attention_kernels.paged_attention_v1(
+            paged_attention_kernels.paged_attention_v1(
                 out,
                 query,
                 kv_cache.key,
@@ -160,7 +160,7 @@ def paged_attention(
             )
             max_logits = torch.empty_like(exp_sums)
 
-            attention_kernels.paged_attention_v2(
+            paged_attention_kernels.paged_attention_v2(
                 out,
                 exp_sums,
                 max_logits,

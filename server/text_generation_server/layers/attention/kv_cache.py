@@ -13,15 +13,15 @@ from text_generation_server.utils.weights import Weights
 
 if SYSTEM == "cuda":
     try:
-        attention_kernels = load_kernel(
-            module="attention", repo_id="kernels-community/attention"
+        paged_attention = load_kernel(
+            module="paged_attention", repo_id="kernels-community/paged-attention"
         )
     except Exception as e:
         raise ImportError(
             f"Could not import attention kernels. Make sure your installation is correct. Complete error: {e}"
         )
 else:
-    attention_kernels = None
+    paged_attention = None
 
 
 @dataclass
@@ -237,7 +237,7 @@ def paged_reshape_and_cache(
         if key_cache.dtype == torch.float8_e4m3fn:
             kv_cache_dtype = "fp8"
 
-        attention_kernels.reshape_and_cache(
+        paged_attention.reshape_and_cache(
             key,
             value,
             key_cache,

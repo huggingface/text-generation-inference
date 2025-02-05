@@ -3,7 +3,6 @@
   buildPythonPackage,
   poetry-core,
   mypy-protobuf,
-  attention,
   awq-inference-engine,
   causal-conv1d,
   compressed-tensors,
@@ -29,6 +28,7 @@
   opentelemetry-instrumentation-grpc,
   opentelemetry-semantic-conventions,
   outlines,
+  paged-attention,
   peft,
   pillow,
   prometheus-client,
@@ -79,7 +79,6 @@ buildPythonPackage {
   pythonRemoveDeps = [ "scipy" ];
 
   dependencies = [
-    attention
     awq-inference-engine
     eetq
     causal-conv1d
@@ -104,6 +103,7 @@ buildPythonPackage {
     opentelemetry-instrumentation-grpc
     opentelemetry-semantic-conventions
     outlines
+    paged-attention
     peft
     pillow
     prometheus-client
