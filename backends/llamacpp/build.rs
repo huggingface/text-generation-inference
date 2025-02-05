@@ -1,3 +1,5 @@
+
+use bindgen::callbacks::{ParseCallbacks, ItemInfo};
 use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
@@ -20,6 +22,15 @@ fn inject_transient_dependencies(lib_search_path: Option<&str>, lib_target_hardw
     }
 }
 
+#[derive(Debug)]
+struct PrefixStripper;
+
+impl ParseCallbacks for PrefixStripper {
+    fn generated_name_override(&self, item_info: ItemInfo<'_>) -> Option<String> {
+        item_info.name.strip_prefix("llama_").map(str::to_string)
+    }
+}
+
 fn main() {
     let pkg_cuda = option_env!("TGI_LLAMA_PKG_CUDA");
     let lib_search_path = option_env!("TGI_LLAMA_LD_LIBRARY_PATH");
@@ -28,13 +39,14 @@ fn main() {
     let bindings = bindgen::Builder::default()
         .header("src/wrapper.h")
         .prepend_enum_name(false)
+        .parse_callbacks(Box::new(PrefixStripper))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
 
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     bindings
-        .write_to_file(out_path.join("bindings.rs"))
+        .write_to_file(out_path.join("llamacpp.rs"))
         .expect("Couldn't write bindings!");
 
     if let Some(pkg_cuda) = pkg_cuda {
