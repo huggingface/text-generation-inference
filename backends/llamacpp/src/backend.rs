@@ -130,7 +130,6 @@ impl LlamacppGGMLType {
 
 pub struct LlamacppConfig {
     pub model_gguf: String,
-    pub n_ctx: usize,
     pub max_batch_total_tokens: usize,
     pub max_physical_batch_total_tokens: usize,
     pub max_batch_size: usize,
@@ -206,7 +205,6 @@ struct Llamacpp {
     vocab: *const llamacpp::llama_vocab,
     logprobs: Vec<llamacpp::llama_token_data>,
     batch: llamacpp::llama_batch,
-    n_ctx: u32,
 }
 
 extern "C" fn llamacpp_log_callback(
@@ -251,7 +249,7 @@ impl Llamacpp {
         }
         let ctx = unsafe {
             let mut params = llamacpp::context_default_params();
-            params.n_ctx           = conf.n_ctx as _;
+            params.n_ctx           = conf.max_batch_total_tokens as _;
             params.n_batch         = conf.max_batch_total_tokens as _;
             params.n_ubatch        = conf.max_physical_batch_total_tokens as _;
             params.n_seq_max       = conf.max_batch_size as _;
@@ -268,8 +266,6 @@ impl Llamacpp {
         if ctx.is_null() {
             return Err(BackendError::Llamacpp("Failed to init context".to_string()))
         }
-        let n_ctx = unsafe { llamacpp::n_ctx(ctx) };
-
         let vocab = unsafe {
             llamacpp::model_get_vocab(model)
         };
@@ -291,7 +287,7 @@ impl Llamacpp {
         let batch = unsafe {
             llamacpp::batch_init(conf.max_batch_total_tokens as _, 0, 1)
         };
-        Ok(Llamacpp{model, ctx, vocab, logprobs, n_ctx, batch})
+        Ok(Llamacpp{model, ctx, vocab, logprobs, batch})
     }
 
     fn clear_kv_cache(&mut self, seq_id: llamacpp::llama_seq_id) {
@@ -559,9 +555,6 @@ impl LlamacppBackend {
                         }
                         break;
                     }
-                    let kv_cache_used_cells = unsafe {
-                        llamacpp::get_kv_cache_used_cells(llamacpp.ctx)
-                    };
                     for seq in seqs.iter_mut() {
                         if !seq.running {
                             continue;
@@ -595,8 +588,6 @@ impl LlamacppBackend {
                                 Some(FinishReason::EndOfSequenceToken)
                             } else if seq.n_new_tokens == requests[seq.id].max_new_tokens {
                                 Some(FinishReason::Length)
-                            } else if kv_cache_used_cells == llamacpp.n_ctx as i32 {
-                                Some(FinishReason::Length) // TODO: check
                             } else {
                                 None
                             }

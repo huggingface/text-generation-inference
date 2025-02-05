@@ -24,10 +24,6 @@ struct Args {
     #[clap(long, env)]
     model_gguf: String, // TODO Option() with hf->gguf & quantize
 
-    /// Context size for the model.
-    #[clap(default_value = "4096", long, env)]
-    n_ctx: usize,
-
     /// Number of threads to use for generation.
     #[clap(long, env)]
     n_threads: Option<usize>,
@@ -198,11 +194,6 @@ async fn main() -> Result<(), RouterError> {
             "`max_batch_size` * `max_total_tokens` must be <= `max_batch_total_tokens`".to_string(),
         ));
     }
-    if args.max_batch_total_tokens > args.n_ctx {
-        return Err(RouterError::ArgumentValidation(
-            "`max_batch_total_tokens` must be <= `n_ctx`".to_string(),
-        ));
-    }
 
     // TODO: check if we use the same cache of Server
     // check if llamacpp is faster
@@ -224,7 +215,6 @@ async fn main() -> Result<(), RouterError> {
     let (backend, ok, shutdown) = LlamacppBackend::new(
         LlamacppConfig {
             model_gguf:                      args.model_gguf,
-            n_ctx:                           args.n_ctx,
             n_threads:                       n_threads,
             n_threads_batch:                 n_threads_batch,
             n_gpu_layers:                    args.n_gpu_layers,
