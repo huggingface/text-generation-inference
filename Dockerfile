@@ -235,7 +235,7 @@ RUN cd server && \
     make gen-server && \
     pip install -U pip uv && \
     uv pip install -r requirements_cuda.txt && \
-    uv pip install -e . &&
+    uv pip install -e . && \
     text-generation-server --help
 
     # uv sync --frozen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines && \
