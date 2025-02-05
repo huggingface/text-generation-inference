@@ -234,9 +234,9 @@ ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     # make gen-server && \
     pip install -U pip uv && \
-    # uv pip install -r requirements_cuda.txt
-    uv sync --frozen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines && \
-    mv ./.venv/lib/python3.11/site-packages/* /opt/conda/lib/python3.11/site-packages/
+    uv pip install -r requirements_cuda.txt
+    # uv sync --frozen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines && \
+    # mv ./.venv/lib/python3.11/site-packages/* /opt/conda/lib/python3.11/site-packages/
     # uv pip install nvidia-nccl-cu12==2.22.3
 
 # ENV LD_PRELOAD=/opt/conda/lib/python3.11/site-packages/nvidia/nccl/lib/libnccl.so.2
