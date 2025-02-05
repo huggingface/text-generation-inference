@@ -105,7 +105,7 @@ RUN export CMAKE_C_COMPILER_LAUNCHER=sccache && \
     cargo build --profile ${build_type} --package text-generation-backends-trtllm --bin text-generation-backends-trtllm && \
     sccache --show-stats
 
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS runtime
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04 AS runtime
 RUN apt update && apt install -y libucx0 pipx python3-minimal python3-dev python3-pip python3-venv && \
     rm -rf /var/lib/{apt,dpkg,cache,log}/ && \
     pipx ensurepath && \
@@ -124,7 +124,7 @@ COPY --from=tgi-builder /usr/local/tgi /usr/local/tgi
 COPY --from=tgi-builder /usr/src/text-generation-inference/target/release/text-generation-backends-trtllm /usr/local/tgi/bin/text-generation-launcher
 
 # This is used only for the CI/CD
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04 AS ci-runtime
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04 AS ci-runtime
 RUN apt update && apt install -y libasan8 libubsan1 libucx0 pipx python3-minimal python3-dev python3-pip python3-venv && \
     rm -rf /var/lib/{apt,dpkg,cache,log}/ && \
     pipx ensurepath && \
