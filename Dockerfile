@@ -233,9 +233,8 @@ COPY server/Makefile server/Makefile
 ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     make gen-server && \
-    python -c "from text_generation_server.pb import generate_pb2" && \
     pip install -U pip uv && \
-    uv pip install -e ".[attention, bnb, accelerate, compressed-tensors, marlin, moe, quantize, peft, outlines]" --no-cache-dir # && \
+    uv pip install -r requirements_cuda.txt
     # uv pip install nvidia-nccl-cu12==2.22.3
 
 ENV LD_PRELOAD=/opt/conda/lib/python3.11/site-packages/nvidia/nccl/lib/libnccl.so.2
