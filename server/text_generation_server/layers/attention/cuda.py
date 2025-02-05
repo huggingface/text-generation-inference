@@ -14,6 +14,18 @@ major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
 _PARTITION_SIZE = 512
 
+if SYSTEM == "cuda":
+    try:
+        attention_kernels = load_kernel(
+            module="attention", repo_id="kernels-community/attention"
+        )
+    except Exception as e:
+        raise ImportError(
+            f"Could not import attention kernels. Make sure your installation is correct. Complete error: {e}"
+        )
+else:
+    attention_kernels = None
+
 
 def paged_attention(
     query: torch.Tensor,
@@ -108,9 +120,6 @@ def paged_attention(
         if softcap is not None:
             raise RuntimeError("Paged attention doesn't support softcapping")
         input_lengths = seqlen.input_lengths + seqlen.cache_lengths
-        attention_kernels = load_kernel(
-            module="attention", repo_id="kernels-community/attention"
-        )
 
         out = torch.empty_like(query)
 

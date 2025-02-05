@@ -18,7 +18,7 @@ if SYSTEM == "cuda":
         )
     except Exception as e:
         raise ImportError(
-            f"Could not import attention_kernels. Make sure your installation is correct. Complete error: {e}"
+            f"Could not import attention kernels. Make sure your installation is correct. Complete error: {e}"
         )
 else:
     attention_kernels = None
@@ -233,8 +233,6 @@ def paged_reshape_and_cache(
 ):
 
     if SYSTEM == "cuda":
-        assert attention_kernels is not None
-
         kv_cache_dtype = "auto"
         if key_cache.dtype == torch.float8_e4m3fn:
             kv_cache_dtype = "fp8"
