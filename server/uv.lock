@@ -664,14 +664,15 @@ wheels = [
 
 [[package]]
 name = "hf-kernels"
-version = "0.1.3"
-source = { git = "https://github.com/huggingface/hf-kernels.git?rev=hub-cache-env#a145c75733809d4426e4b716ff201867ac6452bc" }
+version = "0.1.5"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "huggingface-hub" },
     { name = "packaging" },
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "torch" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/91/7c/671d750ffd6fd6c1823aa274e9bfce0ee8a6b36b9bbd47aef87ea26e024b/hf_kernels-0.1.5.tar.gz", hash = "sha256:7dee547cc08ff3e5b3d4b6fec31d4470636465bca761afcb1378b58cd1efe180", size = 8651 }
 
 [[package]]
 name = "hf-transfer"
@@ -2605,7 +2606,7 @@ requires-dist = [
     { name = "grpcio-status", specifier = ">=1.67.0" },
     { name = "grpcio-tools", marker = "extra == 'dev'", specifier = ">=1.51.1,<2.0" },
     { name = "grpcio-tools", marker = "extra == 'gen'", specifier = ">=1.69.0" },
-    { name = "hf-kernels", git = "https://github.com/huggingface/hf-kernels.git?rev=hub-cache-env" },
+    { name = "hf-kernels", specifier = ">=0.1.5" },
     { name = "hf-transfer", specifier = ">=0.1.8" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "mypy-protobuf", marker = "extra == 'gen'", specifier = ">=3.6.0" },
