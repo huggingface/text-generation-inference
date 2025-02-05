@@ -1,7 +1,8 @@
 FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS deps
 
-ARG llama_version=b4628
-ARG llama_cuda_arch=75-real;80-real;86-real;89-real;90-real
+ARG llamacpp_version=b4628
+ARG llamacpp_cuda=OFF
+ARG cuda_arch=75-real;80-real;86-real;89-real;90-real
 ENV TGI_LLAMA_PKG_CUDA=cuda-${CUDA_VERSION%.*}
 
 WORKDIR /opt/src
@@ -17,16 +18,16 @@ RUN apt update && apt install -y \
     pkg-config \
     tar
 
-ADD https://github.com/ggerganov/llama.cpp/archive/refs/tags/${llama_version}.tar.gz /opt/src/
-RUN tar -xzf ${llama_version}.tar.gz \
- && cd llama.cpp-${llama_version} \
+ADD https://github.com/ggerganov/llama.cpp/archive/refs/tags/${llamacpp_version}.tar.gz /opt/src/
+RUN tar -xzf ${llamacpp_version}.tar.gz \
+ && cd llama.cpp-${llamacpp_version} \
  && cmake -B build \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_INSTALL_LIBDIR=/usr/lib \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
-    -DCMAKE_CUDA_ARCHITECTURES=${llama_cuda_arch} \
-    -DGGML_CUDA=1 \
+    -DCMAKE_CUDA_ARCHITECTURES=${cuda_arch} \
+    -DGGML_CUDA=${llamacpp_cuda} \
     -DLLAMA_BUILD_COMMON=OFF \
     -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_EXAMPLES=OFF \

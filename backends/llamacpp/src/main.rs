@@ -105,7 +105,7 @@ struct Args {
     hostname: String,
 
     /// Port to listen on.
-    #[clap(default_value = "3001", long, short, env)]
+    #[clap(default_value = "3000", long, short, env)]
     port: u16,
 
     /// Enable JSON output format.
