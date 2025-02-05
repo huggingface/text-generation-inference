@@ -10,11 +10,11 @@ from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 if SYSTEM == "cuda":
-    marlin_kernels = load_kernel(
+    quantization = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
 else:
-    marlin_kernels = None
+    quantization = None
 
 
 class MarlinWeightsLoader(WeightsLoader):
@@ -192,7 +192,7 @@ class MarlinLinear(nn.Module):
         super().__init__()
 
         _check_marlin_kernels()
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         in_features = weight.B.shape[0] * MARLIN_TILE_SIZE
         out_features = weight.s.shape[1]
@@ -221,9 +221,9 @@ class MarlinLinear(nn.Module):
         )
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
-        assert marlin_kernels is not None
+        assert quantization is not None
 
-        C = marlin_kernels.marlin_gemm(
+        C = quantization.marlin_gemm(
             A.view(-1, A.shape[-1]),
             self.B,
             self.s,
@@ -282,7 +282,7 @@ class GPTQMarlin24Linear(nn.Module):
         super().__init__()
 
         _check_marlin_kernels()
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         if weight.bits not in GPTQ_MARLIN_24_SUPPORTED_NUM_BITS:
             supported_bits = ", ".join(
@@ -309,9 +309,9 @@ class GPTQMarlin24Linear(nn.Module):
             )
 
         if weight.bits == 4:
-            self.quant_type = marlin_kernels.scalar_types.uint4b8
+            self.quant_type = quantization.scalar_types.uint4b8
         else:
-            self.quant_type = marlin_kernels.scalar_types.uint8b128
+            self.quant_type = quantization.scalar_types.uint8b128
         weights_per_int32 = 32 // weight.bits
 
         assert (
@@ -344,9 +344,9 @@ class GPTQMarlin24Linear(nn.Module):
         )
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
-        assert marlin_kernels is not None
+        assert quantization is not None
 
-        C = marlin_kernels.gptq_marlin_24_gemm(
+        C = quantization.gptq_marlin_24_gemm(
             A.view(-1, A.shape[-1]),
             self.weight_packed,
             self.meta,

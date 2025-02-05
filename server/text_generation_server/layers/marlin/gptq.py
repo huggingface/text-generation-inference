@@ -17,11 +17,11 @@ from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 if SYSTEM == "cuda":
-    marlin_kernels = load_kernel(
+    quantization = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
 else:
-    marlin_kernels = None
+    quantization = None
 
 
 try:
@@ -41,7 +41,7 @@ def can_use_gptq_marlin(
 ) -> bool:
     return (
         SYSTEM == "cuda"
-        and marlin_kernels is not None
+        and quantization is not None
         and has_sm_8_0
         and quantize in {"awq", "gptq"}
         and quant_method in {"awq", "gptq"}
@@ -291,7 +291,7 @@ def repack_gptq_for_marlin(
 ) -> GPTQMarlinWeight:
     """Convert GPTQ weights to a layout that's compatible with GPTQ-Marlin kernels."""
     _check_marlin_kernels()
-    assert marlin_kernels is not None
+    assert quantization is not None
 
     if bits not in GPTQ_MARLIN_BITS:
         supported_bits = ", ".join(str(b) for b in GPTQ_MARLIN_BITS)
@@ -334,7 +334,7 @@ def repack_gptq_for_marlin(
         g_idx = torch.empty(0, dtype=torch.int, device=qweight.device)
 
     if quant_method == "awq":
-        repacked = marlin_kernels.awq_marlin_repack(
+        repacked = quantization.awq_marlin_repack(
             qweight, in_features, out_features, bits
         )
         if qzeros is not None:
@@ -346,7 +346,7 @@ def repack_gptq_for_marlin(
             )
 
     else:
-        repacked = marlin_kernels.gptq_marlin_repack(
+        repacked = quantization.gptq_marlin_repack(
             qweight, perm, in_features, out_features, bits
         )
 
@@ -383,7 +383,7 @@ class GPTQMarlinLinear(nn.Module):
         super().__init__()
 
         _check_marlin_kernels()
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         in_features = weight.qweight.shape[0] * MARLIN_TILE_SIZE
         out_features = weight.scales.shape[1]
@@ -394,14 +394,14 @@ class GPTQMarlinLinear(nn.Module):
 
         if weight.qzeros.numel() > 0:
             if weight.bits == 4:
-                self.quant_type = marlin_kernels.scalar_types.uint4
+                self.quant_type = quantization.scalar_types.uint4
             else:
-                self.quant_type = marlin_kernels.scalar_types.uint8
+                self.quant_type = quantization.scalar_types.uint8
         else:
             if weight.bits == 4:
-                self.quant_type = marlin_kernels.scalar_types.uint4b8
+                self.quant_type = quantization.scalar_types.uint4b8
             else:
-                self.quant_type = marlin_kernels.scalar_types.uint8b128
+                self.quant_type = quantization.scalar_types.uint8b128
 
         self.is_full_k = weight.is_full_k
 
@@ -420,10 +420,10 @@ class GPTQMarlinLinear(nn.Module):
         )
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         A_flat = A.view(-1, A.shape[-1])
-        C = marlin_kernels.gptq_marlin_gemm(
+        C = quantization.gptq_marlin_gemm(
             A_flat,
             self.qweight,
             self.scales,

@@ -7,11 +7,11 @@ from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.kernels import load_kernel
 
 if SYSTEM == "cuda":
-    marlin_kernels = load_kernel(
+    quantization = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
 else:
-    marlin_kernels = None
+    quantization = None
 
 try:
     major, _minor = torch.cuda.get_device_capability()
@@ -26,7 +26,7 @@ def _check_marlin_kernels():
             "Using quantized Marlin models requires a GPU with CUDA capability 8.0 or later."
         )
 
-    if marlin_kernels is None:
+    if quantization is None:
         raise NotImplementedError(
             "marlin is not installed, install it with: pip install server/marlin"
         )

@@ -12,11 +12,11 @@ from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 if SYSTEM == "cuda":
-    marlin_kernels = load_kernel(
+    quantization = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
 else:
-    marlin_kernels = None
+    quantization = None
 
 
 class W8A8IntLoader(WeightsLoader):
@@ -163,8 +163,8 @@ class Int8Weight(Weight):
 
     def get_linear(self, bias: torch.Tensor):
         if self.weight_scale is None:
-            assert marlin_kernels is not None
-            qweight, weight_scale, _ = marlin_kernels.scaled_int8_quant(self.weight)
+            assert quantization is not None
+            qweight, weight_scale, _ = quantization.scaled_int8_quant(self.weight)
             return W8A8IntLinear(
                 bias=bias,
                 input_symmetric=self.input_symmetric,
@@ -208,9 +208,9 @@ class W8A8IntLinear(torch.nn.Module):
             )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        assert marlin_kernels is not None
+        assert quantization is not None
 
-        qinput, input_scale, input_zero_point = marlin_kernels.scaled_int8_quant(
+        qinput, input_scale, input_zero_point = quantization.scaled_int8_quant(
             input=input,
             scale=None,
             azp=None,
@@ -218,7 +218,7 @@ class W8A8IntLinear(torch.nn.Module):
         )
 
         if self.input_symmetric:
-            return marlin_kernels.cutlass_scaled_mm(
+            return quantization.cutlass_scaled_mm(
                 a=qinput,
                 b=self.weight,
                 scale_a=input_scale,
@@ -233,7 +233,7 @@ class W8A8IntLinear(torch.nn.Module):
                 and (self.input_symmetric or input_zero_point is not None)
             )
 
-            return marlin_kernels.cutlass_scaled_mm_azp(
+            return quantization.cutlass_scaled_mm_azp(
                 a=qinput,
                 b=self.weight,
                 scale_a=input_scale,

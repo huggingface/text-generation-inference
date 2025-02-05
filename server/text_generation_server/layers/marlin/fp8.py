@@ -12,11 +12,11 @@ from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.kernels import load_kernel
 
 if SYSTEM == "cuda":
-    marlin_kernels = load_kernel(
+    quantization = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
 else:
-    marlin_kernels = None
+    quantization = None
 
 
 MARLIN_TILE_SIZE = 16
@@ -36,7 +36,7 @@ class GPTQMarlinFP8Linear(nn.Module):
         super().__init__()
 
         _check_marlin_kernels()
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         scales = scales.unsqueeze(0)
         if scales.shape[1] == 1:
@@ -73,10 +73,10 @@ class GPTQMarlinFP8Linear(nn.Module):
         return cls(qweight=weight, scales=scale.to(dtype), bias=bias)
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         A_flat = A.view(-1, A.shape[-1])
-        C = marlin_kernels.fp8_marlin_gemm(
+        C = quantization.fp8_marlin_gemm(
             A_flat,
             self.qweight,
             self.scales,
@@ -138,7 +138,7 @@ def repack_fp8_for_marlin(weight: torch.Tensor, scales: torch.Tensor):
     qweight = pack_fp8_as_int32(weight.t())
 
     perm = torch.empty(0, dtype=torch.int, device=qweight.device)
-    repacked = marlin_kernels.gptq_marlin_repack(
+    repacked = quantization.gptq_marlin_repack(
         qweight, perm, in_features, out_features, 8
     )
 

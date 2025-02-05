@@ -16,11 +16,11 @@ from text_generation_server.utils.weights import (
 from text_generation_server.utils.log import log_once
 
 if SYSTEM == "cuda":
-    marlin_kernels = load_kernel(
+    quantization = load_kernel(
         module="quantization", repo_id="kernels-community/quantization"
     )
 else:
-    marlin_kernels = None
+    quantization = None
 
 try:
     # TODO: needs to be ported over to MoE and used on CUDA.
@@ -33,9 +33,9 @@ quant_dtype: torch.dtype = (
     torch.float8_e4m3fnuz if SYSTEM == "rocm" else torch.float8_e4m3fn
 )
 
-if SYSTEM == "cuda" and marlin_kernels is not None:
+if SYSTEM == "cuda" and quantization is not None:
     major, minor = torch.cuda.get_device_capability()
-    CUTLASS_FP8_AVAILABLE = marlin_kernels.cutlass_scaled_mm_supports_fp8(
+    CUTLASS_FP8_AVAILABLE = quantization.cutlass_scaled_mm_supports_fp8(
         major * 10 + minor
     )
 else:
@@ -147,9 +147,9 @@ def fp8_quantize(
     argument, it must also be a reciprocal (so that scales from an FP8 checkpoint can
     be used without modification).
     """
-    if marlin_kernels is not None:
+    if quantization is not None:
         shape = weight.shape
-        qweight, scale = marlin_kernels.scaled_fp8_quant(
+        qweight, scale = quantization.scaled_fp8_quant(
             weight.reshape(-1, shape[-1]),
             scale=scale,
             scale_ub=scale_upper_bound,
@@ -530,7 +530,7 @@ class Fp8Linear(torch.nn.Module):
             qinput, scale = fp8_quantize(
                 input, scale_upper_bound=self.scale_upper_bound, scalar=False
             )
-            return marlin_kernels.cutlass_scaled_mm(
+            return quantization.cutlass_scaled_mm(
                 qinput, self.qweight.t(), scale, self.scale, input.dtype, self.bias
             )
 
