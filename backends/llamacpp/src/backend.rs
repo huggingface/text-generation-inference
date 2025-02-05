@@ -290,6 +290,12 @@ impl Llamacpp {
         Ok(Llamacpp{model, ctx, vocab, logprobs, batch})
     }
 
+    fn decode(&mut self) -> i32 {
+        unsafe {
+            llamacpp::decode(self.ctx, self.batch)
+        }
+    }
+
     fn clear_kv_cache(&mut self, seq_id: llamacpp::llama_seq_id) {
         unsafe {
             llamacpp::kv_cache_seq_rm(self.ctx, seq_id, -1, -1);
@@ -543,14 +549,8 @@ impl LlamacppBackend {
                         running: true,
                     });
                 }
-                loop {
-                    if llamacpp.batch.n_tokens == 0 {
-                        break;
-                    }
-                    let decode = unsafe {
-                        llamacpp::decode(llamacpp.ctx, llamacpp.batch)
-                    };
-                    if decode != 0 {
+                while llamacpp.batch.n_tokens > 0 {
+                    if llamacpp.decode() != 0 {
                         warn!("llama_decode failed, clearing kv cache");
                         llamacpp.clear_kv_cache(-1);
                         for seq in seqs.iter_mut() {
