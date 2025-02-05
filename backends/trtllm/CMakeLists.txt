@@ -86,6 +86,7 @@ if (${TGI_TRTLLM_BACKEND_BUILD_TESTS} AND CMAKE_BUILD_TYPE MATCHES "Debug")
         message(STATUS "Enabling non-NVRO detection")
         target_compile_options(tgi_trtllm_backend_impl PRIVATE -Wnrvo)
     endif ()
+    target_compile_options(tgi_trtllm_backend_impl PRIVATE -Wall)
 
     cmake_path(GET TRTLLM_NVRTC_WRAPPER_LIBRARY_PATH PARENT_PATH TRTLLM_NVRTC_WRAPPER_PARENT_LIBRARY_PATH)
     message(STATUS "Adding linking path: ${TRTLLM_NVRTC_WRAPPER_PARENT_LIBRARY_PATH}")
