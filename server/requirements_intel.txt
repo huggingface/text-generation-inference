@@ -314,7 +314,7 @@ sympy==1.13.1
     # via torch
 texttable==1.7.0
     # via text-generation-server (pyproject.toml)
-tokenizers==0.20.3
+tokenizers==0.21.0
     # via
     #   text-generation-server (pyproject.toml)
     #   transformers
@@ -331,8 +331,9 @@ tqdm==4.66.5
     #   outlines
     #   peft
     #   transformers
-transformers==4.46.3
+transformers==4.48.2
     # via
+    #   text-generation-server (pyproject.toml)
     #   compressed-tensors
     #   peft
 triton==3.2.0

@@ -30,6 +30,7 @@ dependencies = [
     "sentencepiece>=0.2.0",
     "tokenizers>=0.20.3",
     "typer>=0.15.1",
+    "transformers>=4.48.2"
 ]
 
 [project.scripts]
@@ -82,6 +83,9 @@ markers = ["private: marks tests as requiring an admin hf token (deselect with '
 
 [tool.isort]
 profile = "black"
+
+[tool.uv]
+package = true
 
 [tool.setuptools.packages.find]
 include = ["text_generation_server*"]
