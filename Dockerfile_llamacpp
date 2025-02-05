@@ -2,6 +2,7 @@ FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS deps
 
 ARG llama_version=b4628
 ARG llama_cuda_arch=75-real;80-real;86-real;89-real;90-real
+ENV TGI_LLAMA_PKG_CUDA=cuda-${CUDA_VERSION%.*}
 
 WORKDIR /opt/src
 
@@ -50,7 +51,6 @@ RUN cargo chef cook \
     --profile release-opt \
     --package text-generation-router-llamacpp
 COPY . .
-ENV TGI_LLAMA_PKG_CUDA=cuda-12.6
 RUN cargo build \
     --profile release-opt \
     --package text-generation-router-llamacpp --frozen
