@@ -59,7 +59,7 @@ target_link_libraries(tgi_trtllm_backend_impl PRIVATE tensorrt_llm nvinfer_plugi
 
 # This install all the artifacts in CMAKE_INSTALL_PREFIX under include/ lib/ bin/ to make easy to link / find it back
 install(TARGETS tgi_trtllm_backend_impl)
-install(TARGETS tensorrt_llm nvinfer_plugin_tensorrt_llm decoder_attention executorWorker)
+install(TARGETS tensorrt_llm nvinfer_plugin_tensorrt_llm decoder_attention_src executorWorker)
 install(FILES ${TRTLLM_NVRTC_WRAPPER_LIBRARY_PATH} TYPE LIB)
 if (NOT ${TGI_TRTLLM_BACKEND_DEBUG})
     install(FILES ${TRTLLM_EXECUTOR_STATIC_LIBRARY_PATH} TYPE LIB)

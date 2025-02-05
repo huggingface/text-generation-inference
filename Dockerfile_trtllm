@@ -1,4 +1,4 @@
-ARG cuda_arch_list="75-real;80-real;86-real;89-real;90-real;100-real"
+ARG cuda_arch_list="75-real;80-real;86-real;89-real;90-real;100-real;120-real"
 ARG cuda_base=12.8.0
 ARG build_type=release
 ARG ompi_version=4.1.7
