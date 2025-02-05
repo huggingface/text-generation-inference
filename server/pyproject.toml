@@ -30,7 +30,7 @@ dependencies = [
     "sentencepiece>=0.2.0",
     "tokenizers>=0.20.3",
     "typer>=0.15.1",
-    "transformers>=4.48.2"
+    "transformers>=4.48.0"
 ]
 
 [project.scripts]

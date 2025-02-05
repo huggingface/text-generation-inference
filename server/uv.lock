@@ -2756,7 +2756,7 @@ requires-dist = [
     { name = "sentencepiece", specifier = ">=0.2.0" },
     { name = "texttable", marker = "extra == 'quantize'", specifier = ">=1.6.7,<2" },
     { name = "tokenizers", specifier = ">=0.20.3" },
-    { name = "transformers", specifier = ">=4.48.2" },
+    { name = "transformers", specifier = ">=4.48.0" },
     { name = "typer", specifier = ">=0.15.1" },
 ]
 
