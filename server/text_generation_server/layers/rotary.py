@@ -86,7 +86,6 @@ class PositionRotaryEmbedding(nn.Module):
             # `rope_type` is now standard in transformers, but some existing models
             # have `type` instead.
             rope_type = rope_scaling.get("rope_type", rope_scaling.get("type", None))
-            mrope_section = rope_scaling.get("mrope_section", None)
 
             if rope_type == "linear":
                 pass
