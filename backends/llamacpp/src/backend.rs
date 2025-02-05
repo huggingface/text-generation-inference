@@ -185,7 +185,7 @@ impl LlamacppRequest {
                 min_keep:        0, // disabled
                 temp:            from.parameters.temperature as _,
                 seed:            from.parameters.seed as _,
-                penalty_last_n:  -1, // 0 = disabled, -1 = context size
+                penalty_last_n:  64, // 0 = disabled, -1 = context size
                 penalty_repeat:  from.parameters.repetition_penalty as _,
                 penalty_freq:    from.parameters.frequency_penalty as _,
                 penalty_present: 0.0, // disabled
