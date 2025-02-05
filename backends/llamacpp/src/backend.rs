@@ -365,14 +365,17 @@ impl LlamacppSampler {
         let dist = unsafe {
             llamacpp::sampler_init_dist(req.seed)
         };
+        let all = &[
+            ("top_k", top_k),
+            ("top_p", top_p),
+            ("typical_p", typical_p),
+            ("temp", temp),
+            ("penalties", penalties),
+            ("dist", dist),
+        ];
         let mut failed = false;
 
-        for (k, v) in &[(    "top_k", top_k    ),
-                        (    "top_p", top_p    ),
-                        ("typical_p", typical_p),
-                        (     "temp", temp     ),
-                        ("penalties", penalties),
-                        (     "dist", dist     )] {
+        for (k, v) in all {
             if v.is_null() {
                 error!("Failed to init {k} sampler");
                 failed = true;
@@ -381,6 +384,7 @@ impl LlamacppSampler {
             }
         }
         if failed {
+            unsafe { llamacpp::sampler_free(chain) };
             None
         } else {
             Some(LlamacppSampler{chain})
