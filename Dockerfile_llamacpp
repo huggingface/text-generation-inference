@@ -1,6 +1,6 @@
-FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04 AS deps
+FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04 AS deps
 
-ARG llamacpp_version=b4628
+ARG llamacpp_version=b4651
 ARG llamacpp_cuda=OFF
 ARG cuda_arch=75-real;80-real;86-real;89-real;90-real
 ENV TGI_LLAMA_PKG_CUDA=cuda-${CUDA_VERSION%.*}
@@ -56,7 +56,7 @@ RUN cargo build \
     --profile release-opt \
     --package text-generation-router-llamacpp --frozen
 
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
 
 RUN apt update && apt install -y \
     python3-venv \
