@@ -320,9 +320,16 @@ COPY server server
 COPY server/Makefile server/Makefile
 ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
-    make gen-server && \
     pip install -U pip uv && \
-    uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
+	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --no-install-project && \
+    . ./.venv/bin/activate && \
+    make gen-server-raw
+
+RUN cd server && \
+	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines && \
+    . ./.venv/bin/activate && \
+    pwd && \
+    text-generation-server --help
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
