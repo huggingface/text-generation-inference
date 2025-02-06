@@ -196,7 +196,7 @@ jobs:
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
-          platforms: 'linux/amd64'
+          platforms: "linux/amd64"
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
             DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
