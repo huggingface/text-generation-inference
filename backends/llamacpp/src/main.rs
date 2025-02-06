@@ -215,7 +215,7 @@ async fn main() -> Result<(), RouterError> {
             .ok();
         let params = FromPretrainedParameters {
             revision: args.revision.clone(),
-            token: token,
+            token,
             ..Default::default()
         };
         Tokenizer::from_pretrained(
@@ -227,8 +227,8 @@ async fn main() -> Result<(), RouterError> {
     let (backend, ok, shutdown) = LlamacppBackend::new(
         LlamacppConfig {
             model_gguf:                      args.model_gguf,
-            n_threads:                       n_threads,
-            n_threads_batch:                 n_threads_batch,
+            n_threads,
+            n_threads_batch,
             n_gpu_layers:                    args.n_gpu_layers,
             split_mode:                      args.split_mode,
             defrag_threshold:                args.defrag_threshold,
@@ -239,9 +239,9 @@ async fn main() -> Result<(), RouterError> {
             type_k:                          args.type_k,
             type_v:                          args.type_v,
             offload_kqv:                     args.offload_kqv,
-            max_batch_total_tokens:          max_batch_total_tokens,
-            max_physical_batch_total_tokens: max_physical_batch_total_tokens,
-            max_batch_size:                  max_batch_size,
+            max_batch_total_tokens,
+            max_physical_batch_total_tokens,
+            max_batch_size,
             batch_timeout:                   tokio::time::Duration::from_millis(5),
         },
         tokenizer,

@@ -38,7 +38,7 @@ impl FromStr for LlamacppSplitMode {
             "row"   => Ok(LlamacppSplitMode::Row),
             _ => match s.parse::<usize>() {
                 Ok(n)  => Ok(LlamacppSplitMode::GPU(n)),
-                Err(_) => Err(format!("Choose a GPU number or `layer` or `row`")),
+                Err(_) => Err("Choose a GPU number or `layer` or `row`".to_string()),
             }
         }
     }
@@ -176,8 +176,7 @@ impl LlamacppRequest {
         from: &ValidGenerateRequest,
         tx: UnboundedSender<Result<InferStreamResponse, InferError>>,
     ) -> Option<Self>{
-        if let Some(input_ids) = from.input_ids.as_ref() {
-            Some(LlamacppRequest {
+        from.input_ids.as_ref().map(|input_ids| LlamacppRequest {
                 input_ids:       input_ids.iter().map(|&x| x as i32).collect(),
                 top_k:           from.parameters.top_k as _,
                 top_p:           from.parameters.top_p as _,
@@ -190,12 +189,9 @@ impl LlamacppRequest {
                 penalty_freq:    from.parameters.frequency_penalty as _,
                 penalty_present: 0.0, // disabled
                 max_new_tokens:  from.stopping_parameters.max_new_tokens as _,
-                tx:              tx,
+                tx,
                 time:            Instant::now(),
             })
-        } else {
-            None
-        }
     }
 }
 
@@ -404,7 +400,7 @@ impl LlamacppSampler {
         for (token, logprob) in llamacpp.logprobs.iter_mut().enumerate() {
             *logprob = llamacpp::llama_token_data {
                 id: token as _,
-                logit: unsafe { *logits.offset(token as _) },
+                logit: unsafe { *logits.add(token) },
                 p: 0.0,
             };
         }
@@ -484,7 +480,7 @@ impl LlamacppBackend {
                     Ok(Some(request)) => {
                         let n_tokens_to_add = request.input_ids.len();
 
-                        if n_tokens + n_tokens_to_add > conf.max_batch_total_tokens as usize {
+                        if n_tokens + n_tokens_to_add > conf.max_batch_total_tokens {
                             flush(&mut requests, &mut n_tokens);
                         }
                         n_tokens += n_tokens_to_add;
@@ -511,7 +507,7 @@ impl LlamacppBackend {
             let _ = status_tx.send(true);
 
             while let Ok(requests) = sync_rx.recv() {
-                if shutdown_rx.borrow().clone() {
+                if *shutdown_rx.borrow() {
                     break;
                 }
                 let start_time = Instant::now();
@@ -521,7 +517,7 @@ impl LlamacppBackend {
                 for (seq_id, request) in requests.iter().enumerate() {
                     debug!("Request: {:?}", request);
                     // TODO remove this
-                    let sampler = match LlamacppSampler::new(&request) {
+                    let sampler = match LlamacppSampler::new(request) {
                         Some(sampler) => sampler,
                         _ => {
                             let _ = request.tx.send(Err(InferError::IncompleteGeneration));
@@ -543,7 +539,7 @@ impl LlamacppBackend {
                         batch_pos: llamacpp.batch.n_tokens as usize - 1,
                         token: llamacpp::LLAMA_TOKEN_NULL,
                         pos: last_pos as llamacpp::llama_pos + 1,
-                        sampler: sampler,
+                        sampler,
                         text: String::with_capacity(1024),
                         n_new_tokens: 0,
                         running: true,
@@ -584,8 +580,8 @@ impl LlamacppBackend {
                         let token = Token {
                             id: next as _,
                             text: piece,
-                            logprob: logprob,
-                            special: special,
+                            logprob,
+                            special,
                         };
                         let finish: Option<FinishReason> = {
                             if unsafe { llamacpp::vocab_is_eog(llamacpp.vocab, next) } {
@@ -598,7 +594,7 @@ impl LlamacppBackend {
                         };
                         if let Some(reason) = finish {
                             let _ = requests[seq.id].tx.send(Ok(InferStreamResponse::End {
-                                token: token,
+                                token,
                                 top_tokens: vec![],
                                 generated_text: GeneratedText {
                                     text: seq.text.clone(),
@@ -613,7 +609,7 @@ impl LlamacppBackend {
                             continue;
                         }
                         let _ = requests[seq.id].tx.send(Ok(InferStreamResponse::Intermediate {
-                            token: token,
+                            token,
                             top_tokens: vec![],
                         }));
                     }
