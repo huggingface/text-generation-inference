@@ -1,5 +1,4 @@
-
-use bindgen::callbacks::{ParseCallbacks, ItemInfo};
+use bindgen::callbacks::{ItemInfo, ParseCallbacks};
 use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;

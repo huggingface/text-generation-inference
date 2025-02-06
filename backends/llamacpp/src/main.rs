@@ -1,12 +1,15 @@
 mod backend;
 
-use backend::{LlamacppNuma, LlamacppGGMLType, LlamacppSplitMode, LlamacppConfig, LlamacppBackend, BackendError};
-use clap::{Parser};
+use backend::{
+    BackendError, LlamacppBackend, LlamacppConfig, LlamacppGGMLType, LlamacppNuma,
+    LlamacppSplitMode,
+};
+use clap::Parser;
 use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
-use tokenizers::{Tokenizer, FromPretrainedParameters};
+use tokenizers::{FromPretrainedParameters, Tokenizer};
 use tokio::sync::oneshot::error::RecvError;
-use tracing::{warn, error};
+use tracing::{error, warn};
 
 /// Backend Configuration
 #[derive(Parser, Debug)]
@@ -161,11 +164,7 @@ struct Args {
 async fn main() -> Result<(), RouterError> {
     let args = Args::parse();
 
-    logging::init_logging(
-        args.otlp_endpoint,
-        args.otlp_service_name,
-        args.json_output
-    );
+    logging::init_logging(args.otlp_endpoint, args.otlp_service_name, args.json_output);
 
     let n_threads = match args.n_threads {
         Some(0) | None => num_cpus::get(),
@@ -218,10 +217,7 @@ async fn main() -> Result<(), RouterError> {
             token,
             ..Default::default()
         };
-        Tokenizer::from_pretrained(
-            args.model_id.clone(),
-            Some(params)
-        )?
+        Tokenizer::from_pretrained(args.model_id.clone(), Some(params))?
     };
 
     let (backend, ok, shutdown) = LlamacppBackend::new(
