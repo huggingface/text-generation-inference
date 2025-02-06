@@ -67,6 +67,21 @@ gen = [
     "grpcio-tools>=1.69.0",
     "mypy-protobuf>=3.6.0",
 ]
+intel-xpu = [
+    "torch-intel-xpu",
+    "torchaudio-intel-xpu",
+    "torchvision-intel-xpu",
+    "oneccl-intel-xpu",
+    "triton-xpu==3.0.0b2"
+]
+intel-cpu = [
+    "torch-intel-cpu",
+    "torchaudio-intel-cpu",
+    "torchvision-intel-cpu",
+    "oneccl-intel-cpu",
+    "triton==3.1.0",
+    "py-libnuma"
+]
 
 [tool.uv.sources]
 attention-kernels.url = "https://github.com/danieldk/attention-kernels/releases/download/v0.2.0.post2/attention_kernels-0.2.0.post2+cu123torch2.5-cp39-abi3-linux_x86_64.whl"
@@ -77,6 +92,13 @@ marlin-kernels = [
   { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp312-cp312-linux_x86_64.whl", marker = "python_version == '3.12'" },
 ]
 moe-kernels.url = "https://github.com/danieldk/moe-kernels/releases/download/v0.8.2/moe_kernels-0.8.2+cu123torch2.5-cp39-abi3-linux_x86_64.whl"
+torch-intel-xpu.url = "https://intel-optimized-pytorch.s3.cn-north-1.amazonaws.com.cn/ipex_dev/xpu/torch-2.5.0a0%2Bgite84e33f-cp311-cp311-linux_x86_64.whl"
+torchaudio-intel-xpu.url = "https://intel-optimized-pytorch.s3.cn-north-1.amazonaws.com.cn/ipex_dev/xpu/torchaudio-2.5.0a0%2B56bc006-cp311-cp311-linux_x86_64.whl"
+torchvision-intel-xpu.url = "https://intel-optimized-pytorch.s3.cn-north-1.amazonaws.com.cn/ipex_dev/xpu/torchvision-0.20.0a0%2B8e8a208-cp311-cp311-linux_x86_64.whl"
+oneccl-intel-xpu.url = "https://intel-optimized-pytorch.s3.cn-north-1.amazonaws.com.cn/ipex_dev/xpu/oneccl_bind_pt-2.5.0%2Bxpu-cp311-cp311-linux_x86_64.whl"
+torch-intel-cpu.url = "https://download.pytorch.org/whl/nightly/cpu/torch-2.5.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl"
+torchaudio-intel-cpu.url = "https://download.pytorch.org/whl/nightly/cpu/torchaudio-2.4.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl"
+torchvision-intel-cpu.url = "https://download.pytorch.org/whl/nightly/cpu/torchvision-0.20.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl"
 
 [tool.pytest.ini_options]
 markers = ["private: marks tests as requiring an admin hf token (deselect with '-m \"not private\"')"]
