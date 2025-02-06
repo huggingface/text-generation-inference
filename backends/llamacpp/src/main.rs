@@ -127,18 +127,6 @@ struct Args {
     #[clap(long, env)]
     cors_allow_origin: Option<Vec<String>>,
 
-    /// Enable Ngrok tunneling.
-    #[clap(long, env)]
-    ngrok: bool,
-
-    /// Ngrok authentication token.
-    #[clap(long, env)]
-    ngrok_authtoken: Option<String>,
-
-    /// Ngrok edge to use for tunneling.
-    #[clap(long, env)]
-    ngrok_edge: Option<String>,
-
     /// Path to the tokenizer configuration file.
     #[clap(long, env)]
     tokenizer_config_path: Option<String>,
@@ -269,9 +257,9 @@ async fn main() -> Result<(), RouterError> {
         args.hostname,
         args.port,
         args.cors_allow_origin,
-        args.ngrok,
-        args.ngrok_authtoken,
-        args.ngrok_edge,
+        false, // ngrok,
+        None,  // ngrok_authtoken,
+        None,  // ngrok_edge,
         args.disable_grammar_support,
         args.max_client_batch_size,
         args.usage_stats,
