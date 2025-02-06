@@ -60,7 +60,7 @@ struct Args {
     use_mlock: bool,
 
     /// Enable offloading of KQV operations to the GPU.
-    #[clap(default_value = "false", long, env)]
+    #[clap(default_value = "true", long, env)]
     offload_kqv: bool,
 
     /// Enable flash attention for faster inference. (EXPERIMENTAL)
