@@ -222,23 +222,23 @@ async fn main() -> Result<(), RouterError> {
 
     let (backend, ok, shutdown) = LlamacppBackend::new(
         LlamacppConfig {
-            model_gguf:                      args.model_gguf,
+            model_gguf: args.model_gguf,
             n_threads,
             n_threads_batch,
-            n_gpu_layers:                    args.n_gpu_layers,
-            split_mode:                      args.split_mode,
-            defrag_threshold:                args.defrag_threshold,
-            numa:                            args.numa,
-            use_mmap:                        args.use_mmap,
-            use_mlock:                       args.use_mlock,
-            flash_attention:                 args.flash_attention,
-            type_k:                          args.type_k,
-            type_v:                          args.type_v,
-            offload_kqv:                     args.offload_kqv,
+            n_gpu_layers: args.n_gpu_layers,
+            split_mode: args.split_mode,
+            defrag_threshold: args.defrag_threshold,
+            numa: args.numa,
+            use_mmap: args.use_mmap,
+            use_mlock: args.use_mlock,
+            flash_attention: args.flash_attention,
+            type_k: args.type_k,
+            type_v: args.type_v,
+            offload_kqv: args.offload_kqv,
             max_batch_total_tokens,
             max_physical_batch_total_tokens,
             max_batch_size,
-            batch_timeout:                   tokio::time::Duration::from_millis(5),
+            batch_timeout: tokio::time::Duration::from_millis(5),
         },
         tokenizer,
     );
@@ -261,7 +261,7 @@ async fn main() -> Result<(), RouterError> {
         args.max_input_tokens,
         args.max_total_tokens,
         args.validation_workers,
-        None, // api_key
+        None,          // api_key
         args.model_id, // tokenizer_name
         args.tokenizer_config_path,
         Some(args.revision),
