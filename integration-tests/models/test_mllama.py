@@ -47,8 +47,7 @@ async def test_mllama_simpl(mllama, response_snapshot):
         "total_tokens": 60,
     }
     assert (
-        response.choices[0].message.content
-        == "In a small village, a chicken named Cluck"
+        response.choices[0].message.content == "In a small town, a chicken named Cluck"
     )
     assert response == response_snapshot
 
