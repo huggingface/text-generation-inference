@@ -7,7 +7,7 @@ use std::sync::LazyLock;
 
 const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 1] = ["spdlog"];
 const CUDA_ARCH_LIST: Option<&str> = option_env!("CUDA_ARCH_LIST");
-const CUDA_REQUIRED_VERSION: &str = "12.6";
+const CUDA_REQUIRED_VERSION: &str = "12.8";
 const MPI_REQUIRED_VERSION: &str = "4.1";
 const INSTALL_PREFIX: Option<&str> = option_env!("CMAKE_INSTALL_PREFIX");
 const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
@@ -25,11 +25,12 @@ const IS_GHA_BUILD: LazyLock<bool> = LazyLock::new(|| {
 // Dependencies
 const BACKEND_DEPS: &str = "tgi_trtllm_backend_impl";
 const CUDA_TRANSITIVE_DEPS: [&str; 4] = ["cuda", "cudart", "cublas", "nvidia-ml"];
-const TENSORRT_LLM_TRANSITIVE_DEPS: [(&str, &str); 4] = [
+const TENSORRT_LLM_TRANSITIVE_DEPS: [(&str, &str); 5] = [
     ("dylib", "tensorrt_llm"),
     ("dylib", "tensorrt_llm_nvrtc_wrapper"),
     ("dylib", "nvinfer_plugin_tensorrt_llm"),
-    ("dylib", "decoder_attention"),
+    ("dylib", "decoder_attention_0"),
+    ("dylib", "decoder_attention_1"),
 ];
 
 macro_rules! probe {
