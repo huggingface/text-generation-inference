@@ -169,7 +169,7 @@ ARG MAMBA_VERSION=23.1.0-1
 ARG PYTHON_VERSION='3.11.10'
 # Automatically set by buildx
 ARG TARGETPLATFORM
-ENV PATH /opt/conda/bin:$PATH
+ENV PATH="/opt/conda/bin:$PATH"
 
 # TGI seem to require libssl.so.1.1 instead of libssl.so.3 so we can't use ubuntu 22.04. Ubuntu 20.04 has python==3.8, and TGI requires python>=3.9, hence the need for miniconda.
 # Install mamba
@@ -192,6 +192,21 @@ RUN case ${TARGETPLATFORM} in \
 
 RUN conda install -c conda-forge gperftools mkl
 
+# Install server
+COPY proto proto
+COPY server/pyproject.toml server/pyproject.toml
+COPY server/Makefile server/Makefile
+RUN cd server && \
+    pip install -U pip uv && \
+	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --no-install-project && \
+    . ./.venv/bin/activate && \
+    make gen-server-raw
+
+RUN cd server && \
+	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines && \
+    . ./.venv/bin/activate && \
+    pwd && \
+    text-generation-server --help
 
 RUN . ./server/.venv/bin/activate && uv pip install https://download.pytorch.org/whl/nightly/cpu/torch-2.5.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
 RUN . ./server/.venv/bin/activate && uv pip install https://download.pytorch.org/whl/nightly/cpu/torchvision-0.20.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
@@ -207,7 +222,7 @@ RUN git clone https://github.com/intel/torch-ccl.git && cd torch-ccl && git chec
 RUN sed -i 's/VERSION_MINOR 6/VERSION_MINOR 5/' intel-extension-for-pytorch/version.txt
 RUN . ./server/.venv/bin/activate && cd intel-extension-for-pytorch && git submodule sync && git submodule update --init --recursive && python setup.py install
 
-RUN . ./server/.venv/bin/activate && cd torch-ccl && git submodule sync && git submodule update --init --recursive && pip install .
+RUN . ./server/.venv/bin/activate && cd torch-ccl && git submodule sync && git submodule update --init --recursive && uv pip install .
 
 ENV LD_PRELOAD=/opt/conda/lib/libtcmalloc.so
 ENV CCL_ROOT=/opt/conda/lib/python3.11/site-packages/oneccl_bindings_for_pytorch
@@ -216,22 +231,6 @@ ENV FI_PROVIDER_PATH=/opt/conda/lib/python3.11/site-packages/oneccl_bindings_for
 ENV LD_LIBRARY_PATH=/opt/conda/lib/python3.11/site-packages/oneccl_bindings_for_pytorch/opt/mpi/libfabric/lib:/opt/conda/lib/python3.11/site-packages/oneccl_bindings_for_pytorch/lib
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/conda/lib/"
 
-# Install server
-COPY proto proto
-COPY server server
-COPY server/Makefile server/Makefile
-ENV UV_SYSTEM_PYTHON=1
-RUN cd server && \
-    pip install -U pip uv && \
-	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --no-install-project && \
-    . ./.venv/bin/activate && \
-    make gen-server-raw
-
-RUN cd server && \
-	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines && \
-    . ./.venv/bin/activate && \
-    pwd && \
-    text-generation-server --help
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
