@@ -194,7 +194,7 @@ RUN conda install -c conda-forge gperftools mkl
 
 # Install server
 COPY proto proto
-COPY server/pyproject.toml server/pyproject.toml
+COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     pip install -U pip uv && \
