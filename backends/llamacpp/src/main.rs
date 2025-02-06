@@ -76,7 +76,7 @@ struct Args {
     #[clap(default_value = "2", long, env)]
     validation_workers: usize,
 
-    /// Maximum amount of concurrent requests.
+    /// Maximum number of concurrent requests.
     #[clap(long, env)]
     max_concurrent_requests: Option<usize>,
 
@@ -84,7 +84,7 @@ struct Args {
     #[clap(default_value = "1024", long, env)]
     max_input_tokens: usize,
 
-    /// Maximum total tokens (input + output) per request.
+    /// Maximum number of total tokens (input + output) per request.
     #[clap(default_value = "2048", long, env)]
     max_total_tokens: usize,
 
@@ -152,7 +152,7 @@ struct Args {
     #[clap(default_value = "on", long, env)]
     usage_stats: usage_stats::UsageStatsLevel,
 
-    /// Maximum payload size limit in bytes.
+    /// Maximum payload size in bytes.
     #[clap(default_value = "2000000", long, env)]
     payload_limit: usize,
 }

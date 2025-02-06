@@ -1,43 +1,52 @@
-# Llamacpp backend
+# Llamacpp Backend
 
-The llamacpp backend is a backend for running LLMs using the `llama.cpp`
-project. It supports CPU and GPU inference and is easy to deploy without
-complex dependencies. For more details, visit the official repository:
-[llama.cpp](https://github.com/ggerganov/llama.cpp).
+The llamacpp backend facilitates the deployment of large language models
+(LLMs) by integrating [llama.cpp][llama.cpp], an advanced inference engine
+optimized for both CPU and GPU computation. This backend is a component
+of Hugging Face’s **Text Generation Inference (TGI)** suite,
+specifically designed to streamline the deployment of LLMs in production
+environments.
 
-## Supported models
+## Key Capabilities
 
-`llama.cpp` uses the GGUF format, which supports various quantization
-levels to optimize performance and reduce memory usage. Learn more and
-find GGUF models on [Hugging Face](https://huggingface.co/models?search=gguf).
+- Full compatibility with GGUF format and all quantization formats
+  (GGUF-related constraints may be mitigated dynamically by on-the-fly
+  generation in future updates)
+- Optimized inference on CPU and GPU architectures
+- Containerized deployment, eliminating dependency complexity
+- Seamless interoperability with the Hugging Face ecosystem
 
-## Building the Docker image
+## Model Compatibility
 
-The llamacpp backend is optimized for the local machine, so it is highly
-recommended to build the Docker image on the same machine where it will
-be used for inference. You can build it directly from the GitHub
-repository without cloning using the following command:
+This backend leverages models formatted in **GGUF**, providing an
+optimized balance between computational efficiency and model accuracy.
+You will find the best models on [Hugging Face][GGUF].
+
+## Build Docker image
+
+For optimal performance, the Docker image is compiled with native CPU
+instructions, thus it's highly recommended to execute the container on
+the host used during the build process. Efforts are ongoing to enhance
+portability while maintaining high computational efficiency.
 
 ```bash
 docker build \
-    -t llamacpp-backend \
+    -t tgi-llamacpp \
     https://github.com/huggingface/text-generation-inference.git \
     -f Dockerfile_llamacpp
 ```
 
-### Build arguments
+### Build parameters
 
-You can customize the build using the following arguments:
+| Parameter                            | Description                       |
+| ------------------------------------ | --------------------------------- |
+| `--build-arg llamacpp_version=bXXXX` | Specific version of llama.cpp     |
+| `--build-arg llamacpp_cuda=ON`       | Enables CUDA acceleration         |
+| `--build-arg cuda_arch=ARCH`         | Defines target CUDA architecture  |
 
-| Argument                               | Description                                  |
-|----------------------------------------|----------------------------------------------|
-| `--build-arg llamacpp_version=VERSION` | Specifies a particular version of llama.cpp. |
-| `--build-arg llamacpp_cuda=ON`         | Enables CUDA support.                        |
-| `--build-arg cuda_arch=ARCH`           | Selects the target GPU architecture.         |
+## Model preparation
 
-## Preparing the model
-
-Before running TGI, you need a GGUF model, for example:
+Retrieve a GGUF model and store it in a specific directory, for example:
 
 ```bash
 mkdir -p ~/models
@@ -45,48 +54,65 @@ cd ~/models
 curl -O "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_0.gguf?download=true"
 ```
 
-## Running the llamacpp backend
+## Run Docker image
 
-Run TGI with the llamacpp backend and your chosen model. When using GPU
-inference, you need to set `--gpus`, like `--gpus all` for example. Below is
-an example for CPU-only inference:
+### CPU-based inference
 
 ```bash
 docker run \
     -p 3000:3000 \
     -e "HF_TOKEN=$HF_TOKEN" \
     -v "$HOME/models:/models" \
-    llamacpp-backend \
+    tgi-llamacpp \
     --model-id "Qwen/Qwen2.5-3B-Instruct" \
     --model-gguf "/models/qwen2.5-3b-instruct-q4_0.gguf"
 ```
 
-This will start the server and expose the API on port 3000.
+### GPU-Accelerated inference
 
-## Configuration options
+```bash
+docker run \
+    --gpus all \
+    -p 3000:3000 \
+    -e "HF_TOKEN=$HF_TOKEN" \
+    -v "$HOME/models:/models" \
+    tgi-llamacpp \
+    --n-gpu-layers 99
+    --model-id "Qwen/Qwen2.5-3B-Instruct" \
+    --model-gguf "/models/qwen2.5-3b-instruct-q4_0.gguf"
+```
 
-The llamacpp backend provides various options to optimize performance:
+## Advanced parameters
 
-| Argument                              | Description                                                            |
-|---------------------------------------|------------------------------------------------------------------------|
-| `--n-threads N`                       | Number of threads to use for generation                                |
-| `--n-threads-batch N`                 | Number of threads to use for batch processing                          |
-| `--n-gpu-layers N`                    | Number of layers to store in VRAM                                      |
-| `--split-mode MODE`                   | Split the model across multiple GPUs                                   |
-| `--defrag-threshold FLOAT`            | Defragment the KV cache if holes/size > threshold                      |
-| `--numa MODE`                         | Enable NUMA optimizations                                              |
-| `--use-mmap`                          | Use memory mapping for the model                                       |
-| `--use-mlock`                         | Use memory locking to prevent swapping                                 |
-| `--offload-kqv`                       | Enable offloading of KQV operations to the GPU                         |
-| `--flash-attention`                   | Enable flash attention for faster inference. (EXPERIMENTAL)            |
-| `--type-k TYPE`                       | Data type used for K cache                                             |
-| `--type-v TYPE`                       | Data type used for V cache                                             |
-| `--validation-workers N`              | Number of tokenizer workers used for payload validation and truncation |
-| `--max-concurrent-requests N`         | Maximum amount of concurrent requests                                  |
-| `--max-input-tokens N`                | Maximum number of input tokens per request                             |
-| `--max-total-tokens N`                | Maximum total tokens (input + output) per request                      |
-| `--max-batch-total-tokens N`          | Maximum number of tokens in a batch                                    |
-| `--max-physical-batch-total-tokens N` | Maximum number of tokens in a physical batch                           |
-| `--max-batch-size N`                  | Maximum number of requests per batch                                   |
+A full listing of configurable parameters is available in the `--help`:
 
-You can also run the docker with `--help` for more information.
+```bash
+docker run tgi-llamacpp --help
+
+```
+
+The table below summarizes key options:
+
+| Parameter                           | Description                                                            |
+|-------------------------------------|------------------------------------------------------------------------|
+| `--n-threads`                       | Number of threads to use for generation                                |
+| `--n-threads-batch`                 | Number of threads to use for batch processing                          |
+| `--n-gpu-layers`                    | Number of layers to store in VRAM                                      |
+| `--split-mode`                      | Split the model across multiple GPUs                                   |
+| `--defrag-threshold`                | Defragment the KV cache if holes/size > threshold                      |
+| `--numa`                            | Enable NUMA optimizations                                              |
+| `--use-mlock`                       | Use memory locking to prevent swapping                                 |
+| `--offload-kqv`                     | Enable offloading of KQV operations to the GPU                         |
+| `--type-k`                          | Data type used for K cache                                             |
+| `--type-v`                          | Data type used for V cache                                             |
+| `--validation-workers`              | Number of tokenizer workers used for payload validation and truncation |
+| `--max-concurrent-requests`         | Maximum number of concurrent requests                                  |
+| `--max-input-tokens`                | Maximum number of input tokens per request                             |
+| `--max-total-tokens`                | Maximum number of total tokens (input + output) per request            |
+| `--max-batch-total-tokens`          | Maximum number of tokens in a batch                                    |
+| `--max-physical-batch-total-tokens` | Maximum number of tokens in a physical batch                           |
+| `--max-batch-size`                  | Maximum number of requests per batch                                   |
+
+---
+[llama.cpp]: https://github.com/ggerganov/llama.cpp
+[GGUF]: https://huggingface.co/models?library=gguf&sort=trending
