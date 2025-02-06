@@ -210,7 +210,7 @@ RUN cd server && \
     pip install -U pip uv && \
 	uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines && \
     . ./.venv/bin/activate && \
-    make gen-server
+    make gen-server-raw
 
 RUN cd server && \
     uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines && \

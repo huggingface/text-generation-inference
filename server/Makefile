@@ -15,6 +15,15 @@ unit-tests:
 
 gen-server:
 	# Compile protos
+	pip install -U pip uv
+	uv pip install -r requirements_gen.txt
+	mkdir text_generation_server/pb || true
+	python -m grpc_tools.protoc -I../proto/v3 --python_out=text_generation_server/pb \
+		--grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/v3/generate.proto
+	find text_generation_server/pb/ -type f -name "*.py" -print0 -exec sed -i -e 's/^\(import.*pb2\)/from . \1/g' {} \;
+	touch text_generation_server/pb/__init__.py
+
+gen-server-raw:
 	mkdir text_generation_server/pb || true
 	python -m grpc_tools.protoc -I../proto/v3 --python_out=text_generation_server/pb \
 		--grpc_python_out=text_generation_server/pb --mypy_out=text_generation_server/pb ../proto/v3/generate.proto
