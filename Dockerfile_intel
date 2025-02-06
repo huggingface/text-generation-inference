@@ -190,7 +190,7 @@ RUN pip install https://download.pytorch.org/whl/nightly/cpu/torch-2.5.0.dev2024
 RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchvision-0.20.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
 RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchaudio-2.4.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
 
-RUN pip install triton py-libnuma
+RUN pip install triton==3.1.0 py-libnuma
 
 WORKDIR /usr/src
 
