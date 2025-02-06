@@ -104,7 +104,7 @@ struct Args {
     max_batch_size: Option<usize>,
 
     /// IP address to listen on.
-    #[clap(default_value = "0.0.0.0", long, env)]
+    #[clap(default_value = "0.0.0.0", long)]
     hostname: String,
 
     /// Port to listen on.
