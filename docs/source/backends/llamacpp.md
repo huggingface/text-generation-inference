@@ -51,7 +51,7 @@ Retrieve a GGUF model and store it in a specific directory, for example:
 ```bash
 mkdir -p ~/models
 cd ~/models
-curl -O "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_0.gguf?download=true"
+curl -LOJ "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_0.gguf?download=true"
 ```
 
 ## Run Docker image
