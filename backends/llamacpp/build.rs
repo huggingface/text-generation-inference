@@ -31,9 +31,17 @@ impl ParseCallbacks for PrefixStripper {
 }
 
 fn main() {
-    let pkg_cuda = option_env!("TGI_LLAMA_PKG_CUDA");
     let lib_search_path = option_env!("TGI_LLAMA_LD_LIBRARY_PATH");
     let lib_target_hardware = option_env!("TGI_LLAMA_HARDWARE_TARGET").unwrap_or("cpu");
+
+    if let Some(cuda_version) = option_env!("CUDA_VERSION") {
+        let mut version: Vec<&str> = cuda_version.split('.').collect();
+        if version.len() > 2 {
+            version.pop();
+        }
+        pkg_config::Config::new().probe(&version.join(".")).unwrap();
+    }
+    pkg_config::Config::new().probe("llama").unwrap();
 
     let bindings = bindgen::Builder::default()
         .header("src/wrapper.h")
@@ -47,11 +55,6 @@ fn main() {
     bindings
         .write_to_file(out_path.join("llamacpp.rs"))
         .expect("Couldn't write bindings!");
-
-    if let Some(pkg_cuda) = pkg_cuda {
-        pkg_config::Config::new().probe(pkg_cuda).unwrap();
-    }
-    pkg_config::Config::new().probe("llama").unwrap();
 
     inject_transient_dependencies(lib_search_path, lib_target_hardware);
 }
