@@ -101,8 +101,10 @@ The table below summarizes key options:
 | `--split-mode`                      | Split the model across multiple GPUs                                   |
 | `--defrag-threshold`                | Defragment the KV cache if holes/size > threshold                      |
 | `--numa`                            | Enable NUMA optimizations                                              |
+| `--use-mmap`                        | Use memory mapping for the model                                       |
 | `--use-mlock`                       | Use memory locking to prevent swapping                                 |
 | `--offload-kqv`                     | Enable offloading of KQV operations to the GPU                         |
+| `--flash-attention`                 | Enable flash attention for faster inference                            |
 | `--type-k`                          | Data type used for K cache                                             |
 | `--type-v`                          | Data type used for V cache                                             |
 | `--validation-workers`              | Number of tokenizer workers used for payload validation and truncation |
