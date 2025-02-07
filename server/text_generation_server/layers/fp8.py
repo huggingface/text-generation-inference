@@ -23,7 +23,6 @@ else:
     quantization = None
 
 try:
-    # TODO: needs to be ported over to MoE and used on CUDA.
     from moe_kernels.fp8_utils import w8a8_block_fp8_matmul, per_token_group_quant_fp8
 except ImportError:
     w8a8_block_fp8_matmul = None
