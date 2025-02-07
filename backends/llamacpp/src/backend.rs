@@ -91,7 +91,7 @@ pub enum LlamacppGGMLType {
 
 // TODO: macro
 impl LlamacppGGMLType {
-    fn to_ggml_type(&self) -> llamacpp::ggml_type {
+    fn to_ggml_type(self) -> llamacpp::ggml_type {
         match self {
             LlamacppGGMLType::F32 => llamacpp::GGML_TYPE_F32,
             LlamacppGGMLType::F16 => llamacpp::GGML_TYPE_F16,
@@ -342,19 +342,21 @@ impl LlamacppSampler {
             error!("Failed to init sampler");
             return None;
         }
-        let top_k = unsafe { llamacpp::sampler_init_top_k(req.top_k) };
-        let top_p = unsafe { llamacpp::sampler_init_top_p(req.top_p, req.min_keep) };
-        let typical_p = unsafe { llamacpp::sampler_init_typical(req.typical_p, req.min_keep) };
-        let temp = unsafe { llamacpp::sampler_init_temp(req.temp) };
-        let penalties = unsafe {
-            llamacpp::sampler_init_penalties(
-                req.penalty_last_n,
-                req.penalty_repeat,
-                req.penalty_freq,
-                req.penalty_present,
+        let (top_k, top_p, typical_p, temp, penalties, dist) = unsafe {
+            (
+                llamacpp::sampler_init_top_k(req.top_k),
+                llamacpp::sampler_init_top_p(req.top_p, req.min_keep),
+                llamacpp::sampler_init_typical(req.typical_p, req.min_keep),
+                llamacpp::sampler_init_temp(req.temp),
+                llamacpp::sampler_init_penalties(
+                    req.penalty_last_n,
+                    req.penalty_repeat,
+                    req.penalty_freq,
+                    req.penalty_present,
+                ),
+                llamacpp::sampler_init_dist(req.seed),
             )
         };
-        let dist = unsafe { llamacpp::sampler_init_dist(req.seed) };
         let all = &[
             ("top_k", top_k),
             ("top_p", top_p),
