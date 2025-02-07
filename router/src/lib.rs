@@ -790,12 +790,15 @@ impl ChatCompletionChunk {
             created,
             model,
             system_fingerprint,
-            choices: vec![ChatCompletionChoice {
-                index: 0,
-                delta,
-                logprobs,
-                finish_reason,
-            }],
+            choices: match usage {
+                None => vec![ChatCompletionChoice {
+                    index: 0,
+                    delta,
+                    logprobs,
+                    finish_reason,
+                }],
+                _ => vec![],
+            },
             usage,
         }
     }

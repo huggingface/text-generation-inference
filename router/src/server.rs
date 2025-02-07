@@ -1124,7 +1124,6 @@ enum StreamState {
 fn create_event_from_stream_token(
     stream_token: &StreamResponse,
     logprobs: bool,
-    stream_options: Option<StreamOptions>,
     inner_using_tools: bool,
     system_fingerprint: String,
     model_id: String,
@@ -1153,8 +1152,43 @@ fn create_event_from_stream_token(
     };
 
     let (usage, finish_reason) = match &stream_token.details {
+        Some(details) => (None, Some(details.finish_reason.format(true))),
+        None => (None, None),
+    };
+
+    let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
+        model_id.clone(),
+        system_fingerprint.clone(),
+        content,
+        tool_calls,
+        current_time,
+        logprobs,
+        finish_reason,
+        usage,
+    ));
+
+    event.json_data(chat_complete).unwrap_or_else(|e| {
+        println!("Failed to serialize ChatCompletionChunk: {:?}", e);
+        Event::default()
+    })
+}
+
+/// Convert a StreamResponse into an Event to be sent over SSE
+fn create_usage_event_from_stream_token(
+    stream_token: &StreamResponse,
+    stream_options: Option<StreamOptions>,
+    system_fingerprint: String,
+    model_id: String,
+) -> Event {
+    let event = Event::default();
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+        .as_secs();
+
+    let usage = match &stream_token.details {
         Some(details) => {
-            let usage = if stream_options
+            if stream_options
                 .as_ref()
                 .map(|s| s.include_usage)
                 .unwrap_or(false)
@@ -1169,20 +1203,19 @@ fn create_event_from_stream_token(
                 })
             } else {
                 None
-            };
-            (usage, Some(details.finish_reason.format(true)))
+            }
         }
-        None => (None, None),
+        None => None,
     };
 
     let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
         model_id.clone(),
         system_fingerprint.clone(),
-        content,
-        tool_calls,
+        None,
+        None,
         current_time,
-        logprobs,
-        finish_reason,
+        None,
+        None,
         usage,
     ));
 
@@ -1307,7 +1340,6 @@ pub(crate) async fn chat_completions(
                                         let event = create_event_from_stream_token(
                                             stream_token,
                                             logprobs,
-                                            stream_options.clone(),
                                             response_as_tool,
                                             system_fingerprint.clone(),
                                             model_id.clone(),
@@ -1369,13 +1401,25 @@ pub(crate) async fn chat_completions(
                             let event = create_event_from_stream_token(
                                 &stream_token,
                                 logprobs,
-                                stream_options.clone(),
                                 response_as_tool,
                                 system_fingerprint.clone(),
                                 model_id.clone(),
                             );
 
                             yield Ok::<Event, Infallible>(event);
+
+                            if stream_token.details.is_some() && stream_options
+                                .as_ref()
+                                .map(|s| s.include_usage)
+                                .unwrap_or(false) {
+                                let usage_event = create_usage_event_from_stream_token(
+                                    &stream_token,
+                                    stream_options.clone(),
+                                    system_fingerprint.clone(),
+                                    model_id.clone(),
+                                );
+                                yield Ok::<Event, Infallible>(usage_event);
+                            }
                         }
                     }
                 }
