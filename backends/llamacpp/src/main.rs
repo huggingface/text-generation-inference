@@ -52,19 +52,19 @@ struct Args {
     numa: LlamacppNuma,
 
     /// Use memory mapping for the model.
-    #[clap(default_value = "true", long, env)]
+    #[clap(long, env)]
     use_mmap: bool,
 
     /// Use memory locking to prevent swapping.
-    #[clap(default_value = "false", long, env)]
+    #[clap(long, env)]
     use_mlock: bool,
 
     /// Enable offloading of KQV operations to the GPU.
-    #[clap(default_value = "true", long, env)]
+    #[clap(long, env)]
     offload_kqv: bool,
 
     /// Enable flash attention for faster inference. (EXPERIMENTAL)
-    #[clap(default_value = "true", long, env)]
+    #[clap(long, env)]
     flash_attention: bool,
 
     /// Data type used for K cache.
@@ -132,7 +132,7 @@ struct Args {
     tokenizer_config_path: Option<String>,
 
     /// Disable grammar support.
-    #[clap(long, env, default_value_t = false)]
+    #[clap(long, env)]
     disable_grammar_support: bool,
 
     /// Maximum number of inputs per request.
