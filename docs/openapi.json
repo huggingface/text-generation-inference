@@ -1508,26 +1508,7 @@
           }
         }
       },
-      "FunctionCall": {
-        "type": "object",
-        "required": [
-          "name",
-          "arguments"
-        ],
-        "properties": {
-          "arguments": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "FunctionDefinitionDeprecated": {
+      "FunctionDefinition": {
         "type": "object",
         "required": [
           "name",
@@ -1535,23 +1516,6 @@
         ],
         "properties": {
           "arguments": {},
-          "description": {
-            "type": "string",
-            "nullable": true
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "FunctionDefinition": {
-        "type": "object",
-        "required": [
-          "name",
-          "parameters"
-        ],
-        "properties": {
-          "parameters": {},
           "description": {
             "type": "string",
             "nullable": true
@@ -2299,14 +2263,7 @@
         ],
         "properties": {
           "function": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/FunctionDefinition"
-              },
-              {
-                "$ref": "#/components/schemas/FunctionDefinitionDeprecated"
-              }
-            ]
+            "$ref": "#/components/schemas/FunctionDefinition"
           },
           "type": {
             "type": "string",
@@ -2323,7 +2280,7 @@
         ],
         "properties": {
           "function": {
-            "$ref": "#/components/schemas/FunctionCall"
+            "$ref": "#/components/schemas/FunctionDefinition"
           },
           "id": {
             "type": "string"

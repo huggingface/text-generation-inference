@@ -1189,44 +1189,7 @@ TOOL CALL ID: 0
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
         let result = ct.apply(msgs, tools_and_prompt);
-        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city and state, e.g. San Francisco, CA\"},\"format\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"description\":\"The temperature unit to use. Infer this from the users location.\"}},\"required\":[\"location\",\"format\"]}}}]\nThis default prompt will be used [/INST]".to_string();
-        assert_eq!(result.unwrap(), expected);
-    }
-
-    #[test]
-    fn test_chat_template_with_default_tool_template_arguments_deprecated() {
-        let ct = ChatTemplate::new(
-            "{{ bos_token }}{% for message in messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if message['role'] == 'user' %}{{ '[INST] ' + message['content'] + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ message['content'] + eos_token + ' ' }}{% else %}{{ raise_exception('Only user and assistant roles are supported!') }}{% endif %}{% endfor %}".to_string(),
-            Some(TokenizerConfigToken::String("<s>".to_string())),
-            Some(TokenizerConfigToken::String("</s>".to_string())),
-        );
-
-        // convert TextMessage to Message
-        let msgs: Vec<Message> = vec![
-            Message {
-                name: None,
-                role: "user".to_string(),
-                content: MessageContent::SingleText(
-                    "I'd like to show off how chat templating works!".to_string(),
-                ),
-            },
-            Message {
-                name: None,
-                role: "assistant".to_string(),
-                content: MessageContent::SingleText("Great! How can I help you today?".to_string()),
-            },
-            Message {
-                name: None,
-                role: "user".to_string(),
-                content: MessageContent::SingleText("Just testing".to_string()),
-            },
-        ];
-        let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","arguments": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
-        let tools: Vec<Tool> = serde_json::from_str(&tools_string).unwrap();
-        let tool_prompt = "This default prompt will be used".to_string();
-        let tools_and_prompt = Some((tools, tool_prompt));
-        let result = ct.apply(msgs, tools_and_prompt);
-        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city and state, e.g. San Francisco, CA\"},\"format\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"description\":\"The temperature unit to use. Infer this from the users location.\"}},\"required\":[\"location\",\"format\"]}}}]\nThis default prompt will be used [/INST]".to_string();
+        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"arguments\":\"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"location\\\":{\\\"type\\\":\\\"string\\\",\\\"description\\\":\\\"The city and state, e.g. San Francisco, CA\\\"},\\\"format\\\":{\\\"type\\\":\\\"string\\\",\\\"enum\\\":[\\\"celsius\\\",\\\"fahrenheit\\\"],\\\"description\\\":\\\"The temperature unit to use. Infer this from the users location.\\\"}},\\\"required\\\":[\\\"location\\\",\\\"format\\\"]}\"}}]\nThis default prompt will be used [/INST]".to_string();
         assert_eq!(result.unwrap(), expected);
     }
 
@@ -1264,7 +1227,7 @@ TOOL CALL ID: 0
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
         let result = ct.apply(msgs, tools_and_prompt);
-        let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n    \"function\": {\n        \"description\": \"Get the current weather\",\n        \"name\": \"get_current_weather\",\n        \"parameters\": {\n            \"properties\": {\n                \"format\": {\n                    \"description\": \"The temperature unit to use. Infer this from the users location.\",\n                    \"enum\": [\n                        \"celsius\",\n                        \"fahrenheit\"\n                    ],\n                    \"type\": \"string\"\n                },\n                \"location\": {\n                    \"description\": \"The city and state, e.g. San Francisco, CA\",\n                    \"type\": \"string\"\n                }\n            },\n            \"required\": [\n                \"location\",\n                \"format\"\n            ],\n            \"type\": \"object\"\n        }\n    },\n    \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
+        let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n    \"function\": {\n        \"arguments\": \"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"location\\\":{\\\"type\\\":\\\"string\\\",\\\"description\\\":\\\"The city and state, e.g. San Francisco, CA\\\"},\\\"format\\\":{\\\"type\\\":\\\"string\\\",\\\"enum\\\":[\\\"celsius\\\",\\\"fahrenheit\\\"],\\\"description\\\":\\\"The temperature unit to use. Infer this from the users location.\\\"}},\\\"required\\\":[\\\"location\\\",\\\"format\\\"]}\",\n        \"description\": \"Get the current weather\",\n        \"name\": \"get_current_weather\"\n    },\n    \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
         assert_eq!(result.unwrap(), expected);
     }
 }

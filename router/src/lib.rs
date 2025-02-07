@@ -745,11 +745,11 @@ pub(crate) struct DeltaToolCall {
     pub index: u32,
     pub id: String,
     pub r#type: String,
-    pub function: FunctionCallChunk,
+    pub function: Function,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
-pub(crate) struct FunctionCallChunk {
+pub(crate) struct Function {
     pub name: Option<String>,
     pub arguments: String,
 }
@@ -760,7 +760,7 @@ impl ChatCompletionChunk {
         model: String,
         system_fingerprint: String,
         delta: Option<String>,
-        tool_calls: Option<FunctionCallChunk>,
+        tool_calls: Option<Vec<String>>,
         created: u64,
         logprobs: Option<ChatCompletionLogprobs>,
         finish_reason: Option<String>,
@@ -778,7 +778,10 @@ impl ChatCompletionChunk {
                     index: 0,
                     id: String::new(),
                     r#type: "function".to_string(),
-                    function: tool_calls,
+                    function: Function {
+                        name: None,
+                        arguments: tool_calls[0].to_string(),
+                    },
                 }],
             }),
             (None, None) => ChatCompletionDelta::Chat(TextMessage {
@@ -1135,14 +1138,15 @@ pub struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
-    #[serde(alias = "arguments")]
-    pub parameters: serde_json::Value,
+    #[serde(alias = "parameters", serialize_with = "serialize_as_string")]
+    pub arguments: serde_json::Value,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, ToSchema, Default, PartialEq)]
-pub(crate) struct FunctionCall {
-    pub name: String,
-    pub arguments: String,
+fn serialize_as_string<S>(value: &serde_json::Value, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&value.to_string())
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
@@ -1168,7 +1172,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
 pub struct ToolCall {
     pub id: String,
     pub r#type: String,
-    pub function: FunctionCall,
+    pub function: FunctionDefinition,
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
@@ -1721,19 +1725,19 @@ mod tests {
             tool_calls: vec![ToolCall {
                 id: "0".to_string(),
                 r#type: "function".to_string(),
-                function: FunctionCall {
+                function: FunctionDefinition {
+                    description: None,
                     name: "myfn".to_string(),
                     arguments: json!({
                         "format": "csv"
-                    })
-                    .to_string(),
+                    }),
                 },
             }],
         });
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(
             serialized,
-            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"name":"myfn","arguments":"{\"format\":\"csv\"}"}}]}"#
+            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":"{\"format\":\"csv\"}"}}]}"#
         );
     }
 
