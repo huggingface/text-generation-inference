@@ -1217,7 +1217,7 @@ example = json ! ({"error": "Incomplete generation"})),
 #[instrument(
 skip_all,
 fields(
-// parameters = ? req.parameters,
+parameters,
 total_time,
 validation_time,
 queue_time,
@@ -1243,7 +1243,7 @@ pub(crate) async fn chat_completions(
     } = chat.clone();
     let (generate_request, using_tools): (GenerateRequest, bool) =
         chat.try_into_generate(&infer)?;
-
+    span.record("parameters", format!("{:?}", generate_request.parameters));
     let logprobs = logprobs.unwrap_or_default();
 
     // extract model id from request if specified
