@@ -209,13 +209,13 @@ ENV UV_SYSTEM_PYTHON=1
 ENV HF_KERNELS_CACHE=/kernels
 RUN cd server && \
     pip install -U pip uv && \
-	uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines --no-install-project && \
+	uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines --extra nvidia-nccl-cu12 --no-install-project && \
     . ./.venv/bin/activate && \
     make gen-server-raw && \
     hf-kernels download .
 
 RUN cd server && \
-    uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines && \
+    uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines --extra nvidia-nccl-cu12 && \
     . ./.venv/bin/activate && \
     pwd && \
     text-generation-server --help
