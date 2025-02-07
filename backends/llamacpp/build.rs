@@ -39,7 +39,8 @@ fn main() {
         if version.len() > 2 {
             version.pop();
         }
-        pkg_config::Config::new().probe(&version.join(".")).unwrap();
+        let cuda_version = format!("cuda-{}", version.join("."));
+        pkg_config::Config::new().probe(&cuda_version).unwrap();
     }
     pkg_config::Config::new().probe("llama").unwrap();
 
