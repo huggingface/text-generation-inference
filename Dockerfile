@@ -205,7 +205,6 @@ COPY --from=pytorch-install /opt/conda /opt/conda
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
-ENV UV_SYSTEM_PYTHON=1
 ENV HF_KERNELS_CACHE=/kernels
 RUN cd server && \
     pip install -U pip uv && \
