@@ -12,9 +12,10 @@ use crate::sagemaker::{
 };
 use crate::validation::ValidationError;
 use crate::vertex::vertex_compatibility;
+use crate::ChatTokenizeResponse;
 use crate::{
-    usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionCallChunk,
-    FunctionName, GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
+    usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
+    GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
     HubProcessorConfig, HubTokenizerConfig, Info, Message, MessageChunk, MessageContent,
     OutputMessage, PrefillToken, SimpleToken, StreamDetails, StreamOptions, StreamResponse,
     TextMessage, Token, TokenizeResponse, Tokenizer, ToolCallDelta, ToolCallMessage, Url, Usage,
@@ -24,9 +25,8 @@ use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
     ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs, ChatCompletionTopLogprob,
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
-    CompletionRequest, CompletionType, DeltaToolCall, Prompt, Tool,
+    CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
-use crate::{ChatTokenizeResponse, FunctionCall};
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
 use crate::{ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
@@ -1117,7 +1117,6 @@ pub(crate) async fn completions(
 enum StreamState {
     Buffering,
     BufferTrailing,
-    Arguments,
     Content { skip_close_quote: bool },
 }
 
@@ -1127,7 +1126,6 @@ fn create_event_from_stream_token(
     logprobs: bool,
     stream_options: Option<StreamOptions>,
     inner_using_tools: bool,
-    partial_call: Option<FunctionCallChunk>,
     system_fingerprint: String,
     model_id: String,
 ) -> Event {
@@ -1143,16 +1141,7 @@ fn create_event_from_stream_token(
 
     // replace the content with the tool calls if grammar is present
     let (content, tool_calls) = if inner_using_tools {
-        match partial_call {
-            Some(partial_call) => (None, Some(partial_call)),
-            None => (
-                None,
-                Some(FunctionCallChunk {
-                    name: None,
-                    arguments: stream_token.token.text.clone(),
-                }),
-            ),
-        }
+        (None, Some(vec![stream_token.token.text.clone()]))
     } else {
         let content = if !stream_token.token.special {
             Some(stream_token.token.text.clone())
@@ -1269,7 +1258,7 @@ pub(crate) async fn chat_completions(
             generate_stream_internal(infer, compute_type, Json(generate_request), span).await;
 
         // regex to match any function name
-        let function_name_regex = match Regex::new(r#"\{"function":\{"_name":"([^"]+)","#) {
+        let function_regex = match Regex::new(r#"\{"function":\{"_name":"([^"]+)""#) {
             Ok(regex) => regex,
             Err(e) => {
                 return Err((
@@ -1284,6 +1273,7 @@ pub(crate) async fn chat_completions(
 
         let response_stream = async_stream::stream! {
             let mut response_stream = Box::pin(response_stream);
+            let mut buffer = Vec::new();
             let mut json_buffer = String::new();
             let mut state = if using_tools {
                 StreamState::Buffering
@@ -1300,27 +1290,30 @@ pub(crate) async fn chat_completions(
                     match state {
                         StreamState::Buffering => {
                             json_buffer.push_str(&token_text.replace(" ", ""));
-                            if let Some(captures) = function_name_regex.captures(&json_buffer) {
+                            buffer.push(stream_token);
+                            if let Some(captures) = function_regex.captures(&json_buffer) {
                                 let function_name = captures[1].to_string();
                                 if function_name == "no_tool" {
                                     state = StreamState::BufferTrailing;
                                     response_as_tool = false;
+                                    buffer.clear();
                                     json_buffer.clear();
                                 } else {
-                                    state = StreamState::Arguments;
-                                    let event = create_event_from_stream_token(
-                                        &stream_token,
-                                        logprobs,
-                                        stream_options.clone(),
-                                        response_as_tool,
-                                        Some(FunctionCallChunk {
-                                            name: Some(function_name),
-                                            arguments: "{".to_string()
-                                        }),
-                                        system_fingerprint.clone(),
-                                        model_id.clone(),
-                                    );
-                                    yield Ok::<Event, Infallible>(event);
+                                    state = StreamState::Content {
+                                        skip_close_quote: false,
+                                    };
+                                    // send all the buffered messages
+                                    for stream_token in &buffer {
+                                        let event = create_event_from_stream_token(
+                                            stream_token,
+                                            logprobs,
+                                            stream_options.clone(),
+                                            response_as_tool,
+                                            system_fingerprint.clone(),
+                                            model_id.clone(),
+                                        );
+                                        yield Ok::<Event, Infallible>(event);
+                                    }
                                 }
                             }
                         }
@@ -1361,31 +1354,11 @@ pub(crate) async fn chat_completions(
                                 }));
                             }
                             // cleanup the buffers
+                            buffer.clear();
                             json_buffer.clear();
                             state = StreamState::Content {
                                 skip_close_quote: true,
                             };
-                        }
-                        StreamState::Arguments => {
-                            json_buffer.push_str(&token_text.replace(" ", ""));
-
-                            // If we are at the end of the json we can stop
-                            let function: Result<serde::de::IgnoredAny, _> = serde_json::from_str(&json_buffer);
-                            if let Ok(_) = function {
-                                break;
-                            }
-
-                            // send the content
-                            let event = create_event_from_stream_token(
-                                &stream_token,
-                                logprobs,
-                                stream_options.clone(),
-                                response_as_tool,
-                                None,
-                                system_fingerprint.clone(),
-                                model_id.clone(),
-                            );
-                            yield Ok::<Event, Infallible>(event);
                         }
                         StreamState::Content { skip_close_quote } => {
                             if skip_close_quote && token_text.contains('"') {
@@ -1398,7 +1371,6 @@ pub(crate) async fn chat_completions(
                                 logprobs,
                                 stream_options.clone(),
                                 response_as_tool,
-                                None,
                                 system_fingerprint.clone(),
                                 model_id.clone(),
                             );
@@ -1466,9 +1438,10 @@ pub(crate) async fn chat_completions(
                     let tool_calls = vec![ToolCall {
                         id: "0".to_string(),
                         r#type: "function".to_string(),
-                        function: FunctionCall {
+                        function: FunctionDefinition {
+                            description: None,
                             name,
-                            arguments: arguments.to_string(),
+                            arguments,
                         },
                     }];
                     (Some(tool_calls), None)
@@ -1599,8 +1572,8 @@ StreamOptions,
 DeltaToolCall,
 Tool,
 ToolCall,
+Function,
 FunctionDefinition,
-FunctionCall,
 ToolChoice,
 ModelInfo,
 ChatTokenizeResponse,
