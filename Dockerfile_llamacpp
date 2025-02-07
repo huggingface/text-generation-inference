@@ -71,4 +71,6 @@ COPY --from=builder /usr/lib/libllama.so /usr/lib/
 COPY --from=builder /usr/lib/libggml*.so /usr/lib/
 COPY --from=builder /app/target/release-opt/text-generation-router-llamacpp /usr/bin/
 
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
+
 ENTRYPOINT ["text-generation-router-llamacpp"]
