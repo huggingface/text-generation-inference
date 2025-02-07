@@ -81,6 +81,15 @@ def tgi_flash_attention_forward(
 
 transformers.modeling_utils.ALL_ATTENTION_FUNCTIONS["tgi"] = tgi_flash_attention_forward
 
+# The base TP plan of these models has replicated q/k/v. This means that each process will see the full states,
+# hence we should not divide the number of heads by the world size. This is a known waste of VRAM (the cache
+# will be fully replicated on each process) and GPU communication (additional all-gather operations), however due
+# to internal constraints it was not (yet?) possible to circumvent
+REPLICATED_ATTENTION_MODELS = [
+    "olmo2",
+    "phi3",
+]
+
 
 class TransformersFlashCausalLM(FlashCausalLM):
     def __init__(
@@ -119,6 +128,7 @@ class TransformersFlashCausalLM(FlashCausalLM):
             truncation_side="left",
             trust_remote_code=trust_remote_code,
         )
+
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             revision=revision,
@@ -129,6 +139,8 @@ class TransformersFlashCausalLM(FlashCausalLM):
             device_map=device if world_size == 1 else None,
             tp_plan="auto" if world_size > 1 else None,
         )
+
+        torch.distributed.barrier(group=self.process_group)
 
         if tokenizer.pad_token_id is None:
             if model.config.pad_token_id is not None:
@@ -143,14 +155,18 @@ class TransformersFlashCausalLM(FlashCausalLM):
                 tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
         self.num_layers = model.config.num_hidden_layers
-        self.num_heads = model.config.num_attention_heads // self.process_group.size()
+        self.num_heads = model.config.num_attention_heads
         self.num_kv_heads = model.config.num_key_value_heads
-        self.num_kv_heads = (
-            self.num_kv_heads // self.process_group.size()
-            if self.num_kv_heads > 1
-            else self.num_kv_heads
-        )
         self.head_size = model.config.hidden_size // model.config.num_attention_heads
+
+        # Skip it for models in the exception list
+        if model.config.model_type not in REPLICATED_ATTENTION_MODELS:
+            self.num_heads = self.num_heads // self.process_group.size()
+            self.num_kv_heads = (
+                self.num_kv_heads // self.process_group.size()
+                if self.num_kv_heads > 1
+                else self.num_kv_heads
+            )
 
         self.cuda_graphs = {}
         self.kv_cache = []
@@ -186,7 +202,6 @@ class TransformersFlashCausalLM(FlashCausalLM):
             torch.tensor(1.0, device=device),
         )
 
-        torch.distributed.barrier(group=self.process_group)
         # Skip FlashCausalLM init.
         super(FlashCausalLM, self).__init__(
             model_id=model_id,
@@ -203,6 +218,8 @@ class TransformersFlashCausalLM(FlashCausalLM):
         # We first copy the original model.forward because we still need it in the monkey patch
         self.model.original_forward = self.model.forward
         self.model.forward = self._model_forward
+
+        torch.distributed.barrier(group=self.process_group)
 
     @classmethod
     def fallback(
@@ -237,11 +254,16 @@ class TransformersFlashCausalLM(FlashCausalLM):
         prefill_cache_indices=None,  # not used, but passed to match original signature
         adapter_data=None,  # not supported, but passed to match original signature
     ):
-        hidden_states = self.model.model.forward(
+        # A value of `None` (i.e. no logit slicing) translates to `0` in Transformers
+        logits_to_keep = lm_head_indices if lm_head_indices is not None else 0
+
+        # This is equivalent to `self.model.forward`, see the monkey patch in __init__
+        logits = self.model.original_forward(
             input_ids=input_ids.unsqueeze(0),  # expand dim to fit Transformers
             position_ids=position_ids.unsqueeze(0),  # expand dim to fit Transformers
             past_key_values=None,  # we use self.kv_cache instead of transformers cache object
             use_cache=False,  # we use self.kv_cache instead of transformers cache object
+            logits_to_keep=logits_to_keep,
             return_dict=True,
             cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=kv_cache,
@@ -251,20 +273,6 @@ class TransformersFlashCausalLM(FlashCausalLM):
             max_s=max_s,
             kv_head_mapping=self.kv_head_mapping,
             kv_scales=self.kv_scales,
-        )[0].squeeze(dim=0)
-
-        # And compute logits from the lm_head, slicing correctly the indices
-        # NOTE: some logits post-processing (e.g. in gemma2) may be absent here with the split of the modules
-        # To update with full Transformers support asap
-        if lm_head_indices is not None:
-            hidden_states = hidden_states[lm_head_indices]
-        logits = self.model.lm_head(hidden_states)
-
-        # For Granite while next transformers version is released and we can use `lm_head_indices` natively
-        if hasattr(self.model.config, "logits_scaling"):
-            logits = logits / self.model.config.logits_scaling
-        # For Cohere for similar reasons
-        elif hasattr(self.model, "logit_scale"):
-            logits = logits * self.model.logit_scale
+        ).logits.squeeze(dim=0)
 
         return logits, None
