@@ -28,7 +28,7 @@ from text_generation_server.utils.weights import (
 
 if SYSTEM == "ipex":
     from .fused_moe_ipex import fused_topk, grouped_topk
-if SYSTEM == "cuda":
+elif SYSTEM == "cuda":
     moe_kernels = load_kernel(module="moe", repo_id="kernels-community/moe")
     fused_topk = moe_kernels.fused_topk
     grouped_topk = moe_kernels.grouped_topk
