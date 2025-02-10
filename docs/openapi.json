@@ -2302,7 +2302,10 @@
             "example": "assistant"
           },
           "tool_calls": {
-            "$ref": "#/components/schemas/DeltaToolCall"
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeltaToolCall"
+            }
           }
         }
       },
