@@ -45,20 +45,15 @@ RUN cargo build --profile release-opt --frozen
 # Python builder
 # Adapted from: https://github.com/pytorch/pytorch/blob/master/Dockerfile
 FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS pytorch-install
+WORKDIR /usr/src/
 
 # NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
-ARG PYTORCH_VERSION=2.5.1
-
+ARG PYTORCH_VERSION=2.6.0
 ARG PYTHON_VERSION=3.11
+
 # Keep in sync with `server/pyproject.toml
-ARG CUDA_VERSION=12.4
-ARG MAMBA_VERSION=24.3.0-0
-ARG CUDA_CHANNEL=nvidia
-ARG INSTALL_CHANNEL=pytorch
 # Automatically set by buildx
 ARG TARGETPLATFORM
-
-ENV PATH=/opt/conda/bin:$PATH
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
@@ -67,26 +62,12 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         curl \
         git && \
         rm -rf /var/lib/apt/lists/*
-
-# Install conda
-# translating Docker's TARGETPLATFORM into mamba arches
-RUN case ${TARGETPLATFORM} in \
-         "linux/arm64")  MAMBA_ARCH=aarch64  ;; \
-         *)              MAMBA_ARCH=x86_64   ;; \
-    esac && \
-    curl -fsSL -v -o ~/mambaforge.sh -O  "https://github.com/conda-forge/miniforge/releases/download/${MAMBA_VERSION}/Mambaforge-${MAMBA_VERSION}-Linux-${MAMBA_ARCH}.sh"
-RUN chmod +x ~/mambaforge.sh && \
-    bash ~/mambaforge.sh -b -p /opt/conda && \
-    rm ~/mambaforge.sh
-
-# Install pytorch
-# On arm64 we exit with an error code
-RUN case ${TARGETPLATFORM} in \
-         "linux/arm64")  exit 1 ;; \
-         *)              /opt/conda/bin/conda update -y conda &&  \
-                         /opt/conda/bin/conda install -c "${INSTALL_CHANNEL}" -c "${CUDA_CHANNEL}" -y "python=${PYTHON_VERSION}" "pytorch=$PYTORCH_VERSION" "pytorch-cuda=$(echo $CUDA_VERSION | cut -d'.' -f 1-2)"  ;; \
-    esac && \
-    /opt/conda/bin/conda clean -ya
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="$PATH:/root/.local/bin"
+RUN uv python install ${PYTHON_VERSION}
+RUN uv venv --python ${PYTHON_VERSION} && uv pip install torch==${PYTORCH_VERSION} pip setuptools packaging
+ENV VIRTUAL_ENV=/usr/src/.venv/
+ENV PATH="$PATH:/usr/src/.venv/bin/"
 
 # CUDA kernels builder image
 FROM pytorch-install AS kernel-builder
@@ -174,11 +155,7 @@ COPY server/Makefile-flashinfer Makefile
 RUN make install-flashinfer
 
 # Text Generation Inference base image
-FROM nvidia/cuda:12.1.0-base-ubuntu22.04 AS base
-
-# Conda env
-ENV PATH=/opt/conda/bin:$PATH \
-    CONDA_PREFIX=/opt/conda
+FROM nvidia/cuda:12.4.0-base-ubuntu22.04 AS base
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \
@@ -195,11 +172,17 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         git \
         && rm -rf /var/lib/apt/lists/*
 
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="$PATH:/root/.local/bin"
 # Install flash-attention dependencies
 # RUN pip install einops --no-cache-dir
 
-# Copy conda with PyTorch installed
-COPY --from=pytorch-install /opt/conda /opt/conda
+# Copy env with PyTorch installed
+COPY --from=pytorch-install /usr/src/.venv /usr/src/.venv
+ENV PYTHON_VERSION=3.11
+RUN uv python install ${PYTHON_VERSION}
+ENV VIRTUAL_ENV=/usr/src/.venv/
+ENV PATH="$PATH:/usr/src/.venv/bin/"
 
 # Install server
 COPY proto proto
@@ -207,48 +190,44 @@ COPY server server
 COPY server/Makefile server/Makefile
 ENV HF_KERNELS_CACHE=/kernels
 RUN cd server && \
-    pip install -U pip uv && \
-	uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines --no-install-project && \
-    . ./.venv/bin/activate && \
+	uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines --no-install-project --active && \
     make gen-server-raw && \
     hf-kernels download .
 
 RUN cd server && \
-    uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines && \
-    . ./.venv/bin/activate && \
-    uv pip install nvidia-nccl-cu12==2.22.3 && \
+    uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines --active --python=${PYTHON_VERSION} && \
+    # uv pip install nvidia-nccl-cu12==2.22.3 && \
     pwd && \
     text-generation-server --help
 
 # Copy build artifacts from flash attention builder
-COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-311 /usr/src/server/.venv/lib/python3.11/site-packages
-COPY --from=flash-att-builder /usr/src/flash-attention/csrc/layer_norm/build/lib.linux-x86_64-cpython-311 /usr/src/server/.venv/lib/python3.11/site-packages
-COPY --from=flash-att-builder /usr/src/flash-attention/csrc/rotary/build/lib.linux-x86_64-cpython-311 /usr/src/server/.venv/lib/python3.11/site-packages
+COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
+COPY --from=flash-att-builder /usr/src/flash-attention/csrc/layer_norm/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
+COPY --from=flash-att-builder /usr/src/flash-attention/csrc/rotary/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 
 # Copy build artifacts from flash attention v2 builder
-COPY --from=flash-att-v2-builder /opt/conda/lib/python3.11/site-packages/flash_attn_2_cuda.cpython-311-x86_64-linux-gnu.so /usr/src/server/.venv/lib/python3.11/site-packages
+COPY --from=flash-att-v2-builder /usr/src/.venv/lib/python3.11/site-packages/flash_attn_2_cuda.cpython-311-x86_64-linux-gnu.so /usr/src/.venv/lib/python3.11/site-packages
 
 # Copy build artifacts from custom kernels builder
-COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 /usr/src/server/.venv/lib/python3.11/site-packages
+COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from exllama kernels builder
-COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 /usr/src/server/.venv/lib/python3.11/site-packages
+COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from exllamav2 kernels builder
-COPY --from=exllamav2-kernels-builder /usr/src/exllamav2/build/lib.linux-x86_64-cpython-311 /usr/src/server/.venv/lib/python3.11/site-packages
+COPY --from=exllamav2-kernels-builder /usr/src/exllamav2/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from awq kernels builder
-COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86_64-cpython-311 /usr/src/server/.venv/lib/python3.11/site-packages
+COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from eetq kernels builder
-COPY --from=eetq-kernels-builder /usr/src/eetq/build/lib.linux-x86_64-cpython-311 /usr/src/server/.venv/lib/python3.11/site-packages
+COPY --from=eetq-kernels-builder /usr/src/eetq/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from lorax punica kernels builder
-COPY --from=lorax-punica-builder /usr/src/lorax-punica/server/punica_kernels/build/lib.linux-x86_64-cpython-311 /usr/src/server/.venv/lib/python3.11/site-packages
+COPY --from=lorax-punica-builder /usr/src/lorax-punica/server/punica_kernels/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from mamba builder
-COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-311/ /usr/src/server/.venv/lib/python3.11/site-packages
-COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-311/ /usr/src/server/.venv/lib/python3.11/site-packages
-COPY --from=flashinfer-builder /opt/conda/lib/python3.11/site-packages/flashinfer/ /usr/src/server/.venv/lib/python3.11/site-packages/flashinfer/
+COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-311/ /usr/src/.venv/lib/python3.11/site-packages
+COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-311/ /usr/src/.venv/lib/python3.11/site-packages
+COPY --from=flashinfer-builder /usr/src/.venv/lib/python3.11/site-packages/flashinfer/ /usr/src/.venv/lib/python3.11/site-packages/flashinfer/
 
 
 # ENV LD_PRELOAD=/opt/conda/lib/python3.11/site-packages/nvidia/nccl/lib/libnccl.so.2
 # Required to find libpython within the rust binaries
-ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/conda/lib/"
 # This is needed because exl2 tries to load flash-attn
 # And fails with our builds.
 ENV EXLLAMA_NO_FLASH_ATTN=1
@@ -283,5 +262,6 @@ FROM base
 COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/root/.local/share/uv/python/cpython-3.11.11-linux-x86_64-gnu/lib/"
 ENTRYPOINT ["/tgi-entrypoint.sh"]
 # CMD ["--json-output"]
