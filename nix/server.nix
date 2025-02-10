@@ -3,7 +3,6 @@
   buildPythonPackage,
   poetry-core,
   mypy-protobuf,
-  attention-kernels,
   awq-inference-engine,
   causal-conv1d,
   compressed-tensors,
@@ -19,22 +18,24 @@
   grpcio-reflection,
   grpcio-status,
   grpcio-tools,
+  hf-kernels,
   hf-transfer,
   loguru,
   mamba-ssm,
-  marlin-kernels,
-  moe-kernels,
+  moe,
   opentelemetry-api,
   opentelemetry-exporter-otlp,
   opentelemetry-instrumentation-grpc,
   opentelemetry-semantic-conventions,
   outlines,
+  paged-attention,
   peft,
   pillow,
   prometheus-client,
   punica-kernels,
   py-cpuinfo,
   pydantic,
+  quantization,
   safetensors,
   tokenizers,
   torch,
@@ -78,7 +79,6 @@ buildPythonPackage {
   pythonRemoveDeps = [ "scipy" ];
 
   dependencies = [
-    attention-kernels
     awq-inference-engine
     eetq
     causal-conv1d
@@ -93,22 +93,24 @@ buildPythonPackage {
     grpcio-reflection
     grpcio-status
     grpcio-tools
+    hf-kernels
     hf-transfer
     loguru
     mamba-ssm
-    marlin-kernels
-    moe-kernels
+    moe
     opentelemetry-api
     opentelemetry-exporter-otlp
     opentelemetry-instrumentation-grpc
     opentelemetry-semantic-conventions
     outlines
+    paged-attention
     peft
     pillow
     prometheus-client
     punica-kernels
     py-cpuinfo
     pydantic
+    quantization
     safetensors
     sentencepiece
     tokenizers

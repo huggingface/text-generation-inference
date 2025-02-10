@@ -7,8 +7,21 @@ import torch
 from text_generation_server.layers.fp8 import fp8_quantize
 from text_generation_server.models.globals import ATTENTION, BLOCK_SIZE
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weights
+
+if SYSTEM == "cuda":
+    try:
+        paged_attention = load_kernel(
+            module="paged_attention", repo_id="kernels-community/paged-attention"
+        )
+    except Exception as e:
+        raise ImportError(
+            f"Could not import attention kernels. Make sure your installation is correct. Complete error: {e}"
+        )
+else:
+    paged_attention = None
 
 
 @dataclass
@@ -119,7 +132,7 @@ class KVCache:
         if kv_scales.key_scale_cpu == 1.0 and kv_scales.value_scale_cpu == 1.0:
             return False
         elif self.dtype == torch.float8_e4m3fn and (
-            (ATTENTION == "flashinfer" and SYSTEM == "cuda")
+            (ATTENTION in ("paged", "flashinfer") and SYSTEM == "cuda")
             or (ATTENTION == "paged" and SYSTEM == "rocm")
         ):
             log_once(logger.info, "Using FP8 KV cache scales")
@@ -220,19 +233,19 @@ def paged_reshape_and_cache(
 ):
 
     if SYSTEM == "cuda":
-        try:
-            import attention_kernels
-        except Exception as e:
-            raise ImportError(
-                f"Could not import attention_kernels. Make sure your installation is correct. Complete error: {e}"
-            )
-
         kv_cache_dtype = "auto"
         if key_cache.dtype == torch.float8_e4m3fn:
             kv_cache_dtype = "fp8"
 
-        attention_kernels.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, kv_cache_dtype, k_scale, v_scale
+        paged_attention.reshape_and_cache(
+            key,
+            value,
+            key_cache,
+            value_cache,
+            slots,
+            kv_cache_dtype,
+            torch.tensor(k_scale),
+            torch.tensor(v_scale),
         )
     elif SYSTEM == "rocm":
         try:

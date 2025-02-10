@@ -12,7 +12,7 @@ from text_generation_server.layers.fp8 import (
 )
 
 try:
-    from moe_kernels.fused_moe import fused_moe
+    from .unquantized import fused_moe
 except Exception:
     fused_moe = None
 

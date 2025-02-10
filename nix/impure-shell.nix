@@ -90,7 +90,7 @@ mkShell {
 
   postVenvCreation = ''
     unset SOURCE_DATE_EPOCH
-    ( cd server ; python -m pip install --no-dependencies -e . )
+    ( cd server ; python -m pip install --no-build-isolation --no-dependencies -e . )
     ( cd clients/python ; python -m pip install --no-dependencies -e . )
   '';
 

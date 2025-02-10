@@ -3,13 +3,18 @@ from typing import List, Optional, Union
 
 import torch
 import torch.nn as nn
+
 from text_generation_server.layers.marlin.util import _check_marlin_kernels
+from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
-try:
-    import marlin_kernels
-except ImportError:
-    marlin_kernels = None
+if SYSTEM == "cuda":
+    quantization = load_kernel(
+        module="quantization", repo_id="kernels-community/quantization"
+    )
+else:
+    quantization = None
 
 
 class MarlinWeightsLoader(WeightsLoader):
@@ -187,7 +192,7 @@ class MarlinLinear(nn.Module):
         super().__init__()
 
         _check_marlin_kernels()
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         in_features = weight.B.shape[0] * MARLIN_TILE_SIZE
         out_features = weight.s.shape[1]
@@ -216,9 +221,9 @@ class MarlinLinear(nn.Module):
         )
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
-        assert marlin_kernels is not None
+        assert quantization is not None
 
-        C = marlin_kernels.marlin_gemm(
+        C = quantization.marlin_gemm(
             A.view(-1, A.shape[-1]),
             self.B,
             self.s,
@@ -277,7 +282,7 @@ class GPTQMarlin24Linear(nn.Module):
         super().__init__()
 
         _check_marlin_kernels()
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         if weight.bits not in GPTQ_MARLIN_24_SUPPORTED_NUM_BITS:
             supported_bits = ", ".join(
@@ -303,8 +308,11 @@ class GPTQMarlin24Linear(nn.Module):
                 f"Group size {groupsize} is not supported, must be one of: {supported_sizes}"
             )
 
-        self.bits = weight.bits
-        weights_per_int32 = 32 // self.bits
+        if weight.bits == 4:
+            self.quant_type = quantization.scalar_types.uint4b8
+        else:
+            self.quant_type = quantization.scalar_types.uint8b128
+        weights_per_int32 = 32 // weight.bits
 
         assert (
             out_features % GPTQ_MARLIN_24_MIN_THREAD_N == 0
@@ -336,15 +344,15 @@ class GPTQMarlin24Linear(nn.Module):
         )
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
-        assert marlin_kernels is not None
+        assert quantization is not None
 
-        C = marlin_kernels.gptq_marlin_24_gemm(
+        C = quantization.gptq_marlin_24_gemm(
             A.view(-1, A.shape[-1]),
             self.weight_packed,
             self.meta,
             self.scale_packed,
             self.workspace,
-            self.bits,
+            self.quant_type,
             A.shape[0],
             self.scale_packed.shape[1],
             A.shape[1],
