@@ -6,7 +6,7 @@
         "index": 0,
         "logprobs": null,
         "message": {
-          "content": "In a bustling city, a chicken named Cluck",
+          "content": "In a small town, a chicken named Cluck",
           "name": null,
           "role": "assistant",
           "tool_calls": null
@@ -14,11 +14,11 @@
         "usage": null
       }
     ],
-    "created": 1727773835,
+    "created": 1738753835,
     "id": "",
     "model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
     "object": "chat.completion",
-    "system_fingerprint": "2.4.2-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": {
       "completion_tokens": 10,
       "prompt_tokens": 50,
@@ -32,7 +32,7 @@
         "index": 0,
         "logprobs": null,
         "message": {
-          "content": "In a world where even chickens could dream big,",
+          "content": "In a small town, a chicken named Cluck",
           "name": null,
           "role": "assistant",
           "tool_calls": null
@@ -40,63 +40,11 @@
         "usage": null
       }
     ],
-    "created": 1727773835,
+    "created": 1738753835,
     "id": "",
     "model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
     "object": "chat.completion",
-    "system_fingerprint": "2.4.2-dev0-native",
-    "usage": {
-      "completion_tokens": 10,
-      "prompt_tokens": 50,
-      "total_tokens": 60
-    }
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "length",
-        "index": 0,
-        "logprobs": null,
-        "message": {
-          "content": "In a world where even chickens could dream big,",
-          "name": null,
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "usage": null
-      }
-    ],
-    "created": 1727773835,
-    "id": "",
-    "model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
-    "object": "chat.completion",
-    "system_fingerprint": "2.4.2-dev0-native",
-    "usage": {
-      "completion_tokens": 10,
-      "prompt_tokens": 50,
-      "total_tokens": 60
-    }
-  },
-  {
-    "choices": [
-      {
-        "finish_reason": "length",
-        "index": 0,
-        "logprobs": null,
-        "message": {
-          "content": "In a world where even chickens could dream big,",
-          "name": null,
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "usage": null
-      }
-    ],
-    "created": 1727773835,
-    "id": "",
-    "model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
-    "object": "chat.completion",
-    "system_fingerprint": "2.4.2-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": {
       "completion_tokens": 10,
       "prompt_tokens": 50,

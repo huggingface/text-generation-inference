@@ -215,16 +215,9 @@ COPY server server
 COPY server/Makefile server/Makefile
 ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
+    make gen-server && \
     pip install -U pip uv && \
-	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --no-install-project && \
-    . ./.venv/bin/activate && \
-    make gen-server-raw
-
-RUN cd server && \
-	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines && \
-    . ./.venv/bin/activate && \
-    pwd && \
-    text-generation-server --help
+    uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
@@ -238,8 +231,5 @@ ENV ATTENTION=flashdecoding-ipex
 ENV PREFIX_CACHING=1
 ENV PREFILL_CHUNKING=1
 ENV CUDA_GRAPHS=0
-COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
-RUN chmod +x /tgi-entrypoint.sh
-
-ENTRYPOINT ["/tgi-entrypoint.sh"]
+ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]
