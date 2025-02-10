@@ -1345,6 +1345,18 @@ pub(crate) async fn chat_completions(
                                             model_id.clone(),
                                         );
                                         yield Ok::<Event, Infallible>(event);
+                                        if stream_token.details.is_some() && stream_options
+                                            .as_ref()
+                                            .map(|s| s.include_usage)
+                                            .unwrap_or(false) {
+                                            let usage_event = create_usage_event_from_stream_token(
+                                                stream_token,
+                                                stream_options.clone(),
+                                                system_fingerprint.clone(),
+                                                model_id.clone(),
+                                            );
+                                            yield Ok::<Event, Infallible>(usage_event);
+                                        }
                                     }
                                 }
                             }
