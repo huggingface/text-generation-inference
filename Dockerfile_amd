@@ -1,5 +1,5 @@
 # Rust builder
-FROM lukemathwalker/cargo-chef:latest-rust-1.80.1 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.84.0 AS chef
 WORKDIR /usr/src
 
 ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
@@ -104,7 +104,7 @@ RUN case ${TARGETPLATFORM} in \
     /opt/conda/bin/conda clean -ya
 
 # Install flash-attention, torch dependencies
-RUN python3 -m pip install --upgrade pip && pip install numpy einops ninja joblib msgpack cmake --no-cache-dir && rm -rf /var/lib/apt/lists/*
+RUN python3 -m pip install --upgrade pip uv && pip install numpy einops ninja joblib msgpack cmake --no-cache-dir && rm -rf /var/lib/apt/lists/*
 
 RUN conda install mkl=2021
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib/:/opt/conda/lib/python3.11/site-packages/torch/lib:/opt/conda/lib/
@@ -279,7 +279,7 @@ RUN git clone https://github.com/danieldk/marlin-kernels.git && \
 
 FROM kernel-builder AS moe-kernels
 WORKDIR /usr/src
-ENV MOE_KERNELS_BRANCH=a67b35841774b2056a73806c36661134b5054edd
+ENV MOE_KERNELS_BRANCH=v0.8.2
 ENV VLLM_TARGET_DEVICE=rocm
 RUN git clone https://github.com/danieldk/moe-kernels.git && \
     cd moe-kernels && \
@@ -318,10 +318,18 @@ COPY --from=moe-kernels /usr/src/moe-kernels/build/lib.linux-x86_64-cpython-311 
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
+ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
-    make gen-server && \
-    pip install -r requirements_rocm.txt && \
-    pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
+    pip install -U pip uv && \
+	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --no-install-project && \
+    . ./.venv/bin/activate && \
+    make gen-server-raw
+
+RUN cd server && \
+	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines && \
+    . ./.venv/bin/activate && \
+    pwd && \
+    text-generation-server --help
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark

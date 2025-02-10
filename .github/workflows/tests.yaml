@@ -31,7 +31,7 @@ jobs:
         with:
           # Released on: 02 May, 2024
           # https://releases.rs/docs/1.78.0/
-          toolchain: 1.80.0
+          toolchain: 1.84.0
           override: true
           components: rustfmt, clippy
       - name: Install Protoc
@@ -44,10 +44,14 @@ jobs:
         run: |
           sudo apt update
           sudo apt install python3.11-dev -y
+          pip install -U pip uv
+          uv venv
+          source ./.venv/bin/activate
           make install-cpu
       - name: Run server tests
         run: |
-          pip install pytest
+          source ./.venv/bin/activate
+          uv pip install pytest
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           pytest -s -vv server/tests
       - name: Pre-commit checks

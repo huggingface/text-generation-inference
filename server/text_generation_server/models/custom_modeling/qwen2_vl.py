@@ -222,12 +222,11 @@ class Qwen2VLVisionBlock(nn.Module):
     def forward(
         self, hidden_states, cu_seqlens, rotary_pos_emb, max_seqlen
     ) -> torch.Tensor:
-        hidden_states_post_norm1, res = self.norm1(hidden_states)
-        hidden_states = hidden_states + self.attn(
-            hidden_states_post_norm1, cu_seqlens, rotary_pos_emb, max_seqlen
-        )
-        hidden_states_post_norm2, res = self.norm2(hidden_states)
-        hidden_states = hidden_states + self.mlp(hidden_states_post_norm2)
+        norm1_out, residual = self.norm1(hidden_states)
+        attn_out = self.attn(norm1_out, cu_seqlens, rotary_pos_emb, max_seqlen)
+        hidden_states = attn_out + residual
+        norm2_out, residual = self.norm2(hidden_states)
+        hidden_states = hidden_states + self.mlp(norm2_out)
         return hidden_states
 
 
@@ -378,8 +377,12 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         self.config = config
         config.vision_config.quantize = None
         config.vision_config.speculator = config.speculator
+        # set rope_scaling.type == "mrope" since AutoConfig.from_pretrained incorrectly
+        # returns rope_scaling.type == "default" for Qwen2-VL model at the moment
+        config.rope_scaling.update({"rope_type": "mrope"})
         self.hidden_size = config.hidden_size
         self.vision_start_token_id = config.vision_start_token_id
+        self.vision_end_token_id = config.vision_end_token_id
         self.image_token_id = config.image_token_id
         self.video_token_id = config.video_token_id
         self.spatial_merge_size = config.vision_config.spatial_merge_size
@@ -407,99 +410,89 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         )
         self.device = weights.device
 
+    # based on https://github.com/huggingface/transformers/blob/e284c7e954abe12c34b50461c17f8115a0afe115/src/transformers/models/qwen2_vl/modeling_qwen2_vl.py#L1391
+    # modified to first find segments then initialize position ids for each segment
+    # Steps:
+    #  locate all vision and text segments
+    #  calculate `vision_segment_lengths` for each vision segment to be use as offset
+    #  calculate `text_segment_lengths` for each text segment to be used as offset
+    #  create position ids for each vision segment based on the image grid
+    #  create position ids for each text segment
+    #  combine all the position ids
+    #  the final segment is the difference between the last vision segment and the end of the input
+    #  combine all the position ids and reshape to (3, input_ids_len) then swap dimensions to (input_ids_len, 3)
     def get_position_ids(
         self,
-        batch_input_ids: torch.Tensor,
-        image_grid_thw: Optional[torch.LongTensor] = None,
-        # video_grid_thw is not implemented yet as we do not accept video inputs at the moment
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        if batch_input_ids.dim() == 1:
-            batch_input_ids = batch_input_ids.unsqueeze(0)
-
-        position_ids = torch.ones(
-            3,
-            batch_input_ids.shape[0],
-            batch_input_ids.shape[1],
-            dtype=batch_input_ids.dtype,
-            device=batch_input_ids.device,
-        )
-        d = batch_input_ids.device
-        if image_grid_thw is not None:
-            image_index = 0
-            llm_pos_ids_list = []
-
-            for i, input_ids in enumerate(batch_input_ids):
-                vision_start_indices = torch.argwhere(
-                    input_ids == self.vision_start_token_id
-                ).squeeze(1)
-                vision_tokens = input_ids[vision_start_indices + 1]
-                # only copy the sum of the image tokens GPU<->CPU
-                image_count = (vision_tokens == self.image_token_id).sum().item()
-
-                current_pos = 0
-                for _ in range(image_count):
-                    # copy the value position of the next image token from GPU<->CPU
-                    next_image_pos = (
-                        (input_ids[current_pos:] == self.image_token_id)
-                        .nonzero()[0]
-                        .item()
-                    )
-                    # TODO: revisit above to get all next_image_pos in one go to avoid copying in the loop
-                    time_steps, height, width = image_grid_thw[image_index].clone()
-                    height //= self.spatial_merge_size
-                    width //= self.spatial_merge_size
-
-                    # calculate the length of the text and image tokens
-                    text_length = next_image_pos
-                    start_idx = (
-                        llm_pos_ids_list[-1].max() + 1 if llm_pos_ids_list else 0
-                    )
-
-                    # text position ids
-                    text_pos_ids = torch.arange(text_length, device=d)
-                    text_pos_ids = text_pos_ids.view(1, -1).expand(3, -1) + start_idx
-                    llm_pos_ids_list.append(text_pos_ids)
-
-                    # image position ids
-                    t_indices = torch.arange(time_steps, device=d).repeat_interleave(
-                        height * width
-                    )
-                    h_indices = (
-                        torch.arange(height, device=d)
-                        .repeat_interleave(width)
-                        .repeat(time_steps)
-                    )
-                    w_indices = torch.arange(width, device=d).repeat(
-                        height * time_steps
-                    )
-
-                    image_pos_ids = (
-                        torch.stack([t_indices, h_indices, w_indices])
-                        + text_length
-                        + start_idx
-                    )
-                    llm_pos_ids_list.append(image_pos_ids)
-
-                    current_pos += next_image_pos + time_steps * height * width
-                    image_index += 1
-
-            if current_pos < batch_input_ids.size(1):
-                st_idx = (
-                    llm_pos_ids_list[-1].max() + 1 if len(llm_pos_ids_list) > 0 else 0
-                )
-                text_len = batch_input_ids.size(1) - current_pos
-                llm_pos_ids_list.append(
-                    torch.arange(text_len, device=d).view(1, -1).expand(3, -1) + st_idx
-                )
-
-            llm_positions = torch.cat(llm_pos_ids_list, dim=1).reshape(3, -1)
-            position_ids[:, i, :] = llm_positions.to(position_ids.device)
-        else:
-            position_ids = (
-                torch.arange(batch_input_ids.shape[1], device=batch_input_ids.device)
-                .view(1, 1, -1)
-                .repeat(3, batch_input_ids.shape[0], 1)
+        input_ids: torch.Tensor,
+        image_grid_thw: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        if image_grid_thw is None:
+            return (
+                torch.arange(input_ids.shape[0], device=input_ids.device)
+                .unsqueeze(1)
+                .repeat(1, 3)
             )
+
+        spatial_merge_size = self.spatial_merge_size
+        vision_start_token_id = self.vision_start_token_id
+        vision_end_token_id = self.vision_end_token_id
+        device = input_ids.device
+        dtype = input_ids.dtype
+        input_ids_len = input_ids.shape[0]
+
+        vision_starts = torch.where(input_ids == vision_start_token_id)[0]
+        vision_ends = torch.where(input_ids == vision_end_token_id)[0]
+        vision_segments = torch.stack((vision_starts, vision_ends), dim=1)
+        prev_vision_end = torch.cat(
+            [torch.zeros(1, device=vision_ends.device, dtype=dtype), vision_ends[:-1]]
+        )
+        text_lengths_between_vision = vision_segments[:, 0] - prev_vision_end + 1
+        vision_widths_max = torch.cat(
+            [
+                torch.zeros(1, device=image_grid_thw.device, dtype=dtype),
+                image_grid_thw[:-1, 2] // spatial_merge_size,
+            ]
+        )
+        vision_segment_lengths = vision_widths_max + text_lengths_between_vision
+        vision_segment_lengths = vision_segment_lengths.cumsum(dim=0)
+        text_segment_lengths = vision_segment_lengths - text_lengths_between_vision
+
+        # create position ids for each vision segment based on the image grid
+        llm_pos_ids_list = []
+        for i, _ in enumerate(vision_segments):
+            t, h, w = (
+                image_grid_thw[i][0],
+                image_grid_thw[i][1] // spatial_merge_size,
+                image_grid_thw[i][2] // spatial_merge_size,
+            )
+            t_indices = torch.arange(t, device=device).repeat_interleave(h * w)
+            h_indices = torch.arange(h, device=device).repeat_interleave(w).repeat(t)
+            w_indices = torch.arange(w, device=device).repeat(t * h)
+            image_position_ids = torch.stack([t_indices, h_indices, w_indices], dim=0)
+
+            # offset by the position of the last vision segment
+            im = image_position_ids + vision_segment_lengths[i]
+            llm_pos_ids_list.append(im)
+
+        # create position ids for each text segment
+        text_ranges = [
+            torch.arange(seq_len, device=device).view(1, -1).expand(3, -1)
+            + text_segment_lengths[i]
+            for i, seq_len in enumerate(text_lengths_between_vision)
+        ]
+
+        full_llm_pos_ids_list = [
+            item for sublist in zip(text_ranges, llm_pos_ids_list) for item in sublist
+        ]
+        max_s = full_llm_pos_ids_list[-1].max() + 1
+        final_text_len = input_ids_len - vision_ends[-1]
+        if final_text_len > 0:
+            m = torch.arange(final_text_len, device=device).view(1, -1).expand(3, -1)
+            full_llm_pos_ids_list.append(m + max_s)
+
+        position_ids = (
+            torch.cat(full_llm_pos_ids_list, dim=1).reshape(3, -1).transpose(0, 1)
+        )
         return position_ids
 
     def forward(
@@ -527,6 +520,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
 
         # apply the visual model to the pixel values if they are provided
         if pixel_values is not None and len(pixel_values) > 0:
+            pixel_values = pixel_values.to(inputs_embeds.dtype)
             if pixel_values is not None:
                 image_embeds = self.visual(
                     pixel_values, grid_thw=image_grid_thw
@@ -545,7 +539,6 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,
         )
-        hidden_states, _ = self.norm(hidden_states)
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits, speculative_logits = self.lm_head(hidden_states)

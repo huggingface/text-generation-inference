@@ -52,13 +52,18 @@ class KVCache:
         device: torch.device,
     ):
         """Construct the key-value cache for a layer."""
-
-        if dtype in {torch.float8_e5m2, torch.float8_e4m3fn} and (
-            ATTENTION != "flashinfer" or SYSTEM != "cuda"
-        ):
-            raise ValueError(
-                "FP8 KV cache is currently only supported for flashinfer on CUDA"
-            )
+        if dtype in {torch.float8_e5m2, torch.float8_e4m3fn}:
+            if not (
+                (ATTENTION == "flashinfer" and SYSTEM == "cuda")
+                or (ATTENTION == "paged" and SYSTEM in ("cuda", "rocm"))
+            ):
+                raise ValueError(
+                    "FP8 KV cache is currently only supported for flashinfer on CUDA and paged attention on CUDA and ROCm. "
+                )
+            if SYSTEM == "rocm" and dtype == torch.float8_e5m2:
+                raise ValueError(
+                    "float8_e5m2 FP8 KV cache is not supported on AMD ROCm"
+                )
 
         element_size = torch.tensor([], dtype=dtype).element_size()
         if SYSTEM == "ipex" and device.type == "xpu":
@@ -66,7 +71,9 @@ class KVCache:
         else:
             x = BLOCK_SIZE // element_size
 
-        if ATTENTION in {"flashdecoding", "flashinfer"}:
+        if ATTENTION in {"flashdecoding", "flashinfer"} or (
+            ATTENTION == "flashdecoding-ipex" and device.type == "xpu"
+        ):
             self.kv_cache = (
                 torch.empty(
                     (num_blocks, BLOCK_SIZE, num_heads, head_size),
@@ -80,6 +87,7 @@ class KVCache:
                 ),
             )
         elif SYSTEM == "ipex" and device == torch.device("cpu"):
+            # ipex cpu flashdecoding kernel and paged attention kernel share same layout
             self.kv_cache = (
                 torch.empty(
                     (num_blocks, num_heads, BLOCK_SIZE, head_size),
@@ -110,21 +118,17 @@ class KVCache:
         """Check if the cache can be scaled by the given scales."""
         if kv_scales.key_scale_cpu == 1.0 and kv_scales.value_scale_cpu == 1.0:
             return False
-        elif (
-            self.dtype == torch.float8_e4m3fn
-            and ATTENTION == "flashinfer"
-            and SYSTEM == "cuda"
+        elif self.dtype == torch.float8_e4m3fn and (
+            (ATTENTION == "flashinfer" and SYSTEM == "cuda")
+            or (ATTENTION == "paged" and SYSTEM == "rocm")
         ):
-            log_once(
-                logger.info,
-                "Using FP8 KV cache scales",
-            )
+            log_once(logger.info, "Using FP8 KV cache scales")
             return True
         else:
             # We have scales, but not the correct FP8 cache type, so warn once.
             log_once(
                 logger.info,
-                "Ignoring FP8 KV cache scales, only float8_e4m3fn KV cache on flashinfer is supported",
+                "Ignoring FP8 KV cache scales, supported only for float8_e4m3fn KV cache with flashinfer on CUDA and paged attention on ROCm",
             )
             return False
 
@@ -158,7 +162,7 @@ class KVCache:
         key_cache = self.kv_cache[0]
         value_cache = self.kv_cache[1]
 
-        if self.can_scale(kv_scales):
+        if self.can_scale(kv_scales) and SYSTEM == "cuda":
             if kv_scales.key_scale_cpu != 1.0:
                 key = fp8_quantize(
                     key.float(),
@@ -187,8 +191,22 @@ class KVCache:
             shape = key_cache.shape
             key_cache.view(-1, shape[-2], shape[-1])[slots] = key
             value_cache.view(-1, shape[-2], shape[-1])[slots] = value
+        elif ATTENTION == "flashdecoding-ipex" and key.device.type == "xpu":
+            import intel_extension_for_pytorch as ipex
+
+            ipex.llm.modules.PagedAttention.reshape_and_cache_flash(
+                key, value, key_cache, value_cache, slots
+            )
         else:
-            paged_reshape_and_cache(key, value, key_cache, value_cache, slots)
+            paged_reshape_and_cache(
+                key,
+                value,
+                key_cache,
+                value_cache,
+                slots,
+                kv_scales.key_scale_cpu,
+                kv_scales.value_scale_cpu,
+            )
 
 
 def paged_reshape_and_cache(
@@ -197,7 +215,10 @@ def paged_reshape_and_cache(
     key_cache: torch.Tensor,
     value_cache: torch.Tensor,
     slots: torch.Tensor,
+    k_scale: float = 1.0,
+    v_scale: float = 1.0,
 ):
+
     if SYSTEM == "cuda":
         try:
             import attention_kernels
@@ -205,8 +226,13 @@ def paged_reshape_and_cache(
             raise ImportError(
                 f"Could not import attention_kernels. Make sure your installation is correct. Complete error: {e}"
             )
+
+        kv_cache_dtype = "auto"
+        if key_cache.dtype == torch.float8_e4m3fn:
+            kv_cache_dtype = "fp8"
+
         attention_kernels.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0
+            key, value, key_cache, value_cache, slots, kv_cache_dtype, k_scale, v_scale
         )
     elif SYSTEM == "rocm":
         try:
@@ -215,8 +241,15 @@ def paged_reshape_and_cache(
             raise ImportError(
                 f"Could not import vllm paged attention. Make sure your installation is correct. Complete error: {e}"
             )
+
+        kv_cache_dtype = "auto"
+        if key_cache.dtype == torch.float8_e4m3fn:
+            key_cache = key_cache.view(torch.uint8)
+            value_cache = value_cache.view(torch.uint8)
+            kv_cache_dtype = "fp8"
+
         ops.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, "auto", 1.0, 1.0
+            key, value, key_cache, value_cache, slots, kv_cache_dtype, k_scale, v_scale
         )
     elif SYSTEM == "ipex":
         import intel_extension_for_pytorch as ipex

@@ -43,6 +43,7 @@ pub enum EventType {
     Start,
     Stop,
     Error,
+    Ping,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,7 +71,7 @@ impl UsageStatsEvent {
             .post(TELEMETRY_URL)
             .headers(headers)
             .body(body)
-            .timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(10))
             .send()
             .await;
     }
@@ -96,6 +97,7 @@ pub struct Args {
     disable_grammar_support: bool,
     max_client_batch_size: usize,
     usage_stats_level: UsageStatsLevel,
+    backend_name: &'static str,
 }
 
 impl Args {
@@ -119,6 +121,7 @@ impl Args {
         disable_grammar_support: bool,
         max_client_batch_size: usize,
         usage_stats_level: UsageStatsLevel,
+        backend_name: &'static str,
     ) -> Self {
         Self {
             model_config,
@@ -139,6 +142,7 @@ impl Args {
             disable_grammar_support,
             max_client_batch_size,
             usage_stats_level,
+            backend_name,
         }
     }
 }

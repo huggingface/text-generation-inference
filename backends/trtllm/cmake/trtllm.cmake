@@ -14,19 +14,21 @@ message(STATUS "Building for CUDA Architectures: ${CMAKE_CUDA_ARCHITECTURES}")
 set(ENABLE_UCX OFF)
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     set(FAST_BUILD ON)
-    set(NVTX_DISABLE OFF)
+    set(NVTX_DISABLE ON)
+    set(INDEX_RANGE_CHECK ON)
 else ()
     set(FAST_BUILD OFF)
     set(FAST_MATH ON)
-    set(NVTX_DISABLE ON)
+    set(NVTX_DISABLE OFF)
+    set(INDEX_RANGE_CHECK OFF)
 endif ()
 
 find_package(Python3 REQUIRED Interpreter)
 
 fetchcontent_declare(
         trtllm
-        GIT_REPOSITORY https://github.com/huggingface/TensorRT-LLM.git
-        GIT_TAG 1bb9ca4688805444f203647674bac1d7219d0579
+        GIT_REPOSITORY https://github.com/nvidia/TensorRT-LLM.git
+        GIT_TAG v0.17.0
         GIT_SHALLOW ON
         DOWNLOAD_EXTRACT_TIMESTAMP
 )

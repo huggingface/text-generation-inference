@@ -86,11 +86,18 @@ class PositionRotaryEmbedding(nn.Module):
             # `rope_type` is now standard in transformers, but some existing models
             # have `type` instead.
             rope_type = rope_scaling.get("rope_type", rope_scaling.get("type", None))
+            mrope_section = rope_scaling.get("mrope_section", None)
 
             if rope_type == "linear":
                 pass
             elif rope_type == "default":
                 pass
+            elif rope_type == "mrope":
+                mrope_section = rope_scaling["mrope_section"]
+                if mrope_section is not None:
+                    return RotaryPositionEmbeddingMultimodalSections(
+                        inv_freq, scaling_factor, mrope_section
+                    )
             elif rope_type == "dynamic":
                 scaling_factor = rope_scaling["factor"]
                 return DynamicPositionRotaryEmbedding(
@@ -548,3 +555,66 @@ def apply_llama3_scaling(
             new_freqs.append((1 - smooth) * freq / scaling_factor + smooth * freq)
 
     return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)
+
+
+class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
+    def __init__(self, inv_freq: torch.Tensor, scaling_factor: float, sections: list):
+        super().__init__(inv_freq, scaling_factor)
+        self.sections = sections
+        self._cos_cached = None
+        self._sin_cached = None
+        self.section_indices = (
+            torch.arange(len(self.sections))
+            .repeat_interleave(torch.tensor(self.sections))
+            .view(1, 1, -1)
+            .to(inv_freq.device)
+        )
+
+    def forward(
+        self,
+        query: torch.Tensor,
+        key: torch.Tensor,
+        cos: torch.Tensor,
+        sin: torch.Tensor,
+    ):
+        # rotate half the sequence length
+        rot = cos.shape[-1] // 2
+        q2 = torch.cat([-query[..., rot:], query[..., :rot]], dim=-1)
+        k2 = torch.cat([-key[..., rot:], key[..., :rot]], dim=-1)
+
+        # apply the rotation
+        rotary_emb.apply_rotary(query, q2, cos, sin, query, q2, True)
+        rotary_emb.apply_rotary(key, k2, cos, sin, key, k2, True)
+
+    def _update_cos_sin_cache(
+        self, dtype: torch.dtype, device: torch.device, seqlen: int
+    ):
+        # always cache the cos/sin for the full sequence length to avoid
+        # recomputing if the sequence length is smaller than the cached one
+        if (
+            seqlen > self._seq_len_cached
+            or self._cos_cached.device != device
+            or self._cos_cached.dtype != dtype
+        ):
+            self._seq_len_cached = seqlen
+            t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
+            freqs = torch.outer(t, self.inv_freq.to(device=t.device))
+            self._cos_cached = torch.cos(freqs).to(dtype)
+            self._sin_cached = torch.sin(freqs).to(dtype)
+            self._sections = self.section_indices.expand(seqlen, -1, -1)
+
+    def get_cos_sin(
+        self,
+        position_ids: torch.Tensor,
+        max_s: int,
+        dtype: torch.dtype,
+    ):
+        self._update_cos_sin_cache(dtype, position_ids.device, max_s)
+        slen = position_ids.shape[0]
+
+        cos = self._cos_cached[position_ids].gather(1, self._sections[:slen])
+        sin = self._sin_cached[position_ids].gather(1, self._sections[:slen])
+
+        cos = torch.cat([cos, cos], dim=-1)
+        sin = torch.cat([sin, sin], dim=-1)
+        return cos, sin

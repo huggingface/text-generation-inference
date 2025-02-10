@@ -40,6 +40,8 @@ pub trait Backend {
     fn start_health(&self) -> bool {
         false
     }
+
+    fn name(&self) -> &'static str;
 }
 
 /// Inference struct

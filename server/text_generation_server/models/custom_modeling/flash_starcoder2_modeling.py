@@ -32,6 +32,8 @@ from text_generation_server.layers.attention import (
     Seqlen,
 )
 from text_generation_server.layers import (
+    TensorParallelMultiAdapterLinear,
+    TensorParallelAdapterRowLinear,
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     TensorParallelEmbedding,
@@ -109,17 +111,31 @@ class Starcoder2Config(PretrainedConfig):
         )
 
 
-def load_attention(config, prefix, weights):
+def load_attention(config, prefix, weights, layer_id):
+    prefixes = [f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"]
+    head_size = config.hidden_size // config.num_attention_heads
+    sizes = [
+        head_size * config.num_attention_heads,
+        head_size * config.num_key_value_heads,
+        head_size * config.num_key_value_heads,
+    ]
     if config.num_attention_heads != config.num_key_value_heads:
-        return _load_gqa(config, prefix, weights)
+        base_layer = _load_gqa(config, prefix, weights)
     else:
-        return TensorParallelColumnLinear.load_multi(
+        base_layer = TensorParallelColumnLinear.load_multi(
             config,
-            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+            prefixes=prefixes,
             dim=0,
             weights=weights,
             bias=config.use_bias,
         )
+    return TensorParallelMultiAdapterLinear.load(
+        base_layer=base_layer,
+        layer_id=layer_id,
+        layer_names=prefixes,
+        sizes=sizes,
+        process_group=weights.process_group,
+    )
 
 
 def _load_gqa(config, prefix: str, weights):
@@ -157,6 +173,7 @@ def _load_gqa(config, prefix: str, weights):
 class Starcoder2Attention(torch.nn.Module):
     def __init__(
         self,
+        index: int,
         prefix: str,
         config,
         weights,
@@ -188,15 +205,23 @@ class Starcoder2Attention(torch.nn.Module):
             config.num_key_value_heads // weights.process_group.size()
         )
 
-        self.query_key_value = load_attention(config, prefix, weights)
+        self.query_key_value = load_attention(config, prefix, weights, index)
         self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
-        self.o_proj = TensorParallelRowLinear.load(
+        o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
             weights=weights,
-            bias=config.use_bias,
+            bias=getattr(config, "use_bias", False),
         )
+
+        self.o_proj = TensorParallelAdapterRowLinear.load(
+            o_proj,
+            index,
+            "o_proj",
+            process_group=weights.process_group,
+        )
+
         self.num_groups = self.num_heads // self.num_key_value_heads
         self.kv_head_mapping = torch.arange(
             0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
@@ -214,8 +239,9 @@ class Starcoder2Attention(torch.nn.Module):
         seqlen,
         max_s,
         prefill_cache_indices,
+        adapter_data,
     ):
-        qkv = self.query_key_value(hidden_states)
+        qkv = self.query_key_value(hidden_states, adapter_data)
         query, kv = qkv.split(
             [
                 self.head_size * self.num_heads,
@@ -267,11 +293,13 @@ class Starcoder2Attention(torch.nn.Module):
                 kv_scales=self.kv_scales,
             )
 
-        return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
+        return self.o_proj(
+            attn_output.view(-1, self.num_heads * self.head_size), adapter_data
+        )
 
 
 class Starcoder2MLP(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, prefix, config, weights, index):
         super().__init__()
         act = config.hidden_act
         self.act = (
@@ -285,27 +313,42 @@ class Starcoder2MLP(nn.Module):
             )
         )
         # Fuse gate and up proj
-        self.c_fc = TensorParallelColumnLinear.load(
+        c_fc = TensorParallelColumnLinear.load(
             config,
             prefix=f"{prefix}.c_fc",
             weights=weights,
             bias=config.use_bias,
         )
-        self.c_proj = TensorParallelRowLinear.load(
+        c_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.c_proj",
             weights=weights,
             bias=config.use_bias,
         )
 
-    def forward(self, hidden_states):
-        hidden_states = self.c_fc(hidden_states)
+        self.c_fc = TensorParallelMultiAdapterLinear.load(
+            c_fc,
+            layer_id=index,
+            layer_names=[f"{prefix}.c_fc"],
+            sizes=[config.intermediate_size, config.intermediate_size],
+            process_group=weights.process_group,
+        )
+
+        self.c_proj = TensorParallelAdapterRowLinear.load(
+            c_proj,
+            index,
+            "c_proj",
+            process_group=weights.process_group,
+        )
+
+    def forward(self, hidden_states, adapter_data):
+        hidden_states = self.c_fc(hidden_states, adapter_data)
         hidden_states = self.act(hidden_states)
-        return self.c_proj(hidden_states)
+        return self.c_proj(hidden_states, adapter_data)
 
 
 class Starcoder2GatedMLP(nn.Module):
-    def __init__(self, prefix, config, weights):
+    def __init__(self, index, prefix, config, weights):
         super().__init__()
         act = config.hidden_act
         self.act = (
@@ -319,27 +362,47 @@ class Starcoder2GatedMLP(nn.Module):
             )
         )
         # Fuse gate and up proj
-        self.gate_up_proj = TensorParallelColumnLinear.load_multi(
+        prefixes = [f"{prefix}.gate_proj", f"{prefix}.up_proj"]
+        sizes = [
+            config.intermediate_size,
+            config.intermediate_size,
+        ]
+        gate_up_proj = TensorParallelColumnLinear.load_multi(
             config,
-            prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
+            prefixes=prefixes,
             weights=weights,
             dim=0,
             bias=config.use_bias,
         )
-        self.down_proj = TensorParallelRowLinear.load(
+        self.gate_up_proj = TensorParallelMultiAdapterLinear.load(
+            gate_up_proj,
+            index,
+            layer_names=prefixes,
+            sizes=sizes,
+            process_group=weights.process_group,
+        )
+        down_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.down_proj",
             weights=weights,
             bias=config.use_bias,
         )
+        self.down_proj = TensorParallelAdapterRowLinear.load(
+            down_proj,
+            index,
+            "down_proj",
+            process_group=weights.process_group,
+        )
         self.intermediate_size = (
             config.intermediate_size // weights.process_group.size()
         )
 
-    def forward(self, hidden_states):
-        gate_up_states = self.gate_up_proj(hidden_states)
+    def forward(self, hidden_states, adapter_data):
+        gate_up_states = self.gate_up_proj(hidden_states, adapter_data)
         gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-        return self.down_proj(self.act(gate_up_states[:, 0]) * gate_up_states[:, 1])
+        return self.down_proj(
+            self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], adapter_data
+        )
 
 
 STARCODER2_NORMALIZATION_CLASSES = {
@@ -358,11 +421,11 @@ class Starcoder2Layer(nn.Module):
         super().__init__()
         prefix = f"model.layers.{layer_id}"
         self.self_attn = Starcoder2Attention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights
+            prefix=f"{prefix}.self_attn", config=config, weights=weights, index=layer_id
         )
 
         self.mlp = STARCODER2_MLP_CLASSES[config.mlp_type](
-            prefix=f"{prefix}.mlp", config=config, weights=weights
+            prefix=f"{prefix}.mlp", config=config, weights=weights, index=layer_id
         )
 
         self.input_layernorm = STARCODER2_NORMALIZATION_CLASSES[config.norm_type].load(
@@ -389,6 +452,7 @@ class Starcoder2Layer(nn.Module):
         seqlen,
         max_s,
         prefill_cache_indices,
+        adapter_data,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -404,6 +468,7 @@ class Starcoder2Layer(nn.Module):
             seqlen,
             max_s,
             prefill_cache_indices,
+            adapter_data,
         )
 
         # faster post attention rms norm
@@ -411,7 +476,7 @@ class Starcoder2Layer(nn.Module):
             attn_output, res
         )
 
-        mlp_output = self.mlp(normed_attn_res_output)
+        mlp_output = self.mlp(normed_attn_res_output, adapter_data)
 
         return mlp_output, attn_res
 
@@ -458,6 +523,7 @@ class Starcoder2Model(torch.nn.Module):
         max_s: int,
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        adapter_data,
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
@@ -481,6 +547,7 @@ class Starcoder2Model(torch.nn.Module):
                 seqlen,
                 max_s,
                 prefill_cache_indices,
+                adapter_data,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -552,6 +619,7 @@ class FlashStarcoder2ForCausalLM(torch.nn.Module):
             max_s,
             true_max_s,
             prefill_cache_indices,
+            adapter_data,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

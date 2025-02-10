@@ -1401,6 +1401,13 @@ class FlashCausalLM(Model):
         if max_bs is None:
             input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
             position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
+            config = getattr(self.model, "config", None)
+            rope_scaling = getattr(config, "rope_scaling", None) if config else None
+            if (  # mrope have position_ids per section, if so repeat n times
+                isinstance(rope_scaling, dict) and rope_scaling["rope_type"] == "mrope"
+            ):
+                n_sections = len(self.model.config.rope_scaling["mrope_section"])
+                position_ids = position_ids.unsqueeze(1).repeat(1, n_sections)
             slots = torch.arange(bs, dtype=torch.int64, device=self.device)
             input_lengths_tensor = (
                 torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
@@ -1455,14 +1462,6 @@ class FlashCausalLM(Model):
             )
         else:
             state = None
-
-        if (
-            hasattr(self.model, "config")
-            and hasattr(self.model.config, "model_type")
-            and self.model.config.model_type == "qwen2_vl"
-        ):
-            if position_ids.dim() == 1:
-                position_ids = self.model.get_position_ids(input_ids)
 
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs] = {
@@ -1571,7 +1570,7 @@ class FlashCausalLM(Model):
             real_free_memory = get_free_memory(self.device, MEMORY_FRACTION)
             log_master(
                 logger.debug,
-                f"Free memory {free_memory/1e9:.2f}GB , (real: {real_free_memory/1e9:.2f}GB",
+                f"Free memory {free_memory / 1e9:.2f}GB , (real: {real_free_memory / 1e9:.2f}GB",
             )
 
             _, _batch, _ = self.generate_token(batch)
@@ -1595,7 +1594,9 @@ class FlashCausalLM(Model):
         if max_total_tokens is None:
             if get_support_chunking():
                 model_max_length = self.tokenizer.model_max_length
-                max_position_embeddings = self.config.max_position_embeddings
+                max_position_embeddings = getattr(
+                    self.config, "max_position_embeddings", model_max_length
+                )
                 max_total_tokens = min(
                     num_blocks * BLOCK_SIZE, model_max_length, max_position_embeddings
                 )
@@ -2048,7 +2049,7 @@ class FlashCausalLM(Model):
         # instantly become of shape [BATCH_SIZE]
         if prefill and finished_prefilling:
             indices = batch.cu_seqlen_prefill[1:] - 1
-            batch.position_ids = batch.position_ids[(..., indices)]
+            batch.position_ids = batch.position_ids[indices]
             batch.slot_indices = batch.slot_indices[indices]
             batch.adapter_meta.adapter_indices = batch.adapter_meta.adapter_indices[
                 indices

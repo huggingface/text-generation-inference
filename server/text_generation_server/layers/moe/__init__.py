@@ -16,6 +16,7 @@ from text_generation_server.layers.moe.gptq_marlin import (
     can_use_marlin_moe_gemm,
 )
 from text_generation_server.layers.moe.unquantized import UnquantizedSparseMoELayer
+from text_generation_server.layers.moe.fp8 import FP8SparseMoELayer
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import (
@@ -25,7 +26,7 @@ from text_generation_server.utils.weights import (
 )
 
 if SYSTEM == "ipex":
-    from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
+    from .fused_moe_ipex import fused_topk, grouped_topk
 else:
     from moe_kernels.fused_moe import fused_topk, grouped_topk
 
@@ -51,6 +52,8 @@ class MoELayer(Protocol):
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
         hidden_act: str = "silu",
+        scoring_func: Optional[str] = None,
+        e_score_correction_bias: Optional[float] = None,
     ): ...
 
     def forward(
@@ -80,8 +83,13 @@ class DenseMoELayer(nn.Module):
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
         hidden_act: str = "silu",
+        scoring_func: Optional[str] = None,
+        e_score_correction_bias: Optional[float] = None,
     ):
         super().__init__()
+
+        assert scoring_func is None, "scoring func is not handled"
+        assert e_score_correction_bias is None, "scoring correction bias is not handled"
 
         log_once(
             logger.info,
@@ -139,10 +147,6 @@ class DenseMoELayer(nn.Module):
             )
             for i in range(self.n_experts)
         ]
-        if SYSTEM == "ipex":
-            self.ipex_fused_moe = GatedMLPMOE(
-                W13=self.gate_proj, W2=self.down_proj, W3=self.up_proj, use_prepack=True
-            )
 
         self.process_group = weights.process_group
 
@@ -154,17 +158,6 @@ class DenseMoELayer(nn.Module):
         # optional reshape
         input_shape = x.shape
         x = x.view(-1, input_shape[-1])
-
-        if SYSTEM == "ipex":
-            return self.ipex_fused_moe(
-                hidden_states=x,
-                router_logits=gating_output,
-                top_k=self.topk,
-                renormalize=self.renormalize,
-                use_grouped_topk=self.n_expert_group is not None,
-                num_expert_group=self.n_expert_group,
-                topk_group=self.topk_group,
-            )
 
         if self.n_expert_group is not None and self.topk_group is not None:
             topk_weights, topk_ids = grouped_topk(
@@ -213,17 +206,24 @@ class SparseMoELayer(nn.Module):
         topk: int,
         topk_group: Optional[int],
         weights: Weights,
+        scoring_func: Optional[str] = "softmax",
+        e_score_correction_bias: Optional[float] = None,
         gate_proj_name: str = "gate_proj",
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
     ):
         super().__init__()
-
         if (
             isinstance(weights.loader, DefaultWeightsLoader)
             and isinstance(weights.loader.weight_class, UnquantizedWeight)
         ) or isinstance(weights.loader, HybridFP8UnquantLoader):
-            cls = UnquantizedSparseMoELayer
+            if (
+                isinstance(weights.loader, HybridFP8UnquantLoader)
+                and weights.loader.to_fp8
+            ):
+                cls = FP8SparseMoELayer
+            else:
+                cls = UnquantizedSparseMoELayer
         elif isinstance(
             weights.loader, GPTQMarlinWeightsLoader
         ) and can_use_marlin_moe_gemm(
@@ -250,6 +250,8 @@ class SparseMoELayer(nn.Module):
             topk=topk,
             topk_group=topk_group,
             weights=weights,
+            scoring_func=scoring_func,
+            e_score_correction_bias=e_score_correction_bias,
             gate_proj_name=gate_proj_name,
             up_proj_name=up_proj_name,
             down_proj_name=down_proj_name,

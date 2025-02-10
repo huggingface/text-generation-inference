@@ -1,26 +1,26 @@
 [workspace]
 members = [
-  "benchmark",
-  "backends/v2",
-  "backends/v3",
-  "backends/grpc-metadata",
-  "backends/trtllm",
-  "launcher",
-  "router"
+    "benchmark",
+    "backends/v2",
+    "backends/v3",
+    "backends/grpc-metadata",
+    "backends/trtllm",
+    "launcher",
+    "router"
 ]
 default-members = [
-  "benchmark",
-  "backends/v2",
-  "backends/v3",
-  "backends/grpc-metadata",
-  # "backends/trtllm",
-  "launcher",
-  "router"
+    "benchmark",
+    "backends/v2",
+    "backends/v3",
+    "backends/grpc-metadata",
+    # "backends/trtllm",
+    "launcher",
+    "router"
 ]
 resolver = "2"
 
 [workspace.package]
-version = "3.0.2-dev0"
+version = "3.1.1-dev0"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 homepage = "https://github.com/huggingface/text-generation-inference"

@@ -115,6 +115,10 @@ impl Backend for BackendV3 {
     fn start_health(&self) -> bool {
         true
     }
+
+    fn name(&self) -> &'static str {
+        "tgi-v3"
+    }
 }
 
 /// Batching logic

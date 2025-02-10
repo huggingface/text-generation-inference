@@ -213,8 +213,7 @@ impl State {
         }
 
         // Pad prefill_token_budget to be a multiple of block size
-        let prefill_token_budget =
-            ((prefill_token_budget + self.block_size - 1) / self.block_size) * self.block_size;
+        let prefill_token_budget = prefill_token_budget.div_ceil(self.block_size) * self.block_size;
 
         // Create span for this batch to add context to inference calls
         let next_batch_span = info_span!(parent: None, "batch", batch_size = tracing::field::Empty);
@@ -245,9 +244,8 @@ impl State {
                 prefill_tokens = (batch_requests.len() + 1) as u32 * max_input_length
             } else {
                 // pad to block size
-                prefill_tokens += ((entry.request.input_length + self.block_size - 1)
-                    / self.block_size)
-                    * self.block_size;
+                prefill_tokens +=
+                    entry.request.input_length.div_ceil(self.block_size) * self.block_size;
             }
 
             if self.requires_padding {
@@ -262,8 +260,7 @@ impl State {
                 };
 
                 // pad to block size
-                decode_tokens +=
-                    ((max_new_tokens + self.block_size - 1) / self.block_size) * self.block_size;
+                decode_tokens += max_new_tokens.div_ceil(self.block_size) * self.block_size;
             }
 
             if prefill_tokens > prefill_token_budget

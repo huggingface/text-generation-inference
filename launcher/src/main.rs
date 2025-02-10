@@ -5,7 +5,6 @@ use hf_hub::{
 };
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
-use regex::Regex;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
@@ -144,7 +143,9 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             }
         }
 
-        let fallback_attention = if matches!(compute_capability, Some((major, _)) if major < 8) {
+        let fallback_attention = if compute_capability.is_none()
+            || matches!(compute_capability, Some((major, _)) if major < 8)
+        {
             "paged"
         } else {
             "flashdecoding"
@@ -1631,8 +1632,10 @@ enum Gpu {
     L40,
     L40S,
     A10G,
+    A40,
     H100,
     A100,
+    H200,
     Unknown(String),
 }
 
@@ -1651,6 +1654,7 @@ impl From<&str> for Gpu {
             "nvidia-l40" => Gpu::L40,
             "nvidia-l40s" => Gpu::L40S,
             "nvidia-a10g" => Gpu::A10G,
+            "nvidia-a40" => Gpu::A40,
             "nvidia-h100-80gb-hbm3" => Gpu::H100,
             "nvidia-h100-nvl" => Gpu::H100,
             "nvidia-h100" => Gpu::H100,
@@ -1658,6 +1662,7 @@ impl From<&str> for Gpu {
             "nvidia-a100-sxm4-40gb" => Gpu::A100,
             "nvidia-a100-80gb-pcie" => Gpu::A100,
             "nvidia-a100" => Gpu::A100,
+            "nvidia-h200" => Gpu::H200,
             card => Gpu::Unknown(card.to_string()),
         }
     }
@@ -1672,8 +1677,10 @@ impl std::fmt::Display for Gpu {
             Gpu::L40 => write!(f, "nvida-l40"),
             Gpu::L40S => write!(f, "nvida-l40s"),
             Gpu::A10G => write!(f, "nvidia-a10g"),
+            Gpu::A40 => write!(f, "nvidia-a40"),
             Gpu::H100 => write!(f, "nvidia-h100-80fb-hbm3"),
             Gpu::A100 => write!(f, "nvida-a100-sxm4-80gb"),
+            Gpu::H200 => write!(f, "nvida-h200"),
             Gpu::Unknown(card) => write!(f, "{}", card),
         }
     }
@@ -1695,11 +1702,16 @@ impl ComputeType {
             Gpu::L40S => Some(363 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/products/a10-gpu/
             Gpu::A10G => Some(125 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/a40/
+            // https://images.nvidia.com/content/Solutions/data-center/a40/nvidia-a40-datasheet.pdf
+            Gpu::A40 => Some(149 * 10u64.pow(12)),
+            // https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf
+            Gpu::A100 => Some(312 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/h100/
             // https://www.techpowerup.com/gpu-specs/docs/nvidia-gh100-architecture.pdf
             Gpu::H100 => Some(900 * 10u64.pow(12)),
-            // https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf
-            Gpu::A100 => Some(312 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/h200/
+            Gpu::H200 => Some(989 * 10u64.pow(12)),
             Gpu::Unknown(card) => {
                 tracing::warn!("Unkown compute for card {card}");
                 None
@@ -2037,7 +2049,16 @@ fn main() -> Result<(), LauncherError> {
             None => {
                 let compute_type = compute_type(num_shard);
                 let compute_optimal = compute_optimal(config.as_ref(), compute_type.as_ref());
-                let default = compute_optimal.unwrap_or(4096);
+                // TODO: remove this when we correctly esimate the flops for VLMs
+                // this is a short term temporary fix to enable vlms to avoid rejecting images
+                let default_optimal = match config {
+                    Some(ref config) => match config.model_type.as_deref() {
+                        Some("qwen2_vl") => 10_000,
+                        _ => 4096,
+                    },
+                    None => 4096,
+                };
+                let default = compute_optimal.unwrap_or(default_optimal);
                 let vram_maximum = vram_maximum(
                     config.as_ref(),
                     compute_type.as_ref(),
@@ -2079,14 +2100,7 @@ fn main() -> Result<(), LauncherError> {
     let cuda_graphs = match (&args.cuda_graphs, &quantize) {
         (Some(cuda_graphs), _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
         #[allow(deprecated)]
-        (
-            None,
-            Some(
-                Quantization::Bitsandbytes
-                | Quantization::BitsandbytesNf4
-                | Quantization::BitsandbytesFp4,
-            ),
-        ) => {
+        (None, Some(Quantization::Bitsandbytes)) => {
             tracing::warn!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
             vec![]
         }
@@ -2176,26 +2190,21 @@ fn main() -> Result<(), LauncherError> {
             }
 
             // capture adapter_id, path, revision in format of adapter_id=path@revision
-            let re = Regex::new(r"^([^=@]+)(?:=([^@]+))?(?:@(.+))?$").unwrap();
-            if let Some(caps) = re.captures(adapter) {
-                let adapter_id = caps.get(1).map_or("", |m| m.as_str());
-                let revision = caps.get(3).map(|m| m.as_str());
-
-                download_convert_model(
-                    adapter_id,
-                    revision,
-                    args.trust_remote_code,
-                    args.huggingface_hub_cache.as_deref(),
-                    args.weights_cache_override.as_deref(),
-                    running.clone(),
-                    false, // avoid merging lora adapters if using multi-lora
-                )?;
-            } else {
-                return Err(LauncherError::ArgumentValidation(format!(
-                    "Invalid LoRA adapter format: {}",
-                    adapter
-                )));
-            }
+            // path is disabled beforehand.
+            let mut splits = adapter.split("@");
+            let adapter_id = splits.next().ok_or_else(|| {
+                LauncherError::ArgumentValidation("Missing adapter id".to_string())
+            })?;
+            let revision = splits.next();
+            download_convert_model(
+                adapter_id,
+                revision,
+                args.trust_remote_code,
+                args.huggingface_hub_cache.as_deref(),
+                args.weights_cache_override.as_deref(),
+                running.clone(),
+                false, // avoid merging lora adapters if using multi-lora
+            )?;
         }
     }
 
