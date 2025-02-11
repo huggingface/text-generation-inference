@@ -1382,6 +1382,19 @@ pub(crate) async fn chat_completions(
                 Err(err) => yield Ok(err.into_openai_event())
                 }
             }
+            // send the second to last stream token but remove the trailing '}' if it exists
+            let mut closing_stream_token = buffer.remove(0);
+            closing_stream_token.token.text = closing_stream_token.token.text.strip_suffix("}").unwrap_or(&closing_stream_token.token.text).to_string();
+            let event = create_event_from_stream_token(
+                &closing_stream_token,
+                logprobs,
+                stream_options.clone(),
+                response_as_tool,
+                system_fingerprint.clone(),
+                model_id.clone(),
+                Some(global_function_name.clone()),
+            );
+            yield Ok::<Event, Infallible>(event);
             yield Ok::<Event, Infallible>(Event::default().data("[DONE]"));
         };
 
