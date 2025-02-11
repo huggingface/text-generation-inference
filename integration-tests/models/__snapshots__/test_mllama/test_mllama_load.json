@@ -6,7 +6,7 @@
         "index": 0,
         "logprobs": null,
         "message": {
-          "content": "In a small town, a chicken named Cluck",
+          "content": "In a small village, a chicken named Cluck",
           "name": null,
           "role": "assistant",
           "tool_calls": null
@@ -32,7 +32,7 @@
         "index": 0,
         "logprobs": null,
         "message": {
-          "content": "In a small town, a chicken named Cluck",
+          "content": "In a small village, a chicken named Cluck",
           "name": null,
           "role": "assistant",
           "tool_calls": null
