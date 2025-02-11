@@ -1,14 +1,19 @@
 # Initialize base variables
+SHELL := /bin/bash
 pkg_name := text_generation_server
 BUILDDIR ?= $(CURDIR)/build
 VERSION ?= 0.0.1
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 mkfile_dir := $(dir $(mkfile_path))
 pkg_dir := $(BUILDDIR)/$(pkg_name)
-pkg_dist := ${BUILDDIR}/dist/${pkg_name}-${VERSION}.tar.gz
+py_version := $(subst -,.,${VERSION})
+pkg_dist := ${BUILDDIR}/dist/${pkg_name}-$(py_version).tar.gz
 
 clean:
 	rm -rf $(BUILDDIR)/*
+
+${BUILDDIR}:
+	install -d $@
 
 # List static sources to be deployed in the package
 src_dir := $(mkfile_dir)/$(pkg_name)
@@ -21,7 +26,15 @@ define COPY
 	cp -f $< $@
 endef
 
-$(BUILDDIR)/pyproject.toml: $(mkfile_dir)/pyproject.toml
+# We use a PHONY target to represent the VERSION
+.PHONY: VERSION
+
+VERSION: ${BUILDDIR}
+	# The trick is to compare the value of the variable with the content of a file in the build directory
+	@if [[ `cat ${BUILDDIR}/VERSION 2>&1` != '$(VERSION)' ]]; then echo -n $(VERSION) >${BUILDDIR}/VERSION; fi
+
+# Depending on the PHONY VERSION target makes sure the pyproject.toml is regenerated if the version changes
+$(BUILDDIR)/pyproject.toml: $(mkfile_dir)/pyproject.toml VERSION
 	mkdir -p $(BUILDDIR)
 	$(COPY)
 	sed -i -e 's/version = "VERSION"/version = \"${VERSION}\"/' $@
@@ -55,3 +68,7 @@ ${pkg_dist}: $(BUILDDIR)/pyproject.toml $(deployed_sources) $(generated_sources)
 	python -m build $(BUILDDIR)
 
 package: ${pkg_dist}
+
+install: ${pkg_dist}
+	python3 -m pip uninstall -y ${pkg_name}
+	python3 -m pip install ${pkg_dist}
