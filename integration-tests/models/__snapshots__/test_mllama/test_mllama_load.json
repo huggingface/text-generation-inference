@@ -6,7 +6,7 @@
         "index": 0,
         "logprobs": null,
         "message": {
-          "content": "A chicken sits on a pile of money, looking",
+          "content": "In a small town, a chicken named Cluck",
           "name": null,
           "role": "assistant",
           "tool_calls": null
@@ -14,15 +14,15 @@
         "usage": null
       }
     ],
-    "created": 1739290197,
+    "created": 1738753835,
     "id": "",
     "model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
     "object": "chat.completion",
     "system_fingerprint": "3.1.1-dev0-native",
     "usage": {
       "completion_tokens": 10,
-      "prompt_tokens": 45,
-      "total_tokens": 55
+      "prompt_tokens": 50,
+      "total_tokens": 60
     }
   },
   {
@@ -32,7 +32,7 @@
         "index": 0,
         "logprobs": null,
         "message": {
-          "content": "A chicken sits on a pile of money, looking",
+          "content": "In a small town, a chicken named Cluck",
           "name": null,
           "role": "assistant",
           "tool_calls": null
@@ -40,15 +40,15 @@
         "usage": null
       }
     ],
-    "created": 1739290197,
+    "created": 1738753835,
     "id": "",
     "model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
     "object": "chat.completion",
     "system_fingerprint": "3.1.1-dev0-native",
     "usage": {
       "completion_tokens": 10,
-      "prompt_tokens": 45,
-      "total_tokens": 55
+      "prompt_tokens": 50,
+      "total_tokens": 60
     }
   }
 ]

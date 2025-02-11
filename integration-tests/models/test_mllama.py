@@ -28,7 +28,7 @@ async def test_mllama_simpl(mllama, response_snapshot):
                 "content": [
                     {
                         "type": "text",
-                        "text": "Describe the image in 10 words.",
+                        "text": "Can you tell me a very short story based on the image?",
                     },
                     {
                         "type": "image_url",
@@ -43,12 +43,11 @@ async def test_mllama_simpl(mllama, response_snapshot):
 
     assert response.usage == {
         "completion_tokens": 10,
-        "prompt_tokens": 45,
-        "total_tokens": 55,
+        "prompt_tokens": 50,
+        "total_tokens": 60,
     }
     assert (
-        response.choices[0].message.content
-        == "A chicken sits on a pile of money, looking"
+        response.choices[0].message.content == "In a small town, a chicken named Cluck"
     )
     assert response == response_snapshot
 
@@ -66,7 +65,7 @@ async def test_mllama_load(mllama, generate_load, response_snapshot):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Describe the image in 10 words.",
+                            "text": "Can you tell me a very short story based on the image?",
                         },
                         {
                             "type": "image_url",
@@ -87,7 +86,7 @@ async def test_mllama_load(mllama, generate_load, response_snapshot):
     generated_texts = [response.choices[0].message.content for response in responses]
 
     # XXX: TODO: Fix this test.
-    assert generated_texts[0] == "A chicken sits on a pile of money, looking"
+    assert generated_texts[0] == "In a small town, a chicken named Cluck"
     assert len(generated_texts) == 2
     assert generated_texts, all(
         [text == generated_texts[0] for text in generated_texts]
