@@ -28,7 +28,7 @@ async def test_mllama_simpl(mllama, response_snapshot):
                 "content": [
                     {
                         "type": "text",
-                        "text": "Can you tell me a very short story based on the image?",
+                        "text": "Can you tell me a funny very short story based on the image?",
                     },
                     {
                         "type": "image_url",
@@ -66,7 +66,7 @@ async def test_mllama_load(mllama, generate_load, response_snapshot):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Can you tell me a very short story based on the image?",
+                            "text": "Can you tell me a funny very short story based on the image?",
                         },
                         {
                             "type": "image_url",
