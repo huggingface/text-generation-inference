@@ -15,7 +15,8 @@ dependencies = [
     'grpc-interceptor == 0.15.2',
     'typer == 0.6.1',
     'safetensors',
-    'loguru == 0.6.0'
+    'loguru == 0.6.0',
+    'optimum-neuron[neuronx] >= 0.0.28',
 ]
 
 [tool.setuptools]

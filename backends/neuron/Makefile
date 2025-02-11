@@ -16,13 +16,15 @@ mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 mkfile_dir := $(dir $(mkfile_path))
 root_dir := "${mkfile_dir}/../.."
 
-.PHONY:	image
+.PHONY:	image install_server
 
 VERSION := $(shell gawk 'match($$0, /^version = "(.*)"/, a) {print a[1]}' ${root_dir}/Cargo.toml)
 
 image:
 	docker build --rm -f ${root_dir}/Dockerfile.neuron \
 	             --build-arg VERSION=$(VERSION) \
-				 --ulimit nofile=100000:100000 \
 				 -t text-generation-inference:$(VERSION)-neuron ${root_dir}
 	docker tag text-generation-inference:$(VERSION)-neuron text-generation-inference:latest-neuron
+
+install_server:
+	make -C ${mkfile_dir}/server install VERSION:=${VERSION}
