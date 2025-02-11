@@ -765,6 +765,7 @@ impl ChatCompletionChunk {
         logprobs: Option<ChatCompletionLogprobs>,
         finish_reason: Option<String>,
         usage: Option<Usage>,
+        tool_name: Option<String>,
     ) -> Self {
         let delta = match (delta, tool_calls) {
             (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
@@ -779,7 +780,7 @@ impl ChatCompletionChunk {
                     id: String::new(),
                     r#type: "function".to_string(),
                     function: Function {
-                        name: None,
+                        name: tool_name,
                         arguments: tool_calls[0].to_string(),
                     },
                 }],
@@ -1364,7 +1365,7 @@ pub struct SimpleToken {
     stop: usize,
 }
 
-#[derive(Debug, Serialize, ToSchema, Clone)]
+#[derive(Debug, Serialize, ToSchema, Clone, PartialEq)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
 pub enum FinishReason {
