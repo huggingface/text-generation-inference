@@ -147,7 +147,13 @@ impl Validation {
 
         // Get total tokens
         let (max_new_tokens, max_total_new_tokens) = if let Some(max_new_tokens) = max_new_tokens {
-            (max_new_tokens, max_new_tokens)
+            // Do not accept humongous max_new_tokens queries.
+            // We preallocate the default but we prevent a single user
+            // from taking up all the slots in a handful of queries that consume little
+            // amount of tokens. (You can have 10 token long query that creates a handful of token
+            // but the requested amount to be 120k.
+            let chunk_size = min(max_new_tokens, DEFAULT_GENERATION_LENGTH);
+            (chunk_size, max_new_tokens)
         } else {
             // Use the maximum possible number of tokens as default
             // However, the system will re-queue the request everytime it completes
