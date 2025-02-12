@@ -16,7 +16,7 @@ mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 mkfile_dir := $(dir $(mkfile_path))
 root_dir := "${mkfile_dir}/../.."
 
-.PHONY:	image install_server
+.PHONY:	image install_server test_server test_integration
 
 VERSION := $(shell gawk 'match($$0, /^version = "(.*)"/, a) {print a[1]}' ${root_dir}/Cargo.toml)
 
@@ -28,3 +28,11 @@ image:
 
 install_server:
 	make -C ${mkfile_dir}/server install VERSION:=${VERSION}
+
+test_server: install_server
+	python -m pip install -r ${mkfile_dir}/tests/requirements.txt
+	python -m pytest -sv ${mkfile_dir}/tests/server
+
+test_integration: image
+	python -m pip install -r ${mkfile_dir}/tests/requirements.txt
+	python -m pytest -sv ${mkfile_dir}/tests/integration
