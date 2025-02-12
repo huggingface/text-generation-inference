@@ -48,7 +48,7 @@ FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS pytorch-install
 WORKDIR /usr/src/
 
 # NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
-ARG PYTORCH_VERSION=2.5.1
+ARG PYTORCH_VERSION=2.6
 ARG PYTHON_VERSION=3.11
 
 # Keep in sync with `server/pyproject.toml
@@ -87,7 +87,7 @@ WORKDIR /usr/src
 COPY server/Makefile-flash-att Makefile
 
 # Build specific version of flash attention
-RUN make build-flash-attention
+RUN . .venv/bin/activate && make build-flash-attention
 
 # Build Flash Attention v2 CUDA kernels
 FROM kernel-builder AS flash-att-v2-builder
@@ -97,14 +97,14 @@ WORKDIR /usr/src
 COPY server/Makefile-flash-att-v2 Makefile
 
 # Build specific version of flash attention v2
-RUN make build-flash-attention-v2-cuda
+RUN . .venv/bin/activate && make build-flash-attention-v2-cuda
 
 # Build Transformers exllama kernels
 FROM kernel-builder AS exllama-kernels-builder
 WORKDIR /usr/src
 COPY server/exllama_kernels/ .
 
-RUN python setup.py build
+RUN . .venv/bin/activate && python setup.py build
 
 # Build Transformers exllama kernels
 FROM kernel-builder AS exllamav2-kernels-builder
@@ -112,47 +112,47 @@ WORKDIR /usr/src
 COPY server/Makefile-exllamav2/ Makefile
 
 # Build specific version of transformers
-RUN make build-exllamav2
+RUN . .venv/bin/activate && make build-exllamav2
 
 # Build Transformers awq kernels
 FROM kernel-builder AS awq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-awq Makefile
 # Build specific version of transformers
-RUN make build-awq
+RUN . .venv/bin/activate && make build-awq
 
 # Build eetq kernels
 FROM kernel-builder AS eetq-kernels-builder
 WORKDIR /usr/src
 COPY server/Makefile-eetq Makefile
 # Build specific version of transformers
-RUN make build-eetq
+RUN . .venv/bin/activate && make build-eetq
 
 # Build Lorax Punica kernels
 FROM kernel-builder AS lorax-punica-builder
 WORKDIR /usr/src
 COPY server/Makefile-lorax-punica Makefile
 # Build specific version of transformers
-RUN TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-lorax-punica
+RUN . .venv/bin/activate && TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-lorax-punica
 
 # Build Transformers CUDA kernels
 FROM kernel-builder AS custom-kernels-builder
 WORKDIR /usr/src
 COPY server/custom_kernels/ .
 # Build specific version of transformers
-RUN python setup.py build
+RUN . .venv/bin/activate && python setup.py build
 
 # Build mamba kernels
 FROM kernel-builder AS mamba-builder
 WORKDIR /usr/src
 COPY server/Makefile-selective-scan Makefile
-RUN make build-all
+RUN . .venv/bin/activate && make build-all
 
 # Build flashinfer
 FROM kernel-builder AS flashinfer-builder
 WORKDIR /usr/src
 COPY server/Makefile-flashinfer Makefile
-RUN make install-flashinfer
+RUN . .venv/bin/activate && make install-flashinfer
 
 # Text Generation Inference base image
 FROM nvidia/cuda:12.4.0-base-ubuntu22.04 AS base
