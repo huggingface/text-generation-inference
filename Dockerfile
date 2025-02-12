@@ -196,7 +196,7 @@ RUN cd server && \
 
 RUN cd server && \
     uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines --active --python=${PYTHON_VERSION} && \
-    # uv pip install nvidia-nccl-cu12==2.22.3 && \
+    uv pip install nvidia-nccl-cu12==2.25.1 && \
     pwd && \
     text-generation-server --help
 
