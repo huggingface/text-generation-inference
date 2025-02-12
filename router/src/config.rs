@@ -185,9 +185,42 @@ impl Qwen2Vl {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Qwen2_5VlVisionConfig {
+    pub(crate) depth: usize,
+    pub(crate) hidden_act: String,
+    pub(crate) hidden_size: usize,
+    pub(crate) intermediate_size: usize,
+    pub(crate) num_heads: usize,
+    pub(crate) in_chans: usize,
+    pub(crate) out_hidden_size: usize,
+    pub(crate) patch_size: usize,
+    pub(crate) spatial_merge_size: usize,
+    pub(crate) spatial_patch_size: usize,
+    pub(crate) window_size: usize,
+    pub(crate) fullatt_block_indexes: Vec<usize>,
+    pub(crate) tokens_per_second: usize,
+    pub(crate) temporal_patch_size: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Qwen2_5Vl {
+    pub(crate) vision_config: Qwen2_5VlVisionConfig,
+}
+
+impl Qwen2_5Vl {
+    pub fn get_number_of_features(&self, height: usize, width: usize) -> usize {
+        let num_pixels = height * width;
+        num_pixels / self.vision_config.patch_size.pow(2)
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
 pub enum Config {
+    Qwen2_5Vl(Qwen2_5Vl),
     Qwen2Vl(Qwen2Vl),
     LlavaNext(LlavaNext),
     ClipVisionModel(ClipVisionModel),

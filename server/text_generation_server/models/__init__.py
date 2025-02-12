@@ -164,6 +164,9 @@ try:
     from text_generation_server.models.custom_modeling.qwen2_vl import (
         Qwen2VLForConditionalGeneration,
     )
+    from text_generation_server.models.custom_modeling.qwen2_5_vl import (
+        Qwen2_5VLForConditionalGeneration,
+    )
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
     log_master(logger.warning, f"Could not import Flash Attention enabled models: {e}")
@@ -316,6 +319,11 @@ class ModelType(enum.Enum):
         "type": "qwen2_vl",
         "name": "Qwen 2 VL",
         "url": "https://huggingface.co/collections/Qwen/qwen2-vl-66cee7455501d7126940800d",
+    }
+    QWEN2_5_VL = {
+        "type": "qwen2_5_vl",
+        "name": "Qwen 2.5 VL",
+        "url": "https://huggingface.co/collections/Qwen/qwen25-66e81a666513e518adb90d9e",
     }
     OPT = {
         "type": "opt",
@@ -1359,6 +1367,19 @@ def get_model(
         return VlmCausalLM(
             model_id=model_id,
             model_class=Qwen2VLForConditionalGeneration,
+            revision=revision,
+            quantize=quantize,
+            speculator=speculator,
+            dtype=dtype,
+            default_dtype=torch.bfloat16,
+            kv_cache_dtype=kv_cache_dtype,
+            trust_remote_code=trust_remote_code,
+            lora_adapter_ids=lora_adapter_ids,
+        )
+    if model_type == QWEN2_5_VL:
+        return VlmCausalLM(
+            model_id=model_id,
+            model_class=Qwen2_5VLForConditionalGeneration,
             revision=revision,
             quantize=quantize,
             speculator=speculator,

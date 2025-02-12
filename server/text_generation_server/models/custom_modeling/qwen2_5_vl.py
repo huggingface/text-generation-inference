@@ -1,5 +1,5 @@
 # coding=utf-8
-# Copyright 2024 the HuggingFace Inc. team. All rights reserved.
+# Copyright 2025 the HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""PyTorch Qwen2 VL model."""
+"""PyTorch Qwen2.5 VL model."""
 
 from typing import Optional, Tuple, List
 
@@ -31,7 +31,7 @@ import numpy as np
 from transformers.activations import ACT2FN
 import torch.nn.functional as F
 
-from text_generation_server.layers.layernorm import FastLayerNorm, FastRMSNorm
+from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers import (
     TensorParallelColumnLinear,
     TensorParallelRowLinear,
@@ -68,10 +68,10 @@ def apply_rotary_pos_emb_vision(
     return output
 
 
-class Qwen2VLAttention(nn.Module):
+class Qwen2_5VLAttention(nn.Module):
     def __init__(self, *, prefix, config, weights):
         super().__init__()
-        self.embed_dim = config.embed_dim // weights.process_group.size()
+        self.embed_dim = config.hidden_size // weights.process_group.size()
         self.head_dim = config.hidden_size // config.num_heads
         self.num_heads = config.num_heads // weights.process_group.size()
 
@@ -84,6 +84,7 @@ class Qwen2VLAttention(nn.Module):
             num_key_value_heads=self.num_heads,
         )
         self.qkv.linear.bias = weights.get_sharded(f"{prefix}.qkv.bias", dim=0)
+
         self.proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.proj",
@@ -177,43 +178,52 @@ class Qwen2VLAttention(nn.Module):
         return attn_output
 
 
-class Qwen2VLVisionMLP(nn.Module):
+class Qwen2_5VLVisionMLP(nn.Module):
     def __init__(self, *, prefix, config, weights):
         super().__init__()
         self.activation_fn = ACT2FN[config.hidden_act]
-        self.fc1 = TensorParallelColumnLinear.load(
-            prefix=f"{prefix}.fc1", weights=weights, config=config, bias=True
+
+        self.intermediate_size = (
+            config.intermediate_size // weights.process_group.size()
         )
-        self.fc2 = TensorParallelRowLinear.load(
-            prefix=f"{prefix}.fc2", weights=weights, config=config, bias=True
+
+        self.up = TensorParallelColumnLinear.load(
+            prefix=f"{prefix}.up_proj", weights=weights, config=config, bias=True
+        )
+        self.gate = TensorParallelColumnLinear.load(
+            prefix=f"{prefix}.gate_proj", weights=weights, config=config, bias=True
+        )
+        self.down = TensorParallelRowLinear.load(
+            prefix=f"{prefix}.down_proj", weights=weights, config=config, bias=True
         )
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        hidden_states = self.fc1(hidden_states)
-        hidden_states = self.activation_fn(hidden_states)
-        hidden_states = self.fc2(hidden_states)
-        return hidden_states
+        gate_states = self.gate(hidden_states)
+        up_states = self.up(hidden_states)
+        activated_states = self.activation_fn(gate_states) * up_states
+        down_states = self.down(activated_states)
+        return down_states
 
 
-class Qwen2VLVisionBlock(nn.Module):
+class Qwen2_5VLVisionBlock(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
-        self.attn = Qwen2VLAttention(
+        self.attn = Qwen2_5VLAttention(
             prefix=f"{prefix}.attn",
             config=config,
             weights=weights,
         )
-        self.norm1 = FastLayerNorm.load(
+        self.norm1 = FastRMSNorm.load(
             prefix=f"{prefix}.norm1",
             weights=weights,
             eps=1e-6,
         )
-        self.norm2 = FastLayerNorm.load(
+        self.norm2 = FastRMSNorm.load(
             prefix=f"{prefix}.norm2",
             weights=weights,
             eps=1e-6,
         )
-        self.mlp = Qwen2VLVisionMLP(
+        self.mlp = Qwen2_5VLVisionMLP(
             prefix=f"{prefix}.mlp",
             config=config,
             weights=weights,
@@ -222,19 +232,20 @@ class Qwen2VLVisionBlock(nn.Module):
     def forward(
         self, hidden_states, cu_seqlens, rotary_pos_emb, max_seqlen
     ) -> torch.Tensor:
-        norm1_out, residual = self.norm1(hidden_states)
+        norm1_out, _ = self.norm1(hidden_states)
         attn_out = self.attn(norm1_out, cu_seqlens, rotary_pos_emb, max_seqlen)
-        hidden_states = attn_out + residual
-        norm2_out, residual = self.norm2(hidden_states)
-        hidden_states = hidden_states + self.mlp(norm2_out)
+        hidden_states = hidden_states + attn_out
+        norm2_out, _ = self.norm2(hidden_states)
+        mlp_out = self.mlp(norm2_out)
+        hidden_states = hidden_states + mlp_out
         return hidden_states
 
 
-class Qwen2VLPatchMerger(nn.Module):
+class Qwen2_5VLPatchMerger(nn.Module):
     def __init__(self, *, prefix, config, weights):
         super().__init__()
-        self.hidden_size = config.embed_dim * (config.spatial_merge_size**2)
-        self.patch_merger_ln_q = FastLayerNorm.load(
+        self.hidden_size = config.hidden_size * (config.spatial_merge_size**2)
+        self.patch_merger_ln_q = FastRMSNorm.load(
             prefix=f"{prefix}.ln_q",
             weights=weights,
             eps=1e-6,
@@ -255,14 +266,15 @@ class Qwen2VLPatchMerger(nn.Module):
         return hidden_states
 
 
-class Qwen2VisionModel(nn.Module):
+class Qwen2_5VisionModel(nn.Module):
     def __init__(self, *, prefix, config, weights):
         super().__init__()
+
         self.spatial_merge_size = config.spatial_merge_size
         kernel_size = [config.temporal_patch_size, config.patch_size, config.patch_size]
         self.patch_embedding = nn.Conv3d(
             in_channels=config.in_chans,
-            out_channels=config.embed_dim,
+            out_channels=config.hidden_size,
             kernel_size=kernel_size,
             stride=kernel_size,
             bias=False,
@@ -270,8 +282,8 @@ class Qwen2VisionModel(nn.Module):
         self.patch_embedding.weight = nn.Parameter(
             weights.get_tensor(f"{prefix}.patch_embed.proj.weight"), requires_grad=False
         )
-        head_dim = config.embed_dim // config.num_heads
-        # TODO: replace with static positional embeddings once implemented
+        head_dim = config.hidden_size // config.num_heads
+
         theta = 10000.0
         dim = head_dim // 2
         inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=torch.float) / dim))
@@ -279,7 +291,7 @@ class Qwen2VisionModel(nn.Module):
 
         self.blocks = nn.ModuleList(
             [
-                Qwen2VLVisionBlock(
+                Qwen2_5VLVisionBlock(
                     prefix=f"{prefix}.blocks.{i}",
                     config=config,
                     weights=weights,
@@ -287,7 +299,7 @@ class Qwen2VisionModel(nn.Module):
                 for i in range(config.depth)
             ]
         )
-        self.merger = Qwen2VLPatchMerger(
+        self.merger = Qwen2_5VLPatchMerger(
             prefix=f"{prefix}.merger",
             config=config,
             weights=weights,
@@ -296,7 +308,11 @@ class Qwen2VisionModel(nn.Module):
         self.temporal_patch_size = config.temporal_patch_size
         self.spatial_patch_size = config.spatial_patch_size
         self.in_channels = config.in_channels
-        self.embed_dim = config.embed_dim
+        self.embed_dim = config.hidden_size
+        self.window_size = config.window_size
+        self.patch_size = config.patch_size
+        self.spatial_merge_unit = config.spatial_merge_size * config.spatial_merge_size
+        self.fullatt_block_indexes = config.fullatt_block_indexes
 
     def apply_class_embedding(self, hidden_state: torch.Tensor) -> torch.Tensor:
         batch_size, _, hidden_size = hidden_state.shape
@@ -304,11 +320,59 @@ class Qwen2VisionModel(nn.Module):
         hidden_state = torch.cat([class_embedding, hidden_state], dim=1)
         return hidden_state
 
+    def get_window_index(self, grid_thw):
+        window_index: list = []
+        cu_window_seqlens: list = [0]
+        window_index_id = 0
+        vit_merger_window_size = (
+            self.window_size // self.spatial_merge_size // self.patch_size
+        )
+
+        for grid_t, grid_h, grid_w in grid_thw:
+            llm_grid_h, llm_grid_w = (
+                grid_h // self.spatial_merge_size,
+                grid_w // self.spatial_merge_size,
+            )
+            index = torch.arange(grid_t * llm_grid_h * llm_grid_w).reshape(
+                grid_t, llm_grid_h, llm_grid_w
+            )
+            pad_h = vit_merger_window_size - llm_grid_h % vit_merger_window_size
+            pad_w = vit_merger_window_size - llm_grid_w % vit_merger_window_size
+            num_windows_h = (llm_grid_h + pad_h) // vit_merger_window_size
+            num_windows_w = (llm_grid_w + pad_w) // vit_merger_window_size
+            index_padded = F.pad(index, (0, pad_w, 0, pad_h), "constant", -100)
+            index_padded = index_padded.reshape(
+                grid_t,
+                num_windows_h,
+                vit_merger_window_size,
+                num_windows_w,
+                vit_merger_window_size,
+            )
+            index_padded = index_padded.permute(0, 1, 3, 2, 4).reshape(
+                grid_t,
+                num_windows_h * num_windows_w,
+                vit_merger_window_size,
+                vit_merger_window_size,
+            )
+            seqlens = (index_padded != -100).sum([2, 3]).reshape(-1)
+            index_padded = index_padded.reshape(-1)
+            index_new = index_padded[index_padded != -100]
+            window_index.append(index_new + window_index_id)
+            cu_seqlens_tmp = (
+                seqlens.cumsum(0) * self.spatial_merge_unit + cu_window_seqlens[-1]
+            )
+            cu_window_seqlens.extend(cu_seqlens_tmp.tolist())
+            window_index_id += (grid_t * llm_grid_h * llm_grid_w).item()
+        window_index = torch.cat(window_index, dim=0)
+
+        return window_index, cu_window_seqlens
+
     def forward(
         self,
         pixel_values: torch.Tensor,
         grid_thw: Optional[torch.LongTensor] = None,
     ) -> torch.Tensor:
+
         # reshape the input tensor for processing
         shape = (
             -1,
@@ -346,6 +410,7 @@ class Qwen2VisionModel(nn.Module):
             pos_ids.append(torch.stack([hpos_ids, wpos_ids], dim=-1).repeat(t, 1))
 
         pos_ids = torch.cat(pos_ids, dim=0)
+
         max_grid_size = grid_thw[:, 1:].max()
 
         # apply the positional embeddings to the position ids
@@ -354,7 +419,26 @@ class Qwen2VisionModel(nn.Module):
         )
         rotary_pos_emb_full = torch.outer(seq, self.inv_freq)
         rotary_pos_emb = rotary_pos_emb_full[pos_ids].flatten(1)
-        rotary_pos_emb = rotary_pos_emb.to(hidden_states.device, hidden_states.dtype)
+        window_index, cu_window_seqlens = self.get_window_index(grid_thw)
+        seq_len = hidden_states.shape[0]
+        patch_shape = (seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
+        og_shape = (seq_len, -1)
+
+        hidden_states = hidden_states.view(patch_shape)[window_index, :, :].view(
+            og_shape
+        )
+        rotary_pos_emb = rotary_pos_emb.view(patch_shape)[window_index, :, :].view(
+            og_shape
+        )
+
+        rotary_pos_emb = rotary_pos_emb.to(device=hidden_states.device)
+
+        cu_window_seqlens = torch.tensor(
+            cu_window_seqlens,
+            device=hidden_states.device,
+            dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
+        )
+        cu_window_seqlens = torch.unique_consecutive(cu_window_seqlens)
 
         # create a cu_seqlens tensor to be used in the attention mask
         cu_seqlens = torch.repeat_interleave(
@@ -362,23 +446,35 @@ class Qwen2VisionModel(nn.Module):
         ).cumsum(dim=0, dtype=torch.int32)
         cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
         max_seqlen = torch.max(cu_seqlens[1:] - cu_seqlens[:-1])
+
         # iterately apply the blocks to the hidden states
-        for block in self.blocks:
-            hidden_states = block(hidden_states, cu_seqlens, rotary_pos_emb, max_seqlen)
+        for layer_num, block in enumerate(self.blocks):
+            # NOTE: qwen2_5_vl.py has a concept of full attention blocks
+            # that are applied at specific layers.
+            if layer_num in self.fullatt_block_indexes:
+                cu_seqlens_now = cu_seqlens
+            else:
+                cu_seqlens_now = cu_window_seqlens
+
+            hidden_states = block(
+                hidden_states, cu_seqlens_now, rotary_pos_emb, max_seqlen
+            )
 
         # apply the final patch merger to the hidden states
         hidden_states = self.merger(hidden_states)
+        reverse_indices = torch.argsort(window_index)
+        hidden_states = hidden_states[reverse_indices, :]
         return hidden_states
 
 
-class Qwen2VLForConditionalGeneration(nn.Module):
+class Qwen2_5VLForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
         config.vision_config.quantize = None
         config.vision_config.speculator = config.speculator
         # set rope_scaling.type == "mrope" since AutoConfig.from_pretrained incorrectly
-        # returns rope_scaling.type == "default" for Qwen2-VL model at the moment
+        # returns rope_scaling.type == "default" for Qwen2_5-VL model at the moment
         if (
             hasattr(config, "rope_scaling")
             and config.rope_scaling is not None
@@ -394,7 +490,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         self.embed_tokens = TensorParallelEmbedding(
             prefix="model.embed_tokens", weights=weights
         )
-        self.visual = Qwen2VisionModel(
+        self.visual = Qwen2_5VisionModel(
             prefix="visual", config=config.vision_config, weights=weights
         )
         self.text_model = Qwen2Model(prefix=None, config=config, weights=weights)
@@ -408,59 +504,54 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             prefix=suffix if not prefix else f"{prefix}.{suffix}",
             weights=weights,
         )
-        self.norm = FastRMSNorm.load(
-            prefix="model.norm",
-            weights=weights,
-            eps=config.rms_norm_eps,
-        )
         self.device = weights.device
 
-    # based on https://github.com/huggingface/transformers/blob/e284c7e954abe12c34b50461c17f8115a0afe115/src/transformers/models/qwen2_vl/modeling_qwen2_vl.py#L1391
-    # modified to first find segments then initialize position ids for each segment
-    # Steps:
-    #  locate all vision and text segments
-    #  calculate `vision_segment_lengths` for each vision segment to be use as offset
-    #  calculate `text_segment_lengths` for each text segment to be used as offset
-    #  create position ids for each vision segment based on the image grid
-    #  create position ids for each text segment
-    #  combine all the position ids
-    #  the final segment is the difference between the last vision segment and the end of the input
-    #  combine all the position ids and reshape to (3, input_ids_len) then swap dimensions to (input_ids_len, 3)
     def get_position_ids(
         self,
         input_ids: torch.Tensor,
         image_grid_thw: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if image_grid_thw is None:
+            # (batch_size, 3)
             return (
                 torch.arange(input_ids.shape[0], device=input_ids.device)
                 .unsqueeze(1)
                 .repeat(1, 3)
             )
 
+        # if image grid provided than we need to calculate the position ids
         spatial_merge_size = self.spatial_merge_size
         vision_start_token_id = self.vision_start_token_id
         vision_end_token_id = self.vision_end_token_id
+
         device = input_ids.device
         dtype = input_ids.dtype
         input_ids_len = input_ids.shape[0]
 
-        vision_starts = torch.where(input_ids == vision_start_token_id)[0]
-        vision_ends = torch.where(input_ids == vision_end_token_id)[0]
-        vision_segments = torch.stack((vision_starts, vision_ends), dim=1)
-        prev_vision_end = torch.cat(
-            [torch.zeros(1, device=vision_ends.device, dtype=dtype), vision_ends[:-1]]
-        )
-        text_lengths_between_vision = vision_segments[:, 0] - prev_vision_end + 1
+        # capture vision segments
+        starts = torch.where(input_ids == vision_start_token_id)[0]
+        ends = torch.where(input_ids == vision_end_token_id)[0]
+        # ie. [[  14, 2181], [2212, 4379]]
+        vision_segments = torch.stack((starts, ends), dim=1)
+        # capture text lengths as the space between vision segments
+
+        prev_end = torch.cat(  # shift to the left to get the previous end
+            [torch.zeros(1, device=ends.device, dtype=dtype), ends[:-1]]
+        )  # ie. [0, 2181]
+
+        # text is the space between the end of one vision segment and the start of the next
+        text_lengths = vision_segments[:, 0] - prev_end + 1  # ie. [15, 32]
+
+        # calculate the max id from the image width for each segment
         vision_widths_max = torch.cat(
             [
                 torch.zeros(1, device=image_grid_thw.device, dtype=dtype),
                 image_grid_thw[:-1, 2] // spatial_merge_size,
             ]
         )
-        vision_segment_lengths = vision_widths_max + text_lengths_between_vision
-        vision_segment_lengths = vision_segment_lengths.cumsum(dim=0)
-        text_segment_lengths = vision_segment_lengths - text_lengths_between_vision
+        total_segment_lengths = vision_widths_max + text_lengths
+        total_segment_lengths = total_segment_lengths.cumsum(dim=0)
+        text_diff = total_segment_lengths - text_lengths
 
         # create position ids for each vision segment based on the image grid
         llm_pos_ids_list = []
@@ -476,25 +567,29 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             image_position_ids = torch.stack([t_indices, h_indices, w_indices], dim=0)
 
             # offset by the position of the last vision segment
-            im = image_position_ids + vision_segment_lengths[i]
+            im = image_position_ids + total_segment_lengths[i]
             llm_pos_ids_list.append(im)
 
         # create position ids for each text segment
         text_ranges = [
             torch.arange(seq_len, device=device).view(1, -1).expand(3, -1)
-            + text_segment_lengths[i]
-            for i, seq_len in enumerate(text_lengths_between_vision)
-        ]
+            + text_diff[i]
+            for i, seq_len in enumerate(text_lengths)
+        ]  # ie. [[ 0, 1, ..., 14], [2182, 2183, ..., 2213]]
 
+        # combine by alternating text and vision segments (text, vision, text, vision, ...)
         full_llm_pos_ids_list = [
             item for sublist in zip(text_ranges, llm_pos_ids_list) for item in sublist
         ]
+
+        # the final segment is the difference between the last vision segment and the end of the input
         max_s = full_llm_pos_ids_list[-1].max() + 1
-        final_text_len = input_ids_len - vision_ends[-1]
+        final_text_len = input_ids_len - ends[-1]
         if final_text_len > 0:
             m = torch.arange(final_text_len, device=device).view(1, -1).expand(3, -1)
             full_llm_pos_ids_list.append(m + max_s)
 
+        # concat and reshape to (3, input_ids_len) then swap dimensions to (input_ids_len, 3)
         position_ids = (
             torch.cat(full_llm_pos_ids_list, dim=1).reshape(3, -1).transpose(0, 1)
         )
@@ -514,6 +609,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         lm_head_indices: Optional[torch.Tensor],
         pixel_values: torch.FloatTensor = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
+        # Unused in this model
         video_grid_thw: Optional[torch.LongTensor] = None,
         pixel_attention_mask=None,
         image_sizes: Optional[torch.LongTensor] = None,
