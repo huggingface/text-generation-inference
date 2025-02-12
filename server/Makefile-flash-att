@@ -1,9 +1,10 @@
-flash_att_commit := 1a7f4dfa9e51f6a90177a3244a5bc9c687894cdd
+# This is v1.0.9
+flash_att_commit := 6d48e14a6c2f551db96f0badc658a6279a929df3
 
 build-flash-attention:
 	if [ ! -d 'flash-attention' ]; then \
 		pip install -U packaging ninja  --no-cache-dir && \
-		git clone https://github.com/HazyResearch/flash-attention.git; \
+		git clone https://github.com/Dao-AILab/flash-attention.git; \
 	fi
 	cd flash-attention && git fetch && git checkout $(flash_att_commit) && \
 	MAX_JOBS=8 python setup.py build && cd csrc/layer_norm && python setup.py build && cd ../rotary && python setup.py build
