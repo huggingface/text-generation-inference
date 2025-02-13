@@ -1185,6 +1185,7 @@ pub struct Message {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     name: Option<String>,
+    tool_calls: Option<Vec<ToolCall>>,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
