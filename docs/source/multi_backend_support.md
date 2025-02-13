@@ -11,3 +11,5 @@ TGI remains consistent across backends, allowing you to switch between them seam
 * **[TGI TRTLLM backend](./backends/trtllm)**: This backend leverages NVIDIA's TensorRT library to accelerate LLM inference.
   It utilizes specialized optimizations and custom kernels for enhanced performance.
   However, it requires a model-specific compilation step for each GPU architecture.
+* **[TGI Llamacpp backend](./backends/llamacpp)**: This backend facilitates the deployment of large language models
+  (LLMs) by integrating [llama.cpp][llama.cpp], an advanced inference engine optimized for both CPU and GPU computation.
