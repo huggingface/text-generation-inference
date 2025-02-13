@@ -74,7 +74,9 @@ impl ChatTemplate {
                     format!("\n---\n{}", tool_prompt)
                 };
                 if let Some(last_message) = messages.last_mut() {
-                    last_message.content.push(MessageChunk::Text { text });
+                    if let Some(content) = last_message.content.as_mut() {
+                        content.push(MessageChunk::Text { text });
+                    }
                 }
                 Some(tools)
             }

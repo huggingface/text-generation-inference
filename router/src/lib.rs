@@ -1181,7 +1181,7 @@ pub struct Message {
     #[schema(example = "user")]
     role: String,
     #[schema(example = "My name is David and I")]
-    pub content: MessageContent,
+    pub content: Option<MessageContent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     name: Option<String>,
@@ -1224,15 +1224,19 @@ impl From<Message> for TextMessage {
         TextMessage {
             role: value.role,
             content: match value.content {
-                MessageContent::SingleText(text) => text,
-                MessageContent::MultipleChunks(chunks) => chunks
-                    .into_iter()
-                    .map(|chunk| match chunk {
-                        MessageChunk::Text { text } => text,
-                        MessageChunk::ImageUrl { image_url } => format!("![]({})", image_url.url),
-                    })
-                    .collect::<Vec<_>>()
-                    .join(""),
+                // If content is Some(MessageContent), handle it accordingly
+                Some(MessageContent::SingleText(text)) => text,
+                Some(MessageContent::MultipleChunks(chunks)) => {
+                    chunks.into_iter()
+                        .map(|chunk| match chunk {
+                            MessageChunk::Text { text } => text,
+                            MessageChunk::ImageUrl { image_url } => format!("![]({})", image_url.url),
+                        })
+                        .collect::<Vec<_>>()
+                        .join("")
+                }
+                // If content is None, use an empty string or a default message
+                None => String::new(), // or you could use "No content" or another placeholder
             },
         }
     }
