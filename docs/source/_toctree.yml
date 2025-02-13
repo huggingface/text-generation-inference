@@ -50,6 +50,8 @@
     title: Train Medusa
   title: Tutorials
 - sections:
+  - local: backends/neuron
+    title: Neuron
   - local: backends/trtllm
     title: TensorRT-LLM
   title: Backends
