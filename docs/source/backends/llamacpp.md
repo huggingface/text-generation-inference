@@ -44,20 +44,6 @@ docker build \
 | `--build-arg llamacpp_cuda=ON`       | Enables CUDA acceleration         |
 | `--build-arg cuda_arch=ARCH`         | Defines target CUDA architecture  |
 
-## Model preparation
-
-Retrieve a GGUF model and store it in a specific directory, for example:
-
-```bash
-mkdir -p ~/models
-cd ~/models
-curl -LOJ "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_0.gguf?download=true"
-```
-
-GGUF files are optional as they will be automatically generated at
-startup if not already present in the `models` directory. This means you
-do not need to manually download a GGUF file unless you prefer to do so.
-
 ## Run Docker image
 
 ### CPU-based inference
@@ -83,6 +69,25 @@ docker run \
     --n-gpu-layers 99
     --model-id "Qwen/Qwen2.5-3B-Instruct"
 ```
+
+## Using a custom GGUF
+
+GGUF files are optional as they will be automatically generated at
+startup if not already present in the `models` directory. However, if
+the default GGUF generation is not suitable for your use case, you can
+provide your own GGUF file with `--model-gguf`, for example:
+
+```bash
+docker run \
+    -p 3000:3000 \
+    -e "HF_TOKEN=$HF_TOKEN" \
+    -v "$HOME/models:/app/models" \
+    tgi-llamacpp \
+    --model-id "Qwen/Qwen2.5-3B-Instruct" \
+    --model-gguf "models/qwen2.5-3b-instruct-q4_0.gguf"
+```
+
+Note that `--model-id` is still required.
 
 ## Advanced parameters
 
