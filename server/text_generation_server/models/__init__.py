@@ -6,17 +6,18 @@ from compressed_tensors.compressors.model_compressors.model_compressor import (
 )
 from compressed_tensors.quantization import QuantizationType
 from pydantic import ValidationError
-import torch
 import enum
 import os
-
-from loguru import logger
-from transformers.configuration_utils import PretrainedConfig
-from transformers.models.auto import modeling_auto
-from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional, List, Dict
 from pathlib import Path
+from loguru import logger
+
+import torch
 import transformers
+from transformers.configuration_utils import PretrainedConfig
+from transformers.models.auto import modeling_auto
+from transformers.dynamic_module_utils import get_class_from_dynamic_module
+from huggingface_hub import hf_hub_download, HfApi
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
@@ -736,7 +737,7 @@ def get_model(
                 FLASH_ATT_ERROR_MESSAGE.format("Sharded Santacoder")
             )
         else:
-            return transformers_causal_lm_class.fallback(
+            return CausalLM.fallback(
                 model_id=model_id,
                 revision=revision,
                 quantize=quantize,
@@ -1053,6 +1054,15 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma2"))
@@ -1467,42 +1477,37 @@ def get_model(
     elif quantize == "exl2":
         raise NotImplementedError("exl2 quantization is not supported for AutoModel")
 
-    # Fast transformers if available
-    transformers_model_class = getattr(
-        transformers,
-        modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES.get(model_type, ""),
-        None,
-    )
-    if (
-        FLASH_TRANSFORMERS_BACKEND
-        and transformers_model_class is not None
-        and transformers_model_class._supports_flex_attn
-    ):
-        return TransformersFlashCausalLM.fallback(
-            model_id,
-            revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
-    if sharded:
-        raise NotImplementedError("sharded is not supported for AutoModel")
-
-    if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
-        return Seq2SeqLM.fallback(
-            model_id,
-            revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
     auto_map = config_dict.get("auto_map", None)
-    if trust_remote_code and auto_map is not None:
-        if "AutoModelForCausalLM" in auto_map.keys():
+    model_class = None
+
+    # If the model is already in the library
+    if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
+        model_class = getattr(
+            transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type]
+        )
+    elif (
+        trust_remote_code
+        and auto_map is not None
+        and "AutoModelForCausalLM" in auto_map.keys()
+    ):
+        model_class = get_class_from_dynamic_module(
+            config_dict["auto_map"]["AutoModelForCausalLM"], model_id
+        )
+
+    # This means the model is ForCausalLM
+    if model_class is not None:
+        if FLASH_TRANSFORMERS_BACKEND and model_class.is_backend_compatible():
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError("sharded is not supported for AutoModel")
+        else:
             return CausalLM.fallback(
                 model_id,
                 revision,
@@ -1511,15 +1516,25 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
-        if "AutoModelForSeq2SeqLM" in auto_map.keys():
-            return Seq2SeqLM.fallback(
-                model_id,
-                revision,
-                quantize=quantize,
-                speculator=speculator,
-                dtype=dtype,
-                trust_remote_code=trust_remote_code,
-            )
+
+    # Not supported at this point
+    if sharded:
+        raise NotImplementedError("sharded is not supported for AutoModel")
+
+    # This means it is a ForSeq2SeqLM model
+    if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES or (
+        trust_remote_code
+        and auto_map is not None
+        and "AutoModelForSeq2SeqLM" in auto_map.keys()
+    ):
+        return Seq2SeqLM.fallback(
+            model_id,
+            revision,
+            quantize=quantize,
+            speculator=speculator,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
 
     raise ValueError(f"Unsupported model type {model_type}")
 
