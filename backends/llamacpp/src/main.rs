@@ -8,6 +8,7 @@ use clap::Parser;
 use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
+use tokio::process::Command;
 use tokio::sync::oneshot::error::RecvError;
 use tracing::{error, warn};
 
@@ -25,7 +26,7 @@ struct Args {
 
     /// Path to the GGUF model file for inference.
     #[clap(long, env)]
-    model_gguf: String, // TODO Option() with hf->gguf & quantize
+    model_gguf: Option<String>,
 
     /// Number of threads to use for generation.
     #[clap(long, env)]
@@ -53,7 +54,7 @@ struct Args {
 
     /// Use memory mapping for the model.
     #[clap(long, env)]
-    use_mmap: bool,
+    disable_mmap: bool,
 
     /// Use memory locking to prevent swapping.
     #[clap(long, env)]
@@ -61,11 +62,11 @@ struct Args {
 
     /// Enable offloading of KQV operations to the GPU.
     #[clap(long, env)]
-    offload_kqv: bool,
+    disable_offload_kqv: bool,
 
     /// Enable flash attention for faster inference. (EXPERIMENTAL)
     #[clap(long, env)]
-    flash_attention: bool,
+    disable_flash_attention: bool,
 
     /// Data type used for K cache.
     #[clap(default_value = "f16", value_enum, long, env)]
@@ -205,24 +206,47 @@ async fn main() -> Result<(), RouterError> {
             token,
             ..Default::default()
         };
-        Tokenizer::from_pretrained(args.model_id.clone(), Some(params))?
+        Tokenizer::from_pretrained(&args.model_id, Some(params))?
+    };
+
+    let model_gguf = if let Some(model_gguf) = args.model_gguf {
+        model_gguf
+    } else {
+        let make_gguf = std::env::var("MAKE_GGUF").map_err(|e| {
+            error!("No GGUF model given and environment variable MAKE_GGUF is missing.");
+            RouterError::VarError(e)
+        })?;
+        let model_gguf = "models/model.gguf".to_string();
+
+        let status = Command::new(make_gguf)
+            .arg(&model_gguf)
+            .arg(&args.model_id)
+            .arg(&args.revision)
+            .spawn()?
+            .wait()
+            .await?;
+
+        if !status.success() {
+            error!("Failed to generate GGUF");
+        }
+        model_gguf
     };
 
     let (backend, ok, shutdown) = LlamacppBackend::new(
         LlamacppConfig {
-            model_gguf: args.model_gguf,
+            model_gguf,
             n_threads,
             n_threads_batch,
             n_gpu_layers: args.n_gpu_layers,
             split_mode: args.split_mode,
             defrag_threshold: args.defrag_threshold,
             numa: args.numa,
-            use_mmap: args.use_mmap,
+            use_mmap: !args.disable_mmap,
             use_mlock: args.use_mlock,
-            flash_attention: args.flash_attention,
+            flash_attention: !args.disable_flash_attention,
             type_k: args.type_k,
             type_v: args.type_v,
-            offload_kqv: args.offload_kqv,
+            offload_kqv: !args.disable_offload_kqv,
             max_batch_total_tokens,
             max_physical_batch_total_tokens,
             max_batch_size,
@@ -281,4 +305,8 @@ enum RouterError {
     WebServer(#[from] server::WebServerError),
     #[error("Recv error: {0}")]
     RecvError(#[from] RecvError),
+    #[error("IoError: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("VarError: {0}")]
+    VarError(#[from] std::env::VarError),
 }
