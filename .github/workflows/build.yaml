@@ -209,7 +209,7 @@ jobs:
           target: ${{ env.TARGET }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          outputs: type=image,compression=gzip,push=true
+          outputs: type=image,compression=zstd,push=true
           # outputs: type=image,compression=gzip,force-compression=true,oci-mediatypes=true,push=true
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=max,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
