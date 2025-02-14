@@ -1,6 +1,6 @@
 FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04 AS deps
 
-ARG llamacpp_version=b4651
+ARG llamacpp_version=b4714
 ARG llamacpp_cuda=OFF
 ARG cuda_arch=75-real;80-real;86-real;89-real;90-real
 
