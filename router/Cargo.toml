@@ -48,7 +48,7 @@ ngrok = { version = "0.13.1", features = ["axum"], optional = true }
 init-tracing-opentelemetry = { version = "0.14.1", features = [
   "opentelemetry-otlp",
 ] }
-minijinja = { workspace = true }
+minijinja = { workspace = true, features = ["loop_controls"] }
 minijinja-contrib = { workspace = true }
 futures-util = "0.3.30"
 regex = "1.10.3"
