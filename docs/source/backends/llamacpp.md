@@ -54,6 +54,10 @@ cd ~/models
 curl -LOJ "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_0.gguf?download=true"
 ```
 
+GGUF files are optional as they will be automatically generated at
+startup if not already present in the `models` directory. This means you
+do not need to manually download a GGUF file unless you prefer to do so.
+
 ## Run Docker image
 
 ### CPU-based inference
@@ -62,10 +66,9 @@ curl -LOJ "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwe
 docker run \
     -p 3000:3000 \
     -e "HF_TOKEN=$HF_TOKEN" \
-    -v "$HOME/models:/models" \
+    -v "$HOME/models:/app/models" \
     tgi-llamacpp \
-    --model-id "Qwen/Qwen2.5-3B-Instruct" \
-    --model-gguf "/models/qwen2.5-3b-instruct-q4_0.gguf"
+    --model-id "Qwen/Qwen2.5-3B-Instruct"
 ```
 
 ### GPU-Accelerated inference
@@ -75,11 +78,10 @@ docker run \
     --gpus all \
     -p 3000:3000 \
     -e "HF_TOKEN=$HF_TOKEN" \
-    -v "$HOME/models:/models" \
+    -v "$HOME/models:/app/models" \
     tgi-llamacpp \
     --n-gpu-layers 99
-    --model-id "Qwen/Qwen2.5-3B-Instruct" \
-    --model-gguf "/models/qwen2.5-3b-instruct-q4_0.gguf"
+    --model-id "Qwen/Qwen2.5-3B-Instruct"
 ```
 
 ## Advanced parameters
@@ -101,10 +103,10 @@ The table below summarizes key options:
 | `--split-mode`                      | Split the model across multiple GPUs                                   |
 | `--defrag-threshold`                | Defragment the KV cache if holes/size > threshold                      |
 | `--numa`                            | Enable NUMA optimizations                                              |
-| `--use-mmap`                        | Use memory mapping for the model                                       |
+| `--disable-mmap`                    | Disable memory mapping for the model                                   |
 | `--use-mlock`                       | Use memory locking to prevent swapping                                 |
-| `--offload-kqv`                     | Enable offloading of KQV operations to the GPU                         |
-| `--flash-attention`                 | Enable flash attention for faster inference                            |
+| `--disable-offload-kqv`             | Disable offloading of KQV operations to the GPU                        |
+| `--disable-flash-attention`         | Disable flash attention                                                |
 | `--type-k`                          | Data type used for K cache                                             |
 | `--type-v`                          | Data type used for V cache                                             |
 | `--validation-workers`              | Number of tokenizer workers used for payload validation and truncation |
