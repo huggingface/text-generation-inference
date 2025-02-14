@@ -48,11 +48,11 @@ FROM deps AS builder
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook \
     --recipe-path recipe.json \
-    --profile release-opt \
+    --profile release \
     --package text-generation-router-llamacpp
 COPY . .
 RUN cargo build \
-    --profile release-opt \
+    --profile release \
     --package text-generation-router-llamacpp --frozen
 
 FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
@@ -69,7 +69,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY --from=builder /usr/lib/libllama.so /usr/lib/
 COPY --from=builder /usr/lib/libggml*.so /usr/lib/
-COPY --from=builder /app/target/release-opt/text-generation-router-llamacpp /usr/bin/
+COPY --from=builder /app/target/release/text-generation-router-llamacpp /usr/bin/
 
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 
