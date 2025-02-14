@@ -2053,7 +2053,7 @@ fn main() -> Result<(), LauncherError> {
                 // this is a short term temporary fix to enable vlms to avoid rejecting images
                 let default_optimal = match config {
                     Some(ref config) => match config.model_type.as_deref() {
-                        Some("qwen2_vl") => 10_000,
+                        Some("qwen2_vl") | Some("qwen2_5_vl") => 10_000,
                         _ => 4096,
                     },
                     None => 4096,

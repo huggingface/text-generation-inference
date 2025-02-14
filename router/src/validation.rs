@@ -690,6 +690,10 @@ fn image_tokens(
             "<|vision_start|>{:?}<|vision_end|>",
             "<|image_pad|>".repeat(config.get_number_of_features(height, width))
         ),
+        Qwen2_5Vl(config) => format!(
+            "<|vision_start|>{:?}<|vision_end|>",
+            "<|image_pad|>".repeat(config.get_number_of_features(height, width))
+        ),
         _ => unimplemented!("Images tokens are not supported for this model configuration"),
     }
 }
@@ -718,7 +722,7 @@ fn prepare_input<T: TokenizerTrait>(
     let (tokenizer_query, input_chunks) = match config {
         Some(
             config @ (Idefics | Mllama | Idefics2(_) | Idefics3(_) | Paligemma(_) | LlavaNext(_)
-            | Qwen2Vl(_)),
+            | Qwen2Vl(_) | Qwen2_5Vl(_)),
         ) => {
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());
