@@ -18,8 +18,9 @@ RUN apt update && apt install -y \
     tar
 
 ADD https://github.com/ggerganov/llama.cpp/archive/refs/tags/${llamacpp_version}.tar.gz /opt/src/
-RUN tar -xzf ${llamacpp_version}.tar.gz \
- && cd llama.cpp-${llamacpp_version} \
+RUN mkdir -p llama.cpp \
+ && tar -xzf ${llamacpp_version}.tar.gz -C llama.cpp --strip-components=1 \
+ && cd llama.cpp \
  && cmake -B build \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_INSTALL_LIBDIR=/usr/lib \
@@ -27,9 +28,7 @@ RUN tar -xzf ${llamacpp_version}.tar.gz \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_CUDA_ARCHITECTURES=${cuda_arch} \
     -DGGML_CUDA=${llamacpp_cuda} \
-    -DLLAMA_BUILD_COMMON=OFF \
     -DLLAMA_BUILD_TESTS=OFF \
-    -DLLAMA_BUILD_EXAMPLES=OFF \
     -DLLAMA_BUILD_SERVER=OFF \
  && cmake --build build --parallel --config Release \
  && cmake --install build
@@ -56,7 +55,9 @@ RUN cargo build \
     --package text-generation-router-llamacpp --frozen
 
 FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
+WORKDIR /app
 
+ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install -y \
     python3-venv \
     python3-pip
@@ -65,11 +66,20 @@ RUN python3 -m venv /venv
 ENV PATH="/venv/bin:$PATH"
 
 COPY backends/llamacpp/requirements.txt requirements.txt
-RUN pip3 install --no-cache-dir -r requirements.txt
+COPY --from=builder /opt/src/llama.cpp/gguf-py gguf-py
+COPY --from=builder /opt/src/llama.cpp/convert_hf_to_gguf.py /bin/
+COPY --from=builder /usr/bin/llama-quantize /usr/bin/
+
+RUN pip3 install --no-cache-dir \
+    -r requirements.txt \
+    -e gguf-py
 
 COPY --from=builder /usr/lib/libllama.so /usr/lib/
 COPY --from=builder /usr/lib/libggml*.so /usr/lib/
 COPY --from=builder /app/target/release/text-generation-router-llamacpp /usr/bin/
+
+COPY backends/llamacpp/make-gguf.sh make-gguf.sh
+ENV MAKE_GGUF=./make-gguf.sh
 
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 

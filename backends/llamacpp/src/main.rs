@@ -8,6 +8,7 @@ use clap::Parser;
 use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
+use tokio::process::Command;
 use tokio::sync::oneshot::error::RecvError;
 use tracing::{error, warn};
 
@@ -25,7 +26,7 @@ struct Args {
 
     /// Path to the GGUF model file for inference.
     #[clap(long, env)]
-    model_gguf: String, // TODO Option() with hf->gguf & quantize
+    model_gguf: Option<String>,
 
     /// Number of threads to use for generation.
     #[clap(long, env)]
@@ -205,12 +206,39 @@ async fn main() -> Result<(), RouterError> {
             token,
             ..Default::default()
         };
-        Tokenizer::from_pretrained(args.model_id.clone(), Some(params))?
+        Tokenizer::from_pretrained(&args.model_id, Some(params))?
+    };
+
+    let model_gguf = match args.model_gguf {
+        Some(model_gguf) => model_gguf,
+        None => {
+            let make_gguf = match std::env::var("MAKE_GGUF") {
+                Ok(make_gguf) => make_gguf,
+                Err(e) => {
+                    error!("Missing env: MAKE_GGUF");
+                    return Err(RouterError::VarError(e));
+                }
+            };
+            let model_gguf = "models/model.gguf".to_string();
+
+            let status = Command::new(make_gguf)
+                .arg(&model_gguf)
+                .arg(&args.model_id)
+                .arg(&args.revision)
+                .spawn()?
+                .wait()
+                .await?;
+
+            if !status.success() {
+                error!("Failed to generate GGUF");
+            }
+            model_gguf
+        }
     };
 
     let (backend, ok, shutdown) = LlamacppBackend::new(
         LlamacppConfig {
-            model_gguf: args.model_gguf,
+            model_gguf,
             n_threads,
             n_threads_batch,
             n_gpu_layers: args.n_gpu_layers,
@@ -281,4 +309,8 @@ enum RouterError {
     WebServer(#[from] server::WebServerError),
     #[error("Recv error: {0}")]
     RecvError(#[from] RecvError),
+    #[error("IoError: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("VarError: {0}")]
+    VarError(#[from] std::env::VarError),
 }
