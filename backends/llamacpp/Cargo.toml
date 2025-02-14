@@ -16,6 +16,6 @@ num_cpus = "1.16.0"
 text-generation-router = { path = "../../router" }
 thiserror = "2.0.11"
 tokenizers.workspace = true
-tokio = "1.43.0"
+tokio = { version = "1.43.0", features = ["process"] }
 tokio-stream = "0.1.17"
 tracing = "0.1.41"
