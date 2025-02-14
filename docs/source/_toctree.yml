@@ -52,6 +52,8 @@
 - sections:
   - local: backends/trtllm
     title: TensorRT-LLM
+  - local: backends/llamacpp
+    title: Llamacpp
   title: Backends
 - sections:
   - local: reference/launcher

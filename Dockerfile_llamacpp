@@ -1,0 +1,76 @@
+FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04 AS deps
+
+ARG llamacpp_version=b4651
+ARG llamacpp_cuda=OFF
+ARG cuda_arch=75-real;80-real;86-real;89-real;90-real
+
+WORKDIR /opt/src
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt update && apt install -y \
+    clang \
+    cmake \
+    curl \
+    git \
+    python3-dev \
+    libssl-dev \
+    pkg-config \
+    tar
+
+ADD https://github.com/ggerganov/llama.cpp/archive/refs/tags/${llamacpp_version}.tar.gz /opt/src/
+RUN tar -xzf ${llamacpp_version}.tar.gz \
+ && cd llama.cpp-${llamacpp_version} \
+ && cmake -B build \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBDIR=/usr/lib \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
+    -DCMAKE_CUDA_ARCHITECTURES=${cuda_arch} \
+    -DGGML_CUDA=${llamacpp_cuda} \
+    -DLLAMA_BUILD_COMMON=OFF \
+    -DLLAMA_BUILD_TESTS=OFF \
+    -DLLAMA_BUILD_EXAMPLES=OFF \
+    -DLLAMA_BUILD_SERVER=OFF \
+ && cmake --build build --parallel --config Release \
+ && cmake --install build
+
+WORKDIR /app
+COPY rust-toolchain.toml rust-toolchain.toml
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none
+ENV PATH="/root/.cargo/bin:$PATH"
+RUN cargo install cargo-chef --locked
+
+FROM deps AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM deps AS builder
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook \
+    --recipe-path recipe.json \
+    --profile release-opt \
+    --package text-generation-router-llamacpp
+COPY . .
+RUN cargo build \
+    --profile release-opt \
+    --package text-generation-router-llamacpp --frozen
+
+FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
+
+RUN apt update && apt install -y \
+    python3-venv \
+    python3-pip
+
+RUN python3 -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+
+COPY backends/llamacpp/requirements.txt requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+COPY --from=builder /usr/lib/libllama.so /usr/lib/
+COPY --from=builder /usr/lib/libggml*.so /usr/lib/
+COPY --from=builder /app/target/release-opt/text-generation-router-llamacpp /usr/bin/
+
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
+
+ENTRYPOINT ["text-generation-router-llamacpp"]
