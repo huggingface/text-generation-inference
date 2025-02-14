@@ -209,31 +209,27 @@ async fn main() -> Result<(), RouterError> {
         Tokenizer::from_pretrained(&args.model_id, Some(params))?
     };
 
-    let model_gguf = match args.model_gguf {
-        Some(model_gguf) => model_gguf,
-        None => {
-            let make_gguf = match std::env::var("MAKE_GGUF") {
-                Ok(make_gguf) => make_gguf,
-                Err(e) => {
-                    error!("Missing env: MAKE_GGUF");
-                    return Err(RouterError::VarError(e));
-                }
-            };
-            let model_gguf = "models/model.gguf".to_string();
+    let model_gguf = if let Some(model_gguf) = args.model_gguf {
+        model_gguf
+    } else {
+        let make_gguf = std::env::var("MAKE_GGUF").map_err(|e| {
+            error!("No GGUF model given and environment variable MAKE_GGUF is missing.");
+            RouterError::VarError(e)
+        })?;
+        let model_gguf = "models/model.gguf".to_string();
 
-            let status = Command::new(make_gguf)
-                .arg(&model_gguf)
-                .arg(&args.model_id)
-                .arg(&args.revision)
-                .spawn()?
-                .wait()
-                .await?;
+        let status = Command::new(make_gguf)
+            .arg(&model_gguf)
+            .arg(&args.model_id)
+            .arg(&args.revision)
+            .spawn()?
+            .wait()
+            .await?;
 
-            if !status.success() {
-                error!("Failed to generate GGUF");
-            }
-            model_gguf
+        if !status.success() {
+            error!("Failed to generate GGUF");
         }
+        model_gguf
     };
 
     let (backend, ok, shutdown) = LlamacppBackend::new(
