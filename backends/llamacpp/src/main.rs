@@ -54,7 +54,7 @@ struct Args {
 
     /// Use memory mapping for the model.
     #[clap(long, env)]
-    use_mmap: bool,
+    disable_mmap: bool,
 
     /// Use memory locking to prevent swapping.
     #[clap(long, env)]
@@ -62,11 +62,11 @@ struct Args {
 
     /// Enable offloading of KQV operations to the GPU.
     #[clap(long, env)]
-    offload_kqv: bool,
+    disable_offload_kqv: bool,
 
     /// Enable flash attention for faster inference. (EXPERIMENTAL)
     #[clap(long, env)]
-    flash_attention: bool,
+    disable_flash_attention: bool,
 
     /// Data type used for K cache.
     #[clap(default_value = "f16", value_enum, long, env)]
@@ -245,12 +245,12 @@ async fn main() -> Result<(), RouterError> {
             split_mode: args.split_mode,
             defrag_threshold: args.defrag_threshold,
             numa: args.numa,
-            use_mmap: args.use_mmap,
+            use_mmap: !args.disable_mmap,
             use_mlock: args.use_mlock,
-            flash_attention: args.flash_attention,
+            flash_attention: !args.disable_flash_attention,
             type_k: args.type_k,
             type_v: args.type_v,
-            offload_kqv: args.offload_kqv,
+            offload_kqv: !args.disable_offload_kqv,
             max_batch_total_tokens,
             max_physical_batch_total_tokens,
             max_batch_size,
