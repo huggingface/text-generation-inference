@@ -464,4 +464,4 @@ class DeployedModel(BaseModel):
     # https://github.com/pydantic/pydantic/issues/9177
     model_config = ConfigDict(protected_namespaces=())
     model_id: str
-    sha: str
+    task: str

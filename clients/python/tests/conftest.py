@@ -5,13 +5,13 @@ from huggingface_hub.utils import build_hf_headers
 
 
 @pytest.fixture
-def flan_t5_xxl():
-    return "google/flan-t5-xxl"
+def llama_7b():
+    return "meta-llama/Llama-2-7b-chat-hf"
 
 
 @pytest.fixture
-def llama_7b():
-    return "meta-llama/Llama-2-7b-chat-hf"
+def llama_70b():
+    return "meta-llama/Llama-3.1-70B-Instruct"
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def fake_model():
 
 @pytest.fixture
 def unsupported_model():
-    return "gpt2"
+    return "black-forest-labs/FLUX.1-dev"
 
 
 @pytest.fixture
@@ -32,11 +32,6 @@ def base_url():
 @pytest.fixture
 def bloom_url(base_url, bloom_model):
     return f"{base_url}/{bloom_model}"
-
-
-@pytest.fixture
-def flan_t5_xxl_url(base_url, flan_t5_xxl):
-    return f"{base_url}/{flan_t5_xxl}"
 
 
 @pytest.fixture
