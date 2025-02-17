@@ -67,7 +67,7 @@ class ChoiceDeltaToolCall(BaseModel):
 class ChoiceDelta(BaseModel):
     role: str
     content: Optional[str] = None
-    tool_calls: Optional[ChoiceDeltaToolCall] = None
+    tool_calls: Optional[List[ChoiceDeltaToolCall]] = None
 
 
 class Choice(BaseModel):
