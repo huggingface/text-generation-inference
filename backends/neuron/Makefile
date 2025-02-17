@@ -22,7 +22,8 @@ VERSION := $(shell gawk 'match($$0, /^version = "(.*)"/, a) {print a[1]}' ${root
 
 image:
 	docker build --rm -f ${root_dir}/Dockerfile.neuron \
-	             --build-arg VERSION=$(VERSION) \
+				 --ulimit nofile=100000:100000 \
+				 --build-arg VERSION=$(VERSION) \
 				 -t text-generation-inference:$(VERSION)-neuron ${root_dir}
 	docker tag text-generation-inference:$(VERSION)-neuron text-generation-inference:latest-neuron
 
