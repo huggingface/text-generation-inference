@@ -166,6 +166,8 @@ try:
     )
     from text_generation_server.models.custom_modeling.qwen2_5_vl import (
         Qwen2_5VLForConditionalGeneration,
+        Qwen2_5_VLConfig,
+        Qwen2_5_VLProcessor,
     )
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
@@ -1388,6 +1390,8 @@ def get_model(
             kv_cache_dtype=kv_cache_dtype,
             trust_remote_code=trust_remote_code,
             lora_adapter_ids=lora_adapter_ids,
+            config_class=Qwen2_5_VLConfig,
+            processor_class=Qwen2_5_VLProcessor,
         )
     if model_type == MLLAMA:
         if FLASH_ATTENTION:
