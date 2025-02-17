@@ -5,11 +5,7 @@ import json
 
 @pytest.fixture(scope="module")
 def flash_llama_grammar_tools_handle(launcher):
-    with launcher(
-        "meta-llama/Meta-Llama-3.1-8B-Instruct",
-        num_shard=2,
-        disable_grammar_support=False,
-    ) as handle:
+    with launcher("meta-llama/Meta-Llama-3.1-8B-Instruct") as handle:
         yield handle
 
 
@@ -101,7 +97,7 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "Brooklyn, New York"},
+                "arguments": '{"format":"fahrenheit","location":"Brooklyn, NY"}',
             },
         }
     ]
@@ -138,7 +134,7 @@ async def test_flash_llama_grammar_tools_auto(
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "Brooklyn, New York"},
+                "arguments": '{"format":"fahrenheit","location":"Brooklyn, NY"}',
             },
         }
     ]
@@ -176,7 +172,7 @@ async def test_flash_llama_grammar_tools_choice(
             "function": {
                 "description": None,
                 "name": "get_current_weather",
-                "arguments": {"format": "celsius", "location": "Brooklyn, New York"},
+                "arguments": '{"format":"fahrenheit","location":"Brooklyn, NY"}',
             },
         }
     ]
@@ -213,15 +209,14 @@ async def test_flash_llama_grammar_tools_stream(
     last_response = None
     async for response in responses:
         count += 1
-        tool_calls_generated += response.choices[0].delta.tool_calls.function.arguments
+        tool_calls_generated += (
+            response.choices[0].delta.tool_calls[0].function.arguments
+        )
         last_response = response
         assert response.choices[0].delta.content is None
 
-    assert (
-        tool_calls_generated
-        == '{"function": {"_name": "get_current_weather", "location": "Paris, France", "format": "celsius"}}<|eot_id|>'
-    )
-    assert count == 28
+    assert tool_calls_generated == '{ "location": "Paris, France", "format": "celsius"}'
+    assert count == 16
     assert last_response == response_snapshot
 
 
@@ -249,7 +244,7 @@ async def test_flash_llama_grammar_tools_insufficient_information(
     )
 
     assert responses.choices[0].message.tool_calls is None
-    assert responses.choices[0].message.content == "I am an AI assistant"
+    assert responses.choices[0].message.content == "I am a helpful assistant!"
 
     assert responses == response_snapshot
 
@@ -287,7 +282,7 @@ async def test_flash_llama_grammar_tools_insufficient_information_stream(
         assert response.choices[0].delta.tool_calls is None
 
     assert count == 5
-    assert content_generated == "I am an AI assistant"
+    assert content_generated == "I am a helpful assistant"
     assert last_response == response_snapshot
 
 
@@ -323,10 +318,10 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream(
         last_response = response
         assert response.choices[0].delta.tool_calls is None
 
-    assert count == 62
+    assert count == 77
     assert (
         content_generated
-        == "Once upon a time, in the ocean, there lived three sea creatures. There was a wise old octopus named Bob, a mischievous seagull named Sam, and a gentle sea turtle named Luna. They all lived together in a beautiful coral reef, surrounded by colorful fish and swaying sea fans"
+        == "There was a wise old octopus named Oracle. He lived in a cozy little cave beneath the waves with his best friend, a curious seahorse named Finley. One day, Finley met a playful dolphin named Daisy, and the three became inseparable. They spent their days exploring the ocean, playing hide-and-seek, and learning about the wonders of the sea from Oracle"
     )
     assert last_response == response_snapshot
 
@@ -360,13 +355,15 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_required(
     async for response in responses:
         count += 1
         assert response.choices[0].delta.content is None
-        tool_calls_generated += response.choices[0].delta.tool_calls.function.arguments
+        tool_calls_generated += (
+            response.choices[0].delta.tool_calls[0].function.arguments
+        )
         last_response = response
 
-    assert count == 29
+    assert count == 23
     assert (
         tool_calls_generated
-        == '{"function": {"_name": "get_current_weather", "location": "San Francisco, CA", "format": "celsius"}}<|eot_id|>'
+        == '{ "location": "San Francisco, CA", "format": "fahrenheit", "num_days":3}'
     )
     assert last_response == response_snapshot
 
@@ -457,15 +454,14 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
                 if line == "[DONE]":
                     break
                 response = json.loads(line)
-                tool_calls_generated += response["choices"][0]["delta"]["tool_calls"][
-                    "function"
-                ]["arguments"]
+                tool_call = response["choices"][0]["delta"]["tool_calls"][0]
+                tool_calls_generated += tool_call["function"]["arguments"]
                 last_response = response
 
-    assert count == 39
+    assert count == 25
     assert (
         tool_calls_generated
-        == '{"function": {"_name": "get_n_day_weather_forecast", "location": "San Francisco, CA", "format": "celsius", "num_days":3}}<|eot_id|>'
+        == '{ "location": "San Francisco, CA", "format": "celsius", "num_days": 3}'
     )
     assert last_response == response_snapshot
 
