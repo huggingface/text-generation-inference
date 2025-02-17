@@ -114,6 +114,16 @@ jobs:
                 export extra_pytest="-k test_flash_gemma_simple"
                 export target=""
                 ;;
+            neuron)
+                export dockerfile="Dockerfile_neuron"
+                export label_extension="-neuron"
+                export docker_devices="none"
+                export docker_volume="/mnt/cache"
+                export runs_on="aws-inf2-8xlarge"
+                export platform="cpu"
+                export extra_pytest="-k test_flash_llama_simple"
+                export target=""
+                ;;
           esac
           echo $dockerfile
           echo "Dockerfile=${dockerfile}"
