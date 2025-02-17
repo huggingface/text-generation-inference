@@ -1142,9 +1142,7 @@ fn create_event_from_stream_token(
 
     // replace the content with the tool calls if grammar is present
     let (content, tool_calls) = if inner_using_tools {
-        // escape the token text so its a json string
-        let escaped_text = stream_token.token.text.replace(r#"""#, r#"\""#);
-        (None, Some(vec![escaped_text]))
+        (None, Some(vec![stream_token.token.text.clone()]))
     } else {
         let content = if !stream_token.token.special {
             Some(stream_token.token.text.clone())
@@ -1307,7 +1305,8 @@ pub(crate) async fn chat_completions(
                                     state = StreamState::Content {
                                         skip_close_quote: false,
                                     };
-                                    buffer = buffer.drain(0..1).collect();
+                                    buffer.drain(1..); // only keep the first token (opening '{')
+                                    buffer[0].token.text = buffer[0].token.text.chars().take(1).collect();
                                 }
                             }
                         }
@@ -1361,40 +1360,59 @@ pub(crate) async fn chat_completions(
                             }
 
                             buffer.push(stream_token);
-                            // FIFO send the buffer but left the last two elements (closing '}' and EOS token)
-                            for stream_token in &buffer[..buffer.len() - 2] {
-                                let event = create_event_from_stream_token(
-                                    stream_token,
-                                    logprobs,
-                                    stream_options.clone(),
-                                    response_as_tool,
-                                    system_fingerprint.clone(),
-                                    model_id.clone(),
-                                    Some(global_function_name.clone()),
-                                );
+                            if buffer.len() > 1 {
+                                // FIFO send the buffer but left the last two elements (closing '}' and EOS token)
+                                for stream_token in &buffer[..buffer.len() - 2] {
+                                    let event = create_event_from_stream_token(
+                                        stream_token,
+                                        logprobs,
+                                        stream_options.clone(),
+                                        response_as_tool,
+                                        system_fingerprint.clone(),
+                                        model_id.clone(),
+                                        Some(global_function_name.clone()),
+                                    );
 
-                                yield Ok::<Event, Infallible>(event);
+                                    yield Ok::<Event, Infallible>(event);
+                                }
+                                buffer = buffer.drain(buffer.len() - 2..).collect();
                             }
-                            buffer = buffer.drain(buffer.len() - 2..).collect();
                         }
                     }
                 }
                 Err(err) => yield Ok(err.into_openai_event())
                 }
             }
-            // send the second to last stream token but remove the trailing '}' if it exists
-            let mut closing_stream_token = buffer.remove(0);
-            closing_stream_token.token.text = closing_stream_token.token.text.strip_suffix("}").unwrap_or(&closing_stream_token.token.text).to_string();
-            let event = create_event_from_stream_token(
-                &closing_stream_token,
-                logprobs,
-                stream_options.clone(),
-                response_as_tool,
-                system_fingerprint.clone(),
-                model_id.clone(),
-                Some(global_function_name.clone()),
-            );
-            yield Ok::<Event, Infallible>(event);
+            if response_as_tool {
+                // send the second to last stream token but remove the trailing '}' if it exists
+                let mut closing_stream_token = buffer.remove(0);
+                closing_stream_token.token.text = closing_stream_token.token.text.strip_suffix("}").unwrap_or(&closing_stream_token.token.text).to_string();
+                let event = create_event_from_stream_token(
+                    &closing_stream_token,
+                    logprobs,
+                    stream_options.clone(),
+                    response_as_tool,
+                    system_fingerprint.clone(),
+                    model_id.clone(),
+                    Some(global_function_name.clone()),
+                );
+                yield Ok::<Event, Infallible>(event);
+            } else {
+                // send each buffer element
+                for stream_token in buffer {
+                    let event = create_event_from_stream_token(
+                        &stream_token,
+                        logprobs,
+                        stream_options.clone(),
+                        response_as_tool,
+                        system_fingerprint.clone(),
+                        model_id.clone(),
+                        Some(global_function_name.clone()),
+                    );
+                    yield Ok::<Event, Infallible>(event);
+                }
+            }
+
             yield Ok::<Event, Infallible>(Event::default().data("[DONE]"));
         };
 

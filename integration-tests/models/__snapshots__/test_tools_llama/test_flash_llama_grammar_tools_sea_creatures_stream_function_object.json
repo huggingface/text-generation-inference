@@ -3,25 +3,27 @@
     {
       "delta": {
         "role": "assistant",
-        "tool_calls": {
-          "function": {
-            "arguments": "<|eot_id|>",
-            "name": null
-          },
-          "id": "",
-          "index": 0,
-          "type": "function"
-        }
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": "}",
+              "name": "get_n_day_weather_forecast"
+            },
+            "id": "",
+            "index": 0,
+            "type": "function"
+          }
+        ]
       },
-      "finish_reason": "stop",
+      "finish_reason": null,
       "index": 0,
       "logprobs": null
     }
   ],
-  "created": 1732293254,
+  "created": 1739797595,
   "id": "",
   "model": "meta-llama/Llama-3.1-8B-Instruct",
   "object": "chat.completion.chunk",
-  "system_fingerprint": "2.4.1-dev0-native",
+  "system_fingerprint": "3.1.1-dev0-native",
   "usage": null
 }
