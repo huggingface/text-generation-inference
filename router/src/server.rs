@@ -1877,6 +1877,8 @@ pub async fn run(
 
     // Only send usage stats when TGI is run in container and the function returns Some
     let is_container = matches!(usage_stats::is_container(), Ok(true));
+    // retrieve the huggingface_hub user agent origin if set, and add the origin to telemetry
+    let origin = std::env::var("HF_HUB_USER_AGENT_ORIGIN").ok();
     let user_agent = match (usage_stats_level, is_container) {
         (usage_stats::UsageStatsLevel::On | usage_stats::UsageStatsLevel::NoStack, true) => {
             let reduced_args = usage_stats::Args::new(
@@ -1899,6 +1901,7 @@ pub async fn run(
                 max_client_batch_size,
                 usage_stats_level,
                 backend.name(),
+                origin,
             );
             Some(usage_stats::UserAgent::new(reduced_args))
         }
