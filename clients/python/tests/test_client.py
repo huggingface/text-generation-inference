@@ -2,7 +2,7 @@ import pytest
 
 from text_generation import Client, AsyncClient
 from text_generation.errors import NotFoundError, ValidationError
-from text_generation.types import FinishReason, InputToken
+from text_generation.types import FinishReason
 
 
 def test_generate(llama_7b_url, hf_headers):
