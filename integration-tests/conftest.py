@@ -58,20 +58,37 @@ def pytest_addoption(parser):
     parser.addoption(
         "--release", action="store_true", default=False, help="run release tests"
     )
+    parser.addoption(
+        "--neuron", action="store_true", default=False, help="run neuron tests"
+    )
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "release: mark test as a release-only test")
+    config.addinivalue_line("markers", "neuron: mark test as a neuron test")
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--release"):
-        # --release given in cli: do not skip release tests
-        return
-    skip_release = pytest.mark.skip(reason="need --release option to run")
+    selectors = []
+    if not config.getoption("--release"):
+        # --release not given in cli: skip release tests
+        def skip_release(item):
+            if "release" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="need --release option to run"))
+        selectors.append(skip_release)
+    if config.getoption("--neuron"):
+        def skip_not_neuron(item):
+            if "neuron" not in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="incompatible with --neuron option"))
+        selectors.append(skip_not_neuron)
+    else:
+        def skip_neuron(item):
+            if "neuron" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --neuron to run"))
+        selectors.append(skip_neuron)
     for item in items:
-        if "release" in item.keywords:
-            item.add_marker(skip_release)
+        for selector in selectors:
+            selector(item)
 
 
 @pytest.fixture(autouse=True)
