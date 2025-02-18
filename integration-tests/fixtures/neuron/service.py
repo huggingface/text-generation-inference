@@ -18,8 +18,19 @@ from huggingface_hub import AsyncInferenceClient, TextGenerationOutput
 
 
 OPTIMUM_CACHE_REPO_ID = "optimum-internal-testing/neuron-testing-cache"
-DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", "text-generation-inference:latest-neuron")
 HF_TOKEN = huggingface_hub.get_token()
+
+
+def get_tgi_docker_image():
+    docker_image = os.getenv("DOCKER_IMAGE", None)
+    if docker_image is None:
+        client = docker.from_env()
+        images = client.images.list(filters={"reference": "text-generation-inference"})
+        if not images:
+            raise ValueError("No text-generation-inference image found on this host to run tests.")
+        docker_image = images[0].tags[0]
+    return docker_image
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -83,7 +94,7 @@ def event_loop():
 
 
 @pytest.fixture(scope="module")
-def launcher(event_loop):
+def neuron_launcher(event_loop):
     """Utility fixture to expose a TGI service.
 
     The fixture uses a single event loop for each module, but it can create multiple
@@ -130,15 +141,16 @@ def launcher(event_loop):
             if var in os.environ:
                 env[var] = os.environ[var]
 
+        base_image = get_tgi_docker_image()
         if os.path.isdir(model_name_or_path):
             # Create a sub-image containing the model to workaround docker dind issues preventing
             # to share a volume from the container running tests
 
-            docker_tag = f"{container_name}-img"
+            test_image = f"{container_name}-img"
             logger.info(
                 "Building image on the flight derivated from %s, tagged with %s",
-                DOCKER_IMAGE,
-                docker_tag,
+                base_image,
+                test_image,
             )
             with tempfile.TemporaryDirectory() as context_dir:
                 # Copy model directory to build context
@@ -147,17 +159,17 @@ def launcher(event_loop):
                 # Create Dockerfile
                 container_model_id = f"/data/{model_name_or_path}"
                 docker_content = f"""
-                FROM {DOCKER_IMAGE}
+                FROM {base_image}
                 COPY model {container_model_id}
                 """
                 with open(os.path.join(context_dir, "Dockerfile"), "wb") as f:
                     f.write(docker_content.encode("utf-8"))
                     f.flush()
-                image, logs = client.images.build(path=context_dir, dockerfile=f.name, tag=docker_tag)
+                image, logs = client.images.build(path=context_dir, dockerfile=f.name, tag=test_image)
             logger.info("Successfully built image %s", image.id)
             logger.debug("Build logs %s", logs)
         else:
-            docker_tag = DOCKER_IMAGE
+            test_image = base_image
             image = None
             container_model_id = model_name_or_path
 
@@ -167,7 +179,7 @@ def launcher(event_loop):
             args.append("--trust-remote-code")
 
         container = client.containers.run(
-            docker_tag,
+            test_image,
             command=args,
             name=container_name,
             environment=env,
@@ -210,7 +222,7 @@ def launcher(event_loop):
 
 
 @pytest.fixture(scope="module")
-def generate_load():
+def neuron_generate_load():
     """A utility fixture to launch multiple asynchronous TGI requests in parallel
 
     Args:
