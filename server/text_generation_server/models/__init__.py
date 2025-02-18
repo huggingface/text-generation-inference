@@ -858,6 +858,15 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=GPTNeoXConfig,
             )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         elif sharded:
             return CausalLM(
                 model_id=model_id,
