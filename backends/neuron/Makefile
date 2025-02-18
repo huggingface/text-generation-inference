@@ -25,7 +25,6 @@ image:
 				 --ulimit nofile=100000:100000 \
 				 --build-arg VERSION=$(VERSION) \
 				 -t text-generation-inference:$(VERSION)-neuron ${root_dir}
-	docker tag text-generation-inference:$(VERSION)-neuron text-generation-inference:latest-neuron
 
 install_server:
 	make -C ${mkfile_dir}/server install VERSION:=${VERSION}

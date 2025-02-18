@@ -31,7 +31,7 @@ deployment instructions in the model card:
 The service is launched simply by running the text-generation-inference container with two sets of parameters:
 
 ```
-docker run <system_parameters> ghcr.io/huggingface/text-generation-inference:latest-neuron <service_parameters>
+docker run <system_parameters> ghcr.io/huggingface/text-generation-inference:3.1.0-neuron <service_parameters>
 ```
 
 - system parameters are used to map ports, volumes and devices between the host and the service,
@@ -59,7 +59,7 @@ docker run -p 8080:80 \
        -v $(pwd)/data:/data \
        --privileged \
        -e HF_TOKEN=${HF_TOKEN} \
-       ghcr.io/huggingface/text-generation-inference:latest-neuron \
+       ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron \
        <service_parameters>
 ```
 
@@ -70,7 +70,7 @@ docker run -p 8080:80 \
        -v $(pwd)/data:/data \
        --device=/dev/neuron0 \
        -e HF_TOKEN=${HF_TOKEN} \
-       ghcr.io/huggingface/text-generation-inference:latest-neuron \
+       ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron \
        <service_parameters>
 ```
 
@@ -92,7 +92,7 @@ docker run -p 8080:80 \
        -e HF_TOKEN=${HF_TOKEN} \
        -e HF_AUTO_CAST_TYPE="fp16" \
        -e HF_NUM_CORES=2 \
-       ghcr.io/huggingface/text-generation-inference:latest-neuron:latest \
+       ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron \
        --model-id meta-llama/Meta-Llama-3-8B \
        --max-batch-size 1 \
        --max-input-length 3164 \
@@ -101,7 +101,7 @@ docker run -p 8080:80 \
 
 ### Using a model exported to a local path
 
-Alternatively, you can first [export the model to neuron format](https://huggingface.co/docs/optimum-neuron/main/en/guides/export_model#exporting-neuron-models-using-text-generation-inference:latest-neuron) locally.
+Alternatively, you can first [export the model to neuron format](https://huggingface.co/docs/optimum-neuron/main/en/guides/export_model#exporting-neuron-models-using-text-generation-inference) locally.
 
 You can then deploy the service inside the shared volume:
 
@@ -109,7 +109,7 @@ You can then deploy the service inside the shared volume:
 docker run -p 8080:80 \
        -v $(pwd)/data:/data \
        --privileged \
-       ghcr.io/huggingface/text-generation-inference:latest-neuron:latest \
+       ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron \
        --model-id /data/<neuron_model_path>
 ```
 
@@ -126,7 +126,7 @@ docker run -p 8080:80 \
        -v $(pwd)/data:/data \
        --privileged \
        -e HF_TOKEN=${HF_TOKEN} \
-       ghcr.io/huggingface/text-generation-inference:latest-neuron:latest \
+       ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron \
        --model-id <organization>/<neuron-model>
 ```
 
@@ -135,7 +135,7 @@ docker run -p 8080:80 \
 Use the following command to list the available service parameters:
 
 ```
-docker run ghcr.io/huggingface/text-generation-inference:latest-neuron --help
+docker run ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron --help
 ```
 
 The configuration of an inference endpoint is always a compromise between throughput and latency: serving more requests in parallel will allow a higher throughput, but it will increase the latency.
