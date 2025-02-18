@@ -3,10 +3,10 @@ import pytest
 
 
 @pytest.fixture
-async def tgi_service(launcher, neuron_model_config):
+async def tgi_service(neuron_launcher, neuron_model_config):
     model_name_or_path = neuron_model_config["neuron_model_path"]
     service_name = neuron_model_config["name"]
-    with launcher(service_name, model_name_or_path) as tgi_service:
+    with neuron_launcher(service_name, model_name_or_path) as tgi_service:
         await tgi_service.health(600)
         yield tgi_service
 
@@ -71,9 +71,9 @@ async def test_model_single_request(tgi_service):
 
 
 @pytest.mark.asyncio
-async def test_model_multiple_requests(tgi_service, generate_load):
+async def test_model_multiple_requests(tgi_service, neuron_generate_load):
     num_requests = 4
-    responses = await generate_load(
+    responses = await neuron_generate_load(
         tgi_service.client,
         "What is Deep Learning?",
         max_new_tokens=17,

@@ -1,1 +1,1 @@
-pytest_plugins = ["fixtures.service", "fixtures.model"]
+pytest_plugins = ["fixtures.model"]

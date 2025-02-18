@@ -5,7 +5,7 @@ from huggingface_hub.errors import ValidationError
 
 
 @pytest.fixture(scope="module", params=["hub-neuron", "hub", "local-neuron"])
-async def tgi_service(request, launcher, neuron_model_config):
+async def tgi_service(request, neuron_launcher, neuron_model_config):
     """Expose a TGI service corresponding to a model configuration
 
     For each model configuration, the service will be started using the following
@@ -31,7 +31,7 @@ async def tgi_service(request, launcher, neuron_model_config):
     else:
         model_name_or_path = neuron_model_config["neuron_model_path"]
     service_name = neuron_model_config["name"]
-    with launcher(service_name, model_name_or_path) as tgi_service:
+    with neuron_launcher(service_name, model_name_or_path) as tgi_service:
         await tgi_service.health(600)
         yield tgi_service
 

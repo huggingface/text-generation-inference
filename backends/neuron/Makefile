@@ -33,7 +33,3 @@ install_server:
 test_server: install_server
 	python -m pip install -r ${mkfile_dir}/tests/requirements.txt
 	python -m pytest -sv ${mkfile_dir}/tests/server
-
-test_integration: image
-	python -m pip install -r ${mkfile_dir}/tests/requirements.txt
-	python -m pytest -sv ${mkfile_dir}/tests/integration
