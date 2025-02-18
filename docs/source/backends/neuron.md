@@ -47,23 +47,14 @@ When deploying a service, you will need a pre-compiled Neuron model. The Neuron 
 Whenever you launch a TGI service, we highly recommend you to mount a shared volume mounted as `/data` in the container: this is where
 the models will be cached to speed up further instantiations of the service.
 
-Note also that enough neuron devices should be visible by the container.The simplest way to achieve that is to launch the service in `privileged` mode to get access to all neuron devices.
-Alternatively, each device can be explicitly exposed using the `--device` option.
+Note also that enough neuron devices should be made visible to the container, knowing that each neuron device has two cores (so when deploying on two cores you need to expose at least one device).
+The recommended way to expose a device in a production environment is to use explicitly the `--device` option (e.g `--device /dev/neuron0`) repeated as many time as there are devices to be exposed.
+
+Note: alternatively, for a quick local test it is also possible to launch the service in `privileged` mode to get access to all neuron devices.
 
 Finally, you might want to export the `HF_TOKEN` if you want to access gated repositories.
 
-Here is an example of a service instantiation:
-
-```
-docker run -p 8080:80 \
-       -v $(pwd)/data:/data \
-       --privileged \
-       -e HF_TOKEN=${HF_TOKEN} \
-       ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron \
-       <service_parameters>
-```
-
-If you only want to map the first device, the launch command becomes:
+Here is an example of a service instantiation exposing only the first device:
 
 ```
 docker run -p 8080:80 \
@@ -88,10 +79,13 @@ The snippet below shows how you can deploy a service from a hub standard model:
 export HF_TOKEN=<YOUR_TOKEN>
 docker run -p 8080:80 \
        -v $(pwd)/data:/data \
-       --privileged \
+       --device=/dev/neuron0 \
+       --device=/dev/neuron1 \
+       --device=/dev/neuron2 \
+       --device=/dev/neuron3 \
        -e HF_TOKEN=${HF_TOKEN} \
        -e HF_AUTO_CAST_TYPE="fp16" \
-       -e HF_NUM_CORES=2 \
+       -e HF_NUM_CORES=8 \
        ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron \
        --model-id meta-llama/Meta-Llama-3-8B \
        --max-batch-size 1 \
@@ -108,12 +102,14 @@ You can then deploy the service inside the shared volume:
 ```
 docker run -p 8080:80 \
        -v $(pwd)/data:/data \
-       --privileged \
+       --device=/dev/neuron0 \
+       --device=/dev/neuron1 \
        ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron \
        --model-id /data/<neuron_model_path>
 ```
 
-Note: You don't need to specify any service parameters, as they will all be deduced from the model export configuration.
+Note: You don't need to specify any service parameters, as they will all be deduced from the model export configuration. You must however expose enough devices to match the number of cores specified during the export phase.
+
 
 ### Using a neuron model from the 🤗 [HuggingFace Hub](https://huggingface.co/)
 
@@ -124,7 +120,8 @@ The snippet below shows how you can deploy a service from a hub neuron model:
 ```
 docker run -p 8080:80 \
        -v $(pwd)/data:/data \
-       --privileged \
+       --device=/dev/neuron0 \
+       --device=/dev/neuron1 \
        -e HF_TOKEN=${HF_TOKEN} \
        ghcr.io/huggingface/text-generation-inference:<VERSION>-neuron \
        --model-id <organization>/<neuron-model>
