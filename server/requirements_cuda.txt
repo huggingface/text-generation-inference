@@ -346,7 +346,7 @@ tqdm==4.66.5
     #   outlines
     #   peft
     #   transformers
-transformers==4.48.2
+transformers==4.49
     # via
     #   text-generation-server (pyproject.toml)
     #   compressed-tensors
