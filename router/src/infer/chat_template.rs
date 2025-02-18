@@ -1,5 +1,5 @@
 use crate::infer::InferError;
-use crate::{ChatTemplateInputs, Message, MessageChunk, TextMessage, TokenizerConfigToken, Tool};
+use crate::{ChatTemplateInputs, Message, MessageChunk, MessageContent, TextMessage, TokenizerConfigToken, Tool};
 use chrono::Local;
 use minijinja::{Environment, ErrorKind, Template};
 use minijinja_contrib::pycompat;
@@ -74,14 +74,38 @@ impl ChatTemplate {
                     format!("\n---\n{}", tool_prompt)
                 };
                 if let Some(last_message) = messages.last_mut() {
-                    last_message.content.push(MessageChunk::Text { text });
+                    if let Some(ref mut content) = last_message.content {
+                        content.push(MessageChunk::Text { text });
+                    } else {
+                        last_message.content = Some(MessageContent::SingleText(text));
+                    }
                 }
                 Some(tools)
             }
             None => None,
         };
 
-        let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
+        let messages: Vec<TextMessage> = messages
+            .into_iter()
+            .map(|m| {
+                if m.role == "assistant" && m.tool_calls.is_some() && m.content.is_none() {
+                    // For assistant messages with tool calls but no content,
+                    // just use the standard conversion which will handle None content
+                    Ok(m.into())
+                } else if m.content.is_none() {
+                    // For messages requiring content but having none, return error
+                    return Err(InferError::TemplateError(
+                        minijinja::Error::new(
+                            minijinja::ErrorKind::SyntaxError,
+                            "Content is required for this message type",
+                        )
+                    ));
+                } else {
+                    Ok(m.into())
+                }
+            })
+            .collect::<Result<_, _>>()?;
+
         let final_message = messages.last().cloned();
         let mut rendered_template = self
             .template
