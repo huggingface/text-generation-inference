@@ -6,7 +6,6 @@
   awq-inference-engine,
   causal-conv1d,
   compressed-tensors,
-  eetq,
   einops,
   exllamav2,
   flashinfer,
@@ -36,6 +35,7 @@
   py-cpuinfo,
   pydantic,
   quantization,
+  quantization-eetq,
   safetensors,
   tokenizers,
   torch,
@@ -80,7 +80,6 @@ buildPythonPackage {
 
   dependencies = [
     awq-inference-engine
-    eetq
     causal-conv1d
     compressed-tensors
     einops
@@ -111,6 +110,7 @@ buildPythonPackage {
     py-cpuinfo
     pydantic
     quantization
+    quantization-eetq
     safetensors
     sentencepiece
     tokenizers

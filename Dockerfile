@@ -121,13 +121,6 @@ COPY server/Makefile-awq Makefile
 # Build specific version of transformers
 RUN . .venv/bin/activate && make build-awq
 
-# Build eetq kernels
-FROM kernel-builder AS eetq-kernels-builder
-WORKDIR /usr/src
-COPY server/Makefile-eetq Makefile
-# Build specific version of transformers
-RUN . .venv/bin/activate && make build-eetq
-
 # Build Lorax Punica kernels
 FROM kernel-builder AS lorax-punica-builder
 WORKDIR /usr/src
@@ -216,8 +209,6 @@ COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 
 COPY --from=exllamav2-kernels-builder /usr/src/exllamav2/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from awq kernels builder
 COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
-# Copy build artifacts from eetq kernels builder
-COPY --from=eetq-kernels-builder /usr/src/eetq/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from lorax punica kernels builder
 COPY --from=lorax-punica-builder /usr/src/lorax-punica/server/punica_kernels/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from mamba builder

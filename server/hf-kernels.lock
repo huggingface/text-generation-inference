@@ -6736,5 +6736,203 @@
         "blob_id": "d97e03913fa5980e0be73b160088c8e4f5f49a52"
       }
     ]
+  },
+  {
+    "repo_id": "kernels-community/quantization-eetq",
+    "sha": "a80ce846d6270ddddeee109523ed947f594f246b",
+    "files": [
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "9c191845fb7acbd7ea6bae36ce8c237b168557e1"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/quantization_eetq/_quantization_eetq_v7rnpcck3kry4.abi3.so",
+        "blob_id": "9edc9126b9ec8ce4f47a8e6688a5f0329c905329"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "ccec58b06a2282da51356fe5d04dd1e2757ce80c"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/quantization_eetq/_quantization_eetq_zcfiojfkx55be.abi3.so",
+        "blob_id": "ea27fb040515267ec631cec5545b878da680e7cc"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "bb409419898138ffa9ade9ba505a167a067ea378"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/quantization_eetq/_quantization_eetq_btymam4x7xvs6.abi3.so",
+        "blob_id": "0395dd048ccf10ed020a77fa04bcb026ba369d73"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "f250a00832d2044f7bbb87557a1c878d9c8dd24d"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/quantization_eetq/_quantization_eetq_yy3p6bsf622sq.abi3.so",
+        "blob_id": "c98d156835e442b039d38a82e9f111036750329c"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "b5259247e8fb3ed9429cf005a525edc8bcae4903"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/quantization_eetq/_quantization_eetq_imijtykkseqze.abi3.so",
+        "blob_id": "c46908ce00d02376ae8e18efebb7fee55afbc3ac"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "79f8d42700ad34b9b46e6e328f90885d1ee9beab"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/quantization_eetq/_quantization_eetq_4qerj3t7ddiry.abi3.so",
+        "blob_id": "9ba519d2fd4e347b784c21f4c171cbbab57c7774"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "805ec785b7f5196f78dfe77b6cd7c2603c02490e"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/quantization_eetq/_quantization_eetq_j23ltbqvrnixg.abi3.so",
+        "blob_id": "77d53c16e57c658e8f9caa37b0084c4a3a7ffda1"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "7b590a5a6ede67e0ae13f97dbd7a82a4674e1b23"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/quantization_eetq/_quantization_eetq_p5neqtnhdgxv2.abi3.so",
+        "blob_id": "e3e5fbd8ce3232b6e9a7c3077eab9665b95bef49"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "0be7ffcb2e9590899683a197b977ec0b39ca7cb7"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/quantization_eetq/_quantization_eetq_idk3dezy35dfk.abi3.so",
+        "blob_id": "61aa67cbe7ce810bf9792e6e8f19219c757ff181"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "998eba3eddd0520769a2b4ecb3402c024bde44ea"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/quantization_eetq/_quantization_eetq_fpjoxzd7nm2qa.abi3.so",
+        "blob_id": "31d835db1d0348e3f35c23e6a8f2532fd7e9fea7"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "6d5320b05b03f2f3ddfd299d6e2a72aa6116264f"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/quantization_eetq/_quantization_eetq_k7mlunxe2ye4s.abi3.so",
+        "blob_id": "1946e4c2fab63243d051012cb12e19895828145f"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/quantization_eetq/__init__.py",
+        "blob_id": "c65d0601c655d7acf1a12e61b6549618b46a70d7"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/quantization_eetq/_ops.py",
+        "blob_id": "9b15d85f44e4223ce1f16df987feafd6640dcc62"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/quantization_eetq/_quantization_eetq_7m7hz3sbwkaio.abi3.so",
+        "blob_id": "eb1536ccd1dfa2655ea7de4445aa3c6790f3a0ae"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/quantization_eetq/custom_ops.py",
+        "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
+      }
+    ]
   }
 ]

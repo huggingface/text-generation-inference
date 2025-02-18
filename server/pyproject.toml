@@ -42,6 +42,7 @@ build-backend = "setuptools.build_meta"
 "kernels-community/paged-attention" = ">=0.0.2"
 "kernels-community/moe" = ">=0.1.1"
 "kernels-community/quantization" = ">=0.0.3"
+"kernels-community/quantization-eetq" = ">=0.0.1"
 
 [project.scripts]
 text-generation-server = "text_generation_server.cli:app"

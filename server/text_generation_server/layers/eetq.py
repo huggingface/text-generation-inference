@@ -1,8 +1,12 @@
 from dataclasses import dataclass
 
 import torch
-from EETQ import quant_weights, w8_a16_gemm
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.weights import UnquantizedWeight
+
+quantization_eetq = load_kernel(
+    module="quantization_eetq", repo_id="kernels-community/quantization-eetq"
+)
 
 
 @dataclass
@@ -31,13 +35,13 @@ class EETQLinear(torch.nn.Module):
         if weight.dtype != torch.float16:
             weight = weight.to(dtype=torch.float16)
         weight = torch.t(weight).contiguous().cpu()
-        weight, scale = quant_weights(weight, torch.int8, False)
+        weight, scale = quantization_eetq.quant_weights(weight, torch.int8, False)
 
         self.weight = weight.cuda(device)
         self.scale = scale.cuda(device)
         self.bias = bias.cuda(device) if bias is not None else None
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        output = w8_a16_gemm(input, self.weight, self.scale)
+        output = quantization_eetq.w8_a16_gemm(input, self.weight, self.scale)
         output = output + self.bias if self.bias is not None else output
         return output
