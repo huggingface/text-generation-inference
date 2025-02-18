@@ -137,6 +137,7 @@ jobs:
           install: true
           buildkitd-config: /tmp/buildkitd.toml
       - name: Login to internal Container Registry
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.REGISTRY_USERNAME }}
@@ -169,7 +170,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            docker.io/library/huggingface/text-generation-inference-ci
+            docker.io/huggingface/text-generation-inference-ci
           tags: |
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
       # If main, release or tag
