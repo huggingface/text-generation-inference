@@ -1,3 +1,3 @@
-transformers==4.48.2
+transformers==4.49
 huggingface-hub==0.28.1
 hf-transfer==0.1.9
