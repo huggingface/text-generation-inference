@@ -1285,7 +1285,6 @@ pub(crate) async fn chat_completions(
                 }
             };
             let mut response_as_tool = using_tools;
-            let mut global_function_name = String::new();
             while let Some(result) = response_stream.next().await {
                 match result{
                 Ok(stream_token) => {
@@ -1295,8 +1294,8 @@ pub(crate) async fn chat_completions(
                             json_buffer.push_str(&token_text.replace(" ", ""));
                             buffer.push(stream_token);
                             if let Some(captures) = function_regex.captures(&json_buffer) {
-                                global_function_name = captures[1].to_string();
-                                if global_function_name == "no_tool" {
+                                let function_name = captures[1].to_string();
+                                if function_name == "no_tool" {
                                     state = StreamState::BufferTrailing;
                                     response_as_tool = false;
                                     buffer.clear();
@@ -1317,7 +1316,7 @@ pub(crate) async fn chat_completions(
                                         id: String::new(),
                                         r#type: "function".to_string(),
                                         function: Function {
-                                            name: Some(global_function_name.clone()),
+                                            name: Some(function_name.clone()),
                                             arguments: "".to_string(),
                                         },
                                     }],
