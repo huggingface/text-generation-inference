@@ -1305,6 +1305,40 @@ pub(crate) async fn chat_completions(
                                     state = StreamState::Content {
                                         skip_close_quote: false,
                                     };
+                                    let event = Event::default();
+                                    let current_time = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                                        .as_secs();
+                                let tool_delta_start = ChatCompletionDelta::Tool(ToolCallDelta {
+                                    role: "assistant".to_string(),
+                                    tool_calls: vec![DeltaToolCall {
+                                        index: 0,
+                                        id: String::new(),
+                                        r#type: "function".to_string(),
+                                        function: Function {
+                                            name: Some(global_function_name.clone()),
+                                            arguments: "".to_string(),
+                                        },
+                                    }],
+                                });
+                                let chat_complete =
+                                    CompletionType::ChatCompletionChunk(ChatCompletionChunk{
+                                        id: String::new(),
+                                        created: current_time,
+                                        model: model_id.clone(),
+                                        system_fingerprint: system_fingerprint.clone(),
+                                        choices: vec![ChatCompletionChoice {
+                                            index: 0,
+                                            delta: tool_delta_start,
+                                            logprobs: None,
+                                            finish_reason: None,
+                                        }],
+                                        usage: None,
+                                    });
+                                    yield Ok(event.json_data(chat_complete).unwrap_or_else(|e| {
+                                        InferError::StreamSerializationError(e.to_string()).into()
+                                    }));
                                     buffer.drain(1..); // only keep the first token (opening '{')
                                     buffer[0].token.text = buffer[0].token.text.chars().take(1).collect();
                                 }
@@ -1341,7 +1375,7 @@ pub(crate) async fn chat_completions(
                                         None,
                                         None,
                                         None,
-                                        Some(global_function_name.clone()),
+                                        None,
                                     ));
                                 yield Ok(event.json_data(chat_complete).unwrap_or_else(|e| {
                                     InferError::StreamSerializationError(e.to_string()).into()
@@ -1370,7 +1404,7 @@ pub(crate) async fn chat_completions(
                                         response_as_tool,
                                         system_fingerprint.clone(),
                                         model_id.clone(),
-                                        Some(global_function_name.clone()),
+                                        None,
                                     );
 
                                     yield Ok::<Event, Infallible>(event);
@@ -1394,7 +1428,7 @@ pub(crate) async fn chat_completions(
                     response_as_tool,
                     system_fingerprint.clone(),
                     model_id.clone(),
-                    Some(global_function_name.clone()),
+                    None,
                 );
                 yield Ok::<Event, Infallible>(event);
             } else {
@@ -1407,7 +1441,7 @@ pub(crate) async fn chat_completions(
                         response_as_tool,
                         system_fingerprint.clone(),
                         model_id.clone(),
-                        Some(global_function_name.clone()),
+                        None,
                     );
                     yield Ok::<Event, Infallible>(event);
                 }

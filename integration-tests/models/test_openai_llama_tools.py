@@ -101,7 +101,9 @@ async def test_openai_llama_tools(openai_llama_tools, response_snapshot):
 
     tool_call_string = ""
     for chunk in chat_completion:
-        tool_call_string += chunk.choices[0].delta.tool_calls[0].function.arguments
+        function_call = chunk.choices[0].delta.tool_calls[0].function
+        if function_call:
+            tool_call_string += function_call.arguments
         last_chunk = chunk.to_dict()
 
     assert (

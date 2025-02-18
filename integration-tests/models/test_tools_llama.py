@@ -216,7 +216,7 @@ async def test_flash_llama_grammar_tools_stream(
         assert response.choices[0].delta.content is None
 
     assert tool_calls_generated == '{ "location": "Paris, France", "format": "celsius"}'
-    assert count == 16
+    assert count == 17
     assert last_response == response_snapshot
 
 
@@ -360,7 +360,7 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_required(
         )
         last_response = response
 
-    assert count == 23
+    assert count == 24
     assert (
         tool_calls_generated
         == '{ "location": "San Francisco, CA", "format": "fahrenheit", "num_days":3}'
@@ -458,7 +458,7 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
                 tool_calls_generated += tool_call["function"]["arguments"]
                 last_response = response
 
-    assert count == 25
+    assert count == 26
     assert (
         tool_calls_generated
         == '{ "location": "San Francisco, CA", "format": "celsius", "num_days": 3}'
