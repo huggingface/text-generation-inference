@@ -60,8 +60,6 @@ COPY proto proto
 COPY router router
 COPY backends backends
 COPY launcher launcher
-# Remove this line once TGI has fixed the conflict
-RUN cargo update ureq --precise 2.9.7
 RUN cargo build --release
 
 # Python base image
