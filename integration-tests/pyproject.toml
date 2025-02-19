@@ -1,19 +1,17 @@
-[tool.poetry]
+[project]
 name = "text-generation-integration-tests"
 version = "2.0.1"
 description = "Text Generation Inference integration tests"
 authors = ["Nicolas Patry <nicolas@huggingface.co>"]
+requires-python = ">=3.10,<3.13"
 
-[tool.poetry.dependencies]
-pydantic = "> 2, < 3"
-python = ">=3.10,<3.13"
-syrupy = "^4.7.1"
-text-generation = "^0.6.0"
-pytest = "^7.4.0"
-pytest-asyncio = "^0.21.1"
-docker = "^7"
-numpy = "^1.20"
-openai = "^1.60.0"
-
-[tool.isort]
-profile = "black"
+dependencies = [
+    "pydantic>2,< 3",
+    "syrupy>=4.8.0",
+    "text-generation>=0.6.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.23.1",
+    "docker>=7",
+    "numpy>=2.0",
+    "openai>=1.60.0",
+]
