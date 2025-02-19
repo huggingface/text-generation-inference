@@ -21,7 +21,7 @@ async def test_model_single_request(tgi_service):
     assert response.details.generated_tokens == 17
     greedy_expectations = {
         "gpt2": "\n\nDeep learning is a new field of research that has been around for a while",
-        "llama": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use",
+        "llama": " and How Does it Work?\nDeep learning is a subset of machine learning that uses artificial",
         "mistral": "\nWhat is Deep Learning?\nDeep Learning is a type of machine learning that",
         "qwen2": " - Part 1\n\nDeep Learning is a subset of Machine Learning that is based on",
         "granite": "\n\nDeep Learning is a subset of Machine Learning, which is a branch of Art",
@@ -82,7 +82,7 @@ async def test_model_multiple_requests(tgi_service, neuron_generate_load):
     assert len(responses) == 4
     expectations = {
         "gpt2": "Deep learning is a new field of research that has been around for a while",
-        "llama": "Deep learning is a subset of machine learning that involves the use",
+        "llama": "Deep learning is a subset of machine learning that uses artificial",
         "mistral": "Deep Learning is a type of machine learning that",
         "qwen2": "Deep Learning is a subset of Machine Learning that is based on",
         "granite": "Deep Learning is a subset of Machine Learning, which is a branch of Art",
