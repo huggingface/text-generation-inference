@@ -867,7 +867,7 @@ class AsyncClient:
         async with ClientSession(
             headers=self.headers, cookies=self.cookies, timeout=self.timeout
         ) as session:
-            async with session.post(self.base_url, json=request.dict()) as resp:
+            async with session.post(self.base_url, json=request.model_dump()) as resp:
                 payload = await resp.json()
 
                 if resp.status != 200:
