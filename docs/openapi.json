@@ -1993,17 +1993,7 @@
                 "type": "null"
               },
               {
-                "oneOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/MessageChunk"
-                    }
-                  }
-                ]
+                "$ref": "#/components/schemas/MessageContent"
               }
             ]
           },
@@ -2025,8 +2015,7 @@
             ],
             "items": {
               "$ref": "#/components/schemas/ToolCall"
-            },
-            "example": "null"
+            }
           }
         }
       },
