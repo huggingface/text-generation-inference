@@ -1,4 +1,3 @@
-import Levenshtein
 import pytest
 
 
@@ -82,15 +81,13 @@ async def test_model_multiple_requests(tgi_service, neuron_generate_load):
 
     assert len(responses) == 4
     expectations = {
-        "gpt2": "\n\nDeep learning is a new field of research that has been around for a while",
-        "llama": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use",
-        "mistral": "\nWhat is Deep Learning?\nDeep Learning is a type of machine learning that",
-        "qwen2": " - Part 1\n\nDeep Learning is a subset of Machine Learning that is based on",
-        "granite": "\n\nDeep Learning is a subset of Machine Learning, which is a branch of Art",
+        "gpt2": "Deep learning is a new field of research that has been around for a while",
+        "llama": "Deep learning is a subset of machine learning that involves the use",
+        "mistral": "Deep Learning is a type of machine learning that",
+        "qwen2": "Deep Learning is a subset of Machine Learning that is based on",
+        "granite": "Deep Learning is a subset of Machine Learning, which is a branch of Art",
     }
     expected = expectations[tgi_service.client.service_name]
     for r in responses:
         assert r.details.generated_tokens == 17
-        # Compute the similarity with the expectation using the levenshtein distance
-        # We should not have more than two substitutions or additions
-        assert Levenshtein.distance(r.generated_text, expected) < 3
+        assert expected in r.generated_text
