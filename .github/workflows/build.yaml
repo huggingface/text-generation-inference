@@ -264,8 +264,8 @@ jobs:
     container:
       image: ${{ needs.build-and-push.outputs.docker_image }}
       credentials:
-        username: ${{ secrets.REGISTRY_USERNAME }}
-        password: ${{ secrets.REGISTRY_PASSWORD }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
       options: --gpus all --shm-size=8g
 
     steps:
