@@ -7,7 +7,7 @@ ARG cuda_arch=75-real;80-real;86-real;89-real;90-real
 WORKDIR /opt/src
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update && apt install -y \
+RUN apt update && apt upgrade -y && apt install -y \
     clang \
     cmake \
     curl \
@@ -58,7 +58,7 @@ FROM nvidia/cuda:12.8.0-cudnn-runtime-ubuntu24.04
 WORKDIR /app
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update && apt install -y \
+RUN apt update && apt upgrade -y && apt install -y \
     python3-venv \
     python3-pip
 
