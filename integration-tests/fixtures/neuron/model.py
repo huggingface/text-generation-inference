@@ -32,7 +32,7 @@ MODEL_CONFIGURATIONS = {
         "export_kwargs": {"batch_size": 4, "sequence_length": 1024, "num_cores": 2, "auto_cast_type": "fp16"},
     },
     "llama": {
-        "model_id": "NousResearch/Hermes-2-Theta-Llama-3-8B",
+        "model_id": "unsloth/Llama-3.2-1B-Instruct",
         "export_kwargs": {"batch_size": 4, "sequence_length": 2048, "num_cores": 2, "auto_cast_type": "fp16"},
     },
     "mistral": {
