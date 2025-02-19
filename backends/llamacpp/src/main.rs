@@ -216,7 +216,7 @@ async fn main() -> Result<(), RouterError> {
             error!("No GGUF model given and environment variable MAKE_GGUF is missing.");
             RouterError::VarError(e)
         })?;
-        let model_gguf = "models/model.gguf".to_string();
+        let model_gguf = format!("models/{}/model.gguf", args.model_id);
 
         let status = Command::new(make_gguf)
             .arg(&model_gguf)
