@@ -170,8 +170,11 @@ mod tests {
                 instances: vec![VertexInstance::Chat(ChatRequest {
                     messages: vec![Message {
                         role: "user".to_string(),
-                        content: MessageContent::SingleText("What's Deep Learning?".to_string()),
+                        content: Some(MessageContent::SingleText(
+                            "What's Deep Learning?".to_string()
+                        )),
                         name: None,
+                        tool_calls: None,
                     },],
                     max_tokens: Some(128),
                     top_p: Some(0.95),

@@ -1025,7 +1025,7 @@ pub fn default_tool_prompt() -> String {
     "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, ToSchema, PartialEq, Serialize)]
 #[serde(tag = "type")]
 pub enum TypedChoice {
     #[serde(rename = "function")]
@@ -1100,19 +1100,19 @@ pub struct JsonSchemaTool {
     properties: Properties,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 struct FunctionsMap {
     #[serde(rename = "$functions")]
     functions: std::collections::HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 struct FunctionRef {
     #[serde(rename = "$ref")]
     ref_path: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 struct Properties {
     #[serde(serialize_with = "serialize_function")]
     function: Vec<FunctionRef>,
@@ -1176,7 +1176,7 @@ pub enum MessageChunk {
     ImageUrl { image_url: Url },
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
+#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq, Default)]
 pub struct Message {
     #[schema(example = "user")]
     role: String,
@@ -1185,6 +1185,7 @@ pub struct Message {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
     name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     tool_calls: Option<Vec<ToolCall>>,
 }
 
@@ -1573,8 +1574,11 @@ mod tests {
             request.messages[0],
             Message {
                 role: "user".to_string(),
-                content: MessageContent::SingleText("What is Deep Learning?".to_string()),
-                name: None
+                content: Some(MessageContent::SingleText(
+                    "What is Deep Learning?".to_string()
+                )),
+                name: None,
+                tool_calls: None
             }
         );
     }
@@ -1626,11 +1630,12 @@ mod tests {
             request.messages[0],
             Message{
                 role: "user".to_string(),
-                content: MessageContent::MultipleChunks(vec![
+                content: Some(MessageContent::MultipleChunks(vec![
                     MessageChunk::Text { text: "Whats in this image?".to_string() },
                     MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
-                ]),
-                name: None
+                ])),
+                name: None,
+                tool_calls: None
             }
         );
     }
@@ -1639,11 +1644,12 @@ mod tests {
     fn text_message_convert() {
         let message = Message{
                 role: "user".to_string(),
-                content: MessageContent::MultipleChunks(vec![
+                content: Some(MessageContent::MultipleChunks(vec![
                     MessageChunk::Text { text: "Whats in this image?".to_string() },
                     MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
-                ]),
-                name: None
+                ])),
+                name: None,
+                tool_calls: None
             };
         let textmsg: TextMessage = message.into();
         assert_eq!(textmsg.content, "Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)");

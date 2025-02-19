@@ -477,7 +477,7 @@ async def test_flash_llama_tool_reply_response(
 ):
     responses = await flash_llama_grammar_tools.chat(
         max_tokens=100,
-        seed=43,
+        seed=42,
         messages=[
             {"role": "user", "content": "What's the weather like in Paris today?"},
             {
@@ -503,7 +503,7 @@ async def test_flash_llama_tool_reply_response(
     assert responses.choices[0].message.tool_calls is None
     assert (
         responses.choices[0].message.content
-        == "I'm an AI and do not have access to real-time data. However,  based on location information (Paris) I can provide general information. \n\nThe temperature in Paris varies widely throughout the year. In the summer (June to August), the average high temperature is around 23°C (73°F), while in the winter (December to February), the average low temperature is around -1°C (30°F). \n\nTo get the current weather in Paris, I recommend checking a weather website or"
+        == "I can't access real-time data, but I can provide you with current conditions and forecast for Paris, France:\n\nThe current conditions in Paris are mostly cloudy with a temperature of 6.7°C (44.1°F). \n\nPlease note that the actual weather may differ from this information, and I recommend checking the forecast on a reliable weather website for the most up-to-date information."
     )
 
     assert responses == response_snapshot
