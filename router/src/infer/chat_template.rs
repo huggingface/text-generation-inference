@@ -73,10 +73,8 @@ impl ChatTemplate {
                     // if the `tools` variable is used in the template, we just append the tool_prompt
                     format!("\n---\n{}", tool_prompt)
                 };
-                if let Some(last_message) = messages.last_mut() {
-                    if let Some(content) = last_message.content.as_mut() {
-                        content.push(MessageChunk::Text { text });
-                    }
+                if let Some(content) = messages.last_mut().and_then(|msg| msg.content.as_mut()) {
+                    content.push(MessageChunk::Text { text })
                 }
                 Some(tools)
             }

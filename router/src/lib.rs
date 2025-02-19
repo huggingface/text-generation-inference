@@ -1222,22 +1222,24 @@ pub struct TextMessage {
 
 impl From<Message> for TextMessage {
     fn from(value: Message) -> Self {
+        let content = value
+            .tool_calls
+            .map(|calls| serde_json::to_string(&calls).unwrap_or_default())
+            .map(MessageContent::SingleText)
+            .or(value.content)
+            .unwrap_or_else(|| MessageContent::SingleText(String::new()));
         TextMessage {
             role: value.role,
-            content: match value.content {
-                // If content is Some(MessageContent), handle it accordingly
-                Some(MessageContent::SingleText(text)) => text,
-                Some(MessageContent::MultipleChunks(chunks)) => {
-                    chunks.into_iter()
-                        .map(|chunk| match chunk {
-                            MessageChunk::Text { text } => text,
-                            MessageChunk::ImageUrl { image_url } => format!("![]({})", image_url.url),
-                        })
-                        .collect::<Vec<_>>()
-                        .join("")
-                }
-                // If content is None, use an empty string or a default message
-                None => String::new(), // or you could use "No content" or another placeholder
+            content: match content {
+                MessageContent::SingleText(text) => text,
+                MessageContent::MultipleChunks(chunks) => chunks
+                    .into_iter()
+                    .map(|chunk| match chunk {
+                        MessageChunk::Text { text } => text,
+                        MessageChunk::ImageUrl { image_url } => format!("![]({})", image_url.url),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(""),
             },
         }
     }

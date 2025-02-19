@@ -468,3 +468,42 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
         == '{"function": {"_name": "get_n_day_weather_forecast", "location": "San Francisco, CA", "format": "celsius", "num_days":3}}<|eot_id|>'
     )
     assert last_response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_tool_reply_response(
+    flash_llama_grammar_tools, response_snapshot
+):
+    responses = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=43,
+        messages=[
+            {"role": "user", "content": "What's the weather like in Paris today?"},
+            {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "0",
+                        "function": {
+                            "arguments": '{"longitude": 2.2945, "latitude": 48.8567}',
+                            "name": "get_weather",
+                            "description": None,
+                        },
+                        "type": "function",
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "0", "content": "6.7"},
+        ],
+        stream=False,
+    )
+
+    assert responses.choices[0].message.tool_calls is None
+    assert (
+        responses.choices[0].message.content
+        == "I'm an AI and do not have access to real-time data. However,  based on location information (Paris) I can provide general information. \n\nThe temperature in Paris varies widely throughout the year. In the summer (June to August), the average high temperature is around 23°C (73°F), while in the winter (December to February), the average low temperature is around -1°C (30°F). \n\nTo get the current weather in Paris, I recommend checking a weather website or"
+    )
+
+    assert responses == response_snapshot
