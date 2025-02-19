@@ -379,7 +379,12 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         config.vision_config.speculator = config.speculator
         # set rope_scaling.type == "mrope" since AutoConfig.from_pretrained incorrectly
         # returns rope_scaling.type == "default" for Qwen2-VL model at the moment
-        config.rope_scaling.update({"rope_type": "mrope"})
+        if (
+            hasattr(config, "rope_scaling")
+            and config.rope_scaling is not None
+            and config.rope_scaling.get("type", None) == "default"
+        ):
+            config.rope_scaling.update({"rope_type": "mrope"})
         self.hidden_size = config.hidden_size
         self.vision_start_token_id = config.vision_start_token_id
         self.vision_end_token_id = config.vision_end_token_id
@@ -520,7 +525,6 @@ class Qwen2VLForConditionalGeneration(nn.Module):
 
         # apply the visual model to the pixel values if they are provided
         if pixel_values is not None and len(pixel_values) > 0:
-            pixel_values = pixel_values.to(inputs_embeds.dtype)
             if pixel_values is not None:
                 image_embeds = self.visual(
                     pixel_values, grid_thw=image_grid_thw

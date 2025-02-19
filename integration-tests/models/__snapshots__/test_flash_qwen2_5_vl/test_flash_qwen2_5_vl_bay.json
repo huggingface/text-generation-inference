@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The image showcases the Statue of Liberty, a colossal bronze statue located in New York Harbor, a heritage building in the United States. The statue has a majestic presence, with one arm raised towards the sun and the other hitched on her hip. It sits atop a keeper's walkway, observed from the water. Surrounding the statue is a lush green meadow, where picnic spots, walkways, and a visitor desk can be found. In front of the statue, a large marina can accommodate fourteen different kinds of boats. In the backdrop stands the Empire State Building, marking the crowded skyscrapers of New York City.",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1738342753,
+  "id": "",
+  "model": "Qwen/Qwen2.5-VL-3B-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.0.2-dev0-native",
+  "usage": {
+    "completion_tokens": 128,
+    "prompt_tokens": 8736,
+    "total_tokens": 8864
+  }
+}

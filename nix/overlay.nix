@@ -13,16 +13,16 @@ final: prev: {
     (
       python-self: python-super: with python-self; {
         # Python package override example:
-        #   transformers = python-super.transformers.overrideAttrs (
-        #     _: _: {
-        #       src = final.fetchFromGitHub {
-        #         owner = "huggingface";
-        #         repo = "transformers";
-        #         rev = "2bd4d5897dc73e8b172832070a6f9e567a0df017";
-        #         hash = "sha256-JOIpKH9ssDEfI2Tf15e0iPKtThJwQ9GxMvRAnm+M2Pg=";
-        #       };
-        #    }
-        # );
+        transformers = python-super.transformers.overrideAttrs (
+          _: _: {
+            src = final.fetchFromGitHub {
+              owner = "huggingface";
+              repo = "transformers";
+              rev = "8d73a38606bc342b370afe1f42718b4828d95aaa";
+              hash = "sha256-MxroG6CWqrcmRS+eFt7Ej87TDOInN15aRPBUcaycKTI=";
+            };
+          }
+        );
       }
     )
   ];

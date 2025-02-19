@@ -123,6 +123,11 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         num_pads = grid_t * grid_h * grid_w // 4
         padding = "<|image_pad|>" * num_pads
         return f"<|vision_start|>{padding}<|vision_end|>"
+    elif config.model_type == "qwen2_5_vl":
+        grid_t, grid_h, grid_w = image_input["image_grid_thw"][image_id]
+        num_pads = grid_t * grid_h * grid_w // 4
+        padding = "<|image_pad|>" * num_pads
+        return f"<|vision_start|>{padding}<|vision_end|>"
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -231,7 +236,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     image = Image.open(BytesIO(chunk.image.data))
                     # qwen2_vl expects images to be greater than 20 pixels, this is for warmup since the
                     # default warmup image is 20x20
-                    if config.model_type == "qwen2_vl":
+                    if config.model_type in {"qwen2_vl", "qwen2_5_vl"}:
                         if image.width <= 20:
                             w = image.width * 2
                             h = image.height * 2
@@ -422,7 +427,7 @@ class VlmCausalLM(FlashCausalLM):
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
-        if self.model.config.model_type == "qwen2_vl":
+        if self.model.config.model_type in {"qwen2_vl", "qwen2_5_vl"}:
             if position_ids.dim() == 1 and batch.prefilling:
                 position_ids = self.model.get_position_ids(
                     input_ids, batch.image_grid_thw
