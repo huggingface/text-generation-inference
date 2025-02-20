@@ -576,6 +576,7 @@ async def launcher(error_log):
             ]
 
         client.api.timeout = 1000
+        subprocess.check_call(["docker", "pull", DOCKER_IMAGE])
         container = client.containers.run(
             DOCKER_IMAGE,
             command=args,
