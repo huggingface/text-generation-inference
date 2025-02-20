@@ -152,14 +152,10 @@ def inference(message, history):
 
 gr.ChatInterface(
     inference,
-    chatbot=gr.Chatbot(height=300),
-    textbox=gr.Textbox(placeholder="Chat with me!", container=False, scale=7),
+    type="messages",
     description="This is the demo for Gradio UI consuming TGI endpoint.",
     title="Gradio 🤝 TGI",
     examples=["Are tomatoes vegetables?"],
-    retry_btn="Retry",
-    undo_btn="Undo",
-    clear_btn="Clear",
 ).queue().launch()
 ```
 
