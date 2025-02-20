@@ -1746,7 +1746,7 @@
               "type": {
                 "type": "string",
                 "enum": [
-                  "json_schema"
+                  "json"
                 ]
               },
               "value": {
