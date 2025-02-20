@@ -165,7 +165,6 @@ jobs:
           registry: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io
       # If pull request
       - name: Extract metadata (tags, labels) for Docker
-        if: ${{ github.event_name == 'pull_request' }}
         id: meta-pr
         uses: docker/metadata-action@v5
         with:
@@ -182,6 +181,7 @@ jobs:
           flavor: |
             latest=false
           images: |
+            docker.io/huggingface/text-generation-inference-ci
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
             ghcr.io/huggingface/text-generation-inference
             db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
