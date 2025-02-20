@@ -481,7 +481,6 @@ async def test_flash_llama_tool_reply_response(
         messages=[
             {"role": "user", "content": "What's the weather like in Paris today?"},
             {
-                "content": "",
                 "role": "assistant",
                 "tool_calls": [
                     {

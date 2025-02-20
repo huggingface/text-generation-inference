@@ -49,8 +49,8 @@ request_body = SagemakerRequest,
 responses(
 (status = 200, description = "Generated Chat Completion",
 content(
-(SagemakerResponse = "application/json"),
-(SagemakerStreamResponse = "text/event-stream"),
+("application/json" = SagemakerResponse),
+("text/event-stream" = SagemakerStreamResponse),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
 example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),

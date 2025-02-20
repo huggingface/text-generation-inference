@@ -663,6 +663,7 @@ impl ChatCompletion {
             (Some(content), None) => OutputMessage::ChatMessage(TextMessage {
                 role: "assistant".into(),
                 content,
+                ..Default::default()
             }),
             (None, Some(tool_calls)) => OutputMessage::ToolCall(ToolCallMessage {
                 role: "assistant".to_string(),
@@ -673,6 +674,7 @@ impl ChatCompletion {
                 OutputMessage::ChatMessage(TextMessage {
                     role: "assistant".into(),
                     content: output,
+                    ..Default::default()
                 })
             }
             (None, None) => {
@@ -680,6 +682,7 @@ impl ChatCompletion {
                 OutputMessage::ChatMessage(TextMessage {
                     role: "assistant".into(),
                     content: "".to_string(),
+                    ..Default::default()
                 })
             }
         };
@@ -767,6 +770,7 @@ impl ChatCompletionChunk {
             (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
                 role: "assistant".to_string(),
                 content: delta,
+                ..Default::default()
             }),
             (None, Some(tool_calls)) => ChatCompletionDelta::Tool(ToolCallDelta {
                 role: "assistant".to_string(),
@@ -783,6 +787,7 @@ impl ChatCompletionChunk {
             (None, None) => ChatCompletionDelta::Chat(TextMessage {
                 role: "assistant".to_string(),
                 content: "".to_string(),
+                ..Default::default()
             }),
         };
         Self {
@@ -1129,7 +1134,7 @@ where
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema, Default, PartialEq)]
-pub(crate) struct FunctionDefinition {
+pub struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
@@ -1157,7 +1162,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug, PartialEq)]
-pub(crate) struct ToolCall {
+pub struct ToolCall {
     pub id: String,
     pub r#type: String,
     pub function: FunctionDefinition,
@@ -1176,17 +1181,31 @@ pub enum MessageChunk {
     ImageUrl { image_url: Url },
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq, Default)]
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
 pub struct Message {
     #[schema(example = "user")]
-    role: String,
+    pub role: String,
+    #[serde(flatten)]
     #[schema(example = "My name is David and I")]
-    pub content: Option<MessageContent>,
+    pub body: MessageBody,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
-    name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    tool_calls: Option<Vec<ToolCall>>,
+    pub name: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum MessageBody {
+    // When a regular text message is provided.
+    Content {
+        #[serde(rename = "content")]
+        content: MessageContent,
+    },
+    // When tool calls are provided.
+    Tool {
+        #[serde(rename = "tool_calls")]
+        tool_calls: Vec<ToolCall>,
+    },
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
@@ -1213,22 +1232,25 @@ impl MessageContent {
     }
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
+#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq, Default)]
 pub struct TextMessage {
     #[schema(example = "user")]
     pub role: String,
     #[schema(example = "My name is David and I")]
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
 }
 
 impl From<Message> for TextMessage {
     fn from(value: Message) -> Self {
-        let content = value
-            .tool_calls
-            .map(|calls| serde_json::to_string(&calls).unwrap_or_default())
-            .map(MessageContent::SingleText)
-            .or(value.content)
-            .unwrap_or_else(|| MessageContent::SingleText(String::new()));
+        let content = match value.body {
+            MessageBody::Content { content } => content,
+            MessageBody::Tool { tool_calls } => {
+                let content = serde_json::to_string(&tool_calls).unwrap_or_default();
+                MessageContent::SingleText(content)
+            }
+        };
         TextMessage {
             role: value.role,
             content: match content {
@@ -1242,6 +1264,7 @@ impl From<Message> for TextMessage {
                     .collect::<Vec<_>>()
                     .join(""),
             },
+            ..Default::default()
         }
     }
 }
@@ -1680,6 +1703,7 @@ mod tests {
         let message = OutputMessage::ChatMessage(TextMessage {
             role: "assistant".to_string(),
             content: "This is the answer".to_string(),
+            ..Default::default()
         });
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(

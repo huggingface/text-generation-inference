@@ -1,5 +1,7 @@
 use crate::infer::InferError;
-use crate::{ChatTemplateInputs, Message, MessageChunk, TextMessage, TokenizerConfigToken, Tool};
+use crate::{
+    ChatTemplateInputs, Message, MessageBody, MessageChunk, TextMessage, TokenizerConfigToken, Tool,
+};
 use chrono::Local;
 use minijinja::{Environment, ErrorKind, Template};
 use minijinja_contrib::pycompat;
@@ -73,8 +75,10 @@ impl ChatTemplate {
                     // if the `tools` variable is used in the template, we just append the tool_prompt
                     format!("\n---\n{}", tool_prompt)
                 };
-                if let Some(content) = messages.last_mut().and_then(|msg| msg.content.as_mut()) {
-                    content.push(MessageChunk::Text { text })
+                if let Some(last_message) = messages.last_mut() {
+                    if let MessageBody::Content { content } = &mut last_message.body {
+                        content.push(MessageChunk::Text { text });
+                    }
                 }
                 Some(tools)
             }
@@ -158,18 +162,22 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -183,6 +191,182 @@ mod tests {
         assert_eq!(
             result,
             "### User:\nHi!\n\n### Assistant:\nHello how can I help?### User:\nWhat is Deep Learning?\n\n### Assistant:\nmagic!### Assistant:\n"
+        );
+    }
+
+    #[test]
+    fn test_chat_template_with_tool_response() {
+        let env = Environment::new();
+
+        // template modified from Llama-3.1-8B-Instruct
+        // https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/tokenizer_config.json#L2053
+        // the main change is accesing `message.tool_call_id` from the messages
+        let source = r#"
+        {{- bos_token }}
+        {%- if custom_tools is defined %}
+            {%- set tools = custom_tools %}
+        {%- endif %}
+        {%- if not tools_in_user_message is defined %}
+            {%- set tools_in_user_message = true %}
+        {%- endif %}
+        {%- if not date_string is defined %}
+            {%- set date_string = "26 Jul 2024" %}
+        {%- endif %}
+        {%- if not tools is defined %}
+            {%- set tools = none %}
+        {%- endif %}
+
+        {#- This block extracts the system message, so we can slot it into the right place. #}
+        {%- if messages[0]['role'] == 'system' %}
+            {%- set system_message = messages[0]['content']|trim %}
+            {%- set messages = messages[1:] %}
+        {%- else %}
+            {%- set system_message = "" %}
+        {%- endif %}
+
+        {#- System message + builtin tools #}
+        {{- "<|start_header_id|>system<|end_header_id|>\n\n" }}
+        {%- if builtin_tools is defined or tools is not none %}
+            {{- "Environment: ipython\n" }}
+        {%- endif %}
+        {%- if builtin_tools is defined %}
+            {{- "Tools: " + builtin_tools | reject('equalto', 'code_interpreter') | join(", ") + "\n\n"}}
+        {%- endif %}
+        {{- "Cutting Knowledge Date: December 2023\n" }}
+        {{- "Today Date: " + date_string + "\n\n" }}
+        {%- if tools is not none and not tools_in_user_message %}
+            {{- "You have access to the following functions. To call a function, please respond with JSON for a function call." }}
+            {{- 'Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.' }}
+            {{- "Do not use variables.\n\n" }}
+            {%- for t in tools %}
+                {{- t | tojson(indent=4) }}
+                {{- "\n\n" }}
+            {%- endfor %}
+        {%- endif %}
+        {{- system_message }}
+        {{- "<|eot_id|>" }}
+
+        {#- Custom tools are passed in a user message with some extra guidance #}
+        {%- if tools_in_user_message and not tools is none %}
+            {#- Extract the first user message so we can plug it in here #}
+            {%- if messages | length != 0 %}
+                {%- set first_user_message = messages[0]['content']|trim %}
+                {%- set messages = messages[1:] %}
+            {%- else %}
+                {{- raise_exception("Cannot put tools in the first user message when there's no first user message!") }}
+        {%- endif %}
+            {{- '<|start_header_id|>user<|end_header_id|>\n\n' -}}
+            {{- "Given the following functions, please respond with a JSON for a function call " }}
+            {{- "with its proper arguments that best answers the given prompt.\n\n" }}
+            {{- 'Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.' }}
+            {{- "Do not use variables.\n\n" }}
+            {%- for t in tools %}
+                {{- t | tojson(indent=4) }}
+                {{- "\n\n" }}
+            {%- endfor %}
+            {{- first_user_message + "<|eot_id|>"}}
+        {%- endif %}
+
+        {%- for message in messages %}
+            {%- if not (message.role == 'ipython' or message.role == 'tool' or 'tool_calls' in message) %}
+                {{- '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' }}
+            {%- elif 'tool_calls' in message %}
+                {%- if not message.tool_calls|length == 1 %}
+                    {{- raise_exception("This model only supports single tool-calls at once!") }}
+                {%- endif %}
+                {%- set tool_call = message.tool_calls[0].function %}
+                {%- if builtin_tools is defined and tool_call.name in builtin_tools %}
+                    {{- '<|start_header_id|>assistant<|end_header_id|>\n\n' -}}
+                    {{- "<|python_tag|>" + tool_call.name + ".call(" }}
+                    {%- for arg_name, arg_val in tool_call.arguments | items %}
+                        {{- arg_name + '="' + arg_val + '"' }}
+                        {%- if not loop.last %}
+                            {{- ", " }}
+                        {%- endif %}
+                        {%- endfor %}
+                    {{- ")" }}
+                {%- else  %}
+                    {{- '<|start_header_id|>assistant<|end_header_id|>\n\n' -}}
+                    {{- '{"name": "' + tool_call.name + '", ' }}
+                    {{- '"parameters": ' }}
+                    {{- tool_call.arguments | tojson }}
+                    {{- "}" }}
+                {%- endif %}
+                {%- if builtin_tools is defined %}
+                    {#- This means we're in ipython mode #}
+                    {{- "<|eom_id|>" }}
+                {%- else %}
+                    {{- "<|eot_id|>" }}
+                {%- endif %}
+            {%- elif message.role == "tool" or message.role == "ipython" %}
+                {{- "<|start_header_id|>ipython<|end_header_id|>\n\n" }}
+                    {{- "TOOL CALL ID: " + message.tool_call_id + "\n\n" }}
+                {%- if message.content is mapping or message.content is iterable %}
+                    {{- message.content | tojson }}
+                {%- else %}
+                    {{- message.content }}
+                {%- endif %}
+                {{- "<|eot_id|>" }}
+            {%- endif %}
+        {%- endfor %}
+        {%- if add_generation_prompt %}
+            {{- '<|start_header_id|>assistant<|end_header_id|>\n\n' }}
+        {%- endif %}
+        "#;
+
+        // trim all the whitespace
+        let source = source
+            .lines()
+            .map(|line| line.trim())
+            .collect::<Vec<&str>>()
+            .join("");
+
+        let tmpl = env.template_from_str(&source);
+
+        let chat_template_inputs = ChatTemplateInputs {
+            messages: vec![
+                TextMessage {
+                    role: "user".to_string(),
+                    content: "Hi!".to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "assistant".to_string(),
+                    content: r#"[ { "id": "0", "function": { "arguments": '{"longitude": 2.2945, "latitude": 48.8567}', "name": "get_weather", "description": None, }, "type": "function", } ]"#.to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "tool".to_string(),
+                    content: "6.7".to_string(),
+                    tool_call_id: Some("0".to_string()),
+                },
+            ],
+            bos_token: Some("[BOS]"),
+            eos_token: Some("[EOS]"),
+            add_generation_prompt: true,
+            ..Default::default()
+        };
+
+        let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
+
+        assert_eq!(
+            result,
+            r#"[BOS]<|start_header_id|>system<|end_header_id|>
+
+Cutting Knowledge Date: December 2023
+Today Date: 26 Jul 2024
+
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Hi!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+[ { "id": "0", "function": { "arguments": '{"longitude": 2.2945, "latitude": 48.8567}', "name": "get_weather", "description": None, }, "type": "function", } ]<|eot_id|><|start_header_id|>ipython<|end_header_id|>
+
+TOOL CALL ID: 0
+
+"6.7"<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+"#
         );
     }
 
@@ -224,18 +408,22 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -287,22 +475,27 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi again!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -359,18 +552,22 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -426,18 +623,22 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -479,18 +680,22 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -516,14 +721,17 @@ mod tests {
             TextMessage {
                 role: "user".to_string(),
                 content: "Hello, how are you?".to_string(),
+                ..Default::default()
             },
             TextMessage {
                 role: "assistant".to_string(),
                 content: "I'm doing great. How can I help you today?".to_string(),
+                ..Default::default()
             },
             TextMessage {
                 role: "user".to_string(),
                 content: "I'd like to show off how chat templating works!".to_string(),
+                ..Default::default()
             },
         ];
 
@@ -531,6 +739,7 @@ mod tests {
             role: "system".to_string(),
             content: "You are a friendly chatbot who always responds in the style of a pirate"
                 .to_string(),
+            ..Default::default()
         }]
         .iter()
         .chain(&example_chat)
@@ -674,10 +883,12 @@ mod tests {
                         TextMessage {
                             role: "system".to_string(),
                             content: "You are a friendly chatbot who always responds in the style of a pirate".to_string(),
+                            ..Default::default()
                         },
                         TextMessage {
                             role: "user".to_string(),
                             content: "How many helicopters can a human eat in one sitting?".to_string(),
+                            ..Default::default()
                         },
                     ],
                     add_generation_prompt: true,

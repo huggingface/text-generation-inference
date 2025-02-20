@@ -28,7 +28,7 @@ use crate::{
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
-use crate::{ModelInfo, ModelsInfo};
+use crate::{MessageBody, ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
 use axum::extract::{DefaultBodyLimit, Extension};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -111,9 +111,8 @@ request_body = CompatGenerateRequest,
 responses(
 (status = 200, description = "Generated Text",
 content(
-(Vec<GenerateResponse> = "application/json"),
-(Vec<GenerateResponse> = "application/json"),
-(StreamResponse = "text/event-stream"),
+("application/json" = Vec<GenerateResponse>),
+("text/event-stream" = StreamResponse),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
 example = json ! ({"error": "Request failed during generation"})),
@@ -442,17 +441,17 @@ responses(
 (status = 200, description = "Generated Text", body = StreamResponse,
 content_type = "text/event-stream"),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-content_type = "text/event-stream",
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation"}),
+content_type = "text/event-stream"),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-content_type = "text/event-stream",
-example = json!({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded"}),
+content_type = "text/event-stream"),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-content_type = "text/event-stream",
-example = json!({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error"}),
+content_type = "text/event-stream"),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-content_type = "text/event-stream",
-example = json!({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation"}),
+content_type = "text/event-stream"),
 )
 )]
 #[instrument(
@@ -676,8 +675,8 @@ request_body = CompletionRequest,
 responses(
 (status = 200, description = "Generated Chat Completion",
 content(
-(CompletionFinal= "application/json"),
-(Chunk= "text/event-stream"),
+("application/json" = CompletionFinal),
+("text/event-stream" = Chunk),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
 example = json ! ({"error": "Request failed during generation"})),
@@ -1202,8 +1201,8 @@ request_body = ChatRequest,
 responses(
 (status = 200, description = "Generated Chat Completion",
 content(
-(ChatCompletion = "application/json"),
-(ChatCompletionChunk = "text/event-stream"),
+("application/json" = ChatCompletion),
+("text/event-stream" = ChatCompletionChunk),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
 example = json ! ({"error": "Request failed during generation"})),
@@ -1578,6 +1577,7 @@ FunctionDefinition,
 ToolChoice,
 ModelInfo,
 ChatTokenizeResponse,
+MessageBody,
 )
 ),
 tags(

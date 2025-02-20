@@ -174,7 +174,7 @@ mod tests {
                             "What's Deep Learning?".to_string()
                         )),
                         name: None,
-                        tool_calls: None,
+                        ..Default::default()
                     },],
                     max_tokens: Some(128),
                     top_p: Some(0.95),
