@@ -120,6 +120,12 @@ RUN apt-get update -y \
 
 ENV PATH="/opt/bin/:/opt/aws/neuron/bin:${PATH}"
 
+# Install manually torch CPU version to avoid pulling CUDA
+RUN pip3 install \
+    torch==2.1.2 \
+    torchvision==0.16.2 \
+    --index-url https://download.pytorch.org/whl/cpu
+
 RUN pip3 install \
     neuronx-cc==2.15.143.0 \
     torch-neuronx==2.1.2.2.3.2 \
