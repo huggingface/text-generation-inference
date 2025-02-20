@@ -1,10 +1,15 @@
 mod backend;
+mod llamacpp;
+mod quantize;
+
+use quantize::QuantizeType;
 
 use backend::{
     BackendError, LlamacppBackend, LlamacppConfig, LlamacppGGMLType, LlamacppNuma,
     LlamacppSplitMode,
 };
 use clap::Parser;
+use std::path::Path;
 use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
 use tokenizers::{FromPretrainedParameters, Tokenizer};
@@ -216,18 +221,27 @@ async fn main() -> Result<(), RouterError> {
             error!("No GGUF model given and environment variable MAKE_GGUF is missing.");
             RouterError::VarError(e)
         })?;
+
         let model_gguf = format!("models/{}/model.gguf", args.model_id);
 
-        let status = Command::new(make_gguf)
-            .arg(&model_gguf)
-            .arg(&args.model_id)
-            .arg(&args.revision)
-            .spawn()?
-            .wait()
-            .await?;
+        if !Path::new(&model_gguf).exists() {
+            let tmp_gguf = "models/tmp.gguf";
 
-        if !status.success() {
-            error!("Failed to generate GGUF");
+            let status = Command::new(make_gguf)
+                .arg(tmp_gguf)
+                .arg(&args.model_id)
+                .arg(&args.revision)
+                .spawn()?
+                .wait()
+                .await?;
+
+            if !status.success() {
+                let exit_code = status.code().unwrap_or(-1);
+                error!("Failed to generate GGUF, exit code: {}", exit_code);
+                return Err(RouterError::CommandError(exit_code));
+            }
+            quantize::model(tmp_gguf, &model_gguf, QuantizeType::MostlyQ4_0, n_threads)
+                .map_err(RouterError::QuantizeError)?;
         }
         model_gguf
     };
@@ -305,8 +319,12 @@ enum RouterError {
     WebServer(#[from] server::WebServerError),
     #[error("Recv error: {0}")]
     RecvError(#[from] RecvError),
-    #[error("IoError: {0}")]
+    #[error("Io error: {0}")]
     IoError(#[from] std::io::Error),
-    #[error("VarError: {0}")]
+    #[error("Var error: {0}")]
     VarError(#[from] std::env::VarError),
+    #[error("Quantize error: {0}")]
+    QuantizeError(String),
+    #[error("Command error: {0}")]
+    CommandError(i32),
 }
