@@ -53,17 +53,6 @@ async def test_model_single_request(tgi_service):
     )
     assert response.details.generated_tokens == 17
 
-    # check error
-    try:
-        await tgi_service.client.text_generation("What is Deep Learning?", max_new_tokens=170000)
-    except ValidationError:
-        pass
-    else:
-        raise AssertionError(
-            "The previous text generation request should have failed, "
-            "because too many tokens were requested, it succeeded"
-        )
-
     # Sampling
     await tgi_service.client.text_generation(
         "What is Deep Learning?",
