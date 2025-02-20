@@ -1,6 +1,6 @@
 FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04 AS deps
 
-ARG llamacpp_version=b4714
+ARG llamacpp_version=b4747
 ARG llamacpp_cuda=OFF
 ARG cuda_arch=75-real;80-real;86-real;89-real;90-real
 
@@ -17,7 +17,7 @@ RUN apt update && apt upgrade -y && apt install -y \
     pkg-config \
     tar
 
-ADD https://github.com/ggerganov/llama.cpp/archive/refs/tags/${llamacpp_version}.tar.gz /opt/src/
+ADD https://github.com/ggml-org/llama.cpp/archive/refs/tags/${llamacpp_version}.tar.gz /opt/src/
 RUN mkdir -p llama.cpp \
  && tar -xzf ${llamacpp_version}.tar.gz -C llama.cpp --strip-components=1 \
  && cd llama.cpp \
