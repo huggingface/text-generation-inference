@@ -208,9 +208,15 @@ jobs:
           target: ${{ env.TARGET }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          outputs: type=image,compression=zstd,force-compression=true,push=true
           cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=max,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
           cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+      - name: Build and push Docker image (Zstd)
+        id: build-and-push (zstd)
+        run: |
+          export LAB="sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}"
+          docker image tag  docker.io/huggingface/text-generation-inference-ci:$LAB registry.internal.huggingface.tech/api-inference/community/text-generation-inference:$LAB
+
+          docker push registry.internal.huggingface.tech/api-inference/community/text-generation-inference:$LAB ---output "type=image,compression=zstd,force-compression=true,push=true"
       - name: Final
         id: final
         run: |
