@@ -262,14 +262,13 @@ jobs:
       cancel-in-progress: true
     runs-on:
       group: aws-g6-12xl-plus-priv-cache
-    container:
-      image: ${{ needs.build-and-push.outputs.docker_image }}
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
-      options: --gpus all --shm-size=8g
-
     steps:
+      - name: Initialize Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          install: true
+          buildkitd-config: /tmp/buildkitd.toml
       - name: Run C++/CUDA tests
         if: ${{ env.LABEL == 'ci-runtime' }}
-        run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
+        run: docker run  --gpus all --shm-size=8g --entrypoint /usr/local/tgi/bin/tgi_trtllm_backend_tests ${{ needs.build-and-push.outputs.docker_image }}
+
