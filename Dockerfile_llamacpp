@@ -28,7 +28,9 @@ RUN mkdir -p llama.cpp \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_CUDA_ARCHITECTURES=${cuda_arch} \
     -DGGML_CUDA=${llamacpp_cuda} \
+    -DLLAMA_BUILD_COMMON=OFF \
     -DLLAMA_BUILD_TESTS=OFF \
+    -DLLAMA_BUILD_EXAMPLES=OFF \
     -DLLAMA_BUILD_SERVER=OFF \
  && cmake --build build --parallel --config Release \
  && cmake --install build
@@ -68,7 +70,6 @@ ENV PATH="/venv/bin:$PATH"
 COPY backends/llamacpp/requirements.txt requirements.txt
 COPY --from=builder /opt/src/llama.cpp/gguf-py gguf-py
 COPY --from=builder /opt/src/llama.cpp/convert_hf_to_gguf.py /bin/
-COPY --from=builder /usr/bin/llama-quantize /usr/bin/
 
 RUN pip3 install --no-cache-dir \
     -r requirements.txt \
