@@ -352,13 +352,13 @@ def ignore_logprob_response_snapshot(snapshot):
     return snapshot.use_extension(IgnoreLogProbResponseComparator)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def error_log():
     with tempfile.TemporaryFile("w+") as tmp:
         yield tmp
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 async def launcher(error_log):
     @contextlib.contextmanager
     def local_launcher(
