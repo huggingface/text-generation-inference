@@ -29,7 +29,7 @@ async def test_grammar_response_format_llama_json(llama_grammar, response_snapsh
         unit: str
         temperature: List[int]
 
-    json_payload={
+    json_payload = {
         "model": "tgi",
         "messages": [
             {
