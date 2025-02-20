@@ -1596,12 +1596,11 @@ mod tests {
         assert_eq!(
             request.messages[0],
             Message {
-                role: "user".to_string(),
-                content: Some(MessageContent::SingleText(
-                    "What is Deep Learning?".to_string()
-                )),
                 name: None,
-                tool_calls: None
+                role: "user".to_string(),
+                body: MessageBody::Content {
+                    content: MessageContent::SingleText("What is Deep Learning?".to_string())
+                },
             }
         );
     }
@@ -1651,14 +1650,16 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            Message{
-                role: "user".to_string(),
-                content: Some(MessageContent::MultipleChunks(vec![
-                    MessageChunk::Text { text: "Whats in this image?".to_string() },
-                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
-                ])),
+            Message {
                 name: None,
-                tool_calls: None
+                role: "user".to_string(),
+
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![
+                        MessageChunk::Text { text: "Whats in this image?".to_string() },
+                        MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
+                    ]),
+                },
             }
         );
     }
@@ -1666,13 +1667,14 @@ mod tests {
     #[test]
     fn text_message_convert() {
         let message = Message{
+            name: None,
                 role: "user".to_string(),
-                content: Some(MessageContent::MultipleChunks(vec![
-                    MessageChunk::Text { text: "Whats in this image?".to_string() },
-                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
-                ])),
-                name: None,
-                tool_calls: None
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![
+                        MessageChunk::Text { text: "Whats in this image?".to_string() },
+                        MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
+                    ]),
+                }
             };
         let textmsg: TextMessage = message.into();
         assert_eq!(textmsg.content, "Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)");

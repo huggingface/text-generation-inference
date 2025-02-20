@@ -147,7 +147,7 @@ pub(crate) async fn vertex_compatibility(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Message, MessageContent};
+    use crate::{Message, MessageBody, MessageContent};
 
     #[test]
     fn vertex_deserialization() {
@@ -169,12 +169,13 @@ mod tests {
             VertexRequest {
                 instances: vec![VertexInstance::Chat(ChatRequest {
                     messages: vec![Message {
-                        role: "user".to_string(),
-                        content: Some(MessageContent::SingleText(
-                            "What's Deep Learning?".to_string()
-                        )),
                         name: None,
-                        ..Default::default()
+                        role: "user".to_string(),
+                        body: MessageBody::Content {
+                            content: MessageContent::SingleText(
+                                "What's Deep Learning?".to_string()
+                            )
+                        },
                     },],
                     max_tokens: Some(128),
                     top_p: Some(0.95),
