@@ -79,17 +79,19 @@ class GPTJRotary(PositionRotaryEmbedding):
     ):
         # Such controlflows may add some overhead.
         if SYSTEM == "cuda":
-            import rotary_emb
+            from text_generation_server.utils.kernels import load_kernel
+
+            rotary = load_kernel(module="rotary", repo_id="kernels-community/rotary")
 
             q1 = query[..., ::2]
             q2 = query[..., 1::2]
 
-            rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, False)
+            rotary.apply_rotary(q1, q2, cos, sin, q1, q2, False)
 
             k1 = key[..., ::2]
             k2 = key[..., 1::2]
 
-            rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
+            rotary.apply_rotary(k1, k2, cos, sin, k1, k2, False)
         elif SYSTEM == "rocm":
             import vllm._custom_ops as ops
 

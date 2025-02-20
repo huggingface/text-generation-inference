@@ -6934,5 +6934,155 @@
         "blob_id": "005b5a6e3cd5f7bcfd4aa5d7d80d60a5ed9fab88"
       }
     ]
+  },
+  {
+    "repo_id": "kernels-community/rotary",
+    "sha": "4db658e027ec752840bb3f557ee076413b8db03f",
+    "files": [
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/rotary/_ops.py",
+        "blob_id": "4fe035c87ea1300ffedcfce17338167dd946e0e8"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu118-x86_64-linux/rotary/_rotary_5yzc45v7kk3yu.abi3.so",
+        "blob_id": "f315754ccb3e8b9dfb4d8954aefaac61b2a4e8bc"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/rotary/_ops.py",
+        "blob_id": "d45359065a7cdc43e2d512d38fc0bfcd88138835"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu121-x86_64-linux/rotary/_rotary_tbiepw2a2ep3e.abi3.so",
+        "blob_id": "9bc986ca760b6a57d05e891c3def1769341a2c29"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/rotary/_ops.py",
+        "blob_id": "7421978682125139f1169f3f71789e0cb44d3b45"
+      },
+      {
+        "filename": "build/torch25-cxx11-cu124-x86_64-linux/rotary/_rotary_6w5syhrhmerj6.abi3.so",
+        "blob_id": "35caf7d755000ca2afac33cc7d4f344112751f9f"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/rotary/_ops.py",
+        "blob_id": "d6f569b471eae628e738b3504c8a9a18b4973d97"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu118-x86_64-linux/rotary/_rotary_joujmbgvsytzg.abi3.so",
+        "blob_id": "30c4aaa83f2549f7363631a51b3341cdf0612f15"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/rotary/_ops.py",
+        "blob_id": "f1f71f34bf0f3c5dffb7c147b48f6396f8054310"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu121-x86_64-linux/rotary/_rotary_mi2o7e7sishyw.abi3.so",
+        "blob_id": "e022e9c1101bdb89d43913979107f7a56717ea6d"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/rotary/_ops.py",
+        "blob_id": "a46c19bd5adfb85d5b7795b3b9277e416f31d8ce"
+      },
+      {
+        "filename": "build/torch25-cxx98-cu124-x86_64-linux/rotary/_rotary_rngiohfhfwuge.abi3.so",
+        "blob_id": "1621cba0150465f67aa931fe3a55e38928b48bcb"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/rotary/_ops.py",
+        "blob_id": "3296d23431d1ec084e8644ff5d3d203a74d82ea1"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu118-x86_64-linux/rotary/_rotary_alv7mzltcxxpq.abi3.so",
+        "blob_id": "2f8b3b93bb7c8fae22c8e08c67771683f549f170"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/rotary/_ops.py",
+        "blob_id": "0bae33b64c71d6a6ad748be66a410a662bb5b28a"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu124-x86_64-linux/rotary/_rotary_c4eyapeep6gty.abi3.so",
+        "blob_id": "3a15076dbd1f9a05f1089cc2cb13c03e5838f2b9"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/rotary/_ops.py",
+        "blob_id": "5c5d7e4497962e0a3e9531ec6a5fdb18e995e0f8"
+      },
+      {
+        "filename": "build/torch26-cxx11-cu126-x86_64-linux/rotary/_rotary_lodp6xeztste6.abi3.so",
+        "blob_id": "efc4a4a0001fba7b0743d1d4a9774d1fc9089ee5"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/rotary/_ops.py",
+        "blob_id": "3cdda1ceda90e76b30b08cae6ad718aa2c2ec3ef"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu118-x86_64-linux/rotary/_rotary_z27mls7mz4e7m.abi3.so",
+        "blob_id": "43b0f08ea035cd2fadb6e119802e7d841a523246"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/rotary/_ops.py",
+        "blob_id": "914f1bb6f9499d0245c3f47345f3b95582be28b2"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu124-x86_64-linux/rotary/_rotary_3bktke4p3hz3a.abi3.so",
+        "blob_id": "29c0bba399e6f348ad8baf93daa5166a6ec6994a"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/rotary/__init__.py",
+        "blob_id": "eba8039e210c8b710c5c663ef4e7930757f271be"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/rotary/_ops.py",
+        "blob_id": "11056cd0ed09530830b614b8207cbb7fa7ef3288"
+      },
+      {
+        "filename": "build/torch26-cxx98-cu126-x86_64-linux/rotary/_rotary_fvednlzeqgg5s.abi3.so",
+        "blob_id": "8c7c34d9e603640576ba522dcbed341c0d780a9c"
+      }
+    ]
   }
 ]

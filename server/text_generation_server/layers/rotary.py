@@ -5,7 +5,9 @@ from torch import nn
 from text_generation_server.utils.import_utils import SYSTEM
 
 if SYSTEM == "cuda":
-    import rotary_emb
+    from text_generation_server.utils.kernels import load_kernel
+
+    rotary = load_kernel(module="rotary", repo_id="kernels-community/rotary")
 elif SYSTEM == "rocm":
     import vllm._custom_ops as ops
 elif SYSTEM == "ipex":
@@ -54,12 +56,12 @@ class PositionRotaryEmbedding(nn.Module):
             q1 = query[..., :rotary_dim]
             q2 = query[..., rotary_dim : 2 * rotary_dim]
 
-            rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, False)
+            rotary.apply_rotary(q1, q2, cos, sin, q1, q2, False)
 
             k1 = key[..., :rotary_dim]
             k2 = key[..., rotary_dim : 2 * rotary_dim]
 
-            rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
+            rotary.apply_rotary(k1, k2, cos, sin, k1, k2, False)
         elif SYSTEM == "rocm":
             # NOTE: On RoCm systems, we use a ROPE implementatation adapted from VLLM which launches a single kernel for both query/key, contrary to flash-attn implementation used on NVIDIA systems.
             # Compiling flash-attn rotary on RoCm, it appears hipcc is unable to unroll loops, resulting in an even slower inference compared to eager: https://github.com/pytorch/pytorch/issues/113773

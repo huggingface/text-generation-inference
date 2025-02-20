@@ -11,7 +11,6 @@
   flashinfer,
   flash-attn,
   flash-attn-layer-norm,
-  flash-attn-rotary,
   flash-attn-v1,
   grpc-interceptor,
   grpcio-reflection,
@@ -36,6 +35,7 @@
   pydantic,
   quantization,
   quantization-eetq,
+  rotary,
   safetensors,
   tokenizers,
   torch,
@@ -87,7 +87,6 @@ buildPythonPackage {
     flashinfer
     flash-attn
     flash-attn-layer-norm
-    flash-attn-rotary
     grpc-interceptor
     grpcio-reflection
     grpcio-status
@@ -111,6 +110,7 @@ buildPythonPackage {
     pydantic
     quantization
     quantization-eetq
+    rotary
     safetensors
     sentencepiece
     tokenizers
