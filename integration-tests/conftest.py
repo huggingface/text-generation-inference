@@ -81,6 +81,8 @@ def container_log(request: SubRequest):
     if request.session.testsfailed:
         error_log.seek(0)
         print(error_log.read(), file=sys.stderr)
+    else:
+        error_log.truncate(0)
 
 
 class ResponseComparator(JSONSnapshotExtension):
