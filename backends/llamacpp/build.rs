@@ -25,8 +25,9 @@ fn main() {
     for path in &llama.link_paths {
         println!("cargo:rustc-link-arg=-Wl,-rpath,{}", path.display());
     }
-    println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags");
-
+    if cfg!(target_os = "linux") {
+        println!("cargo:rustc-link-arg=-Wl,--disable-new-dtags");
+    }
     let bindings = bindgen::Builder::default()
         .clang_args(
             llama
