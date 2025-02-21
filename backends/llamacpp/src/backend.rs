@@ -1,10 +1,5 @@
-mod llamacpp {
-    #![allow(non_upper_case_globals)]
-    #![allow(non_camel_case_types)]
-    #![allow(non_snake_case)]
-    #![allow(dead_code)]
-    include!(concat!(env!("OUT_DIR"), "/llamacpp.rs"));
-}
+use crate::llamacpp;
+
 use async_trait::async_trait;
 use std::ffi::CString;
 use std::mem::replace;
