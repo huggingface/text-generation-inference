@@ -214,6 +214,7 @@ jobs:
         id: build-and-push-zstd
         run: |
           export LAB="sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}"
+          docker pull docker.io/huggingface/text-generation-inference-ci:$LAB
           docker image tag  docker.io/huggingface/text-generation-inference-ci:$LAB registry.internal.huggingface.tech/api-inference/community/text-generation-inference:$LAB
 
           docker push registry.internal.huggingface.tech/api-inference/community/text-generation-inference:$LAB ---output "type=image,compression=zstd,force-compression=true,push=true"
