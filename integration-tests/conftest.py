@@ -83,6 +83,7 @@ def container_log(request: SubRequest):
         print(error_log.read(), file=sys.stderr)
     else:
         error_log.truncate(0)
+        error_log.seek(0)
 
 
 class ResponseComparator(JSONSnapshotExtension):
