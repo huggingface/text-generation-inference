@@ -171,6 +171,7 @@ class GPTQWeightsLoader(WeightsLoader):
             g_idx=g_idx,
             bits=self.bits,
             groupsize=self.groupsize,
+            use_awq_kernel=self.quantize == "awq",
             use_exllama=use_exllama,
         )
 

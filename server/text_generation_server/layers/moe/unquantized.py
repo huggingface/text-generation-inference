@@ -85,6 +85,8 @@ class UnquantizedSparseMoELayer(nn.Module):
                 use_grouped_topk=self.n_expert_group is not None,
                 num_expert_group=self.n_expert_group,
                 topk_group=self.topk_group,
+                scoring_func=self.scoring_func,
+                e_score_correction_bias=self.e_score_correction_bias,
             )
         return fused_moe(
             x,
