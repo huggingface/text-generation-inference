@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 import huggingface_hub
 import pytest
 import docker
+import hashlib
 import os
 import tempfile
 
@@ -50,9 +51,28 @@ MODEL_CONFIGURATIONS = {
 }
 
 
+def get_neuron_backend_hash():
+    import subprocess
+    res = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                         capture_output=True,
+                         text=True)
+    root_dir = res.stdout.split('\n')[0]
+    def get_sha(path):
+        res = subprocess.run(["git", "ls-tree", "HEAD", f"{root_dir}/{path}"],
+                             capture_output=True,
+                             text=True)
+        # Output of the command is in the form '040000 tree|blob <SHA>\t<path>\n'
+        sha = res.stdout.split('\t')[0].split(' ')[-1]
+        return sha.encode()
+    # We hash both the neuron backends directory and Dockerfile and create a smaller hash out of that
+    m = hashlib.sha256()
+    m.update(get_sha('backends/neuron'))
+    m.update(get_sha('Dockerfile.neuron'))
+    return m.hexdigest()[:10]
+
+
 def get_neuron_model_name(config_name: str):
-    version = get_tgi_docker_image().split(":")[-1]
-    return f"neuron-tgi-testing-{config_name}-{version}"
+    return f"neuron-tgi-testing-{config_name}-{get_neuron_backend_hash()}"
 
 
 def get_tgi_docker_image():
