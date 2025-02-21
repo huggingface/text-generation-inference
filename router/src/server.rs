@@ -1128,6 +1128,7 @@ fn create_event_from_stream_token(
     inner_using_tools: bool,
     system_fingerprint: String,
     model_id: String,
+    tool_name: Option<String>,
 ) -> Event {
     let event = Event::default();
     let current_time = std::time::SystemTime::now()
@@ -1184,6 +1185,7 @@ fn create_event_from_stream_token(
         logprobs,
         finish_reason,
         usage,
+        tool_name,
     ));
 
     event.json_data(chat_complete).unwrap_or_else(|e| {
@@ -1302,18 +1304,42 @@ pub(crate) async fn chat_completions(
                                     state = StreamState::Content {
                                         skip_close_quote: false,
                                     };
-                                    // send all the buffered messages
-                                    for stream_token in &buffer {
-                                        let event = create_event_from_stream_token(
-                                            stream_token,
-                                            logprobs,
-                                            stream_options.clone(),
-                                            response_as_tool,
-                                            system_fingerprint.clone(),
-                                            model_id.clone(),
-                                        );
-                                        yield Ok::<Event, Infallible>(event);
-                                    }
+                                    let event = Event::default();
+                                    let current_time = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+                                        .as_secs();
+                                let tool_delta_start = ChatCompletionDelta::Tool(ToolCallDelta {
+                                    role: "assistant".to_string(),
+                                    tool_calls: vec![DeltaToolCall {
+                                        index: 0,
+                                        id: String::new(),
+                                        r#type: "function".to_string(),
+                                        function: Function {
+                                            name: Some(function_name.clone()),
+                                            arguments: "".to_string(),
+                                        },
+                                    }],
+                                });
+                                let chat_complete =
+                                    CompletionType::ChatCompletionChunk(ChatCompletionChunk{
+                                        id: String::new(),
+                                        created: current_time,
+                                        model: model_id.clone(),
+                                        system_fingerprint: system_fingerprint.clone(),
+                                        choices: vec![ChatCompletionChoice {
+                                            index: 0,
+                                            delta: tool_delta_start,
+                                            logprobs: None,
+                                            finish_reason: None,
+                                        }],
+                                        usage: None,
+                                    });
+                                    yield Ok(event.json_data(chat_complete).unwrap_or_else(|e| {
+                                        InferError::StreamSerializationError(e.to_string()).into()
+                                    }));
+                                    buffer.drain(1..); // only keep the first token (opening '{')
+                                    buffer[0].token.text = buffer[0].token.text.chars().take(1).collect();
                                 }
                             }
                         }
@@ -1348,6 +1374,7 @@ pub(crate) async fn chat_completions(
                                         None,
                                         None,
                                         None,
+                                        None,
                                     ));
                                 yield Ok(event.json_data(chat_complete).unwrap_or_else(|e| {
                                     InferError::StreamSerializationError(e.to_string()).into()
@@ -1365,23 +1392,60 @@ pub(crate) async fn chat_completions(
                                 break;
                             }
 
-                            // send the content
-                            let event = create_event_from_stream_token(
-                                &stream_token,
-                                logprobs,
-                                stream_options.clone(),
-                                response_as_tool,
-                                system_fingerprint.clone(),
-                                model_id.clone(),
-                            );
+                            buffer.push(stream_token);
+                            if buffer.len() > 1 {
+                                // FIFO send the buffer but left the last two elements (closing '}' and EOS token)
+                                for stream_token in &buffer[..buffer.len() - 2] {
+                                    let event = create_event_from_stream_token(
+                                        stream_token,
+                                        logprobs,
+                                        stream_options.clone(),
+                                        response_as_tool,
+                                        system_fingerprint.clone(),
+                                        model_id.clone(),
+                                        None,
+                                    );
 
-                            yield Ok::<Event, Infallible>(event);
+                                    yield Ok::<Event, Infallible>(event);
+                                }
+                                buffer = buffer.drain(buffer.len() - 2..).collect();
+                            }
                         }
                     }
                 }
                 Err(err) => yield Ok(err.into_openai_event())
                 }
             }
+            if response_as_tool {
+                // send the second to last stream token but remove the trailing '}' if it exists
+                let mut closing_stream_token = buffer.remove(0);
+                closing_stream_token.token.text = closing_stream_token.token.text.strip_suffix("}").unwrap_or(&closing_stream_token.token.text).to_string();
+                let event = create_event_from_stream_token(
+                    &closing_stream_token,
+                    logprobs,
+                    stream_options.clone(),
+                    response_as_tool,
+                    system_fingerprint.clone(),
+                    model_id.clone(),
+                    None,
+                );
+                yield Ok::<Event, Infallible>(event);
+            } else {
+                // send each buffer element
+                for stream_token in buffer {
+                    let event = create_event_from_stream_token(
+                        &stream_token,
+                        logprobs,
+                        stream_options.clone(),
+                        response_as_tool,
+                        system_fingerprint.clone(),
+                        model_id.clone(),
+                        None,
+                    );
+                    yield Ok::<Event, Infallible>(event);
+                }
+            }
+
             yield Ok::<Event, Infallible>(Event::default().data("[DONE]"));
         };
 

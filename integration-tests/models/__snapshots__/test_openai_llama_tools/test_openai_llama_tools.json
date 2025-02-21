@@ -2,13 +2,12 @@
   "choices": [
     {
       "delta": {
-        "content": null,
         "role": "assistant",
         "tool_calls": [
           {
             "function": {
-              "arguments": "}",
-              "name": "get_n_day_weather_forecast"
+              "arguments": "\"}",
+              "name": "get_current_weather"
             },
             "id": "",
             "index": 0,
@@ -21,7 +20,7 @@
       "logprobs": null
     }
   ],
-  "created": 1739910816,
+  "created": 1739910558,
   "id": "",
   "model": "meta-llama/Llama-3.1-8B-Instruct",
   "object": "chat.completion.chunk",
