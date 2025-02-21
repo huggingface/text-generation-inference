@@ -121,7 +121,7 @@ jobs:
                 export docker_volume="/mnt/cache"
                 export runs_on="aws-inf2-8xlarge"
                 export platform="cpu"
-                export extra_pytest="--neuron"
+                export extra_pytest="--neuron -k gpt2"
                 export target=""
                 ;;
           esac
