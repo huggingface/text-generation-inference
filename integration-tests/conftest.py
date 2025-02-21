@@ -106,7 +106,7 @@ class ResponseComparator(JSONSnapshotExtension):
             data = data.model_dump()
 
         if isinstance(data, List):
-            data = [d.model_dump() for d in data]
+            data = [d if isinstance(d, dict) else d.model_dump() for d in data]
 
         data = self._filter(
             data=data,
@@ -243,6 +243,8 @@ class ResponseComparator(JSONSnapshotExtension):
         def eq_chat_complete_chunk(
             response: ChatCompletionChunk, other: ChatCompletionChunk
         ) -> bool:
+            if len(response.choices) == 0:
+                return len(other.choices) == 0
             return response.choices[0].delta.content == other.choices[0].delta.content
 
         def eq_response(response: Response, other: Response) -> bool:
