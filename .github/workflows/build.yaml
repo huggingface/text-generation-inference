@@ -25,7 +25,7 @@ jobs:
       docker_volume: ${{ steps.final.outputs.docker_volume }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
       runs_on: ${{ steps.final.outputs.runs_on }}
-      label: ${{ steps.final.outputs.label }}
+      label_extension: ${{ steps.final.outputs.label_extension }}
       extra_pytest: ${{ steps.final.outputs.extra_pytest }}
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
@@ -114,6 +114,16 @@ jobs:
                 export extra_pytest="-k test_flash_gemma_simple"
                 export target=""
                 ;;
+            neuron)
+                export dockerfile="Dockerfile.neuron"
+                export label_extension="-neuron"
+                export docker_devices="/dev/neuron0"
+                export docker_volume="/mnt/cache"
+                export runs_on="aws-inf2-8xlarge"
+                export platform="cpu"
+                export extra_pytest="--neuron"
+                export target=""
+                ;;
           esac
           echo $dockerfile
           echo "Dockerfile=${dockerfile}"
@@ -122,7 +132,7 @@ jobs:
           echo $runs_on
           echo $platform
           echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
-          echo "LABEL=${label_extension}" >> $GITHUB_ENV
+          echo "LABEL_EXTENSION=${label_extension}" >> $GITHUB_ENV
           echo "PLATFORM=${platform}" >> $GITHUB_ENV
           echo "DOCKER_VOLUME=${docker_volume}" >> $GITHUB_ENV
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
@@ -172,7 +182,7 @@ jobs:
           images: |
             docker.io/huggingface/text-generation-inference-ci
           tags: |
-            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL_EXTENSION }}
       # If main, release or tag
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name != 'pull_request' }}
@@ -186,10 +196,10 @@ jobs:
             ghcr.io/huggingface/text-generation-inference
             db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
-            type=semver,pattern={{version}}${{ env.LABEL }}
-            type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
-            type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            type=semver,pattern={{version}}${{ env.LABEL_EXTENSION }}
+            type=semver,pattern={{major}}.{{minor}}${{ env.LABEL_EXTENSION }}
+            type=raw,value=latest${{ env.LABEL_EXTENSION }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL_EXTENSION }}
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v4
@@ -200,7 +210,7 @@ jobs:
           platforms: 'linux/amd64'
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
-            DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL_EXTENSION }}
             PLATFORM=${{ env.PLATFORM }}
             build_type=${{ env.BUILD_TYPE }}
             sccache_gha_enabled=on
@@ -209,23 +219,55 @@ jobs:
           target: ${{ env.TARGET }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=max,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
-          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL_EXTENSION }},mode=max,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL_EXTENSION }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
       - name: Final
         id: final
         run: |
-          echo "docker_image=docker.io/huggingface/text-generation-inference-ci:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "docker_image=docker.io/huggingface/text-generation-inference-ci:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL_EXTENSION }}" >> "$GITHUB_OUTPUT"
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "docker_volume=${{ env.DOCKER_VOLUME }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
-          echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "label_extension=${{ env.LABEL_EXTENSION }}" >> "$GITHUB_OUTPUT"
           echo "extra_pytest=${{ env.EXTRA_PYTEST }}" >> "$GITHUB_OUTPUT"
-  integration_tests:
+  precompile_static_models:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
+      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label_extension }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     needs: build-and-push
-    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
+    if: needs.build-and-push.outputs.label_extension == '-neuron'
+    runs-on:
+      group: ${{ needs.build-and-push.outputs.runs_on }}
+    env:
+      PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || inputs.release-tests == true) && '--release' || '--release' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: |
+          make install-integration-tests
+      - name: Run tests
+        run: |
+          export DOCKER_VOLUME=${{ needs.build-and-push.outputs.docker_volume }}
+          export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
+          export DOCKER_DEVICES=${{ needs.build-and-push.outputs.docker_devices }}
+          export EXTRA_PYTEST="${{ needs.build-and-push.outputs.extra_pytest }}"
+          export HF_TOKEN=${{ secrets.HF_TOKEN_NEURON }}
+          echo $DOCKER_IMAGE
+          docker pull $DOCKER_IMAGE
+          pytest -s -vv integration-tests ${PYTEST_FLAGS} ${EXTRA_PYTEST}
+  integration_tests:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label_extension }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    needs: [precompile_static_models, build-and-push]
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && needs.build-and-push.outputs.runs_on != 'ubuntu-latest' }}
     runs-on:
       group: ${{ needs.build-and-push.outputs.runs_on }}
     env:
@@ -255,7 +297,7 @@ jobs:
 
   backend_trtllm_cxx_tests:
     needs: build-and-push
-    if: needs.build-and-push.outputs.label == '-trtllm'
+    if: needs.build-and-push.outputs.label_extension == '-trtllm'
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
@@ -270,5 +312,5 @@ jobs:
 
     steps:
       - name: Run C++/CUDA tests
-        if: ${{ env.LABEL == 'ci-runtime' }}
+        if: ${{ env.LABEL_EXTENSION == 'ci-runtime' }}
         run: /usr/local/tgi/bin/tgi_trtllm_backend_tests
