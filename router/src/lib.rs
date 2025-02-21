@@ -663,6 +663,7 @@ impl ChatCompletion {
             (Some(content), None) => OutputMessage::ChatMessage(TextMessage {
                 role: "assistant".into(),
                 content,
+                ..Default::default()
             }),
             (None, Some(tool_calls)) => OutputMessage::ToolCall(ToolCallMessage {
                 role: "assistant".to_string(),
@@ -673,6 +674,7 @@ impl ChatCompletion {
                 OutputMessage::ChatMessage(TextMessage {
                     role: "assistant".into(),
                     content: output,
+                    ..Default::default()
                 })
             }
             (None, None) => {
@@ -680,6 +682,7 @@ impl ChatCompletion {
                 OutputMessage::ChatMessage(TextMessage {
                     role: "assistant".into(),
                     content: "".to_string(),
+                    ..Default::default()
                 })
             }
         };
@@ -767,6 +770,7 @@ impl ChatCompletionChunk {
             (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
                 role: "assistant".to_string(),
                 content: delta,
+                ..Default::default()
             }),
             (None, Some(tool_calls)) => ChatCompletionDelta::Tool(ToolCallDelta {
                 role: "assistant".to_string(),
@@ -783,6 +787,7 @@ impl ChatCompletionChunk {
             (None, None) => ChatCompletionDelta::Chat(TextMessage {
                 role: "assistant".to_string(),
                 content: "".to_string(),
+                ..Default::default()
             }),
         };
         Self {
@@ -1025,7 +1030,7 @@ pub fn default_tool_prompt() -> String {
     "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, ToSchema, PartialEq, Serialize)]
 #[serde(tag = "type")]
 pub enum TypedChoice {
     #[serde(rename = "function")]
@@ -1100,19 +1105,19 @@ pub struct JsonSchemaTool {
     properties: Properties,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 struct FunctionsMap {
     #[serde(rename = "$functions")]
     functions: std::collections::HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 struct FunctionRef {
     #[serde(rename = "$ref")]
     ref_path: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 struct Properties {
     #[serde(serialize_with = "serialize_function")]
     function: Vec<FunctionRef>,
@@ -1129,7 +1134,7 @@ where
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema, Default, PartialEq)]
-pub(crate) struct FunctionDefinition {
+pub struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
@@ -1157,7 +1162,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug, PartialEq)]
-pub(crate) struct ToolCall {
+pub struct ToolCall {
     pub id: String,
     pub r#type: String,
     pub function: FunctionDefinition,
@@ -1176,15 +1181,31 @@ pub enum MessageChunk {
     ImageUrl { image_url: Url },
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
 pub struct Message {
     #[schema(example = "user")]
-    role: String,
+    pub role: String,
+    #[serde(flatten)]
     #[schema(example = "My name is David and I")]
-    pub content: MessageContent,
+    pub body: MessageBody,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
-    name: Option<String>,
+    pub name: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum MessageBody {
+    // When a regular text message is provided.
+    Content {
+        #[serde(rename = "content")]
+        content: MessageContent,
+    },
+    // When tool calls are provided.
+    Tool {
+        #[serde(rename = "tool_calls")]
+        tool_calls: Vec<ToolCall>,
+    },
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
@@ -1211,19 +1232,28 @@ impl MessageContent {
     }
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
+#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq, Default)]
 pub struct TextMessage {
     #[schema(example = "user")]
     pub role: String,
     #[schema(example = "My name is David and I")]
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
 }
 
 impl From<Message> for TextMessage {
     fn from(value: Message) -> Self {
+        let content = match value.body {
+            MessageBody::Content { content } => content,
+            MessageBody::Tool { tool_calls } => {
+                let content = serde_json::to_string(&tool_calls).unwrap_or_default();
+                MessageContent::SingleText(content)
+            }
+        };
         TextMessage {
             role: value.role,
-            content: match value.content {
+            content: match content {
                 MessageContent::SingleText(text) => text,
                 MessageContent::MultipleChunks(chunks) => chunks
                     .into_iter()
@@ -1234,6 +1264,7 @@ impl From<Message> for TextMessage {
                     .collect::<Vec<_>>()
                     .join(""),
             },
+            ..Default::default()
         }
     }
 }
@@ -1565,9 +1596,11 @@ mod tests {
         assert_eq!(
             request.messages[0],
             Message {
+                name: None,
                 role: "user".to_string(),
-                content: MessageContent::SingleText("What is Deep Learning?".to_string()),
-                name: None
+                body: MessageBody::Content {
+                    content: MessageContent::SingleText("What is Deep Learning?".to_string())
+                },
             }
         );
     }
@@ -1617,13 +1650,16 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            Message{
+            Message {
+                name: None,
                 role: "user".to_string(),
-                content: MessageContent::MultipleChunks(vec![
-                    MessageChunk::Text { text: "Whats in this image?".to_string() },
-                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
-                ]),
-                name: None
+
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![
+                        MessageChunk::Text { text: "Whats in this image?".to_string() },
+                        MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
+                    ]),
+                },
             }
         );
     }
@@ -1631,12 +1667,14 @@ mod tests {
     #[test]
     fn text_message_convert() {
         let message = Message{
+            name: None,
                 role: "user".to_string(),
-                content: MessageContent::MultipleChunks(vec![
-                    MessageChunk::Text { text: "Whats in this image?".to_string() },
-                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
-                ]),
-                name: None
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![
+                        MessageChunk::Text { text: "Whats in this image?".to_string() },
+                        MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
+                    ]),
+                }
             };
         let textmsg: TextMessage = message.into();
         assert_eq!(textmsg.content, "Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)");
@@ -1667,6 +1705,7 @@ mod tests {
         let message = OutputMessage::ChatMessage(TextMessage {
             role: "assistant".to_string(),
             content: "This is the answer".to_string(),
+            ..Default::default()
         });
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(

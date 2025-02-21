@@ -28,7 +28,7 @@ use crate::{
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
-use crate::{ModelInfo, ModelsInfo};
+use crate::{MessageBody, ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
 use axum::extract::{DefaultBodyLimit, Extension};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -1577,6 +1577,7 @@ FunctionDefinition,
 ToolChoice,
 ModelInfo,
 ChatTokenizeResponse,
+MessageBody,
 )
 ),
 tags(

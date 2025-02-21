@@ -1865,25 +1865,57 @@
         }
       },
       "Message": {
-        "type": "object",
-        "required": [
-          "role",
-          "content"
-        ],
-        "properties": {
-          "content": {
-            "$ref": "#/components/schemas/MessageContent"
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MessageBody"
           },
-          "name": {
-            "type": "string",
-            "example": "\"David\"",
-            "nullable": true
-          },
-          "role": {
-            "type": "string",
-            "example": "user"
+          {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "example": "\"David\"",
+                "nullable": true
+              },
+              "role": {
+                "type": "string",
+                "example": "user"
+              }
+            }
           }
-        }
+        ]
+      },
+      "MessageBody": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "content"
+            ],
+            "properties": {
+              "content": {
+                "$ref": "#/components/schemas/MessageContent"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "tool_calls"
+            ],
+            "properties": {
+              "tool_calls": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ToolCall"
+                }
+              }
+            }
+          }
+        ]
       },
       "MessageChunk": {
         "oneOf": [
@@ -2179,6 +2211,10 @@
           "role": {
             "type": "string",
             "example": "user"
+          },
+          "tool_call_id": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

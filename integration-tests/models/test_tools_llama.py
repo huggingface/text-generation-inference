@@ -468,3 +468,41 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
         == '{"function": {"_name": "get_n_day_weather_forecast", "location": "San Francisco, CA", "format": "celsius", "num_days":3}}<|eot_id|>'
     )
     assert last_response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_tool_reply_response(
+    flash_llama_grammar_tools, response_snapshot
+):
+    responses = await flash_llama_grammar_tools.chat(
+        max_tokens=100,
+        seed=42,
+        messages=[
+            {"role": "user", "content": "What's the weather like in Paris today?"},
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "0",
+                        "function": {
+                            "arguments": '{"longitude": 2.2945, "latitude": 48.8567}',
+                            "name": "get_weather",
+                            "description": None,
+                        },
+                        "type": "function",
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "0", "content": "6.7"},
+        ],
+        stream=False,
+    )
+
+    assert responses.choices[0].message.tool_calls is None
+    assert (
+        responses.choices[0].message.content
+        == "I can't access real-time data, but I can provide you with current conditions and forecast for Paris, France:\n\nThe current conditions in Paris are mostly cloudy with a temperature of 6.7°C (44.1°F). \n\nPlease note that the actual weather may differ from this information, and I recommend checking the forecast on a reliable weather website for the most up-to-date information."
+    )
+
+    assert responses == response_snapshot
