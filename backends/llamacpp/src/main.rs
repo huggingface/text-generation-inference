@@ -9,10 +9,12 @@ use backend::{
     LlamacppSplitMode,
 };
 use clap::Parser;
+use hf_hub::api::tokio::ApiBuilder;
+use hf_hub::{Repo, RepoType};
 use std::path::Path;
 use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
-use tokenizers::{FromPretrainedParameters, Tokenizer};
+use tokenizers::Tokenizer;
 use tokio::process::Command;
 use tokio::sync::oneshot::error::RecvError;
 use tracing::{error, warn};
@@ -200,37 +202,47 @@ async fn main() -> Result<(), RouterError> {
         ));
     }
 
-    // TODO: check if we use the same cache of Server
-    // check if llamacpp is faster
-    let tokenizer = {
-        let token = std::env::var("HF_TOKEN")
-            .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
-            .ok();
-        let params = FromPretrainedParameters {
-            revision: args.revision.clone(),
-            token,
-            ..Default::default()
-        };
-        Tokenizer::from_pretrained(&args.model_id, Some(params))?
+    let api_builder = || {
+        let mut builder = ApiBuilder::new().with_progress(true);
+
+        if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
+            builder = builder.with_cache_dir(cache_dir.into());
+        }
+        if let Ok(token) = std::env::var("HF_TOKEN") {
+            builder = builder.with_token(token.into());
+        }
+        builder
     };
+    let api_repo = api_builder().build()?.repo(Repo::with_revision(
+        args.model_id.clone(),
+        RepoType::Model,
+        args.revision.clone(),
+    ));
+
+    let tokenizer_path = api_repo.get("tokenizer.json").await?;
+    let tokenizer = Tokenizer::from_file(&tokenizer_path)?;
 
     let model_gguf = if let Some(model_gguf) = args.model_gguf {
         model_gguf
     } else {
-        let make_gguf = std::env::var("MAKE_GGUF").map_err(|e| {
-            error!("No GGUF model given and environment variable MAKE_GGUF is missing.");
-            RouterError::VarError(e)
-        })?;
-
         let model_gguf = format!("models/{}/model.gguf", args.model_id);
+        let model_gguf_path = Path::new(&model_gguf);
 
-        if !Path::new(&model_gguf).exists() {
+        if !model_gguf_path.exists() {
             let tmp_gguf = "models/tmp.gguf";
 
-            let status = Command::new(make_gguf)
+            if let Some(parent) = Path::new(model_gguf_path).parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let cache_path = tokenizer_path.parent().unwrap();
+
+            for sibling in api_repo.info().await?.siblings {
+                let _ = api_repo.get(&sibling.rfilename).await?;
+            }
+            let status = Command::new("convert_hf_to_gguf.py")
+                .arg("--outfile")
                 .arg(tmp_gguf)
-                .arg(&args.model_id)
-                .arg(&args.revision)
+                .arg(cache_path)
                 .spawn()?
                 .wait()
                 .await?;
@@ -327,4 +339,6 @@ enum RouterError {
     QuantizeError(String),
     #[error("Command error: {0}")]
     CommandError(i32),
+    #[error("HF hub error: {0}")]
+    HubError(#[from] hf_hub::api::tokio::ApiError),
 }
