@@ -79,9 +79,6 @@ COPY --from=builder /usr/lib/libllama.so /usr/lib/
 COPY --from=builder /usr/lib/libggml*.so /usr/lib/
 COPY --from=builder /app/target/release/text-generation-router-llamacpp /usr/bin/
 
-COPY backends/llamacpp/make-gguf.sh make-gguf.sh
-ENV MAKE_GGUF=./make-gguf.sh
-
 ENV HF_HUB_ENABLE_HF_TRANSFER=1
 
 ENTRYPOINT ["text-generation-router-llamacpp"]

@@ -1,7 +1,6 @@
 use crate::llamacpp;
 
 use std::ffi::CString;
-use std::path::Path;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
@@ -15,9 +14,6 @@ pub fn model(
     ftype: QuantizeType,
     n_threads: usize,
 ) -> Result<(), String> {
-    if !Path::new(input_path).exists() {
-        return Err(format!("Input file '{}' does not exist", input_path));
-    }
     let c_input_path =
         CString::new(input_path).map_err(|e| format!("Failed to convert input path: {}", e))?;
 
