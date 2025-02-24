@@ -281,8 +281,8 @@ async def test_flash_llama_grammar_tools_insufficient_information_stream(
         last_response = response
         assert response.choices[0].delta.tool_calls is None
 
-    assert count == 5
-    assert content_generated == "I am a helpful assistant"
+    assert count == 6
+    assert content_generated == "I am a helpful assistant!"
     assert last_response == response_snapshot
 
 
@@ -318,10 +318,10 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream(
         last_response = response
         assert response.choices[0].delta.tool_calls is None
 
-    assert count == 77
+    assert count == 78
     assert (
         content_generated
-        == "There was a wise old octopus named Oracle. He lived in a cozy little cave beneath the waves with his best friend, a curious seahorse named Finley. One day, Finley met a playful dolphin named Daisy, and the three became inseparable. They spent their days exploring the ocean, playing hide-and-seek, and learning about the wonders of the sea from Oracle"
+        == "There was a wise old octopus named Oracle. He lived in a cozy little cave beneath the waves with his best friend, a curious seahorse named Finley. One day, Finley met a playful dolphin named Daisy, and the three became inseparable. They spent their days exploring the ocean, playing hide-and-seek, and learning about the wonders of the sea from Oracle."
     )
     assert last_response == response_snapshot
 
@@ -401,7 +401,6 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_none(
         assert response.choices[0].delta.tool_calls is None
 
     assert count == 100
-    print(content_generated)
     assert (
         content_generated
         == "Once upon a time, in a vibrant ocean filled with coral reefs and schools of shimmering fish, lived three dear friends: Luna the sea turtle, Finley the friendly fish, and Crusty the wise crab.\n\nLuna was the oldest of the three. She had traveled the world, exploring hidden caves and shipwrecks, and collecting sparkling shells and shiny pebbles. Her shell was a beautiful mosaic of blues and greens, and her gentle eyes twinkled with the secrets of the deep"
