@@ -216,6 +216,11 @@ def maybe_export_model(config_name, model_config):
     return neuron_model_id
 
 
+def maybe_export_models():
+    for config_name, model_config in MODEL_CONFIGURATIONS.items():
+        maybe_export_model(config_name, model_config)
+
+
 @pytest.fixture(scope="session", params=MODEL_CONFIGURATIONS.keys())
 def neuron_model_config(request):
     """Expose a pre-trained neuron model
@@ -262,3 +267,7 @@ def neuron_model_config(request):
 @pytest.fixture(scope="module")
 def neuron_model_path(neuron_model_config):
     yield neuron_model_config["neuron_model_path"]
+
+
+if __name__ == "__main__":
+    maybe_export_models()
