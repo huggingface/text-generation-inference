@@ -102,7 +102,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
-        max_supported_total_tokens = self.model.warmup(request)
+        max_supported_total_tokens, max_input_tokens, max_total_tokens = self.model.warmup(request)
 
         # W/A for the skip tokenizer path
         # We need to call make_tokenizer_optional after the warmup,
@@ -110,7 +110,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         make_tokenizer_optional(self.model.tokenizer)
 
         return generate_pb2.WarmupResponse(
-            max_supported_total_tokens=max_supported_total_tokens
+            max_supported_total_tokens=max_supported_total_tokens,
+            max_input_tokens=max_input_tokens,
+            max_total_tokens=max_total_tokens,
         )
 
     async def Prefill(self, request, context):

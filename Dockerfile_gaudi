@@ -17,8 +17,15 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    python3.11-dev
+ENV PYO3_PYTHON="/root/.local/bin/python" \
+    PYTHON_SYS_EXECUTABLE="/root/.local/bin/python" \
+    PYO3_PYTHON_VERSION="3.10"
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && . $HOME/.local/bin/env \
+    && uv python install 3.10 --default --preview \
+    && test -f /root/.local/bin/python || (echo "Python 3.10 not found at /root/.local/bin/python" && exit 1)
+
 RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
     curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
     unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
@@ -52,6 +59,9 @@ ENV HF_HOME=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     PORT=80
 
+# Assert that Python 3.10 is installed as the launcher is compiled with Python 3.10
+RUN python3.10 --version || (echo "Python 3.10 is not installed" && exit 1)
+
 # libssl.so.1.1 is not installed on Ubuntu 22.04 by default, install it
 RUN wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb && \
     dpkg -i ./libssl1.1_1.1.1f-1ubuntu2_amd64.deb
@@ -64,17 +74,17 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         make \
         curl \
         git \
-        python3.11-dev \
         && rm -rf /var/lib/apt/lists/*
 
 # Install server
 COPY proto proto
-COPY server server
-COPY server/Makefile server/Makefile
+COPY backends/gaudi/server server
+COPY backends/gaudi/server/Makefile server/Makefile
 RUN cd server && \
     make gen-server && \
     pip install --no-deps -r requirements.txt && \
     bash ./dill-0.3.8-patch.sh && \
+    pip install outlines~=0.0.34 && \
     pip install git+https://github.com/HabanaAI/DeepSpeed.git@1.19.0 && \
     BUILD_CUDA_EXT=0 pip install git+https://github.com/AutoGPTQ/AutoGPTQ.git@097dd04e --no-build-isolation && \
     pip install . --no-cache-dir
@@ -98,7 +108,7 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base
 
-COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
+COPY backends/gaudi/tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
 ENTRYPOINT ["/tgi-entrypoint.sh"]

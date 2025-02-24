@@ -59,7 +59,7 @@ CHUNK_SIZES = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
 LAZY_MODE = int(os.environ.get("PT_HPU_LAZY_MODE", 1))
 BATCH_BUCKET_SIZE = int(os.environ.get("BATCH_BUCKET_SIZE", 8))
 PREFILL_BATCH_BUCKET_SIZE = int(os.environ.get("PREFILL_BATCH_BUCKET_SIZE", 2))
-
+MAX_BATCH_SIZE = int(os.environ.get('MAX_BATCH_SIZE')) if os.environ.get('MAX_BATCH_SIZE') is not None else None
 
 def torch_compile_for_eager(func):
     if LAZY_MODE == 1:
@@ -1289,9 +1289,13 @@ class CausalLM(Model):
 
         return self.batch_type.from_pb(batch, self.tokenizer, self.dtype, self.device)
 
-    def warmup(self, request) -> None:
+    def warmup(self, request: generate_pb2.WarmupRequest) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+        assert MAX_BATCH_SIZE is not None, "MAX_BATCH_SIZE is not set, it should be set in the launcher"
+        MAX_BATCH_TOTAL_TOKENS = MAX_BATCH_SIZE * request.max_total_tokens
+        logger.info(f"MAX_BATCH_SIZE: {MAX_BATCH_SIZE}")
+        logger.info(f"MAX_BATCH_TOTAL_TOKENS: {MAX_BATCH_TOTAL_TOKENS}")
         MAX_TOTAL_TOKENS = request.max_total_tokens
-        MAX_BATCH_TOTAL_TOKENS = request.max_batch_total_tokens
+        
         batch = self.batch_type.from_pb(
             request.batch, self.tokenizer, self.dtype, self.device
         )
@@ -1308,18 +1312,18 @@ class CausalLM(Model):
         del prefill_batch
 
         # Warmup prefill batch_size
-        max_input_length =  request.max_input_length
+        max_input_tokens = request.max_input_tokens
         prefill_batch_size_list = [batch for batch in range(PREFILL_BATCH_BUCKET_SIZE, max_prefill_batch_size, PREFILL_BATCH_BUCKET_SIZE)]
         prefill_batch_size_list.append(max_prefill_batch_size)
         prefill_seqlen_list = [
             seq
             for seq in range(
                 PAD_SEQUENCE_TO_MULTIPLE_OF,
-                max_input_length,
+                max_input_tokens,
                 PAD_SEQUENCE_TO_MULTIPLE_OF,
             )
         ]
-        prefill_seqlen_list.append(max_input_length)
+        prefill_seqlen_list.append(max_input_tokens)
         prefill_batch_size_list.sort(reverse=True)
         prefill_seqlen_list.sort(reverse=True)
         try:
@@ -1345,8 +1349,7 @@ class CausalLM(Model):
             f"Prefill sequence length list:{prefill_seqlen_list}\n"
             f"Memory stats: {mem_stats} "
         )
-
-        # warmup decode batch size
+    
         max_decode_batch_size = math.floor(MAX_BATCH_TOTAL_TOKENS / MAX_TOTAL_TOKENS)
         max_decode_batch_size = round_up(max_decode_batch_size, BATCH_BUCKET_SIZE)
         decode_batch_size_list = [
@@ -1388,12 +1391,15 @@ class CausalLM(Model):
             )
 
         decode_batch_size_list.sort()
-        MAX_BATCH_TOTAL_TOKENS = MAX_TOTAL_TOKENS * decode_batch_size_list[-1]
+        max_supported_total_tokens = MAX_TOTAL_TOKENS * decode_batch_size_list[-1]
         mem_stats = get_hpu_memory_stats(self.device)
         logger.info(
             f"\nFollowing decode warmup successfully.\n"
             f"Decode batch size list:{decode_batch_size_list}\n"
             f"Memory stats: {mem_stats} "
         )
-
-        return MAX_BATCH_TOTAL_TOKENS
+        
+        max_input_tokens=max_input_tokens
+        max_total_tokens=MAX_TOTAL_TOKENS
+        
+        return max_supported_total_tokens, max_input_tokens, max_total_tokens

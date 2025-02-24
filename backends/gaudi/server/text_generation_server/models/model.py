@@ -8,9 +8,11 @@ from collections import defaultdict
 from transformers import PreTrainedTokenizerBase
 
 from text_generation_server.models.types import Batch, Generation
+from text_generation_server.models.globals import BLOCK_SIZE
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.pb.generate_pb2 import InfoResponse
 from text_generation_server.adapters.weights import LayerAdapterWeights
+from text_generation_server.pb import generate_pb2
 import time
 BASE_MODEL_ADAPTER_ID = "__base_model__"
 
@@ -79,6 +81,7 @@ class Model(ABC):
             device_type=self.device.type,
             window_size=self.sliding_window,
             speculate=self.speculate,
+            block_size=BLOCK_SIZE,
         )
 
     @property
@@ -92,9 +95,9 @@ class Model(ABC):
     ) -> Tuple[List[Generation], Optional[B], Tuple[int, int]]:
         raise NotImplementedError
 
-    def warmup(self, batch: B) -> Optional[int]:
+    def warmup(self, batch: generate_pb2.WarmupRequest) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         self.generate_token(batch)
-        return None
+        return None, None, None
 
     def decode_token(
         self,
