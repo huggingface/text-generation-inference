@@ -76,7 +76,9 @@ def _get_quantizer_config(model_id, revision):
         quant_method = data["quantization_config"]["quant_method"]
         checkpoint_format = data["quantization_config"].get("checkpoint_format")
         desc_act = data["quantization_config"].get("desc_act", False)
-        modules_to_not_convert = data["quantization_config"].get("modules_to_not_convert", None)
+        modules_to_not_convert = data["quantization_config"].get(
+            "modules_to_not_convert", None
+        )
     except Exception:
         filename = "quantize_config.json"
         try:

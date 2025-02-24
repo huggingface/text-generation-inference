@@ -6,7 +6,12 @@ import torch
 from loguru import logger
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
-from text_generation_server.utils.weights import Weight, Weights, WeightsLoader, UnquantizedWeight
+from text_generation_server.utils.weights import (
+    Weight,
+    Weights,
+    WeightsLoader,
+    UnquantizedWeight,
+)
 
 if SYSTEM == "ipex":
     from .ipex import QuantLinear
@@ -181,7 +186,9 @@ class GPTQWeightsLoader(WeightsLoader):
             use_exllama=use_exllama,
         )
 
-    def is_layer_skipped_quantization(self, prefix: str, modules_to_not_convert: List[str]):
+    def is_layer_skipped_quantization(
+        self, prefix: str, modules_to_not_convert: List[str]
+    ):
         if modules_to_not_convert is None:
             return False
         return any(module_name in prefix for module_name in modules_to_not_convert)
