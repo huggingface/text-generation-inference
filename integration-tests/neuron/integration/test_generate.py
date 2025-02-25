@@ -30,7 +30,11 @@ async def test_model_single_request(tgi_service):
 
     # Greedy bounded with input
     response = await tgi_service.client.text_generation(
-        "What is Deep Learning?", max_new_tokens=17, return_full_text=True, details=True, decoder_input_details=True
+        "What is Deep Learning?",
+        max_new_tokens=17,
+        return_full_text=True,
+        details=True,
+        decoder_input_details=True,
     )
     assert response.details.generated_tokens == 17
     assert response.generated_text == prompt + greedy_expectations[service_name]

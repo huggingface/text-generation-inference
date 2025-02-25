@@ -21,12 +21,23 @@ def test_prefill(neuron_model_config):
 def _test_prefill(config_name, generator, batch_size, do_sample):
     requests = []
     max_new_tokens = 20
-    input_text = "It was a bright cold day in April, and the clocks were striking thirteen."
+    input_text = (
+        "It was a bright cold day in April, and the clocks were striking thirteen."
+    )
     for i in range(batch_size):
-        requests.append(create_request(id=i, inputs=input_text, do_sample=do_sample, max_new_tokens=max_new_tokens))
+        requests.append(
+            create_request(
+                id=i,
+                inputs=input_text,
+                do_sample=do_sample,
+                max_new_tokens=max_new_tokens,
+            )
+        )
     # Let's be pessimistic when estimating max_tokens
     max_length = generator.model.max_length
-    batch = Batch(id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length)
+    batch = Batch(
+        id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length
+    )
     generations, next_batch = generator.prefill(batch)
     assert next_batch.size == batch_size
     # Whatever was passed as max_tokens, the server will correct it
@@ -73,7 +84,9 @@ def test_prefill_truncate(neuron_model_config):
     for i in range(batch_size):
         requests.append(create_request(id=i, inputs=input_text, truncate=truncate[i]))
     max_length = generator.model.max_length
-    batch = Batch(id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length)
+    batch = Batch(
+        id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length
+    )
     generations, _ = generator.prefill(batch)
     # Even if the input text is identical for all requests, the first generated token might
     # be different because of the truncation

@@ -16,9 +16,13 @@ def test_decode(neuron_model_config):
 
 
 def _test_decode(config_name, generator, do_sample):
-    input_text = "It was a bright cold day in April, and the clocks were striking thirteen."
+    input_text = (
+        "It was a bright cold day in April, and the clocks were striking thirteen."
+    )
     max_new_tokens = 20
-    request = create_request(id=0, inputs=input_text, max_new_tokens=max_new_tokens, do_sample=do_sample)
+    request = create_request(
+        id=0, inputs=input_text, max_new_tokens=max_new_tokens, do_sample=do_sample
+    )
     max_length = generator.model.max_length
     batch = Batch(id=0, requests=[request], size=1, max_tokens=max_length)
     generations, next_batch = generator.prefill(batch)

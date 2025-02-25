@@ -27,33 +27,68 @@ OPTIMUM_CACHE_REPO_ID = "optimum-internal-testing/neuron-testing-cache"
 MODEL_CONFIGURATIONS = {
     "gpt2": {
         "model_id": "gpt2",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 1024, "num_cores": 2, "auto_cast_type": "fp16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 1024,
+            "num_cores": 2,
+            "auto_cast_type": "fp16",
+        },
     },
     "llama": {
         "model_id": "NousResearch/Hermes-2-Theta-Llama-3-8B",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 2048, "num_cores": 2, "auto_cast_type": "fp16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 2048,
+            "num_cores": 2,
+            "auto_cast_type": "fp16",
+        },
     },
     "mistral": {
         "model_id": "optimum/mistral-1.1b-testing",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 4096, "num_cores": 2, "auto_cast_type": "bf16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 4096,
+            "num_cores": 2,
+            "auto_cast_type": "bf16",
+        },
     },
     "qwen2": {
         "model_id": "Qwen/Qwen2.5-0.5B",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 4096, "num_cores": 2, "auto_cast_type": "fp16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 4096,
+            "num_cores": 2,
+            "auto_cast_type": "fp16",
+        },
     },
     "granite": {
         "model_id": "ibm-granite/granite-3.1-2b-instruct",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 4096, "num_cores": 2, "auto_cast_type": "bf16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 4096,
+            "num_cores": 2,
+            "auto_cast_type": "bf16",
+        },
     },
 }
 
 
 def get_hub_neuron_model_id(config_name: str):
-    return f"optimum-internal-testing/neuron-testing-{version}-{sdk_version}-{config_name}"
+    return (
+        f"optimum-internal-testing/neuron-testing-{version}-{sdk_version}-{config_name}"
+    )
 
 
 def export_model(model_id, export_kwargs, neuron_model_path):
-    export_command = ["optimum-cli", "export", "neuron", "-m", model_id, "--task", "text-generation"]
+    export_command = [
+        "optimum-cli",
+        "export",
+        "neuron",
+        "-m",
+        model_id,
+        "--task",
+        "text-generation",
+    ]
     for kwarg, value in export_kwargs.items():
         export_command.append(f"--{kwarg}")
         export_command.append(str(value))

@@ -61,7 +61,9 @@ def serve(
     )
 
     if trust_remote_code is not None:
-        logger.warning("'trust_remote_code' argument is not supported and will be ignored.")
+        logger.warning(
+            "'trust_remote_code' argument is not supported and will be ignored."
+        )
 
     # Import here after the logger is added to log potential import exceptions
     from .server import serve
@@ -99,7 +101,9 @@ def download_weights(
     if extension is not None:
         logger.warning("'extension' argument is not supported and will be ignored.")
     if trust_remote_code is not None:
-        logger.warning("'trust_remote_code' argument is not supported and will be ignored.")
+        logger.warning(
+            "'trust_remote_code' argument is not supported and will be ignored."
+        )
     if auto_convert is not None:
         logger.warning("'auto_convert' argument is not supported and will be ignored.")
     if merge_lora is not None:

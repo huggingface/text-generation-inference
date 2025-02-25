@@ -16,7 +16,12 @@ from optimum.neuron.utils.version_utils import get_neuronxcc_version
 
 logger = logging.getLogger(__name__)
 
-tgi_router_env_vars = ["MAX_BATCH_SIZE", "MAX_TOTAL_TOKENS", "MAX_INPUT_TOKENS", "MAX_BATCH_PREFILL_TOKENS"]
+tgi_router_env_vars = [
+    "MAX_BATCH_SIZE",
+    "MAX_TOTAL_TOKENS",
+    "MAX_INPUT_TOKENS",
+    "MAX_BATCH_PREFILL_TOKENS",
+]
 tgi_server_env_vars = ["HF_NUM_CORES", "HF_AUTO_CAST_TYPE"]
 
 env_config_peering = [
@@ -39,18 +44,30 @@ def parse_cmdline_and_set_env(argv: List[str] = None) -> argparse.Namespace:
         argv = sys.argv
     # All these are params passed to tgi and intercepted here
     parser.add_argument(
-        "--max-input-tokens", type=int, default=os.getenv("MAX_INPUT_TOKENS", os.getenv("MAX_INPUT_LENGTH", 0))
+        "--max-input-tokens",
+        type=int,
+        default=os.getenv("MAX_INPUT_TOKENS", os.getenv("MAX_INPUT_LENGTH", 0)),
     )
-    parser.add_argument("--max-total-tokens", type=int, default=os.getenv("MAX_TOTAL_TOKENS", 0))
-    parser.add_argument("--max-batch-size", type=int, default=os.getenv("MAX_BATCH_SIZE", 0))
-    parser.add_argument("--max-batch-prefill-tokens", type=int, default=os.getenv("MAX_BATCH_PREFILL_TOKENS", 0))
+    parser.add_argument(
+        "--max-total-tokens", type=int, default=os.getenv("MAX_TOTAL_TOKENS", 0)
+    )
+    parser.add_argument(
+        "--max-batch-size", type=int, default=os.getenv("MAX_BATCH_SIZE", 0)
+    )
+    parser.add_argument(
+        "--max-batch-prefill-tokens",
+        type=int,
+        default=os.getenv("MAX_BATCH_PREFILL_TOKENS", 0),
+    )
     parser.add_argument("--model-id", type=str, default=os.getenv("MODEL_ID"))
     parser.add_argument("--revision", type=str, default=os.getenv("REVISION"))
 
     args = parser.parse_known_args(argv)[0]
 
     if not args.model_id:
-        raise Exception("No model id provided ! Either specify it using --model-id cmdline or MODEL_ID env var")
+        raise Exception(
+            "No model id provided ! Either specify it using --model-id cmdline or MODEL_ID env var"
+        )
 
     # Override env with cmdline params
     os.environ["MODEL_ID"] = args.model_id
@@ -87,7 +104,9 @@ def neuron_config_to_env(neuron_config):
         f.write("export MAX_INPUT_TOKENS={}\n".format(max_input_tokens))
         max_batch_prefill_tokens = os.getenv("MAX_BATCH_PREFILL_TOKENS")
         if not max_batch_prefill_tokens:
-            max_batch_prefill_tokens = int(neuron_config["batch_size"]) * int(max_input_tokens)
+            max_batch_prefill_tokens = int(neuron_config["batch_size"]) * int(
+                max_input_tokens
+            )
         f.write("export MAX_BATCH_PREFILL_TOKENS={}\n".format(max_batch_prefill_tokens))
 
 
@@ -95,16 +114,25 @@ def sort_neuron_configs(dictionary):
     return -dictionary["num_cores"], -dictionary["batch_size"]
 
 
-def lookup_compatible_cached_model(model_id: str, revision: Optional[str]) -> Optional[Dict[str, Any]]:
+def lookup_compatible_cached_model(
+    model_id: str, revision: Optional[str]
+) -> Optional[Dict[str, Any]]:
     # Reuse the same mechanic as the one in use to configure the tgi server part
     # The only difference here is that we stay as flexible as possible on the compatibility part
     entries = get_hub_cached_entries(model_id, "inference")
 
-    logger.debug("Found %d cached entries for model %s, revision %s", len(entries), model_id, revision)
+    logger.debug(
+        "Found %d cached entries for model %s, revision %s",
+        len(entries),
+        model_id,
+        revision,
+    )
 
     all_compatible = []
     for entry in entries:
-        if check_env_and_neuron_config_compatibility(entry, check_compiler_version=True):
+        if check_env_and_neuron_config_compatibility(
+            entry, check_compiler_version=True
+        ):
             all_compatible.append(entry)
 
     if not all_compatible:
@@ -126,7 +154,9 @@ def lookup_compatible_cached_model(model_id: str, revision: Optional[str]) -> Op
     return entry
 
 
-def check_env_and_neuron_config_compatibility(neuron_config: Dict[str, Any], check_compiler_version: bool) -> bool:
+def check_env_and_neuron_config_compatibility(
+    neuron_config: Dict[str, Any], check_compiler_version: bool
+) -> bool:
     logger.debug(
         "Checking the provided neuron config %s is compatible with the local setup and provided environment",
         neuron_config,
@@ -134,10 +164,15 @@ def check_env_and_neuron_config_compatibility(neuron_config: Dict[str, Any], che
 
     # Local setup compat checks
     if neuron_config["num_cores"] > available_cores:
-        logger.debug("Not enough neuron cores available to run the provided neuron config")
+        logger.debug(
+            "Not enough neuron cores available to run the provided neuron config"
+        )
         return False
 
-    if check_compiler_version and neuron_config["compiler_version"] != neuronxcc_version:
+    if (
+        check_compiler_version
+        and neuron_config["compiler_version"] != neuronxcc_version
+    ):
         logger.debug(
             "Compiler version conflict, the local one (%s) differs from the one used to compile the model (%s)",
             neuronxcc_version,
@@ -158,7 +193,9 @@ def check_env_and_neuron_config_compatibility(neuron_config: Dict[str, Any], che
             )
             return False
 
-    max_input_tokens = int(os.getenv("MAX_INPUT_TOKENS", os.getenv("MAX_INPUT_LENGTH", 0)))
+    max_input_tokens = int(
+        os.getenv("MAX_INPUT_TOKENS", os.getenv("MAX_INPUT_LENGTH", 0))
+    )
     if max_input_tokens > 0:
         sequence_length = neuron_config["sequence_length"]
         if max_input_tokens >= sequence_length:
@@ -191,7 +228,10 @@ def main():
         if not os.getenv(env_var):
             break
     else:
-        logger.info("All env vars %s already set, skipping, user know what they are doing", env_vars)
+        logger.info(
+            "All env vars %s already set, skipping, user know what they are doing",
+            env_vars,
+        )
         sys.exit(0)
 
     cache_dir = constants.HF_HUB_CACHE
@@ -201,7 +241,9 @@ def main():
     config = AutoConfig.from_pretrained(args.model_id, revision=args.revision)
     neuron_config = getattr(config, "neuron", None)
     if neuron_config is not None:
-        compatible = check_env_and_neuron_config_compatibility(neuron_config, check_compiler_version=False)
+        compatible = check_env_and_neuron_config_compatibility(
+            neuron_config, check_compiler_version=False
+        )
         if not compatible:
             env_dict = get_env_dict()
             msg = (
@@ -213,9 +255,9 @@ def main():
         neuron_config = lookup_compatible_cached_model(args.model_id, args.revision)
 
     if not neuron_config:
-        msg = ("No compatible neuron config found. Provided env {}, available cores {}, neuronxcc version {}").format(
-            get_env_dict(), available_cores, neuronxcc_version
-        )
+        msg = (
+            "No compatible neuron config found. Provided env {}, available cores {}, neuronxcc version {}"
+        ).format(get_env_dict(), available_cores, neuronxcc_version)
         logger.error(msg)
         raise Exception(msg)
 

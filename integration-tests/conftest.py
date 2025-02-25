@@ -75,16 +75,23 @@ def pytest_collection_modifyitems(config, items):
         def skip_release(item):
             if "release" in item.keywords:
                 item.add_marker(pytest.mark.skip(reason="need --release option to run"))
+
         selectors.append(skip_release)
     if config.getoption("--neuron"):
+
         def skip_not_neuron(item):
             if "neuron" not in item.keywords:
-                item.add_marker(pytest.mark.skip(reason="incompatible with --neuron option"))
+                item.add_marker(
+                    pytest.mark.skip(reason="incompatible with --neuron option")
+                )
+
         selectors.append(skip_not_neuron)
     else:
+
         def skip_neuron(item):
             if "neuron" in item.keywords:
                 item.add_marker(pytest.mark.skip(reason="requires --neuron to run"))
+
         selectors.append(skip_neuron)
     for item in items:
         for selector in selectors:

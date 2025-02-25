@@ -1,7 +1,6 @@
 import os
 
 import pytest
-from huggingface_hub.errors import ValidationError
 
 
 @pytest.fixture(scope="module", params=["hub-neuron", "hub", "local-neuron"])
