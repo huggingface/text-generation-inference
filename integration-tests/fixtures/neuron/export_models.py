@@ -190,7 +190,7 @@ def maybe_export_model(config_name, model_config):
         logger.debug("Build logs %s", logs)
 
     try:
-        container = client.containers.run(
+        client.containers.run(
             export_image,
             environment=env,
             auto_remove=True,
@@ -199,7 +199,6 @@ def maybe_export_model(config_name, model_config):
             shm_size="1G",
         )
         logger.info(f"Successfully exported model for config {config_name}")
-        container.logs()
     except Exception as e:
         logger.exception(f"An exception occurred while running container: {e}.")
         pass
