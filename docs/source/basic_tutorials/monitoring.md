@@ -38,7 +38,7 @@ In this guide, Prometheus monitoring data will be consumed on a local computer. 
 * Use ssh [local port forwarding](https://www.ssh.com/academy/ssh/tunneling-example)
 * Use ngrok port tunneling
 
-For simplicity, we will use [Ngrok](https://ngrok.com/docs/) in this guide to tunnel Prometheus port from the TGI server to the outside word.
+For simplicity, we will use [Ngrok](https://ngrok.com/docs/) in this guide to tunnel Prometheus port from the TGI server to the outside world.
 
 For that, you should follow the steps at https://dashboard.ngrok.com/get-started/setup/linux, and once Ngrok is installed, use:
 ```bash
