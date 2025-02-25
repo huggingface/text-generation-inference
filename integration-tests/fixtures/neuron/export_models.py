@@ -249,7 +249,9 @@ def neuron_model_config(request):
     with TemporaryDirectory() as neuron_model_path:
         logger.info(f"Fetching {neuron_model_id} from the HuggingFace hub")
         hub = huggingface_hub.HfApi()
-        hub.snapshot_download(neuron_model_id, local_dir=neuron_model_path)
+        hub.snapshot_download(
+            neuron_model_id, etag_timeout=30, local_dir=neuron_model_path
+        )
         # Add dynamic parameters to the model configuration
         model_config["neuron_model_path"] = neuron_model_path
         model_config["neuron_model_id"] = neuron_model_id
