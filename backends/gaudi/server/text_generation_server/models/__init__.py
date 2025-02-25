@@ -7,9 +7,8 @@ from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import List, Dict
 # Needed to properly setup habana_frameworks
-import text_generation_server.habana_quantization_env as hq_env
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
@@ -31,6 +30,7 @@ from text_generation_server.utils.adapter import (
     load_and_merge_adapters,
     AdapterInfo,
 )
+from text_generation_server.adapters.lora import LoraWeights
 
 
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi

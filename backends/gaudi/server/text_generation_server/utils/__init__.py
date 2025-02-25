@@ -1,6 +1,5 @@
 # Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
 
-import text_generation_server.habana_quantization_env
 from text_generation_server.utils.convert import convert_file, convert_files
 from text_generation_server.utils.dist import initialize_torch_distributed
 from text_generation_server.utils.weights import Weights
@@ -21,9 +20,6 @@ from text_generation_server.utils.tokens import (
     FinishReason,
     Sampling,
     Greedy,
-    make_tokenizer_optional,
-    is_tokenizer_transparent,
-    pad_next_token_chooser_parameters,
 )
 
 __all__ = [

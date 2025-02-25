@@ -1,7 +1,5 @@
-from loguru import logger
 import torch
 from dataclasses import dataclass
-import os
 from typing import List, Optional, Type
 
 from text_generation_server.models import CausalLM

@@ -705,8 +705,8 @@ def make_tokenizer_optional(tokenizer):
         ):
             assert return_tensors == "pt", "inccorrect input arguments when calling TransparentTokenizer"
             assert padding == "max_length" or padding == "longest", "inccorrect input arguments when calling TransparentTokenizer"
-            assert return_token_type_ids == False, "inccorrect input arguments when calling TransparentTokenizer"
-            assert truncation == True, "inccorrect input arguments when calling TransparentTokenizer"
+            assert not return_token_type_ids, "inccorrect input arguments when calling TransparentTokenizer"
+            assert truncation, "inccorrect input arguments when calling TransparentTokenizer"
 
             def str_token_to_int(i):
                 if i == '?':
@@ -727,7 +727,8 @@ def make_tokenizer_optional(tokenizer):
             clean_up_tokenization_spaces: bool = None,
             **kwargs,
         ) -> str:
-            return ','.join(str(i) for i in to_py_obj(token_ids))
+            # I don't think this method is used anywhere and should be removed when doing refactoring
+            return ','.join(str(i) for i in to_py_obj(token_ids)) # noqa: F821
 
     import os
     if os.getenv("SKIP_TOKENIZER_IN_TGI", "false").lower() == "true":

@@ -14,13 +14,11 @@
 # limitations under the License.
 """ PyTorch Llava-NeXT model."""
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional
 
 import torch
 import torch.utils.checkpoint
-from torch import nn
 
-from transformers.activations import ACT2FN
 from transformers.models.llava_next.modeling_llava_next import (
     unpad_image,
 )

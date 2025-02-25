@@ -5,8 +5,6 @@ import time
 import math
 from PIL import Image
 from io import BytesIO
-import base64
-import numpy
 from opentelemetry import trace
 from loguru import logger
 from typing import Iterable, Optional, Tuple, List, Type, Dict
@@ -15,7 +13,6 @@ import tempfile
 import copy
 from text_generation_server.models import Model
 from transformers import PreTrainedTokenizerBase
-from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.causal_lm import (
@@ -34,7 +31,6 @@ import text_generation_server.habana_quantization_env as hq_env
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 from text_generation_server.utils import (
     HeterogeneousNextTokenChooser,
-    StoppingCriteria,
     make_tokenizer_optional,
     is_tokenizer_transparent,
     pad_next_token_chooser_parameters,
@@ -47,8 +43,6 @@ from optimum.habana.checkpoint_utils import get_ds_injection_policy
 
 from transformers import (
     AutoTokenizer,
-    AutoModel,
-    PreTrainedTokenizerBase,
     AutoConfig,
 )
 from optimum.habana.checkpoint_utils import (
@@ -59,7 +53,6 @@ from optimum.habana.checkpoint_utils import (
 
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.models.types import (
-    Batch,
     Tokens,
     Generation,
     GeneratedText,
@@ -116,7 +109,6 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
-        from loguru import logger
         return "<image>" * num_features
 
     elif config.model_type == "paligemma":
@@ -604,7 +596,7 @@ class VlmCausalLM(Model):
             if LAZY_MODE == 0:
                 # It is said that "keep_input_mutations" is safe for inference to be done
                 dbg_trace(
-                    "TORCH COMPILE", f'Torch compiling of model')
+                    "TORCH COMPILE", 'Torch compiling of model')
                 model.model = torch.compile(model.model, backend="hpu_backend", options={"keep_input_mutations": True})
 
         model = hq_env.setup_quantization(model)
@@ -790,7 +782,7 @@ class VlmCausalLM(Model):
         if self.has_position_ids:
             kwargs["position_ids"] = position_ids
 
-        if bypass_hpu_graph != None:
+        if bypass_hpu_graph is not None:
             hpu_kwargs["bypass_hpu_graphs"] = bypass_hpu_graph
 
         kwargs.update(self.kwargs)
@@ -1118,7 +1110,7 @@ class VlmCausalLM(Model):
         try:
             # max prefill batch size warmup
             _, prefill_batch, _ = self.generate_token([batch], is_warmup)
-        except:
+        except Exception:
             raise RuntimeError(
                 f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
                 f"You need to decrease `--max-batch-prefill-tokens`"
@@ -1158,7 +1150,7 @@ class VlmCausalLM(Model):
 
                 DECODE_WARMUP_BATCH_SIZE_LIST.append(batch_size)
 
-        except:
+        except Exception:
             raise RuntimeError(
                 f"Not enough memory to handle following prefill and decode warmup."
                 f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}"
@@ -1209,7 +1201,7 @@ class VlmCausalLM(Model):
                     DECODE_WARMUP_BATCH_SIZE_LIST.append(max_decode_batch_size)
                 max_batch_total_tokens = max_decode_batch_size * MAX_TOTAL_TOKENS
                 MAX_BATCH_TOTAL_TOKENS = max_batch_total_tokens
-        except :
+        except Exception:
             raise RuntimeError(
                 f"Not enough memory to handle batch_size({batch_size}) decode warmup."
                 f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}"

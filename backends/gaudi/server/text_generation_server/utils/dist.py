@@ -44,9 +44,7 @@ class FakeGroup:
 
 
 def initialize_torch_distributed():
-    import habana_frameworks.torch.core as htcore
 
-    rank = int(os.getenv("RANK", "0"))
     world_size = int(os.getenv("WORLD_SIZE", "1"))
 
     options = None
@@ -69,7 +67,7 @@ def initialize_torch_distributed():
             raise ValueError(f"WORLD_SIZE ({world_size}) is higher than the number of available HPUs ({n_hpus}).")
     else:
         try:
-            import oneccl_bindings_for_pytorch
+            import oneccl_bindings_for_pytorch # noqa: F401
 
             backend = "ccl"
             if os.getenv("CCL_WORKER_COUNT", None) is None:

@@ -1,5 +1,4 @@
 import inspect
-from loguru import logger
 import torch
 
 from abc import ABC, abstractmethod
@@ -13,7 +12,6 @@ from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.pb.generate_pb2 import InfoResponse
 from text_generation_server.adapters.weights import LayerAdapterWeights
 from text_generation_server.pb import generate_pb2
-import time
 BASE_MODEL_ADAPTER_ID = "__base_model__"
 
 

@@ -1,10 +1,8 @@
 import os
 from pathlib import Path
 from loguru import logger
-import sys
 from text_generation_server import server
 import argparse
-from typing import List
 from text_generation_server.utils.adapter import parse_lora_adapters
 
 

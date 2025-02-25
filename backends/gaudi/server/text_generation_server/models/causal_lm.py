@@ -737,7 +737,7 @@ class CausalLM(Model):
         else:
             if LAZY_MODE == 0:
                 # It is said that "keep_input_mutations" is safe for inference to be done
-                dbg_trace("TORCH COMPILE", f"Torch compiling of model")
+                dbg_trace("TORCH COMPILE", "Torch compiling of model")
                 model.model = torch.compile(
                     model.model,
                     backend="hpu_backend",
@@ -932,7 +932,7 @@ class CausalLM(Model):
         if self.has_position_ids:
             kwargs["position_ids"] = position_ids
 
-        if bypass_hpu_graph != None:
+        if bypass_hpu_graph is not None:
             kwargs["bypass_hpu_graphs"] = bypass_hpu_graph
 
         kwargs.update(self.kwargs)
@@ -1303,7 +1303,7 @@ class CausalLM(Model):
         try:
             # max prefill batch size warmup
             _, prefill_batch, _ = self.generate_token([batch])
-        except:
+        except Exception:
             raise RuntimeError(
                 f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
                 f"You need to decrease `--max-batch-prefill-tokens`"
@@ -1331,7 +1331,7 @@ class CausalLM(Model):
                 for seq_len in prefill_seqlen_list:
                     batch = self.generate_warmup_batch(request, seq_len - 1, batch_size)
                     _, prefill_batch, _ = self.generate_token([batch])
-        except:
+        except Exception:
             prefill_batch_size_list.sort()
             prefill_seqlen_list.sort()
             raise RuntimeError(
@@ -1384,7 +1384,7 @@ class CausalLM(Model):
                 del decode_batch
                 batches.clear()
 
-        except:
+        except Exception:
             raise RuntimeError(
                 f"Not enough memory to warmup decode batch_sizes({decode_batch_size_list})."
                 f"You need to decrease `--max-batch-total-tokens`"
