@@ -24,8 +24,6 @@ RUN cargo install cargo-chef --locked
 
 WORKDIR /usr/src
 
-ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
-
 FROM chef AS planner
 COPY backends/neuron/Cargo.toml Cargo.toml
 COPY Cargo.lock Cargo.lock
