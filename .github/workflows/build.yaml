@@ -230,7 +230,7 @@ jobs:
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
           echo "label_extension=${{ env.LABEL_EXTENSION }}" >> "$GITHUB_OUTPUT"
           echo "extra_pytest=${{ env.EXTRA_PYTEST }}" >> "$GITHUB_OUTPUT"
-  precompile_static_models:
+  precompile_neuron_models:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label_extension }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
@@ -263,7 +263,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label_extension }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
-    needs: [precompile_static_models, build-and-push]
+    needs: [precompile_neuron_models, build-and-push]
     if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && needs.build-and-push.outputs.runs_on != 'ubuntu-latest' }}
     runs-on:
       group: ${{ needs.build-and-push.outputs.runs_on }}
