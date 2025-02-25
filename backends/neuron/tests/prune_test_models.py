@@ -1,5 +1,3 @@
-import os
-
 from argparse import ArgumentParser
 from huggingface_hub import HfApi
 
@@ -15,7 +13,7 @@ def main():
             delete = True
         else:
             answer = input(f"Do you want to delete {model.id} [y/N] ?")
-            delete = (answer == "y")
+            delete = answer == "y"
         if delete:
             api.delete_repo(model.id)
             print(f"Deleted {model.id}.")

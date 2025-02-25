@@ -27,7 +27,9 @@ def get_tgi_docker_image():
         client = docker.from_env()
         images = client.images.list(filters={"reference": "text-generation-inference"})
         if not images:
-            raise ValueError("No text-generation-inference image found on this host to run tests.")
+            raise ValueError(
+                "No text-generation-inference image found on this host to run tests."
+            )
         docker_image = images[0].tags[0]
     return docker_image
 
@@ -131,13 +133,21 @@ def neuron_launcher(event_loop):
         except NotFound:
             pass
 
-        env = {"LOG_LEVEL": "info,text_generation_router=debug", "CUSTOM_CACHE_REPO": OPTIMUM_CACHE_REPO_ID}
+        env = {
+            "LOG_LEVEL": "info,text_generation_router=debug",
+            "CUSTOM_CACHE_REPO": OPTIMUM_CACHE_REPO_ID,
+        }
 
         if HF_TOKEN is not None:
             env["HUGGING_FACE_HUB_TOKEN"] = HF_TOKEN
             env["HF_TOKEN"] = HF_TOKEN
 
-        for var in ["MAX_BATCH_SIZE", "MAX_TOTAL_TOKENS", "HF_AUTO_CAST_TYPE", "HF_NUM_CORES"]:
+        for var in [
+            "MAX_BATCH_SIZE",
+            "MAX_TOTAL_TOKENS",
+            "HF_AUTO_CAST_TYPE",
+            "HF_NUM_CORES",
+        ]:
             if var in os.environ:
                 env[var] = os.environ[var]
 
@@ -165,7 +175,9 @@ def neuron_launcher(event_loop):
                 with open(os.path.join(context_dir, "Dockerfile"), "wb") as f:
                     f.write(docker_content.encode("utf-8"))
                     f.flush()
-                image, logs = client.images.build(path=context_dir, dockerfile=f.name, tag=test_image)
+                image, logs = client.images.build(
+                    path=context_dir, dockerfile=f.name, tag=test_image
+                )
             logger.info("Successfully built image %s", image.id)
             logger.debug("Build logs %s", logs)
         else:
@@ -204,7 +216,9 @@ def neuron_launcher(event_loop):
             try:
                 container.remove(force=True)
             except Exception as e:
-                logger.error("Error while removing container %s, skipping", container_name)
+                logger.error(
+                    "Error while removing container %s, skipping", container_name
+                )
                 logger.exception(e)
 
             # Cleanup the build image
@@ -243,7 +257,12 @@ def neuron_generate_load():
         client: AsyncInferenceClient, prompt: str, max_new_tokens: int, n: int
     ) -> List[TextGenerationOutput]:
         futures = [
-            client.text_generation(prompt, max_new_tokens=max_new_tokens, details=True, decoder_input_details=True)
+            client.text_generation(
+                prompt,
+                max_new_tokens=max_new_tokens,
+                details=True,
+                decoder_input_details=True,
+            )
             for _ in range(n)
         ]
 

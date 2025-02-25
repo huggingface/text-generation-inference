@@ -23,5 +23,7 @@ class ExceptionInterceptor(AsyncServerInterceptor):
             logger.exception(f"Method {method_name} encountered an error.")
 
             await context.abort_with_status(
-                rpc_status.to_status(status_pb2.Status(code=code_pb2.INTERNAL, message=str(err)))
+                rpc_status.to_status(
+                    status_pb2.Status(code=code_pb2.INTERNAL, message=str(err))
+                )
             )

@@ -29,22 +29,42 @@ def create_request(
     )
     stopping_parameters = StoppingCriteriaParameters(max_new_tokens=max_new_tokens)
     return Request(
-        id=id, inputs=inputs, truncate=truncate, parameters=parameters, stopping_parameters=stopping_parameters
+        id=id,
+        inputs=inputs,
+        truncate=truncate,
+        parameters=parameters,
+        stopping_parameters=stopping_parameters,
     )
 
 
-def check_prefill(input_text, expected_token_id, expected_token_text, do_sample, batch_size, model_path):
+def check_prefill(
+    input_text,
+    expected_token_id,
+    expected_token_text,
+    do_sample,
+    batch_size,
+    model_path,
+):
     """Verify that a prefill for a single request generates the expected output."""
     generator = NeuronGenerator.from_pretrained(model_path)
     assert generator.model.batch_size >= batch_size
     requests = []
     max_new_tokens = 20
     for i in range(batch_size):
-        requests.append(create_request(id=0, inputs=input_text, do_sample=do_sample, max_new_tokens=max_new_tokens))
+        requests.append(
+            create_request(
+                id=0,
+                inputs=input_text,
+                do_sample=do_sample,
+                max_new_tokens=max_new_tokens,
+            )
+        )
     # Let's be pessimistic when estimating max_tokens
     batch_size * (len(input_text) + max_new_tokens)
     max_length = generator.model.max_length
-    batch = Batch(id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length)
+    batch = Batch(
+        id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length
+    )
     generations, next_batch = generator.prefill(batch)
     assert next_batch.size == batch_size
     # Whatever was passed as max_tokens, the server will correct it
@@ -57,10 +77,14 @@ def check_prefill(input_text, expected_token_id, expected_token_text, do_sample,
         assert tokens.texts == [expected_token_text]
 
 
-def check_decode_single(input_text, max_new_tokens, generated_text, do_sample, model_path):
+def check_decode_single(
+    input_text, max_new_tokens, generated_text, do_sample, model_path
+):
     """Verify that a decoding for a single request generates the expected output."""
     generator = NeuronGenerator.from_pretrained(model_path)
-    request = create_request(id=0, inputs=input_text, max_new_tokens=max_new_tokens, do_sample=do_sample)
+    request = create_request(
+        id=0, inputs=input_text, max_new_tokens=max_new_tokens, do_sample=do_sample
+    )
     max_length = generator.model.max_length
     batch = Batch(id=0, requests=[request], size=1, max_tokens=max_length)
     generations, next_batch = generator.prefill(batch)

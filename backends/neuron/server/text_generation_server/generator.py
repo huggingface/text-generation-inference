@@ -146,7 +146,9 @@ class Slot:
     def generated_tokens(self) -> int:
         return self._generated_tokens
 
-    def assign(self, batch_id: int, request: Request, generation_config: GenerationConfig):
+    def assign(
+        self, batch_id: int, request: Request, generation_config: GenerationConfig
+    ):
         """Assign a request to a slot.
 
         Args:
@@ -174,15 +176,24 @@ class Slot:
             if request.parameters.typical_p != 0:
                 self._generation_config.typical_p = request.parameters.typical_p
         if request.parameters.repetition_penalty != 0:
-            self._generation_config.repetition_penalty = request.parameters.repetition_penalty
+            self._generation_config.repetition_penalty = (
+                request.parameters.repetition_penalty
+            )
         self.seed = request.parameters.seed
-        self._generation_config.max_new_tokens = request.stopping_parameters.max_new_tokens
+        self._generation_config.max_new_tokens = (
+            request.stopping_parameters.max_new_tokens
+        )
         self._max_new_tokens = self._generation_config.max_new_tokens
         stop_strings = request.stopping_parameters.stop_sequences
         if stop_strings:
             self._generation_config.stop_strings = stop_strings
 
-    def reset(self, input_ids: torch.LongTensor, attention_mask: torch.LongTensor, selector: TokenSelector):
+    def reset(
+        self,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.LongTensor,
+        selector: TokenSelector,
+    ):
         """Reset the slot for the next generation.
 
         Args:
@@ -210,7 +221,9 @@ class Slot:
             self._generated_tokens -= 1
             # Since generated tokens are now part of the prefill, we need to reevaluate
             # max_new_tokens for the next generation
-            self._generation_config.max_new_tokens = self._max_new_tokens - self._generated_tokens
+            self._generation_config.max_new_tokens = (
+                self._max_new_tokens - self._generated_tokens
+            )
         self._state = Slot.State.PAUSE
 
     def resume(self):
@@ -223,7 +236,9 @@ class Slot:
         """Hack to hopefully support generate_stream for the maximum number of tokenizers"""
         # We need to include the tokens that produced the last text to defeat cleanup algorithms in the decode
         # which decide to add a space or not depending on the surrounding ids.
-        new_text = self._tokenizer.decode(self._tokens[self._next_text_token_start :], skip_special_tokens=False)
+        new_text = self._tokenizer.decode(
+            self._tokens[self._next_text_token_start :], skip_special_tokens=False
+        )
         if new_text.endswith("�"):
             # utf-8 char at the end means it's a potential unfinished byte sequence
             # from byte fallback tokenization.
@@ -267,7 +282,9 @@ class Slot:
         self._next_text = next_text
         return next_text
 
-    def select(self, input_ids: torch.LongTensor, logits: torch.Tensor) -> torch.LongTensor:
+    def select(
+        self, input_ids: torch.LongTensor, logits: torch.Tensor
+    ) -> torch.LongTensor:
         """Select the next token from the candidate logits.
 
         Args:
@@ -384,7 +401,9 @@ class NeuronGenerator(Generator):
                 f" Please align max_batch_size with the static batch size: {self.model.batch_size}."
             )
         # Assign each request to an empty slot
-        logger.debug(f"Prefilling {len(batch.requests)} new request(s) with {len(empty_slots)} empty slot(s)")
+        logger.debug(
+            f"Prefilling {len(batch.requests)} new request(s) with {len(empty_slots)} empty slot(s)"
+        )
         new_slots = []
         for request in batch.requests:
             slot = empty_slots.pop()
@@ -417,7 +436,11 @@ class NeuronGenerator(Generator):
                 max_length = slot.truncate
         # Tokenize with padding and truncation
         padded_inputs = self.tokenizer(
-            inputs, return_tensors="pt", padding=True, truncation=True, max_length=max_length
+            inputs,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
         )
         input_ids = padded_inputs.input_ids
         attention_mask = padded_inputs.attention_mask
@@ -450,9 +473,13 @@ class NeuronGenerator(Generator):
                 slot.reset(slot_input_ids, slot_attention_mask, selector)
         # Note: when rebuilding cache on prefill, the new tokens on paused slots will be ignored,
         # as they have already been generated and sent back in the last decode.
-        model_inputs = self.model.prepare_inputs_for_prefill(input_ids, attention_mask, seq_ids)
+        model_inputs = self.model.prepare_inputs_for_prefill(
+            input_ids, attention_mask, seq_ids
+        )
         logits = self.model(**model_inputs)[0]
-        generation, next_batch = self._generate_token(prefill_slots, self.batch_id, logits, input_ids)
+        generation, next_batch = self._generate_token(
+            prefill_slots, self.batch_id, logits, input_ids
+        )
         self.batch_id += 1
         # Reactivate previously active slots for the next decode
         for i, slot in enumerate(active_slots):
@@ -462,10 +489,14 @@ class NeuronGenerator(Generator):
                 slot.append(next_tokens[i])
         logger.debug("Model ready for decoding")
         if next_batch is not None:
-            logger.debug(f"Next batch is {next_batch.id} with requests: {next_batch.request_ids}")
+            logger.debug(
+                f"Next batch is {next_batch.id} with requests: {next_batch.request_ids}"
+            )
         return generation, next_batch
 
-    def decode(self, batches: List[CachedBatch]) -> Tuple[List[Generation], CachedBatch]:
+    def decode(
+        self, batches: List[CachedBatch]
+    ) -> Tuple[List[Generation], CachedBatch]:
         """Decode the specified prefilled requests.
 
         Args:
@@ -491,10 +522,14 @@ class NeuronGenerator(Generator):
                 cleared_request_ids.append(slot.request_id)
                 slot.clear()
         if len(cleared_request_ids) > 0:
-            logger.info(f"Clearing slot for requests {cleared_request_ids} as they are not requested.")
+            logger.info(
+                f"Clearing slot for requests {cleared_request_ids} as they are not requested."
+            )
         active_slots = [slot for slot in self.slots if slot.state == slot.State.READY]
         if len(active_slots) < len(request_ids):
-            raise ValueError("Unable to decode tokens for non-prefilled batches (probably due to a previous failure)")
+            raise ValueError(
+                "Unable to decode tokens for non-prefilled batches (probably due to a previous failure)"
+            )
         if self.model.continuous_batching:
             decode_slots = active_slots
             seq_ids = torch.tensor([slot.id for slot in decode_slots])
@@ -503,7 +538,9 @@ class NeuronGenerator(Generator):
             seq_ids = None
         # Reconstruct input_ids and attention_mask from decode slots
         n_slots = len(decode_slots)
-        input_ids = torch.full([n_slots, 1], fill_value=self.tokenizer.eos_token_id, dtype=torch.int64)
+        input_ids = torch.full(
+            [n_slots, 1], fill_value=self.tokenizer.eos_token_id, dtype=torch.int64
+        )
         max_length = 0
         for slot in decode_slots:
             max_length = max(max_length, slot.attention_mask.size(-1))
@@ -513,12 +550,18 @@ class NeuronGenerator(Generator):
                 # input_ids are simply the tokens generated by the last decode or prefill requests (other tokens are cached)
                 input_ids[i, 0] = slot.next_token
                 attention_mask[i, : slot.attention_mask.size(-1)] = slot.attention_mask
-        model_inputs = self.model.prepare_inputs_for_decode(input_ids, attention_mask, seq_ids)
+        model_inputs = self.model.prepare_inputs_for_decode(
+            input_ids, attention_mask, seq_ids
+        )
         logits = self.model(**model_inputs)[0]
         return self._generate_token(decode_slots, next_batch_id, logits, input_ids)
 
     def _generate_token(
-        self, slots: List[Slot], next_batch_id: int, logits: torch.Tensor, input_ids: torch.LongTensor
+        self,
+        slots: List[Slot],
+        next_batch_id: int,
+        logits: torch.Tensor,
+        input_ids: torch.LongTensor,
     ) -> Tuple[List[Generation], CachedBatch]:
         generations = []
         active_slots = False
@@ -542,9 +585,13 @@ class NeuronGenerator(Generator):
             if finish_reason is not None:
                 # We must include the generated text for each finished sequence in the response
                 generated_text = GeneratedText(
-                    text=slot.generated_text, generated_tokens=slot.generated_tokens, finish_reason=finish_reason
+                    text=slot.generated_text,
+                    generated_tokens=slot.generated_tokens,
+                    finish_reason=finish_reason,
                 )
-                logger.debug(f"Decode complete for request {request_id} with {slot.generated_tokens} tokens")
+                logger.debug(
+                    f"Decode complete for request {request_id} with {slot.generated_tokens} tokens"
+                )
                 # mark the slot as available
                 slot.clear()
             else:
@@ -565,7 +612,9 @@ class NeuronGenerator(Generator):
         batch = None
         if active_slots:
             # Whatever initial batch these requests came from, we always return all pending requests in a single batch
-            request_ids = [slot.request_id for slot in self.slots if slot.state == Slot.State.READY]
+            request_ids = [
+                slot.request_id for slot in self.slots if slot.state == Slot.State.READY
+            ]
             batch = self._cached_batch(next_batch_id, request_ids)
         else:
             logger.debug("No more pending requests")
@@ -574,7 +623,9 @@ class NeuronGenerator(Generator):
     def _cached_batch(self, batch_id: int, request_ids: List):
         size = len(request_ids)
         max_tokens = size * self.model.max_length
-        return CachedBatch(id=batch_id, request_ids=request_ids, size=size, max_tokens=max_tokens)
+        return CachedBatch(
+            id=batch_id, request_ids=request_ids, size=size, max_tokens=max_tokens
+        )
 
     def filter(self, batch_id: int, keep_request_ids: List[int]) -> CachedBatch:
         """Remove requests that are not listed from the specified batch
@@ -588,7 +639,9 @@ class NeuronGenerator(Generator):
         Return:
             A `CachedBatch` containing the pending requests.
         """
-        keep_slot_ids = [slot.id for slot in self.slots if slot.request_id in keep_request_ids]
+        keep_slot_ids = [
+            slot.id for slot in self.slots if slot.request_id in keep_request_ids
+        ]
         self._clear(keep_slot_ids)
         return self._cached_batch(batch_id, keep_request_ids)
 
@@ -625,11 +678,19 @@ class NeuronGenerator(Generator):
             export_kwargs = get_export_kwargs_from_env()
             logger.info(f"Exporting model to neuron with config: {export_kwargs}.")
             model = NeuronModelForCausalLM.from_pretrained(
-                model_id, revision=revision, low_cpu_mem_usage=True, export=True, **export_kwargs
+                model_id,
+                revision=revision,
+                low_cpu_mem_usage=True,
+                export=True,
+                **export_kwargs,
             )
         else:
-            logger.info("Loading model on neuron devices (this can take a few minutes).")
-            model = NeuronModelForCausalLM.from_pretrained(model_id, low_cpu_mem_usage=True, revision=revision)
+            logger.info(
+                "Loading model on neuron devices (this can take a few minutes)."
+            )
+            model = NeuronModelForCausalLM.from_pretrained(
+                model_id, low_cpu_mem_usage=True, revision=revision
+            )
         end = time.time()
         logger.info(f"Model successfully loaded in {end - start:.2f} s.")
         tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)

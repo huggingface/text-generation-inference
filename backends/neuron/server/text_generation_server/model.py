@@ -56,7 +56,9 @@ def log_cache_size():
     if os.path.exists(path):
         usage = shutil.disk_usage(path)
         gb = 2**30
-        logger.info(f"Cache disk [{path}]: total = {usage.total / gb:.2f} G, free = {usage.free / gb:.2f} G")
+        logger.info(
+            f"Cache disk [{path}]: total = {usage.total / gb:.2f} G, free = {usage.free / gb:.2f} G"
+        )
     else:
         raise ValueError(f"The cache directory ({path}) does not exist.")
 
@@ -79,7 +81,9 @@ def fetch_model(
     if not os.path.isdir("/sys/class/neuron_device/"):
         raise SystemError("No neuron cores detected on the host.")
     if os.path.isdir(model_id) and revision is not None:
-        logger.warning("Revision {} ignored for local model at {}".format(revision, model_id))
+        logger.warning(
+            "Revision {} ignored for local model at {}".format(revision, model_id)
+        )
         revision = None
     # Download the model from the Hub (HUGGING_FACE_HUB_TOKEN must be set for a private or gated model)
     # Note that the model may already be present in the cache.
@@ -89,12 +93,16 @@ def fetch_model(
         if os.path.isdir(model_id):
             return model_id
         # Prefetch the neuron model from the Hub
-        logger.info(f"Fetching revision [{revision}] for neuron model {model_id} under {HF_HUB_CACHE}")
+        logger.info(
+            f"Fetching revision [{revision}] for neuron model {model_id} under {HF_HUB_CACHE}"
+        )
         log_cache_size()
         return snapshot_download(model_id, revision=revision, ignore_patterns="*.bin")
     # Model needs to be exported: look for compatible cached entries on the hub
     export_kwargs = get_export_kwargs_from_env()
-    export_config = NeuronModelForCausalLM.get_export_config(model_id, config, revision=revision, **export_kwargs)
+    export_config = NeuronModelForCausalLM.get_export_config(
+        model_id, config, revision=revision, **export_kwargs
+    )
     neuron_config = export_config.neuron
     if not is_cached(model_id, neuron_config):
         hub_cache_url = "https://huggingface.co/aws-neuron/optimum-neuron-cache"
@@ -105,7 +113,9 @@ def fetch_model(
             f"Alternatively, you can export your own neuron model as explained in {neuron_export_url}"
         )
         raise ValueError(error_msg)
-    logger.warning(f"{model_id} is not a neuron model: it will be exported using cached artifacts.")
+    logger.warning(
+        f"{model_id} is not a neuron model: it will be exported using cached artifacts."
+    )
     if os.path.isdir(model_id):
         return model_id
     # Prefetch weights, tokenizer and generation config so that they are in cache

@@ -30,44 +30,74 @@ logger = logging.getLogger(__file__)
 MODEL_CONFIGURATIONS = {
     "gpt2": {
         "model_id": "gpt2",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 1024, "num_cores": 2, "auto_cast_type": "fp16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 1024,
+            "num_cores": 2,
+            "auto_cast_type": "fp16",
+        },
     },
     "llama": {
         "model_id": "unsloth/Llama-3.2-1B-Instruct",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 2048, "num_cores": 2, "auto_cast_type": "fp16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 2048,
+            "num_cores": 2,
+            "auto_cast_type": "fp16",
+        },
     },
     "mistral": {
         "model_id": "optimum/mistral-1.1b-testing",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 4096, "num_cores": 2, "auto_cast_type": "bf16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 4096,
+            "num_cores": 2,
+            "auto_cast_type": "bf16",
+        },
     },
     "qwen2": {
         "model_id": "Qwen/Qwen2.5-0.5B",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 4096, "num_cores": 2, "auto_cast_type": "fp16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 4096,
+            "num_cores": 2,
+            "auto_cast_type": "fp16",
+        },
     },
     "granite": {
         "model_id": "ibm-granite/granite-3.1-2b-instruct",
-        "export_kwargs": {"batch_size": 4, "sequence_length": 4096, "num_cores": 2, "auto_cast_type": "bf16"},
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 4096,
+            "num_cores": 2,
+            "auto_cast_type": "bf16",
+        },
     },
 }
 
 
 def get_neuron_backend_hash():
     import subprocess
-    res = subprocess.run(["git", "rev-parse", "--show-toplevel"],
-                         capture_output=True,
-                         text=True)
-    root_dir = res.stdout.split('\n')[0]
+
+    res = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True
+    )
+    root_dir = res.stdout.split("\n")[0]
+
     def get_sha(path):
-        res = subprocess.run(["git", "ls-tree", "HEAD", f"{root_dir}/{path}"],
-                             capture_output=True,
-                             text=True)
+        res = subprocess.run(
+            ["git", "ls-tree", "HEAD", f"{root_dir}/{path}"],
+            capture_output=True,
+            text=True,
+        )
         # Output of the command is in the form '040000 tree|blob <SHA>\t<path>\n'
-        sha = res.stdout.split('\t')[0].split(' ')[-1]
+        sha = res.stdout.split("\t")[0].split(" ")[-1]
         return sha.encode()
+
     # We hash both the neuron backends directory and Dockerfile and create a smaller hash out of that
     m = hashlib.sha256()
-    m.update(get_sha('backends/neuron'))
-    m.update(get_sha('Dockerfile.neuron'))
+    m.update(get_sha("backends/neuron"))
+    m.update(get_sha("Dockerfile.neuron"))
     return m.hexdigest()[:10]
 
 
@@ -81,7 +111,9 @@ def get_tgi_docker_image():
         client = docker.from_env()
         images = client.images.list(filters={"reference": "text-generation-inference"})
         if not images:
-            raise ValueError("No text-generation-inference image found on this host to run tests.")
+            raise ValueError(
+                "No text-generation-inference image found on this host to run tests."
+            )
         docker_image = images[0].tags[0]
     return docker_image
 
@@ -119,7 +151,9 @@ def export_model(config_name, model_config, neuron_model_name):
     with tempfile.TemporaryDirectory() as context_dir:
         # Create entrypoint
         model_path = "/data/neuron_model"
-        export_command = f"optimum-cli export neuron -m {model_id} --task text-generation"
+        export_command = (
+            f"optimum-cli export neuron -m {model_id} --task text-generation"
+        )
         for kwarg, value in export_kwargs.items():
             export_command += f" --{kwarg} {str(value)}"
         export_command += f" {model_path}"
@@ -142,7 +176,9 @@ def export_model(config_name, model_config, neuron_model_name):
         with open(os.path.join(context_dir, "Dockerfile"), "wb") as f:
             f.write(docker_content.encode("utf-8"))
             f.flush()
-        image, logs = client.images.build(path=context_dir, dockerfile=f.name, tag=export_image)
+        image, logs = client.images.build(
+            path=context_dir, dockerfile=f.name, tag=export_image
+        )
         logger.info("Successfully built image %s", image.id)
         logger.debug("Build logs %s", logs)
 
