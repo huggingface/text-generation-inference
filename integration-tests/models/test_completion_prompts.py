@@ -91,7 +91,7 @@ async def test_flash_llama_completion_stream_usage(
                         index = c["choices"][0]["index"]
                         assert index == 0
                         string += c["choices"][0]["delta"]["content"]
-
+                    elif len(c["choices"]) == 0:
                         has_usage = c["usage"] is not None
                         assert not had_usage
                         if has_usage:
@@ -142,7 +142,7 @@ async def test_flash_llama_completion_stream_usage(
                         index = c["choices"][0]["index"]
                         assert index == 0
                         string += c["choices"][0]["delta"]["content"]
-
+                    elif len(c["choices"]) == 0:
                         has_usage = c["usage"] is not None
                         assert not had_usage
                         if has_usage:
