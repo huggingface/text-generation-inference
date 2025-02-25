@@ -38,7 +38,10 @@ try:
 except (ImportError, NotImplementedError):
     # These imports can fail on CPU/Non flash.
     VLM_BATCH_TYPES = set()
-from text_generation_server.utils.version import is_driver_compatible, MIN_TGI_GAUDI_SYNAPSE_VERSION
+from text_generation_server.utils.version import (
+    is_driver_compatible,
+    MIN_TGI_GAUDI_SYNAPSE_VERSION,
+)
 
 
 class SignalHandler:
@@ -72,7 +75,6 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         # Force inference mode for the lifetime of TextGenerationService
         # self._inference_mode_raii_guard = torch._C._InferenceMode(True)
 
-
     async def Info(self, request, context):
         return self.model.info
 
@@ -101,7 +103,9 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
-        max_supported_total_tokens, max_input_tokens, max_total_tokens = self.model.warmup(request)
+        max_supported_total_tokens, max_input_tokens, max_total_tokens = (
+            self.model.warmup(request)
+        )
 
         # W/A for the skip tokenizer path
         # We need to call make_tokenizer_optional after the warmup,
@@ -194,7 +198,9 @@ def serve(
         trust_remote_code: bool = False,
     ):
         if not is_driver_compatible():
-            logger.warning(f"Current Synapse version is lower than the minimum version supported: {MIN_TGI_GAUDI_SYNAPSE_VERSION}, this could result in failures")
+            logger.warning(
+                f"Current Synapse version is lower than the minimum version supported: {MIN_TGI_GAUDI_SYNAPSE_VERSION}, this could result in failures"
+            )
 
         unix_socket_template = "unix://{}-{}"
         adapter_to_index = {}
@@ -204,14 +210,19 @@ def serve(
             rank = int(os.environ["RANK"])
             logger.info("Server:server_inner: rank ={}".format(rank))
             server_urls = [
-                unix_socket_template.format(uds_path, rank) for rank in range(int(os.environ["WORLD_SIZE"]))
+                unix_socket_template.format(uds_path, rank)
+                for rank in range(int(os.environ["WORLD_SIZE"]))
             ]
             local_url = server_urls[int(os.environ["RANK"])]
         else:
             local_url = unix_socket_template.format(uds_path, 0)
             server_urls = [local_url]
 
-        logger.info("Server:server_inner: data type = {}, local_url = {}".format(dtype, local_url))
+        logger.info(
+            "Server:server_inner: data type = {}, local_url = {}".format(
+                dtype, local_url
+            )
+        )
         if dtype == "bfloat16" or None:
             data_type = torch.bfloat16
         else:

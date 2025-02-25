@@ -39,7 +39,7 @@ index d42432f..1d251e6 100644
 -        self._main = _main_module
 +        self._main = _main_module.module
          self._ignore = settings['ignore'] if _ignore is None else _ignore
- 
+
      def load(self): #NOTE: if settings change, need to update attributes
          obj = StockUnpickler.load(self)
 -        if type(obj).__module__ == getattr(_main_module, '__name__', '__main__'):

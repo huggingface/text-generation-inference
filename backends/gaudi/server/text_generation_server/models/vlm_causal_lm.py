@@ -66,22 +66,25 @@ IDEFICS2_IMAGE_TOKEN = "<image>"
 
 
 IMAGES = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
-BASE_IMAGE_TOKENS = int(os.environ.get('BASE_IMAGE_TOKENS', 2048))
-MAX_TOTAL_TOKENS = int(os.environ.get('MAX_TOTAL_TOKENS', 8192))
-MAX_BATCH_TOTAL_TOKENS = int(os.environ.get('MAX_BATCH_TOTAL_TOKENS', 131072))
-PAD_SEQUENCE_TO_MULTIPLE_OF = int(os.environ.get('PAD_SEQUENCE_TO_MULTIPLE_OF', 256))
+BASE_IMAGE_TOKENS = int(os.environ.get("BASE_IMAGE_TOKENS", 2048))
+MAX_TOTAL_TOKENS = int(os.environ.get("MAX_TOTAL_TOKENS", 8192))
+MAX_BATCH_TOTAL_TOKENS = int(os.environ.get("MAX_BATCH_TOTAL_TOKENS", 131072))
+PAD_SEQUENCE_TO_MULTIPLE_OF = int(os.environ.get("PAD_SEQUENCE_TO_MULTIPLE_OF", 256))
 CHUNK_SIZES = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
-LAZY_MODE = int(os.environ.get('PT_HPU_LAZY_MODE', 1))
+LAZY_MODE = int(os.environ.get("PT_HPU_LAZY_MODE", 1))
 
 PREFILL_WARMUP_BATCH_SIZE_LIST = []
 PREFILL_WARMUP_SEQLEN_LIST = []
 DECODE_WARMUP_BATCH_SIZE_LIST = []
-def round_up(warmup_list:list, num) :
+
+
+def round_up(warmup_list: list, num):
     i = 0
     for i in warmup_list:
-        if num <= i :
+        if num <= i:
             break
     return i
+
 
 def split(string) -> List[Dict[str, str]]:
     parts = []
@@ -98,6 +101,7 @@ def split(string) -> List[Dict[str, str]]:
         parts.append({"type": "text", "content": string[cursor:]})
 
     return parts
+
 
 def image_text_replacement(processor, image_input, config, image_id: int) -> str:
     if config.model_type == "idefics2":
@@ -196,14 +200,19 @@ class VlmCausalLMBatch(CausalLMBatch):
         is_warmup: bool = False,
     ) -> "VlmCausalLMBatch":
 
-        dbg_trace('FROM_PB', f'num_reqs:{len(pb.requests)}')
-        requests = [CausalLMRequest.from_pb(idx, req, tokenizer) for idx, req in enumerate(pb.requests)]
+        dbg_trace("FROM_PB", f"num_reqs:{len(pb.requests)}")
+        requests = [
+            CausalLMRequest.from_pb(idx, req, tokenizer)
+            for idx, req in enumerate(pb.requests)
+        ]
 
         max_input_length = max(r.data.truncate for r in requests)
         max_new_tokens = max(r.stopping_criteria.max_new_tokens for r in requests)
         # TODO: Add support for sparse batches
         top_n_tokens = [r.top_n_tokens for r in pb.requests]
-        top_n_tokens_tensor = torch.tensor(top_n_tokens, device=device, dtype=torch.int64)
+        top_n_tokens_tensor = torch.tensor(
+            top_n_tokens, device=device, dtype=torch.int64
+        )
 
         # TODO: by tokenizing all inputs at once we loose information on actual input lengths
         # this means that we cannot shift inputs to the left after a long input sequence
@@ -226,7 +235,7 @@ class VlmCausalLMBatch(CausalLMBatch):
         bucket_size = max_input_length
         left_padding = max_input_length - input_len
         if is_warmup is False:
-            if input_len < max_input_length :
+            if input_len < max_input_length:
                 rounded_seq_len = round_up(PREFILL_WARMUP_SEQLEN_LIST, input_len + 1)
                 if rounded_seq_len <= max_input_length:
                     bucket_size = rounded_seq_len - 1
@@ -276,10 +285,14 @@ class VlmCausalLMBatch(CausalLMBatch):
             input_length=input_len,
         )
 
-
     @classmethod
     def batch_tokenized_inputs(
-        cls, requests: Iterable[generate_pb2.Request], tokenizer, processor, config, is_warmup
+        cls,
+        requests: Iterable[generate_pb2.Request],
+        tokenizer,
+        processor,
+        config,
+        is_warmup,
     ):
         # Process images first. We need all of them so that the processor
         # can make the image splits the same size. And we need the final
@@ -345,24 +358,24 @@ class VlmCausalLMBatch(CausalLMBatch):
         )
 
         if missing_inputs > 0 and image_inputs is not None:
-            dummy_shape = list(image_inputs['pixel_values'].shape)
+            dummy_shape = list(image_inputs["pixel_values"].shape)
             dummy_shape[0] = missing_inputs
             dummy_images = torch.rand(dummy_shape)
             new_image_inputs = {
                 "pixel_values": torch.cat(
-                    (image_inputs['pixel_values'], dummy_images), dim=0
+                    (image_inputs["pixel_values"], dummy_images), dim=0
                 ),
             }
             if "pixel_attention_mask" in image_inputs:
-                dummy_shape = list(image_inputs['pixel_attention_mask'].shape)
+                dummy_shape = list(image_inputs["pixel_attention_mask"].shape)
                 dummy_shape[0] = missing_inputs
                 dummy_attention = torch.zeros(dummy_shape)
                 new_image_inputs["pixel_attention_mask"] = torch.cat(
                     (image_inputs["pixel_attention_mask"], dummy_attention), dim=0
                 )
             if "image_sizes" in image_inputs:
-                dummy_shape = list(list(image_inputs['image_sizes'])[0])
-                dummy_shape = missing_inputs*[dummy_shape]
+                dummy_shape = list(list(image_inputs["image_sizes"])[0])
+                dummy_shape = missing_inputs * [dummy_shape]
                 dummy_sizes = torch.IntTensor(dummy_shape)
                 new_image_inputs["image_sizes"] = torch.cat(
                     (image_inputs["image_sizes"], dummy_sizes), dim=0
@@ -406,19 +419,27 @@ class VlmCausalLMBatch(CausalLMBatch):
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
-    def concatenate(cls, batches: List["CausalLMBatch"], pad_token_id: int = 0, is_warmup:bool = False) -> "CausalLMBatch":
+    def concatenate(
+        cls,
+        batches: List["CausalLMBatch"],
+        pad_token_id: int = 0,
+        is_warmup: bool = False,
+    ) -> "CausalLMBatch":
         return cls.recombine(batches, pad_token_id, is_warmup)
 
-
-
     @classmethod
-    def recombine(cls, batches: List["VlmCausalLMBatch"], pad_token_id: int, is_warmup: bool =False) -> "VlmCausalLMBatch":
+    def recombine(
+        cls,
+        batches: List["VlmCausalLMBatch"],
+        pad_token_id: int,
+        is_warmup: bool = False,
+    ) -> "VlmCausalLMBatch":
         if not all(b.past_key_values is not None for b in batches):
             raise ValueError("KV cache not allocated! Cannot recombine before prefill!")
 
         total_requests = sum(len(b) for b in batches)
         new_bs = total_requests
-        if is_warmup is False :
+        if is_warmup is False:
             new_bs = round_up(DECODE_WARMUP_BATCH_SIZE_LIST, total_requests)
         batch_id = batches[0].batch_id
         device = batches[0].input_ids.device
@@ -431,31 +452,39 @@ class VlmCausalLMBatch(CausalLMBatch):
         # For prefill there is a space allocated only for first token
         # Need to add padding to the max total tokens before first decode
 
-        moves_needed = [total_requests - len(b) if b.batch_size == new_bs else total_requests for b in batches]
+        moves_needed = [
+            total_requests - len(b) if b.batch_size == new_bs else total_requests
+            for b in batches
+        ]
         dst_batch_idx = min(enumerate(moves_needed), key=lambda idx_val: idx_val[1])[0]
-        reshape = (batches[dst_batch_idx].batch_size < new_bs)
+        reshape = batches[dst_batch_idx].batch_size < new_bs
 
         # TODO: Add support for changing max seq len, i.e. due to output length bucketing
         # FIXME: max_seq_len for non optimized code
         if len(batches) > 1:
-            scenario = 'CONCAT'
+            scenario = "CONCAT"
         elif reshape:
-            scenario = 'RESHAPE'
+            scenario = "RESHAPE"
         elif cur_padding[dst_batch_idx] <= 0:
-            scenario = 'SHIFT'
-            offsets = [biggest_single_chunk(b.max_input_length - max_input_length) for b in batches]
+            scenario = "SHIFT"
+            offsets = [
+                biggest_single_chunk(b.max_input_length - max_input_length)
+                for b in batches
+            ]
             max_input_length = max_input_length + offsets[dst_batch_idx]
         else:
             # Nothing to do
             return batches[0]
 
         dbg_trace(
-            scenario, f'bs:{[b.batch_size for b in batches]}->{new_bs}'
-                      f' reqs:{[len(b) for b in batches]}'
-                      f' offsets:{offsets}'
-                      f' input_lengths:{input_lengths}'
-                      f' cur_padding:{cur_padding}'
-                      f' dst_batch:{dst_batch_idx}')
+            scenario,
+            f"bs:{[b.batch_size for b in batches]}->{new_bs}"
+            f" reqs:{[len(b) for b in batches]}"
+            f" offsets:{offsets}"
+            f" input_lengths:{input_lengths}"
+            f" cur_padding:{cur_padding}"
+            f" dst_batch:{dst_batch_idx}",
+        )
 
         grouped_requests = [[req for req in batch.requests] for batch in batches]
         flat_requests = list(itertools.chain(*grouped_requests))
@@ -466,10 +495,14 @@ class VlmCausalLMBatch(CausalLMBatch):
             batches[i].realign(target_bs, offsets[i], pad_token_id)
             batches[i].split_kv_cache_if_needed(i == dst_batch_idx)
         batches[dst_batch_idx].expand_bs(new_bs)
-        batches[dst_batch_idx].move_data([batches[i] for i in range(len(batches)) if i != dst_batch_idx])
+        batches[dst_batch_idx].move_data(
+            [batches[i] for i in range(len(batches)) if i != dst_batch_idx]
+        )
 
         top_n_tokens = [r.data.top_n_tokens for r in flat_requests]
-        top_n_tokens_tensor = torch.tensor(top_n_tokens, device=device, dtype=torch.int64)
+        top_n_tokens_tensor = torch.tensor(
+            top_n_tokens, device=device, dtype=torch.int64
+        )
 
         parameters = [r.data.parameters for r in flat_requests]
         # append the dummy parameters for dummy requests
@@ -480,7 +513,9 @@ class VlmCausalLMBatch(CausalLMBatch):
         fsm_grammar_states = [0] * batch_size
         for batch in batches:
             for i, req in enumerate(batch.requests):
-                fsm_grammar_states[req.idx] = batch.next_token_chooser.fsm_grammar_states[i]
+                fsm_grammar_states[req.idx] = (
+                    batch.next_token_chooser.fsm_grammar_states[i]
+                )
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             parameters,
@@ -512,6 +547,7 @@ class VlmCausalLMBatch(CausalLMBatch):
             top_n_tokens_tensor=top_n_tokens_tensor,
             input_length=input_length,
         )
+
 
 class VlmCausalLM(Model):
     def __init__(
@@ -561,18 +597,14 @@ class VlmCausalLM(Model):
             htorch.core.hpu_set_env()
 
         if world_size > 1:
-            model = self.get_deepspeed_model(
-                model_class, model_id, dtype, revision
-            )
+            model = self.get_deepspeed_model(model_class, model_id, dtype, revision)
             model = hq_env.prepare_model_for_quantization(model)
         else:
             get_repo_root(model_id)
 
             # Check support for rope scaling
             model_kwargs = {}
-            config = AutoConfig.from_pretrained(
-                model_id
-            )
+            config = AutoConfig.from_pretrained(model_id)
             if hasattr(config, "rope_scaling"):
                 model_kwargs["rope_scaling"] = self.get_rope_scaling()
 
@@ -581,23 +613,29 @@ class VlmCausalLM(Model):
                 revision=revision,
                 torch_dtype=dtype,
                 trust_remote_code=trust_remote_code,
-                **model_kwargs
+                **model_kwargs,
             )
             model = hq_env.prepare_model_for_quantization(model)
             model = model.eval().to(device)
 
-        self.enable_hpu_graph = os.getenv("ENABLE_HPU_GRAPH", "true").lower() == "true" and LAZY_MODE == 1
+        self.enable_hpu_graph = (
+            os.getenv("ENABLE_HPU_GRAPH", "true").lower() == "true" and LAZY_MODE == 1
+        )
         self.limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "false").lower() == "true"
         model = remove_kv_cache_from_output(model)
         if self.enable_hpu_graph:
             from habana_frameworks.torch.hpu import wrap_in_hpu_graph
+
             model = wrap_in_hpu_graph(model, disable_tensor_cache=True)
         else:
             if LAZY_MODE == 0:
                 # It is said that "keep_input_mutations" is safe for inference to be done
-                dbg_trace(
-                    "TORCH COMPILE", 'Torch compiling of model')
-                model.model = torch.compile(model.model, backend="hpu_backend", options={"keep_input_mutations": True})
+                dbg_trace("TORCH COMPILE", "Torch compiling of model")
+                model.model = torch.compile(
+                    model.model,
+                    backend="hpu_backend",
+                    options={"keep_input_mutations": True},
+                )
 
         model = hq_env.setup_quantization(model)
 
@@ -647,11 +685,15 @@ class VlmCausalLM(Model):
         )
 
         # Create profiler
-        ranks_to_profile = [int(val) for val in os.getenv("PROF_RANKS", "0").split(',')]
+        ranks_to_profile = [int(val) for val in os.getenv("PROF_RANKS", "0").split(",")]
         record_shapes = os.getenv("PROF_RECORD_SHAPES", "false").lower() == "true"
         output_dir = os.getenv("PROF_PATH", "/tmp/hpu_profile")
-        self.profiling_warmup_steps = int(os.getenv("PROF_WARMUPSTEP", "0")) if rank in ranks_to_profile else 0
-        self.profiling_steps = int(os.getenv("PROF_STEP", "0")) if rank in ranks_to_profile else 0
+        self.profiling_warmup_steps = (
+            int(os.getenv("PROF_WARMUPSTEP", "0")) if rank in ranks_to_profile else 0
+        )
+        self.profiling_steps = (
+            int(os.getenv("PROF_STEP", "0")) if rank in ranks_to_profile else 0
+        )
         self.profiling_wait_steps = int(os.getenv("PROF_WAITSTEP", "0"))
         if self.profiling_steps > 0:
             self.hb_profiler = HabanaProfile(
@@ -659,13 +701,12 @@ class VlmCausalLM(Model):
                 warmup=self.profiling_warmup_steps,
                 active=self.profiling_steps,
                 output_dir=output_dir,
-                record_shapes=record_shapes
+                record_shapes=record_shapes,
             )
             self.hb_profiler.start()
         else:
             self.hb_profiler = None
         self.step = 0
-
 
     @property
     def batch_type(self) -> Type[VlmCausalLMBatch]:
@@ -679,20 +720,20 @@ class VlmCausalLM(Model):
         model_class,
         model_id: str,
         dtype: torch.dtype,
-        revision: Optional[str] = None
+        revision: Optional[str] = None,
     ) -> torch.nn.Module:
         import deepspeed
         from habana_frameworks.torch.distributed.hccl import initialize_distributed_hpu
 
         world_size, rank, local_rank = initialize_distributed_hpu()
-        model_kwargs = {
-            "revision": revision
-        }
+        model_kwargs = {"revision": revision}
 
         # Initialize process(es) for DeepSpeed
         deepspeed.init_distributed(dist_backend="hccl")
         logger.info(
-            "DeepSpeed is enabled. world_size {} rank {} local_rank {}".format(world_size, rank, local_rank)
+            "DeepSpeed is enabled. world_size {} rank {} local_rank {}".format(
+                world_size, rank, local_rank
+            )
         )
         config = AutoConfig.from_pretrained(model_id, **model_kwargs)
         load_to_meta = model_on_meta(config)
@@ -710,14 +751,18 @@ class VlmCausalLM(Model):
             get_repo_root(model_id, local_rank=os.getenv("LOCAL_RANK"))
             # TODO: revisit placement on CPU when auto-injection is possible
             with deepspeed.OnDevice(dtype=dtype, device="cpu"):
-                model = model_class.from_pretrained(model_id, torch_dtype=dtype, **model_kwargs)
+                model = model_class.from_pretrained(
+                    model_id, torch_dtype=dtype, **model_kwargs
+                )
         model = model.eval()
 
         # Initialize the model
         ds_inference_kwargs = {"dtype": dtype}
         ds_inference_kwargs["tensor_parallel"] = {"tp_size": world_size}
         ds_inference_kwargs["enable_cuda_graph"] = False
-        ds_inference_kwargs["injection_policy"] = get_ds_injection_policy(model.language_model.config)
+        ds_inference_kwargs["injection_policy"] = get_ds_injection_policy(
+            model.language_model.config
+        )
 
         if load_to_meta:
             # model loaded to meta is managed differently
@@ -734,12 +779,12 @@ class VlmCausalLM(Model):
             return None
 
         rope_factor = float(os.getenv("ROPE_FACTOR", 1.0))
-        return {
-            'type': rope_scaling, 'factor': float(rope_factor)
-        }
+        return {"type": rope_scaling, "factor": float(rope_factor)}
 
     def decode(self, generated_ids: List[int]) -> str:
-        return self.tokenizer.decode(generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+        return self.tokenizer.decode(
+            generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )
 
     def decode_token(
         self,
@@ -748,7 +793,9 @@ class VlmCausalLM(Model):
         read_offset: int = 0,
     ) -> Tuple[str, int, int]:
         if is_tokenizer_transparent(self.tokenizer):
-            new_text = self.tokenizer.decode(all_input_ids[read_offset:], skip_special_tokens=False)
+            new_text = self.tokenizer.decode(
+                all_input_ids[read_offset:], skip_special_tokens=False
+            )
             return new_text, read_offset, len(all_input_ids)
         else:
             return super().decode_token(all_input_ids, prefix_offset, read_offset)
@@ -776,7 +823,7 @@ class VlmCausalLM(Model):
 
         hpu_kwargs = {}
         # Optimum Habana got "lazy_mode" key-val only supported for llama type of models
-        if self.model.config.model_type == "llama" :
+        if self.model.config.model_type == "llama":
             hpu_kwargs["lazy_mode"] = LAZY_MODE == 1
 
         if self.has_position_ids:
@@ -814,18 +861,26 @@ class VlmCausalLM(Model):
                     token_idx_scalar = batch.attention_mask.shape[-1] - 1
                     token_idx = torch.tensor(token_idx_scalar).to(self.device)
                 else:
-                    token_idx_scalar = batch.attention_mask.shape[-1] - batch.right_padding
+                    token_idx_scalar = (
+                        batch.attention_mask.shape[-1] - batch.right_padding
+                    )
                     token_idx = torch.tensor(token_idx_scalar).to(self.device)
 
                 # Select next token
                 input_length = batch.input_length
                 if logits.shape[-2] > 1:
-                    next_token_ids, next_token_logprobs, logprobs, _, _ = batch.next_token_chooser(
-                        batch.input_ids, logits[:, input_length - 1: input_length, :].squeeze(-2), self.speculate
+                    next_token_ids, next_token_logprobs, logprobs, _, _ = (
+                        batch.next_token_chooser(
+                            batch.input_ids,
+                            logits[:, input_length - 1 : input_length, :].squeeze(-2),
+                            self.speculate,
+                        )
                     )
                 else:
-                    next_token_ids, next_token_logprobs, logprobs, _, _ = batch.next_token_chooser(
-                        batch.input_ids, logits.squeeze(-2), self.speculate
+                    next_token_ids, next_token_logprobs, logprobs, _, _ = (
+                        batch.next_token_chooser(
+                            batch.input_ids, logits.squeeze(-2), self.speculate
+                        )
                     )
                 # Speculation is not active for causal
                 accepted_ids = torch.ones_like(batch.input_ids)[:, 0]
@@ -836,23 +891,29 @@ class VlmCausalLM(Model):
                     accepted_ids,
                 )
 
-                prev_batches.append({
-                    'next_token_ids': next_token_ids,
-                    'next_token_logprobs': next_token_logprobs,
-                })
+                prev_batches.append(
+                    {
+                        "next_token_ids": next_token_ids,
+                        "next_token_logprobs": next_token_logprobs,
+                    }
+                )
 
                 for req_idx, req in enumerate(batch.requests):
-                    requests_to_generate.append({
-                        'req': req,
-                        'prev_req_idx': req.idx,
-                        'batch_id': batch_id,
-                        'seed': batch.next_token_chooser.seeds[req_idx],
-                        'do_sample': batch.next_token_chooser.do_sample[req_idx],
-                        'top_n_tokens': batch.top_n_tokens[req_idx],
-                        'top_token_ids': batch_top_token_ids[req_idx],
-                        'top_token_logprobs': batch_top_token_logprobs[req_idx],
-                        'grammar_state': batch.next_token_chooser.fsm_grammar_states[req.idx],
-                    })
+                    requests_to_generate.append(
+                        {
+                            "req": req,
+                            "prev_req_idx": req.idx,
+                            "batch_id": batch_id,
+                            "seed": batch.next_token_chooser.seeds[req_idx],
+                            "do_sample": batch.next_token_chooser.do_sample[req_idx],
+                            "top_n_tokens": batch.top_n_tokens[req_idx],
+                            "top_token_ids": batch_top_token_ids[req_idx],
+                            "top_token_logprobs": batch_top_token_logprobs[req_idx],
+                            "grammar_state": batch.next_token_chooser.fsm_grammar_states[
+                                req.idx
+                            ],
+                        }
+                    )
 
                 htorch.core.mark_step()
 
@@ -867,7 +928,9 @@ class VlmCausalLM(Model):
 
                 # Update position_ids
                 if prefill:
-                    batch.position_ids = torch.index_select(batch.position_ids, 1, token_idx - 1) + 1
+                    batch.position_ids = (
+                        torch.index_select(batch.position_ids, 1, token_idx - 1) + 1
+                    )
                 else:
                     batch.position_ids += 1
                 # Update past key values
@@ -878,7 +941,9 @@ class VlmCausalLM(Model):
 
         # Stage 2. Prepare new batch for speculative scheduling
         if len(batches) > 1:
-            batch = self.batch_type.concatenate(batches, self.tokenizer.pad_token_id, is_warmup)
+            batch = self.batch_type.concatenate(
+                batches, self.tokenizer.pad_token_id, is_warmup
+            )
         else:
             batch = batches[0]
 
@@ -886,15 +951,24 @@ class VlmCausalLM(Model):
 
         # Check if we need to do any bookkeeping first
         if not prefill:
-            batch = batch.__class__.recombine([batch], self.tokenizer.pad_token_id, is_warmup)
+            batch = batch.__class__.recombine(
+                [batch], self.tokenizer.pad_token_id, is_warmup
+            )
 
-        scenario = 'PREFILL' if prefill else 'GENERATE'
-        if self.enable_hpu_graph and self.limit_hpu_graph and round_up(DECODE_WARMUP_BATCH_SIZE_LIST, batch.batch_size) != self.prev_bs:
+        scenario = "PREFILL" if prefill else "GENERATE"
+        if (
+            self.enable_hpu_graph
+            and self.limit_hpu_graph
+            and round_up(DECODE_WARMUP_BATCH_SIZE_LIST, batch.batch_size)
+            != self.prev_bs
+        ):
             self.model.clear_cache()
             self.prev_bs = round_up(DECODE_WARMUP_BATCH_SIZE_LIST, batch.batch_size)
         dbg_trace(
-            scenario, f'bs:{batch.batch_size} num_reqs:{len(batch.requests)} seq_len:{batch.seq_length} padding:{batch.right_padding}')
-        #assert batch.right_padding > 0, 'No more room for next token!'
+            scenario,
+            f"bs:{batch.batch_size} num_reqs:{len(batch.requests)} seq_len:{batch.seq_length} padding:{batch.right_padding}",
+        )
+        # assert batch.right_padding > 0, 'No more room for next token!'
 
         # Execute batch
         if prefill:
@@ -908,21 +982,27 @@ class VlmCausalLM(Model):
                 batch.past_key_values,
                 batch.pixel_values,
                 batch.image_sizes,
-                bypass_hpu_graph=prefill and self.limit_hpu_graph if self.enable_hpu_graph else None,
+                bypass_hpu_graph=(
+                    prefill and self.limit_hpu_graph if self.enable_hpu_graph else None
+                ),
             )
         elif all([req.stopping_criteria.max_new_tokens == 1 for req in batch.requests]):
             # Don't schedule next forward if max_new_tokens for all requests equals 1
             # - we've already generated the first and only needed token in the prefill phase
             pass
         else:
-            token_idx = torch.tensor(batch.attention_mask.shape[-1] - batch.right_padding).to(self.device)
+            token_idx = torch.tensor(
+                batch.attention_mask.shape[-1] - batch.right_padding
+            ).to(self.device)
             batch.logits = self.forward(
                 batch.input_ids,
                 batch.attention_mask,
                 batch.position_ids,
                 token_idx,
                 batch.past_key_values,
-                bypass_hpu_graph=prefill and self.limit_hpu_graph if self.enable_hpu_graph else None,
+                bypass_hpu_graph=(
+                    prefill and self.limit_hpu_graph if self.enable_hpu_graph else None
+                ),
             )
 
         htorch.core.mark_step()
@@ -932,40 +1012,45 @@ class VlmCausalLM(Model):
         # Stage 3. Finish and return previous generations
         stopped = len(requests_to_generate) > 0
         for prev_batch in prev_batches:
-            prev_batch['next_token_logprobs'] = prev_batch['next_token_logprobs'].tolist()
-            prev_batch['next_token_ids_cpu'] = prev_batch['next_token_ids'].cpu()
+            prev_batch["next_token_logprobs"] = prev_batch[
+                "next_token_logprobs"
+            ].tolist()
+            prev_batch["next_token_ids_cpu"] = prev_batch["next_token_ids"].cpu()
         htorch.core.mark_step()
 
         for req_data in requests_to_generate:
-            req = req_data['req']
-            i = req_data['prev_req_idx']
-            prev_batch_id = req_data['batch_id']
+            req = req_data["req"]
+            i = req_data["prev_req_idx"]
+            prev_batch_id = req_data["batch_id"]
             assert len(prev_batches) > prev_batch_id
-            next_token_ids_cpu = prev_batches[prev_batch_id]['next_token_ids_cpu']
-            next_token_logprobs = prev_batches[prev_batch_id]['next_token_logprobs']
+            next_token_ids_cpu = prev_batches[prev_batch_id]["next_token_ids_cpu"]
+            next_token_logprobs = prev_batches[prev_batch_id]["next_token_logprobs"]
 
             request = req.data
             input_length = req.input_length
             prefix_offset = req.prefix_offset
             read_offset = req.read_offset
-            do_sample = req_data['do_sample']
-            seed = req_data['seed']
+            do_sample = req_data["do_sample"]
+            seed = req_data["seed"]
             stopping_criteria = req.stopping_criteria
             all_input_ids = req.all_input_ids
             next_token_id = next_token_ids_cpu[i]
             next_token_logprob = next_token_logprobs[i]
-            top_n_tokens = req_data['top_n_tokens']
-            top_token_ids = req_data['top_token_ids']
-            top_token_logprobs = req_data['top_token_logprobs']
-            grammar_state = req_data['grammar_state']
+            top_n_tokens = req_data["top_n_tokens"]
+            top_token_ids = req_data["top_token_ids"]
+            top_token_logprobs = req_data["top_token_logprobs"]
+            grammar_state = req_data["grammar_state"]
 
             # Append next token to all tokens
             all_input_ids[input_length] = next_token_id
             new_input_length = input_length + 1
 
             # Generated token
-            if is_tokenizer_transparent(self.tokenizer) and len(stopping_criteria.stop_sequence_criterias) == 0:
-                next_token_text = ''
+            if (
+                is_tokenizer_transparent(self.tokenizer)
+                and len(stopping_criteria.stop_sequence_criterias) == 0
+            ):
+                next_token_text = ""
             else:
                 next_token_text, prefix_offset, read_offset = self.decode_token(
                     all_input_ids[0:new_input_length, 0], prefix_offset, read_offset
@@ -989,7 +1074,11 @@ class VlmCausalLM(Model):
                         output_text = None
                     else:
                         output_text = self.decode(
-                            all_input_ids[new_input_length - stopping_criteria.current_tokens: new_input_length, 0]
+                            all_input_ids[
+                                new_input_length
+                                - stopping_criteria.current_tokens : new_input_length,
+                                0,
+                            ]
                         )
                     generated_text = GeneratedText(
                         output_text,
@@ -1004,7 +1093,7 @@ class VlmCausalLM(Model):
                 if stopping_criteria.current_tokens == 1 and request.prefill_logprobs:
                     # Remove generated token to only have prefill and add nan for first prompt token
                     prefill_logprobs = [float("nan")] + next_token_logprobs
-                    prefill_token_ids = all_input_ids[0: new_input_length - 1]
+                    prefill_token_ids = all_input_ids[0 : new_input_length - 1]
                     prefill_texts = self.tokenizer.batch_decode(
                         prefill_token_ids,
                         clean_up_tokenization_spaces=False,
@@ -1073,7 +1162,12 @@ class VlmCausalLM(Model):
         htorch.core.mark_step()
         self.step = self.step + 1
         if self.hb_profiler is not None:
-            if self.step > self.profiling_wait_steps + self.profiling_warmup_steps + self.profiling_steps:
+            if (
+                self.step
+                > self.profiling_wait_steps
+                + self.profiling_warmup_steps
+                + self.profiling_steps
+            ):
                 self.hb_profiler.stop()
             else:
                 self.hb_profiler.step()
@@ -1090,7 +1184,7 @@ class VlmCausalLM(Model):
             self.model.config,
             self.dtype,
             self.device,
-            is_warmup
+            is_warmup,
         )
 
     def generate_warmup_batch(self, request, seq_len, batch_size, is_warmup):
@@ -1117,14 +1211,14 @@ class VlmCausalLM(Model):
             )
 
         global BASE_IMAGE_TOKENS, MAX_TOTAL_TOKENS, MAX_BATCH_TOTAL_TOKENS, PREFILL_WARMUP_BATCH_SIZE_LIST, PREFILL_WARMUP_SEQLEN_LIST, DECODE_WARMUP_BATCH_SIZE_LIST
-        max_input_length =  batch.input_ids.shape[1]
+        max_input_length = batch.input_ids.shape[1]
         max_prefill_batch_size = batch.input_ids.shape[0]
         PREFILL_WARMUP_BATCH_SIZE_LIST = []
         batch_size = 1
         while batch_size <= max_prefill_batch_size:
             PREFILL_WARMUP_BATCH_SIZE_LIST.append(batch_size)
             batch_size = batch_size * 2
-        if PREFILL_WARMUP_BATCH_SIZE_LIST[-1] < max_prefill_batch_size :
+        if PREFILL_WARMUP_BATCH_SIZE_LIST[-1] < max_prefill_batch_size:
             PREFILL_WARMUP_BATCH_SIZE_LIST.append(max_prefill_batch_size)
 
         seq_len = BASE_IMAGE_TOKENS
@@ -1132,19 +1226,21 @@ class VlmCausalLM(Model):
         i = 0
         while seq_len <= max_input_length:
             PREFILL_WARMUP_SEQLEN_LIST.append(seq_len)
-            seq_len += PAD_SEQUENCE_TO_MULTIPLE_OF*(2**i)
+            seq_len += PAD_SEQUENCE_TO_MULTIPLE_OF * (2**i)
             i += 1
         if PREFILL_WARMUP_SEQLEN_LIST[-1] < max_input_length:
             PREFILL_WARMUP_SEQLEN_LIST.append(max_input_length)
 
-        #Prefill and decode warmup
+        # Prefill and decode warmup
         DECODE_WARMUP_BATCH_SIZE_LIST = []
         prefill_batch = None
         decode_batch = None
         try:
-            for batch_size in PREFILL_WARMUP_BATCH_SIZE_LIST :
-                for seq_len in PREFILL_WARMUP_SEQLEN_LIST :
-                    batch = self.generate_warmup_batch(request, seq_len, batch_size, is_warmup)
+            for batch_size in PREFILL_WARMUP_BATCH_SIZE_LIST:
+                for seq_len in PREFILL_WARMUP_SEQLEN_LIST:
+                    batch = self.generate_warmup_batch(
+                        request, seq_len, batch_size, is_warmup
+                    )
                     _, prefill_batch, _ = self.generate_token([batch], is_warmup)
                     _, decode_batch, _ = self.generate_token([prefill_batch], is_warmup)
 
@@ -1161,21 +1257,29 @@ class VlmCausalLM(Model):
 
         mem_stats = get_hpu_memory_stats(self.device)
         logger.info(
-                f"\nFollowing prefill and decode warmup successfully.\n"
-                f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}\n"
-                f"Prefill sequence length list:{PREFILL_WARMUP_SEQLEN_LIST}\n"
-                f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}\n"
-                f"Memory stats: {mem_stats} "
-            )
+            f"\nFollowing prefill and decode warmup successfully.\n"
+            f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}\n"
+            f"Prefill sequence length list:{PREFILL_WARMUP_SEQLEN_LIST}\n"
+            f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}\n"
+            f"Memory stats: {mem_stats} "
+        )
 
         max_decode_batch_size = math.floor(MAX_BATCH_TOTAL_TOKENS / MAX_TOTAL_TOKENS)
         batch_size = max_prefill_batch_size * 2
         # Decode warmup with bigger batch_size
         try:
-            if DECODE_WARMUP_BATCH_SIZE_LIST[-1] < max_decode_batch_size and batch_size <= max_decode_batch_size:
+            if (
+                DECODE_WARMUP_BATCH_SIZE_LIST[-1] < max_decode_batch_size
+                and batch_size <= max_decode_batch_size
+            ):
                 batches = []
-                for i in range(int(batch_size/max_prefill_batch_size)) :
-                    batch = self.generate_warmup_batch(request, PREFILL_WARMUP_SEQLEN_LIST[0], DECODE_WARMUP_BATCH_SIZE_LIST[-1], is_warmup)
+                for i in range(int(batch_size / max_prefill_batch_size)):
+                    batch = self.generate_warmup_batch(
+                        request,
+                        PREFILL_WARMUP_SEQLEN_LIST[0],
+                        DECODE_WARMUP_BATCH_SIZE_LIST[-1],
+                        is_warmup,
+                    )
                     _, prefill_batch, _ = self.generate_token([batch], is_warmup)
                     batches.append(prefill_batch)
                 while batch_size <= max_decode_batch_size:
@@ -1184,17 +1288,24 @@ class VlmCausalLM(Model):
                     batch_size = batch_size * 2
                     batches.clear()
 
-                    for i in range(int(batch_size/max_prefill_batch_size)) :
-                        batch = self.generate_warmup_batch(request, PREFILL_WARMUP_SEQLEN_LIST[0], DECODE_WARMUP_BATCH_SIZE_LIST[-1], is_warmup)
+                    for i in range(int(batch_size / max_prefill_batch_size)):
+                        batch = self.generate_warmup_batch(
+                            request,
+                            PREFILL_WARMUP_SEQLEN_LIST[0],
+                            DECODE_WARMUP_BATCH_SIZE_LIST[-1],
+                            is_warmup,
+                        )
                         _, prefill_batch, _ = self.generate_token([batch], is_warmup)
                         batches.append(prefill_batch)
 
                 batches.clear()
                 if DECODE_WARMUP_BATCH_SIZE_LIST[-1] < max_decode_batch_size:
-                    max_decode_batch_size = math.floor( max_decode_batch_size / 2) * 2
+                    max_decode_batch_size = math.floor(max_decode_batch_size / 2) * 2
                     batch_size = max_decode_batch_size
-                    for i in range(int(max_decode_batch_size / 2)) :
-                        batch = self.generate_warmup_batch(request, PREFILL_WARMUP_SEQLEN_LIST[0], 2, is_warmup)
+                    for i in range(int(max_decode_batch_size / 2)):
+                        batch = self.generate_warmup_batch(
+                            request, PREFILL_WARMUP_SEQLEN_LIST[0], 2, is_warmup
+                        )
                         _, prefill_batch, _ = self.generate_token([batch], is_warmup)
                         batches.append(prefill_batch)
                     _, decode_batch, _ = self.generate_token(batches, is_warmup)
@@ -1211,9 +1322,9 @@ class VlmCausalLM(Model):
 
         mem_stats = get_hpu_memory_stats(self.device)
         logger.info(
-                f"\nFollowing decode warmup successfully.\n"
-                f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}\n"
-                f"Memory stats: {mem_stats}"
-            )
+            f"\nFollowing decode warmup successfully.\n"
+            f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}\n"
+            f"Memory stats: {mem_stats}"
+        )
 
         return MAX_BATCH_TOTAL_TOKENS

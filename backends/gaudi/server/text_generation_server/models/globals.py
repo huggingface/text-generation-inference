@@ -58,6 +58,7 @@ def set_model_id(model_id: str):
     global MODEL_ID
     MODEL_ID = model_id
 
+
 # NOTE: eventually we should move this into the router and pass back the
 # index in all cases.
 ADAPTER_TO_INDEX: Optional[Dict[str, int]] = None

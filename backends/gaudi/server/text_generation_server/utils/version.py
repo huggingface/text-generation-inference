@@ -1,7 +1,7 @@
 from optimum.habana.utils import get_driver_version
 from packaging.version import Version
 
-MIN_TGI_GAUDI_SYNAPSE_VERSION=Version("1.16.0")
+MIN_TGI_GAUDI_SYNAPSE_VERSION = Version("1.16.0")
 
 
 def is_driver_compatible():

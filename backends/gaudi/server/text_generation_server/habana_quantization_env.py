@@ -17,7 +17,9 @@ if is_quantization_enabled:
 
 def patch_scoped_linear_all_reduce(model):
     from deepspeed.module_inject.layers import LinearAllreduce
-    from optimum.habana.transformers.models.modeling_all_models import ScopedLinearAllReduce
+    from optimum.habana.transformers.models.modeling_all_models import (
+        ScopedLinearAllReduce,
+    )
 
     for name, module in model.named_children():
         if type(module) is LinearAllreduce:
@@ -36,7 +38,13 @@ def setup_quantization(model):
 
 def prepare_model_for_quantization(model):
     if is_quantization_enabled:
-        if model.config.model_type in ["llama", "falcon", "qwen2", "starcoder2", "gemma"]:
+        if model.config.model_type in [
+            "llama",
+            "falcon",
+            "qwen2",
+            "starcoder2",
+            "gemma",
+        ]:
             patch_scoped_linear_all_reduce(model)
         from neural_compressor.torch.quantization import FP8Config, convert
 

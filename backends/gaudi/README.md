@@ -16,7 +16,7 @@ make -C backends/gaudi image
 Option 2: From the Gaudi backend directory:
 ```bash
 cd backends/gaudi
-make image 
+make image
 ```
 
 You can now run the server with the following command:
@@ -50,7 +50,7 @@ make -C backends/gaudi local-dev-install
 
 Add rust to path:
 ```bash
-. "$HOME/.cargo/env" 
+. "$HOME/.cargo/env"
 ```
 
 Option 1: Run the server (sharded model):

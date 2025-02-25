@@ -64,10 +64,12 @@ def initialize_torch_distributed():
         backend = "hccl"
         n_hpus = torch.hpu.device_count()
         if world_size > n_hpus:
-            raise ValueError(f"WORLD_SIZE ({world_size}) is higher than the number of available HPUs ({n_hpus}).")
+            raise ValueError(
+                f"WORLD_SIZE ({world_size}) is higher than the number of available HPUs ({n_hpus})."
+            )
     else:
         try:
-            import oneccl_bindings_for_pytorch # noqa: F401
+            import oneccl_bindings_for_pytorch  # noqa: F401
 
             backend = "ccl"
             if os.getenv("CCL_WORKER_COUNT", None) is None:

@@ -13,7 +13,7 @@ class StarCoderCausalLMBatch(CausalLMBatch):
     def detach_kv_cache(self):
         past_keys = []
         past_values = []
-        last_dim = int(self.past_key_values[0].size(dim=-1)/2)
+        last_dim = int(self.past_key_values[0].size(dim=-1) / 2)
         for key_value in self.past_key_values:
             past_keys.append(key_value.split((last_dim, last_dim), dim=-1)[0])
             past_values.append(key_value.split((last_dim, last_dim), dim=-1)[1])
@@ -23,7 +23,9 @@ class StarCoderCausalLMBatch(CausalLMBatch):
 
     def attach_kv_cache(self, past_keys, past_values):
         self.past_key_values = [
-            torch.cat((key, value), dim=-1) for key, value in zip(past_keys, past_values)]
+            torch.cat((key, value), dim=-1)
+            for key, value in zip(past_keys, past_values)
+        ]
 
 
 class StarCoder(CausalLM):

@@ -8,6 +8,7 @@ from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional
 from pathlib import Path
 from typing import List, Dict
+
 # Needed to properly setup habana_frameworks
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
@@ -16,10 +17,12 @@ from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.bloom import BLOOM
 from text_generation_server.models.starcoder import StarCoder
 from text_generation_server.models.vlm_causal_lm import VlmCausalLM
-#from text_generation_server.models.mllama_causal_lm import MllamaCausalLM
+
+# from text_generation_server.models.mllama_causal_lm import MllamaCausalLM
 from text_generation_server.models.custom_modeling.llava_next import (
     LlavaNextForConditionalGeneration,
 )
+
 # from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
 # from text_generation_server.models.custom_modeling.mllama import (
 #     MllamaForConditionalGeneration,

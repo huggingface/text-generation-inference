@@ -10,7 +10,13 @@ def main(args):
     logger.info("TGIService: starting tgi service .... ")
     logger.info(
         "TGIService: --model_id {}, --revision {}, --sharded {}, --speculate {}, --dtype {}, --trust_remote_code {}, --uds_path {} ".format(
-            args.model_id, args.revision, args.sharded, args.speculate, args.dtype, args.trust_remote_code, args.uds_path
+            args.model_id,
+            args.revision,
+            args.sharded,
+            args.speculate,
+            args.dtype,
+            args.trust_remote_code,
+            args.uds_path,
         )
     )
     lora_adapters = parse_lora_adapters(os.getenv("LORA_ADAPTERS"))
@@ -24,7 +30,7 @@ def main(args):
         dtype=args.dtype,
         trust_remote_code=args.trust_remote_code,
         uds_path=args.uds_path,
-        max_input_tokens=args.max_input_tokens
+        max_input_tokens=args.max_input_tokens,
     )
 
 

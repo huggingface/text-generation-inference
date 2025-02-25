@@ -254,7 +254,7 @@ class HeterogeneousNextTokenChooser:
         tokenizer: PreTrainedTokenizerBase,
         grammars: List[str],
         grammar_types: List[int],
-        fsm_grammar_states:List[int],
+        fsm_grammar_states: List[int],
         quantization_enabled: bool,
     ):
         warpers = []
@@ -447,7 +447,9 @@ class HeterogeneousNextTokenChooser:
             next_id = next_id.item()
             self.fsm_grammar_states[grammar_state_index] = (
                 self.grammar_processor.advance_at_index(
-                    next_id, past_state, grammar_state_index,
+                    next_id,
+                    past_state,
+                    grammar_state_index,
                 )
             )
         return self
@@ -544,9 +546,7 @@ def pad_next_token_chooser_parameters(
         grammar="",
         grammar_type=0,
     )
-    parameters.extend(
-        [empty_parameters] * (expected_size - len(parameters))
-    )
+    parameters.extend([empty_parameters] * (expected_size - len(parameters)))
     return parameters
 
 
@@ -701,24 +701,47 @@ def make_tokenizer_optional(tokenizer):
             padding,
             return_token_type_ids,
             truncation,
-            max_length
+            max_length,
         ):
-            assert return_tensors == "pt", "inccorrect input arguments when calling TransparentTokenizer"
-            assert padding == "max_length" or padding == "longest", "inccorrect input arguments when calling TransparentTokenizer"
-            assert not return_token_type_ids, "inccorrect input arguments when calling TransparentTokenizer"
-            assert truncation, "inccorrect input arguments when calling TransparentTokenizer"
+            assert (
+                return_tensors == "pt"
+            ), "inccorrect input arguments when calling TransparentTokenizer"
+            assert (
+                padding == "max_length" or padding == "longest"
+            ), "inccorrect input arguments when calling TransparentTokenizer"
+            assert (
+                not return_token_type_ids
+            ), "inccorrect input arguments when calling TransparentTokenizer"
+            assert (
+                truncation
+            ), "inccorrect input arguments when calling TransparentTokenizer"
 
             def str_token_to_int(i):
-                if i == '?':
+                if i == "?":
                     return tokenizer.pad_token_id
                 else:
                     return int(i)
-            all_tokens = [[str_token_to_int(i.strip()) for i in inner_text.split(',')]
-                          for inner_text in text]
+
+            all_tokens = [
+                [str_token_to_int(i.strip()) for i in inner_text.split(",")]
+                for inner_text in text
+            ]
             if padding == "longest":
                 max_length = max(len(tokens) for tokens in all_tokens)
-            return {"input_ids": torch.tensor([[tokenizer.pad_token_id] * (max_length - len(tokens)) + tokens for tokens in all_tokens]),
-                    "attention_mask": torch.tensor([[0] * (max_length - len(tokens)) + [1] * len(tokens) for tokens in all_tokens])}
+            return {
+                "input_ids": torch.tensor(
+                    [
+                        [tokenizer.pad_token_id] * (max_length - len(tokens)) + tokens
+                        for tokens in all_tokens
+                    ]
+                ),
+                "attention_mask": torch.tensor(
+                    [
+                        [0] * (max_length - len(tokens)) + [1] * len(tokens)
+                        for tokens in all_tokens
+                    ]
+                ),
+            }
 
         def decode(
             self,
@@ -728,9 +751,10 @@ def make_tokenizer_optional(tokenizer):
             **kwargs,
         ) -> str:
             # I don't think this method is used anywhere and should be removed when doing refactoring
-            return ','.join(str(i) for i in to_py_obj(token_ids)) # noqa: F821
+            return ",".join(str(i) for i in to_py_obj(token_ids))  # noqa: F821
 
     import os
+
     if os.getenv("SKIP_TOKENIZER_IN_TGI", "false").lower() == "true":
         tokenizer.__class__ = _
         tokenizer.is_transparent = True

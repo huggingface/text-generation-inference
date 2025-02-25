@@ -113,12 +113,14 @@ def serve(
     logger.info("CLI SHARDED = {} DTYPE = {}".format(sharded, dtype))
 
     if sharded:
-        tgi_file =  Path(__file__).resolve().parent / "tgi_service.py"
+        tgi_file = Path(__file__).resolve().parent / "tgi_service.py"
         num_shard = int(os.getenv("WORLD_SIZE", "1"))
         logger.info("CLI SHARDED = {}".format(num_shard))
         import subprocess
 
-        cmd = f"deepspeed --num_nodes 1 --num_gpus {num_shard} --no_local_rank {tgi_file}"
+        cmd = (
+            f"deepspeed --num_nodes 1 --num_gpus {num_shard} --no_local_rank {tgi_file}"
+        )
         cmd += f" --model_id {model_id} --revision {revision} --sharded {sharded}"
         cmd += f" --dtype {dtype} --trust_remote_code {trust_remote_code} --uds_path {uds_path}"
         cmd += f" --quantize {quantize} --max_input_tokens {max_input_tokens}"
@@ -130,6 +132,7 @@ def serve(
         with subprocess.Popen(cmd, shell=True, executable="/bin/bash") as proc:
             do_terminate = False
             current_handler = signal.getsignal(signal.SIGTERM)
+
             def terminate_handler(sig, frame):
                 nonlocal do_terminate
                 do_terminate = True
