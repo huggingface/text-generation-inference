@@ -13,7 +13,5 @@ dependencies = [
     "pytest-asyncio>=0.23.1",
     "docker>=7",
     "numpy>=2.0",
+    "openai>=1.60.0",
 ]
-
-[tool.isort]
-profile = "black"

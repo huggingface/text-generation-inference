@@ -47,7 +47,7 @@ use http::header::AUTHORIZATION;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
-use regex::Regex;
+use serde_json::Map;
 use serde_json::Value;
 use std::convert::Infallible;
 use std::fs::File;
@@ -1114,82 +1114,183 @@ pub(crate) async fn completions(
     }
 }
 
-enum StreamState {
-    Buffering,
-    BufferTrailing,
-    Content { skip_close_quote: bool },
+// balance the started json with closing braces and quotes
+fn complete_json(partial: &str) -> (String, bool) {
+    let mut brace_count = 0;
+    let mut quote_open = false;
+    let mut escaped = false;
+    let mut last_char = '\0';
+
+    for c in partial.chars() {
+        match (escaped, quote_open, c) {
+            (true, _, _) => escaped = false,
+            (false, _, '\\') => escaped = true,
+            (false, _, '"') => quote_open = !quote_open,
+            (false, false, '{') => brace_count += 1,
+            (false, false, '}') => brace_count -= 1,
+            _ => {}
+        }
+        if !c.is_whitespace() {
+            last_char = c;
+        }
+    }
+
+    let mut completed = partial.to_string();
+
+    if last_char == ',' {
+        if let Some(pos) = completed.rfind(',') {
+            completed.replace_range(pos..pos + 1, "");
+        }
+    }
+
+    if quote_open {
+        completed.push('"');
+    }
+    completed.push_str(&"}".repeat(brace_count.max(0)));
+
+    (completed, quote_open)
 }
 
-/// Convert a StreamResponse into an Event to be sent over SSE
-fn create_event_from_stream_token(
-    stream_token: &StreamResponse,
-    logprobs: bool,
-    stream_options: Option<StreamOptions>,
-    inner_using_tools: bool,
-    system_fingerprint: String,
-    model_id: String,
+// Generic function that parses any partial structure into a Map
+fn parse_generic_structure(partial: &str) -> Result<(Map<String, Value>, bool), String> {
+    let (completed, quote_open) = complete_json(partial);
+    match serde_json::from_str::<Value>(&completed) {
+        Ok(Value::Object(obj)) => Ok((obj, quote_open)),
+        _ => Err("Failed to parse as object".to_string()),
+    }
+}
+
+// Parse partial JSON into a Map with a function object
+fn parse_partial_json(partial: &str) -> Result<Map<String, Value>, String> {
+    let (completed, was_quote_open) = complete_json(partial);
+    match serde_json::from_str::<Value>(&completed) {
+        Ok(Value::Object(obj)) => {
+            if let Some(Value::Object(function)) = obj.get("function") {
+                let name_is_only_key = function.len() == 1;
+                if was_quote_open && name_is_only_key {
+                    let mut function = function.clone();
+                    if let Some(Value::String(ref mut name)) = function.get_mut("_name") {
+                        name.clear();
+                    }
+                    return Err("Missing *name in function".to_string());
+                }
+                Ok(function.clone())
+            } else {
+                Err("Missing function object".to_string())
+            }
+        }
+        _ => Err("Failed to parse as object".to_string()),
+    }
+}
+
+/// Creates an event based on the token text and event type parameters.
+/// `token_text` - The text to include (extract from StreamResponse.token.text or str)
+/// `model_id` - Model identifier string
+/// `system_fingerprint` - System fingerprint string
+/// `tool_name` - If provided, creates a tool call name event
+/// `is_tool_arg` - If true, creates a tool call argument event
+fn create_event(
+    token_text: &str,
+    model_id: &str,
+    system_fingerprint: &str,
+    tool_name: Option<&str>,
+    is_tool_arg: bool,
+    finish_reason: Option<String>,
 ) -> Event {
-    let event = Event::default();
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+        .unwrap_or_default()
         .as_secs();
 
-    let logprobs = logprobs.then(|| {
-        ChatCompletionLogprobs::from((stream_token.token.clone(), stream_token.top_tokens.clone()))
-    });
+    let chat_complete = if let Some(tool_name) = tool_name {
+        // Tool call name event
+        let tool_delta = ChatCompletionDelta::Tool(ToolCallDelta {
+            role: "assistant".to_string(),
+            tool_calls: vec![DeltaToolCall {
+                index: 0,
+                id: String::new(),
+                r#type: "function".to_string(),
+                function: Function {
+                    name: Some(tool_name.to_string()),
+                    arguments: "".to_string(),
+                },
+            }],
+        });
 
-    // replace the content with the tool calls if grammar is present
-    let (content, tool_calls) = if inner_using_tools {
-        (None, Some(vec![stream_token.token.text.clone()]))
+        CompletionType::ChatCompletionChunk(ChatCompletionChunk {
+            id: String::new(),
+            created: current_time,
+            model: model_id.to_string(),
+            system_fingerprint: system_fingerprint.to_string(),
+            choices: vec![ChatCompletionChoice {
+                index: 0,
+                delta: tool_delta,
+                logprobs: None,
+                finish_reason: None,
+            }],
+            usage: None,
+        })
+    } else if is_tool_arg {
+        // Tool call argument event
+        let tool_delta = ChatCompletionDelta::Tool(ToolCallDelta {
+            role: "assistant".to_string(),
+            tool_calls: vec![DeltaToolCall {
+                index: 0,
+                id: String::new(),
+                r#type: "function".to_string(),
+                function: Function {
+                    name: None,
+                    arguments: token_text.to_string(),
+                },
+            }],
+        });
+
+        CompletionType::ChatCompletionChunk(ChatCompletionChunk {
+            id: String::new(),
+            created: current_time,
+            model: model_id.to_string(),
+            system_fingerprint: system_fingerprint.to_string(),
+            choices: vec![ChatCompletionChoice {
+                index: 0,
+                delta: tool_delta,
+                logprobs: None,
+                finish_reason: None,
+            }],
+            usage: None,
+        })
     } else {
-        let content = if !stream_token.token.special {
-            Some(stream_token.token.text.clone())
+        // usage, finish_reason
+        if finish_reason.is_some() {
+            CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
+                model_id.to_string(),
+                system_fingerprint.to_string(),
+                Some(token_text.to_string()),
+                None,
+                current_time,
+                None,
+                finish_reason,
+                None,
+                None,
+            ))
         } else {
-            None
-        };
-
-        (content, None)
-    };
-
-    let (usage, finish_reason) = match &stream_token.details {
-        Some(details) => {
-            let usage = if stream_options
-                .as_ref()
-                .map(|s| s.include_usage)
-                .unwrap_or(false)
-            {
-                let completion_tokens = details.generated_tokens;
-                let prompt_tokens = details.input_length;
-                let total_tokens = prompt_tokens + completion_tokens;
-                Some(Usage {
-                    completion_tokens,
-                    prompt_tokens,
-                    total_tokens,
-                })
-            } else {
-                None
-            };
-            (usage, Some(details.finish_reason.format(true)))
+            // Chat completion event
+            CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
+                model_id.to_string(),
+                system_fingerprint.to_string(),
+                Some(token_text.to_string()),
+                None,
+                current_time,
+                None,
+                None,
+                None,
+                None,
+            ))
         }
-        None => (None, None),
     };
 
-    let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
-        model_id.clone(),
-        system_fingerprint.clone(),
-        content,
-        tool_calls,
-        current_time,
-        logprobs,
-        finish_reason,
-        usage,
-    ));
-
-    event.json_data(chat_complete).unwrap_or_else(|e| {
-        println!("Failed to serialize ChatCompletionChunk: {:?}", e);
-        Event::default()
-    })
+    Event::default()
+        .json_data(chat_complete)
+        .unwrap_or_else(|e| InferError::StreamSerializationError(e.to_string()).into())
 }
 
 /// Generate tokens
@@ -1234,169 +1335,235 @@ pub(crate) async fn chat_completions(
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
     metrics::counter!("tgi_request_count").increment(1);
-    let ChatRequest {
-        model,
-        stream,
-        stream_options,
-        logprobs,
-        ..
-    } = chat.clone();
-    let (generate_request, using_tools): (GenerateRequest, bool) =
-        chat.try_into_generate(&infer)?;
 
-    let logprobs = logprobs.unwrap_or_default();
+    // Extract needed fields
+    let model = chat.model.clone();
+    let logprobs = chat.logprobs.unwrap_or_default();
+    let stream = chat.stream;
+    let stream_options = chat.stream_options.clone();
 
-    // extract model id from request if specified
-    let model_id = match model.as_deref() {
-        Some("tgi") | None => info.model_id.clone(),
-        Some(m_id) => m_id.to_string(),
-    };
+    // Process request (this consumes chat)
+    let (generate_request, using_tools) = chat.try_into_generate(&infer)?;
+
+    // Determine model ID
+    let model_id = model
+        .as_deref()
+        .filter(|&m| m != "tgi")
+        .unwrap_or(&info.model_id)
+        .to_string();
     let system_fingerprint = format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
-    // switch on stream
+
+    // Helper function to get current timestamp
+    let get_timestamp = || {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+            .as_secs()
+    };
+
     if stream {
         let (headers, response_stream) =
             generate_stream_internal(infer, compute_type, Json(generate_request), span).await;
 
-        // regex to match any function name
-        let function_regex = match Regex::new(r#"\{"function":\{"_name":"([^"]+)""#) {
-            Ok(regex) => regex,
-            Err(e) => {
-                return Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: format!("Failed to compile regex: {}", e),
-                        error_type: "regex".to_string(),
-                    }),
-                ))
-            }
-        };
-
         let response_stream = async_stream::stream! {
             let mut response_stream = Box::pin(response_stream);
-            let mut buffer = Vec::new();
             let mut json_buffer = String::new();
-            let mut state = if using_tools {
-                StreamState::Buffering
-            } else {
-                StreamState::Content {
-                    skip_close_quote: false,
-                }
-            };
-            let mut response_as_tool = using_tools;
-            while let Some(result) = response_stream.next().await {
-                match result{
-                Ok(stream_token) => {
-                    let token_text = &stream_token.token.text.clone();
-                    match state {
-                        StreamState::Buffering => {
-                            json_buffer.push_str(&token_text.replace(" ", ""));
-                            buffer.push(stream_token);
-                            if let Some(captures) = function_regex.captures(&json_buffer) {
-                                let function_name = captures[1].to_string();
-                                if function_name == "no_tool" {
-                                    state = StreamState::BufferTrailing;
-                                    response_as_tool = false;
-                                    buffer.clear();
-                                    json_buffer.clear();
-                                } else {
-                                    state = StreamState::Content {
-                                        skip_close_quote: false,
-                                    };
-                                    // send all the buffered messages
-                                    for stream_token in &buffer {
-                                        let event = create_event_from_stream_token(
-                                            stream_token,
-                                            logprobs,
-                                            stream_options.clone(),
-                                            response_as_tool,
-                                            system_fingerprint.clone(),
-                                            model_id.clone(),
-                                        );
-                                        yield Ok::<Event, Infallible>(event);
-                                    }
-                                }
-                            }
+            let mut name_found = !using_tools;
+            let mut no_tool_chosen = false;
+            let mut first_quote_removed = false;
+
+            // Process stream tokens
+            while let Some(Ok(stream_token)) = response_stream.next().await {
+                let token_text = stream_token.token.text.clone();
+                let mut events = Vec::new();
+                let mut should_break = false;
+
+                // Get usage information
+                let usage = stream_token.details.as_ref().map(|d| Usage {
+                    completion_tokens: d.generated_tokens,
+                    prompt_tokens: d.input_length,
+                    total_tokens: d.input_length + d.generated_tokens,
+                });
+
+                json_buffer.push_str(&token_text);
+
+                // Phase 1: Function name discovery
+                if !name_found {
+                    if let Ok(function) = parse_partial_json(&json_buffer) {
+                        name_found = true;
+
+                        let name = function
+                            .get("_name")
+                            .and_then(|n| n.as_str())
+                            .unwrap_or_default();
+                        if name == "no_tool" {
+                            no_tool_chosen = true;
+                        } else {
+                            events.push(create_event(
+                                &token_text,
+                                &model_id,
+                                &system_fingerprint,
+                                Some(name),
+                                false,
+                                None,
+                            ));
+                            events.push(create_event(
+                                "{",
+                                &model_id,
+                                &system_fingerprint,
+                                None,
+                                true,
+                                None,
+                            ));
                         }
-                        // if we skipped sending the buffer we need to avoid sending the following json key and quotes
-                        StreamState::BufferTrailing => {
-                            let infix_text = "\"content\":\"";
-                            json_buffer.push_str(&token_text.replace(" ", ""));
-                            // keep capturing until we find the infix text
-                            match json_buffer.find(infix_text) {
-                                Some(content_key_index) => {
-                                    json_buffer =
-                                        json_buffer[content_key_index + infix_text.len()..].to_string();
-                                }
-                                None => {
-                                    continue;
-                                }
-                            }
-                            // if there is leftover text after removing the infix text, we need to send it
-                            if !json_buffer.is_empty() {
-                                let event = Event::default();
-                                let current_time = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-                                    .as_secs();
-                                let chat_complete =
-                                    CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
-                                        model_id.clone(),
-                                        system_fingerprint.clone(),
-                                        Some(json_buffer.clone()),
+
+                        // Reset buffer for arguments
+                        json_buffer.clear();
+                        json_buffer.push('{');
+                    }
+
+                    for event in events {
+                        yield Ok::<Event, Infallible>(event);
+                    }
+                    continue;
+                }
+
+                // Phase 2: Content processing
+                let is_complete_json = json_buffer.ends_with('}')
+                    && serde_json::from_str::<Value>(&json_buffer[..json_buffer.len() - 1]).is_ok();
+                let mut edited_token = token_text;
+
+                // Handle different flows based on context
+                if using_tools {
+                    if no_tool_chosen && !is_complete_json {
+                        // Content-only flow
+                        if let Ok((function, quote_open)) = parse_generic_structure(&json_buffer) {
+                            if let Some(_content) = function.get("content").and_then(|c| c.as_str()) {
+                                let cleaned_token = if !first_quote_removed {
+                                    // trim start unil the first quote
+                                    first_quote_removed = true;
+                                    edited_token
+                                        .trim_start()
+                                        .strip_prefix('"')
+                                        .unwrap_or(&edited_token)
+                                        .to_string()
+                                } else if !quote_open {
+                                    should_break = true;
+                                    // trim end until the last quote
+                                    edited_token
+                                        .trim_end()
+                                        .strip_suffix('"')
+                                        .unwrap_or(&edited_token)
+                                        .to_string()
+                                } else {
+                                    edited_token.to_string()
+                                };
+
+                                if !cleaned_token.is_empty() {
+                                    events.push(create_event(
+                                        &cleaned_token,
+                                        &model_id,
+                                        &system_fingerprint,
                                         None,
-                                        current_time,
-                                        None,
-                                        None,
+                                        false,
                                         None,
                                     ));
-                                yield Ok(event.json_data(chat_complete).unwrap_or_else(|e| {
-                                    InferError::StreamSerializationError(e.to_string()).into()
-                                }));
+                                }
                             }
-                            // cleanup the buffers
-                            buffer.clear();
-                            json_buffer.clear();
-                            state = StreamState::Content {
-                                skip_close_quote: true,
-                            };
                         }
-                        StreamState::Content { skip_close_quote } => {
-                            if skip_close_quote && token_text.contains('"') {
-                                break;
-                            }
-
-                            // send the content
-                            let event = create_event_from_stream_token(
-                                &stream_token,
-                                logprobs,
-                                stream_options.clone(),
-                                response_as_tool,
-                                system_fingerprint.clone(),
-                                model_id.clone(),
-                            );
-
-                            yield Ok::<Event, Infallible>(event);
+                    } else {
+                        // Tool with arguments flow
+                        if is_complete_json {
+                            edited_token.truncate(edited_token.len() - 1);
+                            should_break = true;
                         }
+                        events.push(create_event(
+                            &edited_token,
+                            &model_id,
+                            &system_fingerprint,
+                            None,
+                            true,
+                            None,
+                        ));
+                    }
+                } else {
+                    // Standard chat completion flow
+                    if let Some(details) = stream_token.details.as_ref() {
+                        let finish_reason = details.finish_reason.format(true);
+                        let text = if details.finish_reason == FinishReason::Length {
+                            &edited_token
+                        } else {
+                            ""
+                        };
+                        events.push(create_event(
+                            text,
+                            &model_id,
+                            &system_fingerprint,
+                            None,
+                            false,
+                            Some(finish_reason),
+                        ));
+                        should_break = true;
+                    } else {
+                        events.push(create_event(
+                            &edited_token,
+                            &model_id,
+                            &system_fingerprint,
+                            None,
+                            false,
+                            None,
+                        ));
                     }
                 }
-                Err(err) => yield Ok(err.into_openai_event())
+
+                // Emit all collected events
+                for event in events {
+                    yield Ok::<Event, Infallible>(event);
+                }
+
+                // Emit usage data when requested
+                if let (Some(usage_data), true) = (
+                    usage,
+                    stream_options.as_ref().is_some_and(|o| o.include_usage)
+                ) {
+                    let current_time = get_timestamp();
+
+                    let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk {
+                        id: String::new(),
+                        created: current_time,
+                        model: model_id.clone(),
+                        system_fingerprint: system_fingerprint.clone(),
+                        choices: vec![],
+                        usage: Some(usage_data),
+                    });
+
+                    yield Ok(Event::default()
+                        .json_data(chat_complete)
+                        .unwrap_or_else(|e| InferError::StreamSerializationError(e.to_string()).into()));
+                }
+                if should_break {
+                    break;
                 }
             }
+
+            // Handle any errors in the stream
+            if let Some(Err(err)) = response_stream.next().await {
+                yield Ok(err.into_openai_event());
+            }
+
+            // Send final completion signal
             yield Ok::<Event, Infallible>(Event::default().data("[DONE]"));
         };
 
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
+        // Non-streaming response path
         let (headers, input_length, Json(generation)) =
             generate_internal(Extension(infer), compute_type, Json(generate_request), span).await?;
 
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-            .as_secs();
-
         let (tool_calls, output) = if using_tools {
+            // Parse generated JSON text
             let gen_text_value: Value =
                 serde_json::from_str(&generation.generated_text).map_err(|e| {
                     InferError::ToolError(format!(
@@ -1404,6 +1571,8 @@ pub(crate) async fn chat_completions(
                         e, generation.generated_text
                     ))
                 })?;
+
+            // Extract function details
             let function = gen_text_value.get("function").ok_or(InferError::ToolError(
                 "No function found in generated text".to_string(),
             ))?;
@@ -1416,26 +1585,28 @@ pub(crate) async fn chat_completions(
                 ))?
                 .to_string();
 
+            // Prepare arguments (clone and remove _name)
             let mut arguments = function.clone();
             if let Value::Object(ref mut props) = arguments {
                 props.remove("_name");
             }
+
+            // Process based on tool name
             match name.as_str() {
                 "no_tool" => {
-                    // parse the content message
-                    let content_message = arguments
+                    // Extract content for no-tool case
+                    let content = arguments
                         .get("content")
                         .and_then(Value::as_str)
-                        .ok_or_else(|| {
-                            InferError::ToolError(
-                                "No `content` found in generated text".to_string(),
-                            )
-                        })?
+                        .ok_or(InferError::ToolError(
+                            "No `content` found in generated text".to_string(),
+                        ))?
                         .to_string();
-                    (None, Some(content_message))
+                    (None, Some(content))
                 }
                 _ => {
-                    let tool_calls = vec![ToolCall {
+                    // Create tool call for normal function case
+                    let tool_call = ToolCall {
                         id: "0".to_string(),
                         r#type: "function".to_string(),
                         function: FunctionDefinition {
@@ -1443,26 +1614,27 @@ pub(crate) async fn chat_completions(
                             name,
                             arguments,
                         },
-                    }];
-                    (Some(tool_calls), None)
+                    };
+                    (Some(vec![tool_call]), None)
                 }
             }
         } else {
+            // Standard text output
             (None, Some(generation.generated_text))
         };
-        // build the complete response object with the full text
+
+        // Build complete response with all details
         let response = CompletionType::ChatCompletion(ChatCompletion::new(
             model_id,
             system_fingerprint,
             output,
-            current_time,
+            get_timestamp(),
             generation.details.unwrap(),
             logprobs,
             tool_calls,
             input_length,
         ));
 
-        // wrap generation inside a Vec to match api-inference
         Ok((headers, Json(response)).into_response())
     }
 }
