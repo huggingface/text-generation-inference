@@ -108,10 +108,10 @@ RUN wget -qO - https://apt.repos.neuron.amazonaws.com/GPG-PUB-KEY-AMAZON-AWS-NEU
 # Install neuronx packages
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
-    aws-neuronx-dkms=2.18.20.0 \
-    aws-neuronx-collectives=2.22.33.0-d2128d1aa \
-    aws-neuronx-runtime-lib=2.22.19.0-5856c0b42 \
-    aws-neuronx-tools=2.19.0.0 \
+    aws-neuronx-dkms=2.19.64.0 \
+    aws-neuronx-collectives=2.23.135.0-3e70920f2 \
+    aws-neuronx-runtime-lib=2.23.112.0-9b5179492 \
+    aws-neuronx-tools=2.20.204.0 \
     libxml2 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
@@ -120,16 +120,16 @@ ENV PATH="/opt/bin/:/opt/aws/neuron/bin:${PATH}"
 
 # Install manually torch CPU version to avoid pulling CUDA
 RUN pip3 install \
-    torch==2.1.2 \
-    torchvision==0.16.2 \
+    torch==2.5.1 \
+    torchvision==0.20.1 \
     --index-url https://download.pytorch.org/whl/cpu
 
 RUN pip3 install \
-    neuronx-cc==2.15.143.0 \
-    torch-neuronx==2.1.2.2.3.2 \
-    transformers-neuronx==0.12.313 \
-    neuronx-distributed==0.9.0 \
-    libneuronxla==2.0.5347.0 \
+    neuronx-cc==2.16.372.0 \
+    torch-neuronx==2.5.1.2.4.0 \
+    transformers-neuronx==0.13.322 \
+    neuronx-distributed==0.10.1 \
+    libneuronxla==2.1.681.0 \
     --extra-index-url=https://pip.repos.neuron.amazonaws.com
 
 # Install HuggingFace packages
