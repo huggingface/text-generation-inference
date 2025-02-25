@@ -1,0 +1,2 @@
+install-flashinfer:
+	pip install flashinfer==0.1.6 -i https://flashinfer.ai/whl/cu124/torch2.4
