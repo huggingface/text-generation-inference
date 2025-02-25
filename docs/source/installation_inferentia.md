@@ -1,3 +1,3 @@
 # Using TGI with Inferentia
 
-Check out this [guide](https://github.com/huggingface/optimum-neuron/tree/main/text-generation-inference) on how to serve models with TGI on Inferentia2.
+You can use TGI on AWS Trainium and Inferentia platforms using the [TGI neuron backend](https://huggingface.co/docs/text-generation-inference/backends/neuron).
