@@ -161,7 +161,6 @@ def maybe_export_model(config_name, model_config):
             shm_size="1G",
         )
         logger.info(f"Successfully exported model for config {config_name}")
-        container.logs()
     except Exception as e:
         logger.exception(f"An exception occurred while running container: {e}.")
         pass
