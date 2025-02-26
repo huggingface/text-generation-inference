@@ -86,6 +86,10 @@ async fn get_tokenizer(tokenizer_name: &str, revision: Option<&str>) -> Option<T
             builder = builder.with_cache_dir(cache_dir.into());
         }
 
+        if let Some(origin) = std::env::var("HF_HUB_USER_AGENT_ORIGIN") {
+            builder = builder.with_user_agent("origin", origin);
+        }
+
         builder
     };
 
