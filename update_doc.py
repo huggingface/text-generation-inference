@@ -142,14 +142,12 @@ def check_openapi(check: bool):
 
     with open(tmp_filename, "w") as f:
         json.dump(new_openapi_data, f, indent=2)
+        f.write("\n")
 
     if check:
         diff = subprocess.run(
             [
                 "diff",
-                # allow for trailing whitespace since it's not significant
-                # and the precommit hook will remove it
-                "--ignore-trailing-space",
                 tmp_filename,
                 filename,
             ],
