@@ -1505,6 +1505,70 @@ impl Default for ModelsInfo {
     }
 }
 
+// balance the started json with closing braces and quotes
+fn complete_json(partial: &str) -> (String, bool, bool) {
+    let mut brace_count = 0;
+    let mut quote_open = false;
+    let mut escaped = false;
+    let mut last_char = '\0';
+
+    for c in partial.chars() {
+        match (escaped, quote_open, c) {
+            (true, _, _) => escaped = false,
+            (false, _, '\\') => escaped = true,
+            (false, _, '"') => quote_open = !quote_open,
+            (false, false, '{') => brace_count += 1,
+            (false, false, '}') if brace_count > 0 => brace_count -= 1,
+            _ => {}
+        }
+        if !c.is_whitespace() {
+            last_char = c;
+        }
+    }
+
+    let mut completed = partial.to_string();
+
+    if last_char == ',' {
+        if let Some(pos) = completed.rfind(',') {
+            completed.replace_range(pos..pos + 1, "");
+        }
+    }
+
+    if quote_open {
+        completed.push('"');
+    }
+
+    if brace_count > 0 {
+        completed.push_str(&"}".repeat(brace_count));
+    }
+
+    (completed, quote_open, brace_count > 0)
+}
+
+/// Result type that includes both the parsed value and a completion status
+#[derive(Debug)]
+pub struct ParseResult<T> {
+    pub value: T,
+    pub last_value_whole: bool,
+}
+
+/// Parse partial JSON into a generic serializable type T
+/// Returns the parsed value along with a flag indicating if completion was needed
+pub fn parse_partial_json<T>(partial: &str) -> Result<ParseResult<T>, String>
+where
+    T: for<'de> Deserialize<'de> + std::fmt::Debug,
+{
+    let (completed, needed_close_quote, _need_close_brace) = complete_json(partial);
+    let obj = serde_json::from_str::<T>(&completed);
+    match obj {
+        Ok(value) => Ok(ParseResult {
+            value,
+            last_value_whole: !needed_close_quote,
+        }),
+        Err(e) => Err(format!("Failed to parse JSON: {}", e)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1777,5 +1841,216 @@ mod tests {
                 name: "myfn".to_string(),
             })
         );
+    }
+}
+
+#[cfg(test)]
+mod tool_streaming_tests {
+    use super::*;
+
+    // Test json balancing and completion
+    #[test]
+    fn test_complete_json_basic_cases() {
+        // Already complete
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"name":"test"}"#);
+        assert_eq!(completed, r#"{"name":"test"}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, false);
+
+        // Missing brace
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"name":"test""#);
+        assert_eq!(completed, r#"{"name":"test"}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, true);
+
+        // Missing quote
+        let (completed, needed_close_quote, needed_close_brace) = complete_json(r#"{"name":"test"#);
+        assert_eq!(completed, r#"{"name":"test"}"#);
+        assert_eq!(needed_close_quote, true);
+        assert_eq!(needed_close_brace, true);
+    }
+
+    #[test]
+    fn test_complete_json_complex_cases() {
+        // Nested objects
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"user":{"name":"test","age":30"#);
+        assert_eq!(completed, r#"{"user":{"name":"test","age":30}}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, true);
+
+        // Trailing comma
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"name":"test","#);
+        assert_eq!(completed, r#"{"name":"test"}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, true);
+
+        // Escaped quotes
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"message":"This is a \"quoted\" text"#);
+        assert_eq!(completed, r#"{"message":"This is a \"quoted\" text"}"#);
+        assert_eq!(needed_close_quote, true);
+        assert_eq!(needed_close_brace, true);
+    }
+
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
+    struct User {
+        name: String,
+        age: Option<u32>,
+    }
+
+    #[test]
+    fn test_parse_partial_json() {
+        // Complete
+        let result = parse_partial_json::<User>(r#"{"name":"Alice","age":30}"#);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(
+            parsed.value,
+            User {
+                name: "Alice".to_string(),
+                age: Some(30)
+            }
+        );
+        assert_eq!(parsed.last_value_whole, true);
+
+        // Incomplete
+        let result = parse_partial_json::<User>(r#"{"name":"Bob","age":25"#);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(
+            parsed.value,
+            User {
+                name: "Bob".to_string(),
+                age: Some(25)
+            }
+        );
+        assert_eq!(parsed.last_value_whole, true);
+
+        // Invalid
+        let result = parse_partial_json::<User>(r#"{"name":invalid}"#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nested_escaped_quotes() {
+        let json = r#"{"message":"This has \"nested\" quotes"#;
+        let (completed, needed_close_quote, needed_close_brace) = complete_json(json);
+        assert_eq!(completed, r#"{"message":"This has \"nested\" quotes"}"#);
+        assert_eq!(needed_close_quote, true);
+        assert_eq!(needed_close_brace, true);
+
+        let json = r#"{"message":"This has \"nested\" quotes""#;
+        let (completed, needed_close_quote, needed_close_brace) = complete_json(json);
+        assert_eq!(completed, r#"{"message":"This has \"nested\" quotes"}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, true);
+    }
+
+    // Test incremental JSON parsing for a tool decision
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
+    struct ToolDecision {
+        function: Function,
+    }
+
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
+    struct Function {
+        #[serde(rename = "_name")]
+        name: String,
+    }
+
+    #[test]
+    fn test_streaming_no_tool_flow() {
+        let json_buffers = [
+            r#"{"function": {"_name": "no_tool""#,
+            r#"{ "content": "I am a helpful assistant""#,
+        ];
+
+        // Function decision
+        let result = parse_partial_json::<ToolDecision>(&json_buffers[0]);
+        println!("{:?}", result);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value.function.name, "no_tool");
+
+        // Content
+        let result = parse_partial_json::<serde_json::Value>(&json_buffers[1]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value["content"], "I am a helpful assistant");
+    }
+
+    #[test]
+    fn test_streaming_no_tool_flow_with_commas() {
+        let json_buffers = [
+            r#"{"function": {"_name": "no_tool","#,
+            r#"{ "content": "I am a helpful assistant""#,
+        ];
+
+        // Function decision
+        let result = parse_partial_json::<ToolDecision>(&json_buffers[0]);
+        println!("{:?}", result);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value.function.name, "no_tool");
+
+        // Content
+        let result = parse_partial_json::<serde_json::Value>(&json_buffers[1]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value["content"], "I am a helpful assistant");
+    }
+
+    #[test]
+    fn test_streaming_weather_function() {
+        // Test the incremental JSON parsing for the get_current_weather function
+        let json_buffers = [
+            r#"{"function": {"_name": "get_current_weather","#,
+            r#"{ "location": "San Francisco, CA", "format": "fahrenheit"}}"#,
+        ];
+
+        // Function name
+        let result = parse_partial_json::<ToolDecision>(&json_buffers[0]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value.function.name, "get_current_weather");
+
+        // Function arguments
+        let result = parse_partial_json::<serde_json::Value>(&json_buffers[1]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_incremental_json_buffers() {
+        // Test individual incremental steps for get_current_weather
+        let steps = [
+            r#"{"function"#,
+            r#"{"function": {"_name""#,
+            r#"{"function": {"_name": "get_current_weather""#,
+            r#"{"function": {"_name": "get_current_weather","#,
+            r#"{ "location": "San"#,
+            r#"{ "location": "San Francisco, CA", "format": "f"#,
+            r#"{ "location": "San Francisco, CA", "format": "fahrenheit"}"#,
+        ];
+
+        // Early step should fail to parse
+        let result = parse_partial_json::<ToolDecision>(&steps[0]);
+        assert!(result.is_err());
+
+        // Middle step should parse name but be incomplete
+        let result = parse_partial_json::<ToolDecision>(&steps[2]);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(parsed.value.function.name, "get_current_weather");
+        assert_eq!(parsed.last_value_whole, true);
+
+        // Last step should be complete and parse correctly
+        let result = parse_partial_json::<serde_json::Value>(&steps[6]);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(
+            parsed.value.as_object().unwrap()["location"],
+            "San Francisco, CA"
+        );
+        assert_eq!(parsed.value.as_object().unwrap()["format"], "fahrenheit");
+        assert_eq!(parsed.last_value_whole, true);
     }
 }
