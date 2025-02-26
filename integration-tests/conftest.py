@@ -1,4 +1,4 @@
-pytest_plugins = ["fixtures.neuron.service", "fixtures.neuron.model"]
+pytest_plugins = ["fixtures.neuron.service", "fixtures.neuron.export_models"]
 # ruff: noqa: E402
 from _pytest.fixtures import SubRequest
 import requests
