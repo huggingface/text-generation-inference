@@ -6,14 +6,17 @@ use crate::client::{
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::max;
 use std::collections::VecDeque;
-use text_generation_router::infer::InferError;
+use std::sync::Arc;
 use text_generation_router::infer::InferStreamResponse;
+use text_generation_router::infer::{EngineState, InferError};
 use text_generation_router::validation::{
     Chunk, ChunksToString, ValidGenerateRequest, ValidGrammar, ValidParameters,
     ValidStoppingParameters,
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::broadcast::Sender as BroadcastSender;
+use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio::time::Instant;
+use tracing::log::warn;
 use tracing::{info_span, instrument, Instrument, Span};
 
 /// Queue entry
@@ -51,6 +54,8 @@ impl Queue {
         speculate: u32,
         max_batch_total_tokens: u32,
         support_chunking: bool,
+        engine_state: Arc<RwLock<EngineState>>,
+        queue_events: BroadcastSender<EngineState>,
     ) -> Self {
         // Create channel
         let (queue_sender, queue_receiver) = mpsc::unbounded_channel();
@@ -64,7 +69,9 @@ impl Queue {
             speculate,
             max_batch_total_tokens,
             support_chunking,
+            engine_state,
             queue_receiver,
+            queue_events,
         ));
 
         Self { queue_sender }
@@ -113,7 +120,7 @@ impl Queue {
     }
 }
 
-// Background task responsible of the queue state
+// Background task responsible for the queue state
 #[allow(clippy::too_many_arguments)]
 async fn queue_task(
     requires_padding: bool,
@@ -123,7 +130,9 @@ async fn queue_task(
     speculate: u32,
     max_batch_total_tokens: u32,
     support_chunking: bool,
+    engine_state: Arc<RwLock<EngineState>>,
     mut receiver: mpsc::UnboundedReceiver<QueueCommand>,
+    queue_events: BroadcastSender<EngineState>,
 ) {
     let mut state = State::new(
         requires_padding,
@@ -138,9 +147,29 @@ async fn queue_task(
     while let Some(cmd) = receiver.recv().await {
         match cmd {
             QueueCommand::Append(entry, span) => {
-                metrics::gauge!("tgi_queue_size").increment(1.0);
-                metrics::gauge!("tgi_queue_size_tokens").increment(entry.request.input_length);
+                let entry_num_tokens = entry.request.input_length;
                 span.in_scope(|| state.append(*entry));
+                metrics::gauge!("tgi_queue_size").increment(1.0);
+                metrics::gauge!("tgi_queue_size_tokens").increment(entry_num_tokens);
+
+                // Dispatch new state to the proxy
+                {
+                    // Lock free operation (read)
+                    let num_queued_tokens = engine_state.read().await.in_queue;
+                    {
+                        // Critical section, doing as little as possible here
+                        let mut engine_state = engine_state.write().await;
+                        engine_state.in_queue = num_queued_tokens + entry_num_tokens;
+                    }
+
+                    // Send new state to the channel for broadcasting
+                    if let Err(err) = queue_events.send(*engine_state.read().await) {
+                        tracing::warn!(
+                            "Failed to send BatchEvent::QueueChanged({}): {err}",
+                            num_queued_tokens + entry_num_tokens
+                        )
+                    }
+                }
             }
             QueueCommand::NextBatch {
                 min_size,
@@ -156,14 +185,32 @@ async fn queue_task(
                     .await;
                 response_sender.send(next_batch).unwrap();
 
-                metrics::gauge!("tgi_queue_size").set(state.entries.len() as f64);
-                metrics::gauge!("tgi_queue_size_tokens").set(
-                    state
+                {
+                    let num_batch_tokens = state
                         .entries
                         .iter()
-                        .map(|(_, e)| e.request.input_length as f64)
-                        .sum::<f64>(),
-                );
+                        .map(|(_, e)| e.request.input_length)
+                        .sum::<u32>();
+                    metrics::gauge!("tgi_queue_size").set(state.entries.len() as f64);
+                    metrics::gauge!("tgi_queue_size_tokens").set(num_batch_tokens as f64);
+
+                    // Dispatch new state to the proxy
+                    {
+                        // Critical section, doing as little as possible here
+                        {
+                            let mut engine_state = engine_state.write().await;
+                            engine_state.in_queue = num_batch_tokens;
+                        }
+
+                        // Send new state to the channel for broadcasting
+                        if let Err(err) = queue_events.send(*engine_state.read().await) {
+                            tracing::warn!(
+                                "Failed to send BatchEvent::QueueChanged({}): {err}",
+                                num_batch_tokens
+                            )
+                        }
+                    }
+                }
             }
         }
     }

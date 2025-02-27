@@ -62,7 +62,6 @@ use tokio::select;
 use tokio::signal;
 use tokio::sync::oneshot;
 use tokio::time::Instant;
-use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
@@ -2398,6 +2397,7 @@ async fn start(
         .route("/health", get(health))
         .route("/ping", get(health))
         .route("/metrics", get(metrics))
+        .route("/state", get(state))
         .route("/v1/models", get(openai_get_model_info));
 
     let compute_type =

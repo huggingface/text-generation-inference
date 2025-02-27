@@ -31,16 +31,29 @@ use tracing::instrument;
 #[derive(Debug, Copy, Clone, Serialize)]
 pub struct EngineState {
     /// Number of tokens currently participating in current batch
-    in_flight: u32,
+    pub in_flight: u32,
 
     /// Maximum number of tokens which can participate in a batch
-    in_flight_max: u32,
+    pub in_flight_max: u32,
 
     /// Number of tokens currently waiting in the queue for future batching
-    in_queue: u32,
+    pub in_queue: u32,
 
     /// Maximum number of tokens which can wait in the queue for future batching
-    in_queue_max: u32,
+    pub in_queue_max: u32,
+}
+
+#[cfg(feature = "engine-state")]
+impl EngineState {
+    #[inline]
+    pub fn new(in_flight_max: u32, in_queue_max: u32) -> Self {
+        EngineState {
+            in_flight: 0,
+            in_flight_max,
+            in_queue: 0,
+            in_queue_max,
+        }
+    }
 }
 
 #[async_trait]
