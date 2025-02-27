@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::validation::ValidationError::{BestOfSampling, BestOfSeed, EmptyInput};
 use crate::{
-    GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor,
+    GenerateParameters, GenerateRequest, GrammarType, HubPreprocessorConfig, Idefics2Preprocessor, 
     TokenizerTrait,
 };
 use crate::{PyTokenizer, Tokenizer};
@@ -133,6 +133,7 @@ impl Validation {
         add_special_tokens: bool,
         truncate: Option<usize>,
         max_new_tokens: Option<u32>,
+        served_model_name: String,
     ) -> Result<(Vec<Chunk>, Option<Vec<u32>>, usize, u32, u32), ValidationError> {
         // If we have a fast tokenizer
         let (encoding, inputs) = self
@@ -186,7 +187,7 @@ impl Validation {
         let ids = encoding.get_ids();
         let input_ids = ids[ids.len().saturating_sub(input_length)..].to_owned();
 
-        metrics::histogram!("tgi_request_input_length").record(input_length as f64);
+        metrics::histogram!("tgi_request_input_length", "model_name" => served_model_name.clone()).record(input_length as f64);
         Ok((
             inputs,
             Some(input_ids),
@@ -201,6 +202,7 @@ impl Validation {
     pub(crate) async fn validate(
         &self,
         request: GenerateRequest,
+        served_model_name: String,
     ) -> Result<ValidGenerateRequest, ValidationError> {
         let GenerateParameters {
             best_of,
@@ -332,6 +334,7 @@ impl Validation {
                 request.add_special_tokens,
                 truncate,
                 max_new_tokens,
+                served_model_name.clone(),
             )
             .await?;
 
@@ -405,7 +408,7 @@ impl Validation {
             ignore_eos_token: false,
         };
 
-        metrics::histogram!("tgi_request_max_new_tokens").record(max_new_tokens as f64);
+        metrics::histogram!("tgi_request_max_new_tokens", "model_name" => served_model_name.clone()).record(max_new_tokens as f64);
 
         Ok(ValidGenerateRequest {
             inputs,
@@ -953,10 +956,10 @@ mod tests {
             max_total_tokens,
             disable_grammar_support,
         );
-
+        let served_model_name = "bigscience/blomm-560m".to_string();
         let max_new_tokens = 10;
         match validation
-            .validate_input("Hello".to_string(), true, None, Some(max_new_tokens))
+            .validate_input("Hello".to_string(), true, None, Some(max_new_tokens), served_model_name)
             .await
         {
             Err(ValidationError::MaxTotalTokens(6, 1, 10)) => (),
@@ -989,9 +992,10 @@ mod tests {
             disable_grammar_support,
         );
 
+        let served_model_name = "bigscience/blomm-560m".to_string();
         let max_new_tokens = 10;
         match validation
-            .validate_input("Hello".to_string(), true, None, Some(max_new_tokens))
+            .validate_input("Hello".to_string(), true, None, Some(max_new_tokens), served_model_name)
             .await
         {
             Err(ValidationError::MaxTotalTokens(6, 1, 10)) => (),
@@ -1022,6 +1026,7 @@ mod tests {
             max_total_tokens,
             disable_grammar_support,
         );
+        let served_model_name = "bigscience/blomm-560m".to_string();
         match validation
             .validate(GenerateRequest {
                 inputs: "Hello".to_string(),
@@ -1031,7 +1036,7 @@ mod tests {
                     do_sample: false,
                     ..default_parameters()
                 },
-            })
+            }, served_model_name)
             .await
         {
             Err(ValidationError::BestOfSampling) => (),
@@ -1062,6 +1067,7 @@ mod tests {
             max_total_tokens,
             disable_grammar_support,
         );
+        let served_model_name = "bigscience/blomm-560m".to_string();
         match validation
             .validate(GenerateRequest {
                 inputs: "Hello".to_string(),
@@ -1071,7 +1077,7 @@ mod tests {
                     max_new_tokens: Some(5),
                     ..default_parameters()
                 },
-            })
+            }, served_model_name.clone())
             .await
         {
             Err(ValidationError::TopP) => (),
@@ -1087,7 +1093,7 @@ mod tests {
                     max_new_tokens: Some(5),
                     ..default_parameters()
                 },
-            })
+            }, served_model_name.clone())
             .await
         {
             Ok(_) => (),
@@ -1103,7 +1109,7 @@ mod tests {
                     max_new_tokens: Some(5),
                     ..default_parameters()
                 },
-            })
+            }, served_model_name.clone())
             .await
             .unwrap();
         // top_p == 1.0 is invalid for users to ask for but it's the default resolved value.
@@ -1133,6 +1139,7 @@ mod tests {
             max_total_tokens,
             disable_grammar_support,
         );
+        let served_model_name = "bigscience/blomm-560m".to_string();
         match validation
             .validate(GenerateRequest {
                 inputs: "Hello".to_string(),
@@ -1142,7 +1149,7 @@ mod tests {
                     max_new_tokens: Some(5),
                     ..default_parameters()
                 },
-            })
+            }, served_model_name.clone())
             .await
         {
             Err(ValidationError::TopNTokens(4, 5)) => (),
@@ -1158,7 +1165,7 @@ mod tests {
                     max_new_tokens: Some(5),
                     ..default_parameters()
                 },
-            })
+            }, served_model_name.clone())
             .await
             .unwrap();
 
@@ -1171,7 +1178,7 @@ mod tests {
                     max_new_tokens: Some(5),
                     ..default_parameters()
                 },
-            })
+            }, served_model_name.clone())
             .await
             .unwrap();
 
@@ -1184,7 +1191,7 @@ mod tests {
                     max_new_tokens: Some(5),
                     ..default_parameters()
                 },
-            })
+            }, served_model_name.clone())
             .await
             .unwrap();
 

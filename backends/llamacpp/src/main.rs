@@ -19,6 +19,10 @@ struct Args {
     #[clap(long, env)]
     model_id: String,
 
+    /// Name under which the model is served. Defaults to `model_id` if not provided.
+    #[clap(long, env)]
+    served_model_name: Option<String>,
+
     /// Revision of the model.
     #[clap(default_value = "main", long, env)]
     revision: String,
@@ -152,6 +156,10 @@ struct Args {
 async fn main() -> Result<(), RouterError> {
     let args = Args::parse();
 
+    let served_model_name = args.served_model_name
+        .clone()
+        .unwrap_or_else(|| args.model_id.clone());
+
     logging::init_logging(args.otlp_endpoint, args.otlp_service_name, args.json_output);
 
     let n_threads = match args.n_threads {
@@ -264,6 +272,7 @@ async fn main() -> Result<(), RouterError> {
         args.max_client_batch_size,
         args.usage_stats,
         args.payload_limit,
+        served_model_name
     )
     .await?;
     Ok(())
