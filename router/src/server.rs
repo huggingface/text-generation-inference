@@ -67,6 +67,7 @@ use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+
 fn encoding_to_tokens(encoding: &tokenizers::Encoding, input: &str) -> Vec<SimpleToken> {
     let offsets = encoding.get_offsets();
     let input_ids = encoding.get_ids();
@@ -2171,6 +2172,11 @@ async fn start(
         "Current batch size"
     );
     metrics::describe_gauge!("tgi_queue_size", metrics::Unit::Count, "Current queue size");
+    metrics::describe_gauge!(
+        "tgi_queue_size_tokens",
+        metrics::Unit::Count,
+        "Current queue size in number of tokens"
+    );
     metrics::describe_gauge!(
         "tgi_batch_current_max_tokens",
         metrics::Unit::Count,

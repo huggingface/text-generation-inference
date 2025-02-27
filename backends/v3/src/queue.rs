@@ -138,8 +138,9 @@ async fn queue_task(
     while let Some(cmd) = receiver.recv().await {
         match cmd {
             QueueCommand::Append(entry, span) => {
-                span.in_scope(|| state.append(*entry));
                 metrics::gauge!("tgi_queue_size").increment(1.0);
+                metrics::gauge!("tgi_queue_size_tokens").increment(entry.request.input_length);
+                span.in_scope(|| state.append(*entry));
             }
             QueueCommand::NextBatch {
                 min_size,
@@ -154,7 +155,15 @@ async fn queue_task(
                     .instrument(span)
                     .await;
                 response_sender.send(next_batch).unwrap();
+
                 metrics::gauge!("tgi_queue_size").set(state.entries.len() as f64);
+                metrics::gauge!("tgi_queue_size_tokens").set(
+                    state
+                        .entries
+                        .iter()
+                        .map(|(_, e)| e.request.input_length as f64)
+                        .sum::<f64>(),
+                );
             }
         }
     }
