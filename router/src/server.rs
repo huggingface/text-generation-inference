@@ -6,6 +6,7 @@ use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
     kserve_model_metadata, kserve_model_metadata_ready,
 };
+use crate::process_stream_token;
 use crate::sagemaker::{
     sagemaker_compatibility, SagemakerRequest, SagemakerResponse, SagemakerStreamResponse,
     __path_sagemaker_compatibility,
@@ -13,7 +14,6 @@ use crate::sagemaker::{
 use crate::validation::ValidationError;
 use crate::vertex::vertex_compatibility;
 use crate::ChatTokenizeResponse;
-use crate::{parse_partial_json, ParseResult};
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -1114,116 +1114,6 @@ pub(crate) async fn completions(
     }
 }
 
-/// Creates an event based on the token text and event type parameters.
-/// `token_text` - The text to include (extract from StreamResponse.token.text or str)
-/// `model_id` - Model identifier string
-/// `system_fingerprint` - System fingerprint string
-/// `tool_name` - If provided, creates a tool call name event
-/// `is_tool_arg` - If true, creates a tool call argument event
-fn create_event(
-    token_text: &str,
-    model_id: &str,
-    system_fingerprint: &str,
-    tool_name: Option<&str>,
-    is_tool_arg: bool,
-    finish_reason: Option<String>,
-) -> Event {
-    let current_time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let chat_complete = if let Some(tool_name) = tool_name {
-        // Tool call name event
-        let tool_delta = ChatCompletionDelta::Tool(ToolCallDelta {
-            role: "assistant".to_string(),
-            tool_calls: vec![DeltaToolCall {
-                index: 0,
-                id: String::new(),
-                r#type: "function".to_string(),
-                function: Function {
-                    name: Some(tool_name.to_string()),
-                    arguments: "".to_string(),
-                },
-            }],
-        });
-
-        CompletionType::ChatCompletionChunk(ChatCompletionChunk {
-            id: String::new(),
-            created: current_time,
-            model: model_id.to_string(),
-            system_fingerprint: system_fingerprint.to_string(),
-            choices: vec![ChatCompletionChoice {
-                index: 0,
-                delta: tool_delta,
-                logprobs: None,
-                finish_reason: None,
-            }],
-            usage: None,
-        })
-    } else if is_tool_arg {
-        // Tool call argument event
-        let tool_delta = ChatCompletionDelta::Tool(ToolCallDelta {
-            role: "assistant".to_string(),
-            tool_calls: vec![DeltaToolCall {
-                index: 0,
-                id: String::new(),
-                r#type: "function".to_string(),
-                function: Function {
-                    name: None,
-                    arguments: token_text.to_string(),
-                },
-            }],
-        });
-
-        CompletionType::ChatCompletionChunk(ChatCompletionChunk {
-            id: String::new(),
-            created: current_time,
-            model: model_id.to_string(),
-            system_fingerprint: system_fingerprint.to_string(),
-            choices: vec![ChatCompletionChoice {
-                index: 0,
-                delta: tool_delta,
-                logprobs: None,
-                finish_reason: None,
-            }],
-            usage: None,
-        })
-    } else {
-        // usage, finish_reason
-        if finish_reason.is_some() {
-            CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
-                model_id.to_string(),
-                system_fingerprint.to_string(),
-                Some(token_text.to_string()),
-                None,
-                current_time,
-                None,
-                finish_reason,
-                None,
-                None,
-            ))
-        } else {
-            // Chat completion event
-            CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
-                model_id.to_string(),
-                system_fingerprint.to_string(),
-                Some(token_text.to_string()),
-                None,
-                current_time,
-                None,
-                None,
-                None,
-                None,
-            ))
-        }
-    };
-
-    Event::default()
-        .json_data(chat_complete)
-        .unwrap_or_else(|e| InferError::StreamSerializationError(e.to_string()).into())
-}
-
 /// Generate tokens
 #[utoipa::path(
 post,
@@ -1292,22 +1182,6 @@ pub(crate) async fn chat_completions(
             .as_secs()
     };
 
-    #[derive(serde::Serialize, serde::Deserialize, Debug)]
-    pub struct Function {
-        #[serde(rename = "_name")]
-        name: String,
-    }
-
-    #[derive(serde::Serialize, serde::Deserialize, Debug)]
-    pub struct ToolDecision {
-        function: Function,
-    }
-
-    #[derive(serde::Serialize, serde::Deserialize, Debug)]
-    pub struct NoToolDecision {
-        content: String,
-    }
-
     if stream {
         let (headers, response_stream) =
             generate_stream_internal(infer, compute_type, Json(generate_request), span).await;
@@ -1322,184 +1196,25 @@ pub(crate) async fn chat_completions(
             // Process stream tokens
             while let Some(Ok(stream_token)) = response_stream.next().await {
                 let token_text = stream_token.token.text.clone();
-                let mut events = Vec::new();
-                let mut should_break = false;
-
-                // Get usage information
-                let usage = stream_token.details.as_ref().map(|d| Usage {
-                    completion_tokens: d.generated_tokens,
-                    prompt_tokens: d.input_length,
-                    total_tokens: d.input_length + d.generated_tokens,
-                });
-
-                json_buffer.push_str(&token_text);
-
-                // Phase 1: Function name discovery
-                if !name_found {
-                    // NOTE: when tools are supplied `name_found` is false until the generated buffer contains
-                    // a partial JSON object with $.function._name value. This name determines the type
-                    // of events to emit. If the name is "no_tool", we'll emit the "content" field as a chat
-                    // completion event. Otherwise, we'll emit a tool call name event followed by a tool call
-                    // argument event. In both cases we'll buffer tokens to get the name and then reset the buffer
-                    // to collect the arguments.
-                    if let Ok(ParseResult {
-                        value: ToolDecision {
-                            function: Function { name },
-                        },
-                        last_value_whole,
-                    }) = parse_partial_json(&json_buffer)
-                    {
-                        if !last_value_whole {
-                            continue;
-                        }
-                        name_found = true;
-                        if name == "no_tool" {
-                            no_tool_chosen = true;
-                        } else {
-                            events.push(create_event(
-                                &token_text,
-                                &model_id,
-                                &system_fingerprint,
-                                Some(name.as_str()),
-                                false,
-                                None,
-                            ));
-                            events.push(create_event(
-                                "{",
-                                &model_id,
-                                &system_fingerprint,
-                                None,
-                                true,
-                                None,
-                            ));
-                        }
-
-                        // Reset buffer for arguments
-                        json_buffer.clear();
-                        json_buffer.push('{');
-                    }
-
-                    for event in events {
-                        yield Ok::<Event, Infallible>(event);
-                    }
-                    continue;
-                }
-
-                // Phase 2: Content processing
-                let is_complete_json = json_buffer.ends_with('}')
-                    && serde_json::from_str::<Value>(&json_buffer[..json_buffer.len() - 1]).is_ok();
-                let mut edited_token = token_text;
-
-                // Handle different flows based on context
-                if using_tools {
-                    if no_tool_chosen && !is_complete_json {
-                        // Content-only flow
-                        if let Ok(ParseResult {
-                            value: _,
-                            last_value_whole,
-                        }) = parse_partial_json::<NoToolDecision>(&json_buffer)
-                        {
-                            let cleaned_token = if !first_quote_removed {
-                                // trim start unil the first quote
-                                first_quote_removed = true;
-                                edited_token
-                                    .trim_start()
-                                    .strip_prefix('"')
-                                    .unwrap_or(&edited_token)
-                                    .to_string()
-                            } else if last_value_whole {
-                                should_break = true;
-                                // trim end until the last quote
-                                edited_token
-                                    .trim_end()
-                                    .strip_suffix('"')
-                                    .unwrap_or(&edited_token)
-                                    .to_string()
-                            } else {
-                                edited_token.to_string()
-                            };
-
-                            if !cleaned_token.is_empty() {
-                                events.push(create_event(
-                                    &cleaned_token,
-                                    &model_id,
-                                    &system_fingerprint,
-                                    None,
-                                    false,
-                                    None,
-                                ));
-                            }
-                        }
-                    } else {
-                        // Tool with arguments flow
-                        if is_complete_json {
-                            edited_token.truncate(edited_token.len() - 1);
-                            should_break = true;
-                        }
-                        events.push(create_event(
-                            &edited_token,
-                            &model_id,
-                            &system_fingerprint,
-                            None,
-                            true,
-                            None,
-                        ));
-                    }
-                } else {
-                    // Standard chat completion flow
-                    if let Some(details) = stream_token.details.as_ref() {
-                        let finish_reason = details.finish_reason.format(true);
-                        let text = if details.finish_reason == FinishReason::Length {
-                            &edited_token
-                        } else {
-                            ""
-                        };
-                        events.push(create_event(
-                            text,
-                            &model_id,
-                            &system_fingerprint,
-                            None,
-                            false,
-                            Some(finish_reason),
-                        ));
-                        should_break = true;
-                    } else {
-                        events.push(create_event(
-                            &edited_token,
-                            &model_id,
-                            &system_fingerprint,
-                            None,
-                            false,
-                            None,
-                        ));
-                    }
-                }
+                // Process stream token into a series of events and a break signal
+                let (events, should_break) = process_stream_token(
+                    token_text,
+                    &mut json_buffer,
+                    &mut name_found,
+                    &mut no_tool_chosen,
+                    &mut first_quote_removed,
+                    using_tools,
+                    &model_id,
+                    &system_fingerprint,
+                    &stream_token,
+                    stream_options.as_ref(),
+                ).await;
 
                 // Emit all collected events
                 for event in events {
-                    yield Ok::<Event, Infallible>(event);
+                    yield event;
                 }
 
-                // Emit usage data when requested
-                if let (Some(usage_data), true) = (
-                    usage,
-                    stream_options.as_ref().is_some_and(|o| o.include_usage)
-                ) {
-                    let current_time = get_timestamp();
-
-                    let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk {
-                        id: String::new(),
-                        created: current_time,
-                        model: model_id.clone(),
-                        system_fingerprint: system_fingerprint.clone(),
-                        choices: vec![],
-                        usage: Some(usage_data),
-                    });
-
-                    yield Ok(Event::default()
-                        .json_data(chat_complete)
-                        .unwrap_or_else(|e| InferError::StreamSerializationError(e.to_string()).into()));
-                }
                 if should_break {
                     break;
                 }
