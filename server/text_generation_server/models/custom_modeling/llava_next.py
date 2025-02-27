@@ -20,6 +20,7 @@ import torch
 import torch.utils.checkpoint
 from torch import nn
 
+from loguru import logger
 from transformers.activations import ACT2FN
 from transformers.models.llava_next.modeling_llava_next import (
     unpad_image,
@@ -240,10 +241,8 @@ class LlavaNextForConditionalGeneration(GaudiLlavaNextForConditionalGeneration):
                     # Retrieve the first layer to inspect the logits and mask out the hidden states
                     # that are set to 0
                     first_layer_past_key_value = past_key_values[0][0][:, :, :, 0]
-
                     # Sum all dimensions of head_dim (-2) to avoid random errors such as: https://github.com/huggingface/transformers/pull/28032#issuecomment-1863691941
                     batch_index, non_attended_tokens = torch.where(first_layer_past_key_value.float().sum(-2) == 0)
-
                     # Get the target length
                     past_length = first_layer_past_key_value.shape[-1]
                     extended_attention_mask = torch.ones(

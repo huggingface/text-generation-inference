@@ -123,16 +123,14 @@ impl Client {
             let mut input_chunks = Vec::new();
             input_chunks
                 .push(Chunk::Text("_test ".to_string().repeat(max_input_length as usize)).into());
-            if n_tokens == 0 {
-                input_chunks.push(
-                    Chunk::Image(Image {
-                        // Safe unwrap, because we control the data.
-                        data: STANDARD.decode(WARMUP_IMAGE_BASE64).unwrap(),
-                        mimetype: "image/jpeg;base64".to_string(),
-                    })
-                    .into(),
-                );
-            }
+            input_chunks.push(
+                Chunk::Image(Image {
+                    // Safe unwrap, because we control the data.
+                    data: STANDARD.decode(WARMUP_IMAGE_BASE64).unwrap(),
+                    mimetype: "image/jpeg;base64".to_string(),
+                })
+                .into(),
+            );
 
             // Send stringly-typed inputs for compatibility for backends that haven't
             // been updated to support chunks.

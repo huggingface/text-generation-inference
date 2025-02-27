@@ -274,7 +274,6 @@ class CausalLMBatch(Batch):
     top_n_tokens: List[int]
     top_n_tokens_tensor: torch.Tensor
 
-    input_length: int
 
     # Past metadata
     logits = None
@@ -468,7 +467,7 @@ class CausalLMBatch(Batch):
         # update past grammar states
         fsm_grammar_states = [0] * batch_size
         for batch in batches:
-            for i, req in enumerate(batch.requests):
+            for i, req in enumerate(batch.requests): 
                 fsm_grammar_states[req.idx] = (
                     batch.next_token_chooser.fsm_grammar_states[i]
                 )
@@ -924,7 +923,6 @@ class CausalLM(Model):
             "past_key_values": past_key_values,
             "token_idx": token_idx,
         }
-
         # Optimum Habana got "lazy_mode" key-val only supported for llama type of models
         if self.model.config.model_type == "llama":
             kwargs["lazy_mode"] = LAZY_MODE == 1
