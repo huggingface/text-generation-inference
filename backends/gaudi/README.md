@@ -6,7 +6,7 @@ This is the TGI backend for Intel Gaudi. This backend is composed of the tgi ser
 
 ## Build your own image
 
-The simplest way to build TGI with the gaudi backend is to use the provided `Makefile`:
+The simplest way to build TGI with the Gaudi backend is to use the provided `Makefile`:
 
 Option 1: From the project root directory:
 ```bash
@@ -20,25 +20,39 @@ make image
 ```
 
 You can now run the server with the following command:
+
+Option 1: Sharded:
 ```bash
 model=meta-llama/Llama-3.1-8B-Instruct
 hf_token=$(cat ${HOME}/.cache/huggingface/token)
 volume=${HOME}/.cache/huggingface
 
-docker run -p 8080:80 -v $volume:/data --runtime=habana -e PT_HPU_ENABLE_LAZY_COLLECTIVES=true \
--e LOG_LEVEL=debug \
--e HABANA_VISIBLE_DEVICES=all -e OMPI_MCA_btl_vader_single_copy_mechanism=none \
--e HF_TOKEN=$hf_token -e ENABLE_HPU_GRAPH=true -e LIMIT_HPU_GRAPH=true \
--e USE_FLASH_ATTENTION=true -e FLASH_ATTENTION_RECOMPUTE=true --cap-add=sys_nice \
---ipc=host tgi-gaudi --model-id $model --sharded true \
---num-shard 8 --max-input-tokens 512 --max-total-tokens 1024 --max-batch-size 8 --max-batch-prefill-tokens 2048 --max-batch-total-tokens 8192
+docker run --runtime=habana --ipc=host --cap-add=sys_nice \
+  -p 8080:80 -v $volume:/data \
+  -e LOG_LEVEL=debug -e HF_TOKEN=$hf_token \
+  tgi-gaudi --model-id $model \
+  --sharded true --num-shard 8 \
+  --max-input-tokens 512 --max-total-tokens 1024 --max-batch-size 8 --max-batch-prefill-tokens 2048
+```
+
+Option 2: Non-sharded:
+```bash
+model=meta-llama/Llama-3.1-8B-Instruct
+hf_token=$(cat ${HOME}/.cache/huggingface/token)
+volume=${HOME}/.cache/huggingface
+
+docker run --runtime=habana --ipc=host --cap-add=sys_nice \
+  -p 8080:80 -v $volume:/data \
+  -e LOG_LEVEL=debug -e HF_TOKEN=$hf_token \
+  tgi-gaudi --model-id $model \
+  --max-input-tokens 512 --max-total-tokens 1024 --max-batch-size 4 --max-batch-prefill-tokens 2048
 ```
 
 ## Contributing
 
 ### Local Development
 
-This is useful if you want to run the server in locally for better debugging.
+This is useful if you want to run the server locally for better debugging.
 ```bash
 make -C backends/gaudi run-local-dev-container
 ```

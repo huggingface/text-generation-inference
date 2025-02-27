@@ -1,3 +1,7 @@
+# Those arguments are required to build the image
+ARG HABANA_VERSION
+ARG PYTORCH_VERSION
+
 # Rust builder
 FROM lukemathwalker/cargo-chef:latest-rust-1.80 AS chef
 WORKDIR /usr/src
@@ -48,7 +52,10 @@ COPY launcher launcher
 RUN cargo build --profile release-opt
 
 # Text Generation Inference base image
-FROM vault.habana.ai/gaudi-docker/1.19.0/ubuntu22.04/habanalabs/pytorch-installer-2.5.1:latest AS base
+ARG HABANA_VERSION
+ARG PYTORCH_VERSION
+
+FROM vault.habana.ai/gaudi-docker/${HABANA_VERSION}/ubuntu22.04/habanalabs/pytorch-installer-${PYTORCH_VERSION}:latest AS base
 
 ENV ATTENTION=default
 ENV PREFIX_CACHING=0
@@ -80,12 +87,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 COPY proto proto
 COPY backends/gaudi/server server
 COPY backends/gaudi/server/Makefile server/Makefile
+ARG HABANA_VERSION
 RUN cd server && \
     make gen-server && \
     pip install --no-deps -r requirements.txt && \
     bash ./dill-0.3.8-patch.sh && \
     pip install outlines~=0.0.34 && \
-    pip install git+https://github.com/HabanaAI/DeepSpeed.git@1.19.0 && \
+    pip install "git+https://github.com/HabanaAI/DeepSpeed.git@${HABANA_VERSION}" && \
     BUILD_CUDA_EXT=0 pip install git+https://github.com/AutoGPTQ/AutoGPTQ.git@097dd04e --no-build-isolation && \
     pip install . --no-cache-dir
 
@@ -107,6 +115,10 @@ ENTRYPOINT ["./entrypoint.sh"]
 
 # Final image
 FROM base
+
+ENV HF_HUB_ENABLE_HF_TRANSFER 1
+ENV HABANA_VISIBLE_DEVICES all
+ENV OMPI_MCA_btl_vader_single_copy_mechanism NONE
 
 COPY backends/gaudi/tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh

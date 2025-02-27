@@ -728,7 +728,7 @@ class CausalLM(Model):
         self.enable_hpu_graph = (
             os.getenv("ENABLE_HPU_GRAPH", "true").lower() == "true" and LAZY_MODE == 1
         )
-        self.limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "false").lower() == "true"
+        self.limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "true").lower() == "true"
 
         if model.config.model_type not in [
             "gpt_bigcode"
@@ -790,9 +790,9 @@ class CausalLM(Model):
             if model.config.model_type not in ["gpt_bigcode"]:
                 self.kwargs["trim_logits"] = True
 
-            if os.getenv("USE_FLASH_ATTENTION", "false").lower() == "true":
+            if os.getenv("USE_FLASH_ATTENTION", "true").lower() == "true":
                 self.kwargs["use_flash_attention"] = True
-            if os.getenv("FLASH_ATTENTION_RECOMPUTE", "false").lower() == "true":
+            if os.getenv("FLASH_ATTENTION_RECOMPUTE", "true").lower() == "true":
                 self.kwargs["flash_attention_recompute"] = True
 
         self.speculate = get_speculate()

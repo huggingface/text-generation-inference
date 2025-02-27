@@ -20,6 +20,9 @@ from text_generation_server.utils.tokens import (
     FinishReason,
     Sampling,
     Greedy,
+    make_tokenizer_optional,
+    is_tokenizer_transparent,
+    pad_next_token_chooser_parameters,
 )
 
 __all__ = [
@@ -41,4 +44,7 @@ __all__ = [
     "StopSequenceCriteria",
     "FinishReason",
     "Weights",
+    "make_tokenizer_optional",
+    "is_tokenizer_transparent",
+    "pad_next_token_chooser_parameters",
 ]

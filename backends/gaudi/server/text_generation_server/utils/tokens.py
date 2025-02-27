@@ -1,6 +1,5 @@
 # Copyright (C) 2024 Habana Labs, Ltd. an Intel Company.
 
-import os
 import re
 from typing import List, Optional, Tuple, Set, Union
 
@@ -22,6 +21,7 @@ from text_generation_server.utils.logits_process import (
 )
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
 from transformers import PreTrainedTokenizerBase, RepetitionPenaltyLogitsProcessor
+import os
 
 
 class NextTokenChooser:
@@ -752,8 +752,6 @@ def make_tokenizer_optional(tokenizer):
         ) -> str:
             # I don't think this method is used anywhere and should be removed when doing refactoring
             return ",".join(str(i) for i in to_py_obj(token_ids))  # noqa: F821
-
-    import os
 
     if os.getenv("SKIP_TOKENIZER_IN_TGI", "false").lower() == "true":
         tokenizer.__class__ = _

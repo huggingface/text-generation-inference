@@ -621,7 +621,7 @@ class VlmCausalLM(Model):
         self.enable_hpu_graph = (
             os.getenv("ENABLE_HPU_GRAPH", "true").lower() == "true" and LAZY_MODE == 1
         )
-        self.limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "false").lower() == "true"
+        self.limit_hpu_graph = os.getenv("LIMIT_HPU_GRAPH", "true").lower() == "true"
         model = remove_kv_cache_from_output(model)
         if self.enable_hpu_graph:
             from habana_frameworks.torch.hpu import wrap_in_hpu_graph
@@ -668,9 +668,9 @@ class VlmCausalLM(Model):
             self.kwargs["attn_softmax_bf16"] = True
             self.kwargs["trim_logits"] = True
 
-            if os.getenv("USE_FLASH_ATTENTION", "false").lower() == "true":
+            if os.getenv("USE_FLASH_ATTENTION", "true").lower() == "true":
                 self.kwargs["use_flash_attention"] = True
-            if os.getenv("FLASH_ATTENTION_RECOMPUTE", "false").lower() == "true":
+            if os.getenv("FLASH_ATTENTION_RECOMPUTE", "true").lower() == "true":
                 self.kwargs["flash_attention_recompute"] = True
 
         self.speculate = get_speculate()
