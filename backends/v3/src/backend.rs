@@ -6,16 +6,23 @@ use crate::queue::{Entry, Queue};
 use async_trait::async_trait;
 use nohash_hasher::IntMap;
 use std::sync::Arc;
-use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
+use text_generation_router::infer::{
+    Backend, EngineState, GeneratedText, InferError, InferStreamResponse,
+};
 use text_generation_router::validation::ValidGenerateRequest;
 use text_generation_router::{FinishReason, PrefillToken, Token};
+use tokio::sync::broadcast::{channel, Receiver, Sender};
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info_span, instrument, Instrument, Span};
 
+
 pub struct BackendV3 {
+    /// Events streaming channel
+    events: (Sender<EngineState>, Receiver<EngineState>),
+
     /// Request queue
     queue: Queue,
     /// Notify batcher on queue appends
@@ -66,6 +73,7 @@ impl BackendV3 {
         ));
 
         Self {
+            events: channel(1),
             queue,
             batching_task_notifier,
             client,
@@ -110,6 +118,10 @@ impl Backend for BackendV3 {
             self.client.model_health().await
         }
         .is_ok()
+    }
+
+    fn events(&self) -> Receiver<EngineState> {
+        self.events.0.subscribe()
     }
 
     fn start_health(&self) -> bool {

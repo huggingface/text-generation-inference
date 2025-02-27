@@ -62,6 +62,8 @@ use tokio::select;
 use tokio::signal;
 use tokio::sync::oneshot;
 use tokio::time::Instant;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
+use tokio_stream::wrappers::BroadcastStream;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
@@ -1502,6 +1504,28 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
     prom_handle.render()
 }
 
+#[utoipa::path(get, tag = "Text Generation Inference", path = "/state")]
+#[instrument(skip_all)]
+async fn state(
+    Extension(infer): Extension<Infer>,
+) -> Result<Sse<impl Stream<Item = Result<Event, axum::Error>>>, StatusCode> {
+    if cfg!(feature = "engine-state") {
+        let stream = infer.events();
+        let sse =
+            Sse::new(BroadcastStream::from(stream).map(|state| {
+                Event::default().json_data(state.map_err(|err| axum::Error::new(err))?)
+            }))
+            .keep_alive(
+                KeepAlive::new()
+                    .interval(Duration::from_secs(5))
+                    .text("more_open_models_on_hf"),
+            );
+        Ok(sse)
+    } else {
+        Err(StatusCode::NOT_IMPLEMENTED)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct ComputeType(String);
 
@@ -1521,6 +1545,7 @@ metrics,
 openai_get_model_info,
 sagemaker_compatibility,
 get_chat_tokenize,
+state,
 ),
 components(
 schemas(
