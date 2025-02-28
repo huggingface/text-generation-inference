@@ -784,6 +784,7 @@ class VlmCausalLM(Model):
             htorch.core.hpu_set_env()
 
         if world_size > 1:
+            os.environ.setdefault("DEEPSPEED_USE_HABANA_FRAMEWORKS_DETERMINISTIC_API", "1")
             model = self.get_deepspeed_model(
                 model_class, model_id, dtype, revision
             )
