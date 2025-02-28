@@ -7,6 +7,7 @@ use grpc_metadata::InjectTelemetryContext;
 use pb::generate::v3::text_generation_service_client::TextGenerationServiceClient;
 use pb::generate::v3::*;
 use std::cmp::min;
+use std::io::Error;
 use std::time::Duration;
 use tonic::transport::{Channel, Uri};
 use tracing::instrument;
@@ -232,6 +233,20 @@ impl Client {
         batch: Batch,
         cached_batch: Option<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
+        let slots: Vec<_> = batch
+            .requests
+            .iter()
+            .map(|r| &r.slots[r.cache_len as usize..])
+            .flatten()
+            .collect();
+
+        assert_eq!(
+            slots.len(),
+            slots.iter().collect::<std::collections::HashSet<_>>().len()
+        );
+        if slots.len() != slots.iter().collect::<std::collections::HashSet<_>>().len() {
+            std::process::exit(1);
+        }
         let request = tonic::Request::new(PrefillRequest {
             batch: Some(batch),
             cached_batch,

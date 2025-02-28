@@ -11,6 +11,10 @@ from grpc_reflection.v1alpha import reflection
 from pathlib import Path
 from typing import List, Optional
 
+from text_generation_server.models.flash_causal_lm import (
+    ASSERT_BATCH_IS_CORRECT,
+    ASSERT_SIMPLE,
+)
 from text_generation_server.cache import Cache
 from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model_with_lora_adapters
@@ -164,6 +168,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                 self.model.device,
             )
         else:
+            ASSERT_SIMPLE(request.batch)
             batch = self.model.batch_type.from_pb(
                 request.batch, self.model.tokenizer, self.model.dtype, self.model.device
             )
@@ -178,6 +183,7 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
                     )
                 start_concat = time.time_ns()
                 batch = self.model.batch_type.concatenate([cached_batch, batch])
+                # ASSERT_BATCH_IS_CORRECT(batch)
                 concat_ns = time.time_ns() - start_concat
 
         generations, next_batch, timings = self.model.generate_token(batch)

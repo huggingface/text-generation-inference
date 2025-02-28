@@ -19,7 +19,13 @@ pub struct BlockAllocation {
 impl Drop for BlockAllocation {
     fn drop(&mut self) {
         if let Some(block_allocator) = self.block_allocator.as_mut() {
+            tracing::debug!("Freeing block {}", self.allocation_id);
             block_allocator.free(self.blocks.clone(), self.allocation_id)
+        } else {
+            #[cfg(not(test))]
+            {
+                panic!("We didn't have a block allocator");
+            }
         }
     }
 }

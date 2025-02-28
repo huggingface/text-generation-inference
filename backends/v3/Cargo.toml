@@ -63,6 +63,7 @@ base64 = { workspace = true }
 prost = "^0.12"
 tonic = "^0.10"
 tower = "^0.4"
+quickcheck = "1.0.3"
 
 [build-dependencies]
 tonic-build = "0.10.1"

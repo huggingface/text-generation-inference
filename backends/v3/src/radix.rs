@@ -1,5 +1,6 @@
 use crate::block_allocator::{Allocator, BlockAllocation};
 use slotmap::{DefaultKey, SlotMap};
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 use std::{
     collections::{BTreeSet, HashMap},
@@ -86,9 +87,11 @@ impl Allocator for RadixAllocator {
     ) -> Option<BlockAllocation> {
         let mut blocks = vec![];
         let prefix_node = if let Some(prefill_tokens) = prefill_tokens.as_ref() {
-            let node_id = self
-                .cache_blocks
-                .find(prefill_tokens.as_slice(), &mut blocks);
+            let node_id = self.cache_blocks.find(
+                // &prefill_tokens.as_slice()[..prefill_tokens.len().saturating_sub(1)],
+                &prefill_tokens.as_slice(),
+                &mut blocks,
+            );
             node_id
         } else {
             self.cache_blocks.root_id()
@@ -136,6 +139,26 @@ impl Allocator for RadixAllocator {
             slots
         };
 
+        tracing::debug!("Allocated {}", self.allocation_id);
+        let slot_set = slots.iter().collect::<HashSet<_>>();
+        let mut slot_count: HashMap<u32, usize> = HashMap::new();
+        for slot in &slots {
+            let entry = slot_count.entry(*slot).or_default();
+            *entry += 1;
+        }
+        let duplicates: HashMap<u32, usize> =
+            slot_count.into_iter().filter(|(_k, v)| *v > 1).collect();
+        // assert_eq!(slots.len(), slot_set.len(), "Duplicates {duplicates:?}");
+
+        let free_set = self.free_blocks.iter().collect::<HashSet<_>>();
+        assert_eq!(
+            free_set
+                .intersection(&slot_set)
+                .collect::<HashSet<_>>()
+                .len(),
+            0
+        );
+
         let allocation = RadixAllocation {
             prefix_node,
             cached_prefix_len: prefix_len,
@@ -144,6 +167,7 @@ impl Allocator for RadixAllocator {
 
         self.allocation_id += 1;
         self.allocations.insert(self.allocation_id, allocation);
+        tracing::debug!("Allocated {}", self.allocation_id);
 
         Some(BlockAllocation {
             allocation_id: self.allocation_id,
@@ -155,7 +179,8 @@ impl Allocator for RadixAllocator {
     }
 
     fn free(&mut self, blocks: Vec<u32>, allocation_id: u64) {
-        let allocation = match self.allocations.remove(&allocation_id) {
+        tracing::debug!("Radix free {allocation_id}");
+        let allocation: RadixAllocation = match self.allocations.remove(&allocation_id) {
             Some(allocation) => allocation,
             None => unreachable!("Tried to free an unknown allocation."),
         };
@@ -283,7 +308,7 @@ impl RadixTrie {
     }
 
     /// Find worker.
-    fn find_(&mut self, mut node_id: NodeId, key: &[u32], blocks: &mut Vec<u32>) -> NodeId {
+    fn find_(&mut self, node_id: NodeId, key: &[u32], blocks: &mut Vec<u32>) -> NodeId {
         let node = &self.nodes[node_id];
 
         if key.len() >= self.block_size {
@@ -295,9 +320,13 @@ impl RadixTrie {
                 assert_eq!(shared_prefix_len % self.block_size, 0);
                 blocks.extend(&child.blocks[..shared_prefix_len / self.block_size]);
 
+                // A node represents the prefix of its children. So, only
+                // recurse when there is a full prefix match.
                 let key = &key[shared_prefix_len..];
-                if !key.is_empty() {
-                    node_id = self.find_(child_id, key, blocks);
+                if !key.is_empty() && shared_prefix_len == child.key.len() {
+                    return self.find_(child_id, key, blocks);
+                } else {
+                    return child_id;
                 }
             }
         }
@@ -369,7 +398,6 @@ impl RadixTrie {
 
         while let Some((last_access, node_id)) = self.leaves.pop_first() {
             let blocks_needed = n_blocks.saturating_sub(evicted.len());
-            tracing::debug!("Evicting node {node_id:?} ");
 
             let node = self.nodes.get(node_id).expect("Leave does not exist");
             assert_eq!(
@@ -381,11 +409,8 @@ impl RadixTrie {
             if blocks_needed >= node.blocks.len() {
                 // We need to evict the whole node if we need more blocks than it has.
                 let node = self.remove_node(node_id);
+                tracing::debug!("Evicted node {node_id:?} got back {}", node.blocks.len());
                 evicted.extend(node.blocks);
-
-                if evicted.len() >= n_blocks {
-                    break;
-                }
             } else {
                 // The node has more blocks than needed, so we'll just remove
                 // the required number of blocks and leave the remaining blocks
@@ -397,6 +422,10 @@ impl RadixTrie {
                 node.key.truncate(truncate_tokens);
                 evicted.extend(node.blocks.split_off(truncate_blocks));
                 self.leaves.insert((last_access, node_id));
+                tracing::debug!("Evicted partial node {node_id:?} got {blocks_needed} back",);
+            }
+            if evicted.len() >= n_blocks {
+                tracing::debug!("Got enough {}", evicted.len());
                 break;
             }
         }
@@ -872,5 +901,77 @@ mod tests {
 
         // Clear out the whole trie.
         assert_eq!(trie.evict(10), vec![1, 2, 3, 0, 1]);
+    }
+
+    #[derive(Clone, Debug)]
+    enum Command {
+        Allocate {
+            tokens: u32,
+            prefill: Option<Arc<Vec<u32>>>,
+        },
+        Free {
+            blocks: Vec<u32>,
+            allocation_id: u64,
+        },
+    }
+
+    #[derive(Clone)]
+    struct Vocab(u32);
+
+    impl Arbitrary for Vocab {
+        fn arbitrary(gen: &mut Gen) -> Self {
+            let free = bool::arbitrary(gen);
+            if free {
+                Vocab(0)
+            } else {
+                Vocab(1)
+            }
+        }
+    }
+
+    use quickcheck::quickcheck;
+    use quickcheck::{Arbitrary, Gen};
+
+    impl Arbitrary for Command {
+        fn arbitrary(gen: &mut Gen) -> Self {
+            let free = bool::arbitrary(gen);
+            if free {
+                let blocks: Vec<u32> = Vec::arbitrary(gen);
+                let allocation_id = u64::arbitrary(gen);
+                Command::Free {
+                    blocks,
+                    allocation_id,
+                }
+            } else {
+                let tokens = u32::arbitrary(gen);
+                let prefill_tokens: Vec<Vocab> = Vec::arbitrary(gen);
+                let prefill_tokens = prefill_tokens.into_iter().map(|v| v.0).collect();
+                let prefill = Some(Arc::new(prefill_tokens));
+                Command::Allocate { tokens, prefill }
+            }
+        }
+    }
+
+    quickcheck! {
+        fn allocator_commands(commands: Vec<Command>) -> bool {
+            let mut cache = RadixAllocator::new(1, 20, None);
+            let mut allocations = vec![];
+            for command in commands{
+                match command{
+                    Command::Allocate{tokens, prefill} => {
+                        let allocation = cache.allocate(tokens, prefill);
+                        if let Some(allocation) = allocation{
+                            allocations.push(allocation.allocation_id);
+                        }
+                    }
+                    Command::Free{blocks, allocation_id} => {
+                        if allocations.contains(&allocation_id){
+                            cache.free(blocks, allocation_id);
+                        }
+                    }
+                }
+            }
+            true
+        }
     }
 }

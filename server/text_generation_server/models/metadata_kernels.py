@@ -2,6 +2,7 @@ import torch
 import triton
 
 import triton.language as tl
+from collections import Counter
 
 from loguru import logger
 from typing import List, Optional
@@ -130,6 +131,7 @@ def prepare_position_slot_ids(
     cu_slots: torch.Tensor,
     position_ids: torch.Tensor,
     slot_indices: torch.Tensor,
+    slots: torch.Tensor,
 ):
     def grid(meta):
         return (
@@ -140,6 +142,12 @@ def prepare_position_slot_ids(
     triton_prepare_position_slot_ids[grid](
         cache_lengths, cu_seqlen, cu_slots, position_ids, slot_indices, BLOCK_SIZE=256
     )
+    SLOTS = slots[slot_indices]
+    most_common = Counter(SLOTS.view(-1).tolist()).most_common(3)
+    if torch.unique(SLOTS.view(-1)).shape != SLOTS.view(-1).shape:
+        import ipdb
+
+        ipdb.set_trace()
 
 
 def slots_filtering(
@@ -158,6 +166,10 @@ def slots_filtering(
     triton_slots_filtering[grid](
         slots, filtered_slots, slots_start, cu_slots, BLOCK_SIZE=256
     )
+    assert torch.all(slots[slots_start] == filtered_slots[cu_slots[:-1]])
+    # assert torch.unique(slots).shape == slots.shape, (
+    #     f"Slots {slots} {Counter(slots.tolist()).most_common(3)}"
+    # )
 
 
 @triton.jit

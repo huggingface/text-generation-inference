@@ -4,6 +4,7 @@ import os
 import time
 import torch
 import torch.distributed
+from collections import Counter
 
 import numpy as np
 
@@ -87,6 +88,71 @@ tracer = trace.get_tracer(__name__)
 SLIDING_WINDOW: Optional[int] = None
 
 
+WARMUP = True
+
+
+def ASSERT_SIMPLE(batch):
+    slots = []
+    for r in batch.requests:
+        slots.extend(r.slots[r.cache_len :])
+    assert len(set(slots)) == len(slots)
+
+
+def ASSERT_BATCH_IS_CORRECT(batch):
+    global WARMUP
+    input_ids = batch.input_ids
+    position_ids = batch.position_ids
+    cu_seqlen_prefill = batch.cu_seqlen_prefill
+    # kv_cache = self.kv_cache
+    block_tables = batch.block_tables_tensor
+    slots = batch.slots[batch.slot_indices]
+    input_lengths_tensor = batch.input_lengths_tensor
+    cache_lengths_tensor = batch.cache_lengths_tensor
+    max_s = batch.max_current_length
+    lm_head_indices = batch.prefill_head_indices
+    assert input_ids.shape == position_ids.shape
+    # print(input_lengths_tensor, cache_lengths_tensor, slots, block_tables)
+    assert input_lengths_tensor.shape == cache_lengths_tensor.shape
+    assert torch.all(cache_lengths_tensor >= 0)
+    assert torch.all(input_lengths_tensor > 0)
+
+    loffset = 0
+    coffset = 0
+    assert torch.unique(slots).shape == slots.shape, (
+        f"Slots {slots} - Cache {cache_lengths_tensor} Input {input_lengths_tensor} - Slto indices {batch.slot_indices} - Counter {Counter(slots.tolist()).most_common(3)} "
+    )
+
+    previous_slots = []
+    previous_blocks = []
+    for input_length, cache_length in zip(input_lengths_tensor, cache_lengths_tensor):
+        slot = slots[loffset : loffset + input_length]
+        blocks = block_tables[coffset][: input_length + cache_length]
+        assert len(slot.shape) == 1
+        # print(f"Blocks {blocks} - Slots {slots}")
+        assert torch.all(blocks[cache_length : cache_length + input_length] == slot)
+        if not WARMUP:
+            assert torch.all(blocks != 0)
+        assert torch.unique(blocks).shape == blocks.shape
+
+        for pblocks in previous_blocks:
+            m = min(pblocks.shape[0], blocks.shape[0])
+            diff = pblocks[:m] - blocks[:m]
+            NZ = diff.nonzero().view(-1)
+            if NZ.shape[0]:
+                # Remove the first offset
+                assert NZ[0] + NZ.shape[0] == m
+                NZ = NZ - NZ[0]
+                assert torch.all(NZ >= 0), f"{pblocks} - blocks {blocks} NZ {NZ}"
+                assert torch.all(NZ == torch.arange(NZ.shape[0], device=NZ.device))
+
+        loffset += input_length
+        coffset += 1
+        previous_slots.append(slot)
+        previous_blocks.append(blocks)
+    # assert cu_seqlen_prefill.shape == position_ids.shape
+    WARMUP = False
+
+
 def small_power_of_2(n: int):
     return 1 << ((n - 1).bit_length() - 1)
 
@@ -133,6 +199,11 @@ def init_cpu_threads_env(rank_id: int, world_size: int):
         logger.info(
             f"affinity={numa.schedule.get_affinitive_cpus(0)}, membind = {numa.memory.get_membind_nodes()}"
         )
+
+
+from collections import defaultdict
+
+HISTORY = defaultdict(list)
 
 
 @dataclass
@@ -262,6 +333,7 @@ class FlashCausalLMBatch(Batch):
         dtype: torch.dtype,
         device: torch.device,
     ) -> "FlashCausalLMBatch":
+        HISTORY[pb.id].append(("TOKENIZED"))
         speculate = get_speculate()
 
         cache_lengths = []
@@ -290,6 +362,7 @@ class FlashCausalLMBatch(Batch):
         block_tables_ragged = []
 
         # Parse batch
+        viewed = set()
         for i, (r, tokenized_input) in enumerate(
             zip(pb.requests, batch_tokenized_inputs)
         ):
@@ -304,10 +377,16 @@ class FlashCausalLMBatch(Batch):
             prompt_lengths.append(prompt_length)
 
             cache_length = r.cache_len
+            new_slots = r.slots[cache_length:]
+            if set(new_slots).intersection(viewed):
+                import ipdb
 
-            assert (
-                cache_length <= prompt_length
-            ), f"Prefix {cache_length} vs input {prompt_length}"
+                ipdb.set_trace()
+            viewed.update(set(new_slots))
+
+            assert cache_length <= prompt_length, (
+                f"Prefix {cache_length} vs input {prompt_length}"
+            )
             if cache_length == prompt_length:
                 assert False, "unreachable"
 
@@ -325,9 +404,9 @@ class FlashCausalLMBatch(Batch):
                 postfix_ids = tokenized_input[
                     cache_length : cache_length + input_length
                 ]
-                assert (
-                    len(postfix_ids) == input_length
-                ), "Rust and Python tokenizers are not aligned"
+                assert len(postfix_ids) == input_length, (
+                    "Rust and Python tokenizers are not aligned"
+                )
             else:
                 # Use all the remaining ids
                 postfix_ids = tokenized_input[cache_length:]
@@ -378,6 +457,7 @@ class FlashCausalLMBatch(Batch):
             cu_blocks.append(len(block_tables_ragged))
 
             slots.extend(request_slots)
+
             cu_slots.append(len(slots))
 
             cache_lengths.append(cache_length)
@@ -391,6 +471,25 @@ class FlashCausalLMBatch(Batch):
                 max_length,
                 prompt_length + max_new_tokens + speculative_length,
             )
+
+        # offset = 0
+        # new_slots = []
+        # total_slots = []
+        # for cache_length, input_length in zip(cache_lengths, input_lengths):
+        #     new_slots_ = slots[
+        #         offset + cache_length : offset + cache_length + input_length
+        #     ]
+        #     offset += cache_length + input_length
+        #     new_slots.extend(new_slots_)
+        #     total_slots.append(new_slots_)
+        # if new_slots:
+        #     if Counter(new_slots).most_common(1)[0][1] != 1:
+        #         import ipdb
+
+        #         ipdb.set_trace()
+        #     assert Counter(new_slots).most_common(1)[0][1] == 1, (
+        #         f"New slots {new_slots}"
+        #     )
 
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             next_token_chooser_parameters, dtype, device, tokenizer
@@ -496,6 +595,7 @@ class FlashCausalLMBatch(Batch):
 
     @tracer.start_as_current_span("filter")
     def filter(self, request_ids: List[int]) -> "FlashCausalLMBatch":
+        HISTORY[self.batch_id].append(("FILTER", request_ids))
         if len(request_ids) == 0:
             raise ValueError("Batch must have at least one request")
         # We assume that if len(requests) == len(self) then the requests are the same
@@ -702,6 +802,7 @@ class FlashCausalLMBatch(Batch):
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches: List["FlashCausalLMBatch"]) -> "FlashCausalLMBatch":
+        HISTORY[batches[0].batch_id].append(("CONCATENATE", batches))
         # Batch attributes
         requests = []
         requests_idx_mapping = {}
@@ -884,6 +985,15 @@ class FlashCausalLMBatch(Batch):
             cumulative_slots += len(batch.slots)
             cumulative_batch_size += len(batch)
 
+        if slot_indices:
+            new_slots = slots[slot_indices]
+            import ipdb
+
+            ipdb.set_trace()
+            assert torch.unique(new_slots).shape == new_slots.shape, (
+                f"Slots {new_slots} - Cache {cache_lengths_tensor} Input {input_lengths_tensor} - Slto indices {slot_indices} - Counter {Counter(new_slots.tolist()).most_common(3)} "
+            )
+
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             next_token_chooser_parameters,
             dtype=batches[0].next_token_chooser.dtype,
@@ -991,7 +1101,17 @@ class FlashCausalLMBatch(Batch):
                 cu_slots_gpu,
                 self.position_ids,
                 self.slot_indices,
+                self.slots,
             )
+        SLOTS = self.slots[self.slot_indices]
+        most_common = Counter(SLOTS.view(-1).tolist()).most_common(3)
+        if torch.unique(SLOTS.view(-1)).shape != SLOTS.view(-1).shape:
+            import ipdb
+
+            ipdb.set_trace()
+        assert torch.unique(SLOTS.view(-1)).shape == SLOTS.view(-1).shape, (
+            f"Slots {self.slots.view(-1)} Indices {self.slot_indices} - COUNTER {most_common} - Diff {self.slots == most_common[0][0]}"
+        )
 
         sliding_window = get_sliding_windows()
         position_ids = []
@@ -1813,7 +1933,7 @@ class FlashCausalLM(Model):
             kv_cache = self.kv_cache
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
-            input_lengths = batch.input_lengths_tensor
+            input_lengths_tensor = batch.input_lengths_tensor
             cache_lengths_tensor = batch.cache_lengths_tensor
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
@@ -1832,6 +1952,8 @@ class FlashCausalLM(Model):
         else:
             cuda_graph = None
 
+        ASSERT_BATCH_IS_CORRECT(batch)
+
         if cu_seqlen_prefill is not None or cuda_graph is None:
             if ATTENTION == "flashinfer":
                 block_tables = block_tables_to_ragged(
@@ -1845,11 +1967,11 @@ class FlashCausalLM(Model):
             with self._forward_context(
                 block_tables=block_tables,
                 cu_seqlen_prefill=cu_seqlen_prefill,
-                input_lengths_tensor=input_lengths,
+                input_lengths_tensor=input_lengths_tensor,
                 cache_lengths_tensor=cache_lengths_tensor,
             ):
                 seqlen = Seqlen(
-                    input_lengths=input_lengths,
+                    input_lengths=input_lengths_tensor,
                     cache_lengths=cache_lengths_tensor,
                     cu_seqlen_q=cu_seqlen_prefill,
                     max_q=batch.max_input_length,
@@ -1897,11 +2019,13 @@ class FlashCausalLM(Model):
         cuda_graph["slots"].fill_(0)
         cuda_graph["slots"][: slots.shape[0]] = slots
         cuda_graph["input_lengths"].zero_()
-        cuda_graph["input_lengths"][: input_lengths.shape[0]] = input_lengths
+        cuda_graph["input_lengths"][: input_lengths_tensor.shape[0]] = (
+            input_lengths_tensor
+        )
         cuda_graph["cache_lengths"].zero_()
-        cuda_graph["cache_lengths"][
-            : cache_lengths_tensor.shape[0]
-        ] = cache_lengths_tensor
+        cuda_graph["cache_lengths"][: cache_lengths_tensor.shape[0]] = (
+            cache_lengths_tensor
+        )
 
         with self._forward_context(
             block_tables=cuda_graph["block_tables"],

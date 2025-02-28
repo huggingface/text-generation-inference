@@ -1,6 +1,7 @@
 /// Single shard Client
 use crate::client::{pb, Chunk};
 use crate::client::{ClientError, Result, WARMUP_IMAGE_BASE64};
+use axum::http::Error;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use grpc_metadata::InjectTelemetryContext;
@@ -232,11 +233,28 @@ impl Client {
         batch: Batch,
         cached_batch: Option<CachedBatch>,
     ) -> Result<(Vec<Generation>, Option<CachedBatch>, PrefillTimings)> {
+        let slots: Vec<_> = batch
+            .requests
+            .iter()
+            .map(|r| &r.slots[r.cache_len as usize..])
+            .flatten()
+            .collect();
+
+        assert_eq!(
+            slots.len(),
+            slots.iter().collect::<std::collections::HashSet<_>>().len()
+        );
+        if slots.len() != slots.iter().collect::<std::collections::HashSet<_>>().len() {
+            std::process::exit(1);
+        }
         let request = tonic::Request::new(PrefillRequest {
             batch: Some(batch),
             cached_batch,
         })
         .inject_context();
+        // if slots.len() != slots.iter().collect::<std::collections::HashSet<_>>().len() {
+        //     return Err(Error::from("Test"));
+        // }
         let response = self.stub.prefill(request).await?.into_inner();
         Ok((
             response.generations,

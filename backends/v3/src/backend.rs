@@ -5,6 +5,7 @@ use crate::client::{
 use crate::queue::{Entry, Queue};
 use async_trait::async_trait;
 use nohash_hasher::IntMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
 use text_generation_router::validation::ValidGenerateRequest;
@@ -13,6 +14,7 @@ use tokio::sync::mpsc::error::SendError;
 use tokio::sync::{mpsc, Notify};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tonic::IntoRequest;
 use tracing::{info_span, instrument, Instrument, Span};
 
 pub struct BackendV3 {
@@ -121,6 +123,35 @@ impl Backend for BackendV3 {
     }
 }
 
+impl Batch {
+    pub fn check(&self) -> Result<(), InferError> {
+        let slots: Vec<_> = self
+            .requests
+            .iter()
+            .map(|r| &r.slots[r.cache_len as usize..])
+            .flatten()
+            .collect();
+
+        // assert_eq!(
+        //     slots.len(),
+        //     slots.iter().collect::<std::collections::HashSet<_>>().len()
+        // );
+        if slots.len() != slots.iter().collect::<std::collections::HashSet<_>>().len() {
+            let mut map: HashMap<u32, usize> = HashMap::new();
+            for slot in slots {
+                *map.entry(*slot).or_default() += 1usize;
+            }
+            let duplicates: HashMap<_, _> = map.into_iter().filter(|(_slot, c)| *c > 1).collect();
+
+            Err(InferError::GenerationError(format!(
+                "Invalid batch: {duplicates:?}",
+            )))
+        } else {
+            Ok(())
+        }
+    }
+}
+
 /// Batching logic
 /// Will be launched in a background Tokio task
 ///
@@ -154,6 +185,7 @@ pub(crate) async fn batching_task(
             )
             .await
         {
+            batch.check().unwrap();
             let mut cached_batch = prefill(&mut client, batch, None, &mut entries)
                 .instrument(span)
                 .await;
@@ -205,6 +237,7 @@ pub(crate) async fn batching_task(
                     .next_batch(min_size, max_size, prefill_token_budget, token_budget)
                     .await
                 {
+                    new_batch.check().unwrap();
                     // Tracking metrics
                     if min_size.is_some() {
                         metrics::counter!("tgi_batch_concat", "reason" => "backpressure")
@@ -225,6 +258,7 @@ pub(crate) async fn batching_task(
                         // concatenated during the prefill op server side
                         entries.extend(new_entries);
                         // Generate one token for both the cached batch and the new batch
+                        new_batch.check().unwrap();
                         let new_cached_batch =
                             prefill(&mut client, new_batch, cached_batch, &mut entries)
                                 .instrument(span)
@@ -249,6 +283,7 @@ pub(crate) async fn batching_task(
                         });
 
                         // Generate one token for this new batch to have the attention past in cache
+                        new_batch.check().unwrap();
                         let new_cached_batch =
                             prefill(&mut client, new_batch, None, &mut new_entries)
                                 .instrument(span)

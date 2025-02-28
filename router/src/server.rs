@@ -505,7 +505,7 @@ async fn generate_stream_internal(
     let start_time = Instant::now();
     metrics::counter!("tgi_request_count").increment(1);
 
-    tracing::debug!("Input: {}", req.inputs);
+    // tracing::debug!("Input: {}", req.inputs);
 
     let compute_characters = req.inputs.chars().count();
 

@@ -5,7 +5,7 @@ use crate::client::{
 };
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::max;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use text_generation_router::infer::InferError;
 use text_generation_router::infer::InferStreamResponse;
 use text_generation_router::validation::{
@@ -269,6 +269,8 @@ impl State {
         let mut decode_tokens: u32 = 0;
         let mut max_blocks = 0;
 
+        let mut viewed: HashMap<u32, usize> = HashMap::new();
+
         // Pop entries starting from the front of the queue
         'entry_loop: while let Some((id, entry)) = self.entries.pop_front() {
             // Filter entries where the response receiver was dropped (== entries where the request
@@ -311,7 +313,7 @@ impl State {
                         + entry.request.stopping_parameters.max_new_tokens
                         + self.speculate
                         - 1;
-                    tracing::debug!("Allocating {tokens} with {input_ids:?}");
+                    // tracing::debug!("Allocating {tokens} with {input_ids:?}");
 
                     let block_allocation = match block_allocator.allocate(tokens, input_ids).await {
                         None => {
@@ -322,10 +324,11 @@ impl State {
                             break 'entry_loop;
                         }
                         Some(mut block_allocation) => {
-                            tracing::debug!("Allocation: {block_allocation:?}");
+                            // tracing::debug!("Allocation: {block_allocation:?}");
                             max_blocks = max(max_blocks, block_allocation.blocks.len() as u32);
 
-                            if block_allocation.prefix_len == entry.request.input_length {
+                            if block_allocation.prefix_len >= entry.request.input_length {
+                                // panic!("Something wrong happened we have overmatched the prefix {} >= {}", block_allocation.prefix_len, entry.request.input_length);
                                 // The whole request was found in the radix trie
                                 // However, for the transformer forward to work, we need to
                                 // have at least one token of postfix.
@@ -335,6 +338,13 @@ impl State {
                             block_allocation
                         }
                     };
+
+                    let new_slots = &block_allocation.slots[block_allocation.prefix_len as usize..];
+                    for s in new_slots {
+                        let entry = viewed.entry(*s).or_default();
+                        *entry += 1;
+                        assert!(*entry <= 1);
+                    }
 
                     let postfix_len = entry.request.input_length - block_allocation.prefix_len;
 
@@ -349,6 +359,14 @@ impl State {
                             } else {
                                 // We cannot prefill even one token for this entry
                                 // Add it back to the queue
+
+                                // Removing the allocations.
+                                tracing::debug!("Removing some allocations");
+                                for s in new_slots {
+                                    let entry = viewed.entry(*s).or_default();
+                                    *entry -= 1;
+                                    assert!(*entry <= 1);
+                                }
                                 self.entries.push_front((id, entry));
                             }
                             tracing::debug!(
@@ -363,6 +381,12 @@ impl State {
                                 "Over budget: prefill_tokens={} > {prefill_token_budget}",
                                 prefill_tokens + postfix_len
                             );
+                            tracing::debug!("Removing some allocations");
+                            for s in new_slots {
+                                let entry = viewed.entry(*s).or_default();
+                                *entry -= 1;
+                                assert!(*entry <= 1);
+                            }
                             self.entries.push_front((id, entry));
                             break 'entry_loop;
                         }
