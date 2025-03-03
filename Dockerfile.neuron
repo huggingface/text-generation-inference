@@ -18,7 +18,8 @@ RUN apt-get update -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.84.0 --profile minimal -y
+COPY rust-toolchain.toml rust-toolchain.toml
+RUN curl -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain none
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN cargo install cargo-chef --locked
 
