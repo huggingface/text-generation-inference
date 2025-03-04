@@ -1719,6 +1719,10 @@ pub async fn run(
             builder = builder.with_cache_dir(cache_dir.into());
         }
 
+        if let Ok(origin) = std::env::var("HF_HUB_USER_AGENT_ORIGIN") {
+            builder = builder.with_user_agent("origin", origin.as_str());
+        }
+
         builder
     };
 
