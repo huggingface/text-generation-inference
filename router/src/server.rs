@@ -62,10 +62,12 @@ use tokio::select;
 use tokio::signal;
 use tokio::sync::oneshot;
 use tokio::time::Instant;
+use tokio_stream::wrappers::BroadcastStream;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
+
 
 fn encoding_to_tokens(encoding: &tokenizers::Encoding, input: &str) -> Vec<SimpleToken> {
     let offsets = encoding.get_offsets();
@@ -1501,6 +1503,28 @@ async fn metrics(prom_handle: Extension<PrometheusHandle>) -> String {
     prom_handle.render()
 }
 
+#[utoipa::path(get, tag = "Text Generation Inference", path = "/state")]
+#[instrument(skip_all)]
+async fn state(
+    Extension(infer): Extension<Infer>,
+) -> Result<Sse<impl Stream<Item = Result<Event, axum::Error>>>, StatusCode> {
+    if cfg!(feature = "engine-state") {
+        let stream = infer.events();
+        let sse =
+            Sse::new(BroadcastStream::from(stream).map(|state| {
+                Event::default().json_data(state.map_err(|err| axum::Error::new(err))?)
+            }))
+            .keep_alive(
+                KeepAlive::new()
+                    .interval(Duration::from_secs(5))
+                    .text("more_open_models_on_hf"),
+            );
+        Ok(sse)
+    } else {
+        Err(StatusCode::NOT_IMPLEMENTED)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct ComputeType(String);
 
@@ -1520,6 +1544,7 @@ metrics,
 openai_get_model_info,
 sagemaker_compatibility,
 get_chat_tokenize,
+state,
 ),
 components(
 schemas(
@@ -2172,6 +2197,11 @@ async fn start(
     );
     metrics::describe_gauge!("tgi_queue_size", metrics::Unit::Count, "Current queue size");
     metrics::describe_gauge!(
+        "tgi_queue_size_tokens",
+        metrics::Unit::Count,
+        "Current queue size in number of tokens"
+    );
+    metrics::describe_gauge!(
         "tgi_batch_current_max_tokens",
         metrics::Unit::Count,
         "Maximum tokens for the current batch"
@@ -2367,6 +2397,7 @@ async fn start(
         .route("/health", get(health))
         .route("/ping", get(health))
         .route("/metrics", get(metrics))
+        .route("/state", get(state))
         .route("/v1/models", get(openai_get_model_info));
 
     let compute_type =
