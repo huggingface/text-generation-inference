@@ -31,7 +31,7 @@ jobs:
         with:
           # Released on: 02 May, 2024
           # https://releases.rs/docs/1.78.0/
-          toolchain: 1.84.0
+          toolchain: 1.84.1
           override: true
           components: rustfmt, clippy
       - name: Install Protoc
