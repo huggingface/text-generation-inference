@@ -20,21 +20,14 @@ jobs:
     runs-on:
       group: aws-highmemory-32-plus-priv
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         id: python
         with:
           python-version: 3.11
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          # Released on: 02 May, 2024
-          # https://releases.rs/docs/1.78.0/
-          # Let rust-toolchain.toml
-          toolchain: 1.85.0
-          override: true
-          components: rustfmt, clippy
+      - uses: dtolnay/rust-toolchain@1.85.0
+        components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
       - name: Clean unused files
