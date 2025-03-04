@@ -27,7 +27,8 @@ jobs:
         with:
           python-version: 3.11
       - uses: dtolnay/rust-toolchain@1.85.0
-        components: rustfmt, clippy
+        with:
+          components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
       - name: Clean unused files
