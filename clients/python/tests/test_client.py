@@ -14,7 +14,6 @@ def test_generate(llama_7b_url, hf_headers):
     assert response.details.generated_tokens == 1
     assert response.details.seed is None
     assert len(response.details.prefill) == 0
-    # assert response.details.prefill[0] == InputToken(id=1, text="<s>", logprob=None)
     assert len(response.details.tokens) == 1
     assert response.details.tokens[0].id == 29918
     assert response.details.tokens[0].text == "_"
@@ -84,10 +83,6 @@ async def test_generate_async(llama_7b_url, hf_headers):
     assert response.details.generated_tokens == 1
     assert response.details.seed is None
     assert len(response.details.prefill) == 0
-    # assert response.details.prefill[0] == InputToken(id=1, text="<s>", logprob=None)
-    # assert response.details.prefill[1] == InputToken(
-    #     id=1243, text="test", logprob=-10.96875
-    # )
     assert len(response.details.tokens) == 1
     assert response.details.tokens[0].id == 29918
     assert response.details.tokens[0].text == "_"

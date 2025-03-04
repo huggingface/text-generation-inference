@@ -12,11 +12,11 @@
         "logprobs": null
       }
     ],
-    "created": 1726656043,
+    "created": 1740516693,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": null
   },
   {
@@ -32,11 +32,11 @@
         "logprobs": null
       }
     ],
-    "created": 1726656043,
+    "created": 1740516693,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": null
   },
   {
@@ -52,11 +52,11 @@
         "logprobs": null
       }
     ],
-    "created": 1726656043,
+    "created": 1740516693,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": null
   },
   {
@@ -72,11 +72,11 @@
         "logprobs": null
       }
     ],
-    "created": 1726656043,
+    "created": 1740516694,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": null
   },
   {
@@ -92,11 +92,11 @@
         "logprobs": null
       }
     ],
-    "created": 1726656043,
+    "created": 1740516694,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": null
   },
   {
@@ -112,11 +112,11 @@
         "logprobs": null
       }
     ],
-    "created": 1726656043,
+    "created": 1740516694,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": null
   },
   {
@@ -132,11 +132,11 @@
         "logprobs": null
       }
     ],
-    "created": 1726656044,
+    "created": 1740516694,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": null
   },
   {
@@ -152,11 +152,11 @@
         "logprobs": null
       }
     ],
-    "created": 1726656044,
+    "created": 1740516694,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": null
   },
   {
@@ -172,11 +172,11 @@
         "logprobs": null
       }
     ],
-    "created": 1726656044,
+    "created": 1740516694,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": null
   },
   {
@@ -192,11 +192,20 @@
         "logprobs": null
       }
     ],
-    "created": 1726656044,
+    "created": 1740516694,
     "id": "",
-    "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
-    "system_fingerprint": "2.2.1-dev0-native",
+    "system_fingerprint": "3.1.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [],
+    "created": 1740516694,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.1.1-dev0-native",
     "usage": {
       "completion_tokens": 10,
       "prompt_tokens": 40,
