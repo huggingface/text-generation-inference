@@ -4847,6 +4847,7 @@ dependencies = [
  "rand 0.8.5",
  "regex",
  "reqwest 0.11.27",
+ "rustc-hash 2.1.1",
  "serde",
  "serde_json",
  "slotmap",
