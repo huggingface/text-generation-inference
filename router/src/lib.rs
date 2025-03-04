@@ -947,7 +947,7 @@ impl ChatRequest {
         let stop = stop.unwrap_or_default();
         // enable greedy only when temperature is 0
         let (do_sample, temperature) = match temperature {
-            Some(temperature) if temperature == 0.0 => (false, None),
+            Some(0.0) => (false, None),
             other => (true, other),
         };
 
@@ -1010,7 +1010,7 @@ impl ChatRequest {
                     seed,
                     top_n_tokens: top_logprobs,
                     grammar,
-                    adapter_id: model.filter(|m| *m != "tgi").map(String::from),
+                    adapter_id: model.filter(|m| *m != "tgi"),
                 },
             },
             using_tools,
