@@ -39,6 +39,7 @@ pub async fn connect_backend(
     max_batch_total_tokens: Option<u32>,
     max_waiting_tokens: usize,
     max_batch_size: Option<usize>,
+    served_model_name: String,
 ) -> Result<(BackendV2, BackendInfo), V2Error> {
     // Helper function
     let check_max_batch_total_tokens = |max_supported_batch_total_tokens: Option<u32>| {
@@ -108,7 +109,7 @@ pub async fn connect_backend(
         model_dtype: shard_info.dtype.clone(),
         speculate: shard_info.speculate as usize,
     };
-
+        
     let backend = BackendV2::new(
         sharded_client,
         waiting_served_ratio,
@@ -119,6 +120,7 @@ pub async fn connect_backend(
         shard_info.requires_padding,
         shard_info.window_size,
         shard_info.speculate,
+        served_model_name,
     );
 
     tracing::info!("Using backend V3");

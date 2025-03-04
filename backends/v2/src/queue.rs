@@ -43,10 +43,11 @@ impl Queue {
         block_size: u32,
         window_size: Option<u32>,
         speculate: u32,
+        served_model_name: String,
     ) -> Self {
         // Create channel
         let (queue_sender, queue_receiver) = mpsc::unbounded_channel();
-
+        
         // Launch background queue task
         tokio::spawn(queue_task(
             requires_padding,
@@ -54,6 +55,7 @@ impl Queue {
             window_size,
             speculate,
             queue_receiver,
+            served_model_name,
         ));
 
         Self { queue_sender }
@@ -104,6 +106,7 @@ async fn queue_task(
     window_size: Option<u32>,
     speculate: u32,
     mut receiver: mpsc::UnboundedReceiver<QueueCommand>,
+    served_model_name: String,
 ) {
     let mut state = State::new(requires_padding, block_size, window_size, speculate);
 
@@ -111,7 +114,7 @@ async fn queue_task(
         match cmd {
             QueueCommand::Append(entry, span) => {
                 span.in_scope(|| state.append(*entry));
-                metrics::gauge!("tgi_queue_size").increment(1.0);
+                metrics::gauge!("tgi_queue_size", "model_name" => served_model_name.clone()).increment(1.0);
             }
             QueueCommand::NextBatch {
                 min_size,
@@ -122,9 +125,9 @@ async fn queue_task(
                 span,
             } => span.in_scope(|| {
                 let next_batch =
-                    state.next_batch(min_size, max_size, prefill_token_budget, token_budget);
+                    state.next_batch(min_size, max_size, prefill_token_budget, token_budget, served_model_name.clone());
                 response_sender.send(next_batch).unwrap();
-                metrics::gauge!("tgi_queue_size").set(state.entries.len() as f64);
+                metrics::gauge!("tgi_queue_size", "model_name" => served_model_name.clone()).set(state.entries.len() as f64);
             }),
         }
     }
@@ -191,6 +194,7 @@ impl State {
         max_size: Option<usize>,
         prefill_token_budget: u32,
         token_budget: u32,
+        served_model_name: String,
     ) -> Option<NextBatch> {
         if self.entries.is_empty() {
             tracing::debug!("No queue");
@@ -232,7 +236,7 @@ impl State {
             // Filter entries where the response receiver was dropped (== entries where the request
             // was dropped by the client)
             if entry.response_tx.is_closed() {
-                metrics::counter!("tgi_request_failure", "err" => "dropped").increment(1);
+                metrics::counter!("tgi_request_failure", "err" => "dropped", "model_name" => served_model_name.clone()).increment(1);
                 tracing::debug!("Dropping entry");
                 continue;
             }
@@ -340,7 +344,7 @@ impl State {
         // Increment batch id
         self.next_batch_id += 1;
 
-        metrics::histogram!("tgi_batch_next_size").record(batch.size as f64);
+        metrics::histogram!("tgi_batch_next_size", "model_name" => served_model_name.clone()).record(batch.size as f64);
 
         Some((batch_entries, batch, next_batch_span))
     }
@@ -466,21 +470,23 @@ mod tests {
 
     #[test]
     fn test_next_batch_empty() {
+        let served_model_name = "bigscience/blomm-560m".to_string();
         let mut state = State::new(false, 1, None, 0);
 
-        assert!(state.next_batch(None, None, 1, 1).is_none());
-        assert!(state.next_batch(Some(1), None, 1, 1).is_none());
+        assert!(state.next_batch(None, None, 1, 1, served_model_name.clone()).is_none());
+        assert!(state.next_batch(Some(1), None, 1, 1, served_model_name.clone()).is_none());
     }
 
     #[test]
     fn test_next_batch_min_size() {
+        let served_model_name = "bigscience/blomm-560m".to_string();
         let mut state = State::new(false, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, None, 2, 2).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 2, 2, served_model_name.clone()).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&0));
         assert!(entries.contains_key(&1));
@@ -496,7 +502,7 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         state.append(entry3);
 
-        assert!(state.next_batch(Some(2), None, 2, 2).is_none());
+        assert!(state.next_batch(Some(2), None, 2, 2, served_model_name.clone()).is_none());
 
         assert_eq!(state.next_id, 3);
         assert_eq!(state.entries.len(), 1);
@@ -506,13 +512,14 @@ mod tests {
 
     #[test]
     fn test_next_batch_max_size() {
+        let served_model_name = "bigscience/blomm-560m".to_string();
         let mut state = State::new(false, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, Some(1), 2, 2).unwrap();
+        let (entries, batch, _) = state.next_batch(None, Some(1), 2, 2, served_model_name.clone()).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert!(entries.get(&0).unwrap().batch_time.is_some());
@@ -526,13 +533,14 @@ mod tests {
 
     #[test]
     fn test_next_batch_token_budget() {
+        let served_model_name = "bigscience/blomm-560m".to_string();
         let mut state = State::new(false, 1, None, 0);
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         state.append(entry1);
         state.append(entry2);
 
-        let (entries, batch, _) = state.next_batch(None, None, 1, 1).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 1, 1, served_model_name.clone()).unwrap();
         assert_eq!(entries.len(), 1);
         assert!(entries.contains_key(&0));
         assert_eq!(batch.id, 0);
@@ -545,7 +553,7 @@ mod tests {
         let (entry3, _guard3) = default_entry();
         state.append(entry3);
 
-        let (entries, batch, _) = state.next_batch(None, None, 3, 3).unwrap();
+        let (entries, batch, _) = state.next_batch(None, None, 3, 3, served_model_name.clone()).unwrap();
         assert_eq!(entries.len(), 2);
         assert!(entries.contains_key(&1));
         assert!(entries.contains_key(&2));
@@ -559,14 +567,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_append() {
-        let queue = Queue::new(false, 1, None, 0);
+        let served_model_name = "bigscience/blomm-560m".to_string();
+        let queue = Queue::new(false, 1, None, 0, served_model_name.clone());
         let (entry, _guard) = default_entry();
         queue.append(entry);
     }
 
     #[tokio::test]
     async fn test_queue_next_batch_empty() {
-        let queue = Queue::new(false, 1, None, 0);
+        let served_model_name = "bigscience/blomm-560m".to_string();
+        let queue = Queue::new(false, 1, None, 0, served_model_name.clone());
 
         assert!(queue.next_batch(None, None, 1, 1).await.is_none());
         assert!(queue.next_batch(Some(1), None, 1, 1).await.is_none());
@@ -574,7 +584,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_min_size() {
-        let queue = Queue::new(false, 1, None, 0);
+        let served_model_name = "bigscience/blomm-560m".to_string();
+        let queue = Queue::new(false, 1, None, 0, served_model_name.clone());
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -607,7 +618,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_max_size() {
-        let queue = Queue::new(false, 1, None, 0);
+        let served_model_name = "bigscience/blomm-560m".to_string();
+        let queue = Queue::new(false, 1, None, 0, served_model_name.clone());
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -623,7 +635,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_token_budget() {
-        let queue = Queue::new(false, 1, None, 0);
+        let served_model_name = "bigscience/blomm-560m".to_string();
+
+        let queue = Queue::new(false, 1, None, 0, served_model_name.clone());
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -648,7 +662,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_token_speculate() {
-        let queue = Queue::new(false, 1, None, 2);
+        let served_model_name = "bigscience/blomm-560m".to_string();
+
+        let queue = Queue::new(false, 1, None, 2, served_model_name.clone());
         let (entry1, _guard1) = default_entry();
         let (entry2, _guard2) = default_entry();
         queue.append(entry1);
@@ -667,7 +683,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_queue_next_batch_dropped_receiver() {
-        let queue = Queue::new(false, 1, None, 0);
+        let served_model_name = "bigscience/blomm-560m".to_string();
+
+        let queue = Queue::new(false, 1, None, 0, served_model_name.clone());
         let (entry, _) = default_entry();
         queue.append(entry);
 

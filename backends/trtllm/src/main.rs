@@ -45,6 +45,8 @@ struct Args {
     revision: Option<String>,
     #[clap(long, env)]
     model_id: String,
+    #[clap(long, env)]
+    served_model_name: Option<String>,
     #[clap(default_value = "2", long, env)]
     validation_workers: usize,
     #[clap(long, env)]
@@ -227,6 +229,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         tokenizer_config_path,
         revision,
         model_id,
+        served_model_name,
         validation_workers,
         json_output,
         otlp_endpoint,
@@ -238,6 +241,10 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         usage_stats,
         payload_limit,
     } = args;
+
+    let served_model_name = args.served_model_name
+        .clone()
+        .unwrap_or_else(|| args.model_id.clone());
 
     // Launch Tokio runtime
     text_generation_router::logging::init_logging(otlp_endpoint, otlp_service_name, json_output);
@@ -318,6 +325,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
                 max_client_batch_size,
                 usage_stats,
                 payload_limit,
+                served_model_name,
             )
             .await?;
             Ok(())

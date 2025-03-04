@@ -69,11 +69,12 @@ example = json ! ({"error": "Incomplete generation"})),
 )]
 pub(crate) async fn vertex_compatibility(
     Extension(infer): Extension<Infer>,
+    Extension(served_model_name): Extension<String>,
     Extension(compute_type): Extension<ComputeType>,
     Json(req): Json<VertexRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
-    metrics::counter!("tgi_request_count").increment(1);
+    metrics::counter!("tgi_request_count", "model_name" => served_model_name.clone()).increment(1);
 
     // check that theres at least one instance
     if req.instances.is_empty() {
@@ -111,12 +112,14 @@ pub(crate) async fn vertex_compatibility(
         };
 
         let infer_clone = infer.clone();
+        let served_model_name_clone = served_model_name.clone();
         let compute_type_clone = compute_type.clone();
         let span_clone = span.clone();
 
         futures.push(async move {
             generate_internal(
                 Extension(infer_clone),
+                Extension(served_model_name_clone),
                 compute_type_clone,
                 Json(generate_request),
                 span_clone,

@@ -68,15 +68,16 @@ pub(crate) async fn sagemaker_compatibility(
     infer: Extension<Infer>,
     compute_type: Extension<ComputeType>,
     info: Extension<Info>,
+    served_model_name: Extension<String>,
     Json(req): Json<SagemakerRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     match req {
         SagemakerRequest::Generate(req) => {
-            compat_generate(default_return_full_text, infer, compute_type, Json(req)).await
+            compat_generate(default_return_full_text, infer, compute_type, served_model_name, Json(req)).await
         }
-        SagemakerRequest::Chat(req) => chat_completions(infer, compute_type, info, Json(req)).await,
+        SagemakerRequest::Chat(req) => chat_completions(infer, compute_type, info, served_model_name, Json(req)).await,
         SagemakerRequest::Completion(req) => {
-            completions(infer, compute_type, info, Json(req)).await
+            completions(infer, compute_type, info, served_model_name, Json(req)).await
         }
     }
 }
