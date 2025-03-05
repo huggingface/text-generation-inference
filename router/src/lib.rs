@@ -730,7 +730,7 @@ pub(crate) struct ChatCompletionChoice {
 pub struct ToolCallDelta {
     #[schema(example = "assistant")]
     role: String,
-    tool_calls: DeltaToolCall,
+    tool_calls: Vec<DeltaToolCall>,
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
@@ -752,58 +752,6 @@ pub(crate) struct DeltaToolCall {
 pub(crate) struct Function {
     pub name: Option<String>,
     pub arguments: String,
-}
-
-#[allow(clippy::too_many_arguments)]
-impl ChatCompletionChunk {
-    pub(crate) fn new(
-        model: String,
-        system_fingerprint: String,
-        delta: Option<String>,
-        tool_calls: Option<Vec<String>>,
-        created: u64,
-        logprobs: Option<ChatCompletionLogprobs>,
-        finish_reason: Option<String>,
-        usage: Option<Usage>,
-    ) -> Self {
-        let delta = match (delta, tool_calls) {
-            (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
-                role: "assistant".to_string(),
-                content: delta,
-                ..Default::default()
-            }),
-            (None, Some(tool_calls)) => ChatCompletionDelta::Tool(ToolCallDelta {
-                role: "assistant".to_string(),
-                tool_calls: DeltaToolCall {
-                    index: 0,
-                    id: String::new(),
-                    r#type: "function".to_string(),
-                    function: Function {
-                        name: None,
-                        arguments: tool_calls[0].to_string(),
-                    },
-                },
-            }),
-            (None, None) => ChatCompletionDelta::Chat(TextMessage {
-                role: "assistant".to_string(),
-                content: "".to_string(),
-                ..Default::default()
-            }),
-        };
-        Self {
-            id: String::new(),
-            created,
-            model,
-            system_fingerprint,
-            choices: vec![ChatCompletionChoice {
-                index: 0,
-                delta,
-                logprobs,
-                finish_reason,
-            }],
-            usage,
-        }
-    }
 }
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
@@ -1020,7 +968,7 @@ impl ChatRequest {
 
 #[derive(Clone, Deserialize, ToSchema, Serialize)]
 #[cfg_attr(test, derive(Debug, PartialEq))]
-struct StreamOptions {
+pub(crate) struct StreamOptions {
     /// If set, an additional chunk will be streamed before the data: [DONE] message. The usage field on this chunk shows the token usage statistics for the entire request, and the choices field will always be an empty array. All other chunks will also include a usage field, but with a null value.
     #[schema(example = "true")]
     include_usage: bool,
@@ -1138,8 +1086,15 @@ pub struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
-    #[serde(alias = "parameters")]
+    #[serde(alias = "parameters", serialize_with = "serialize_as_string")]
     pub arguments: serde_json::Value,
+}
+
+fn serialize_as_string<S>(value: &serde_json::Value, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&value.to_string())
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
@@ -1357,7 +1312,7 @@ pub struct SimpleToken {
     stop: usize,
 }
 
-#[derive(Debug, Serialize, ToSchema, Clone)]
+#[derive(Debug, Serialize, ToSchema, Clone, PartialEq)]
 #[serde(rename_all(serialize = "snake_case"))]
 #[schema(example = "Length")]
 pub enum FinishReason {
@@ -1494,6 +1449,70 @@ impl Default for ModelsInfo {
             object: "list".to_string(),
             data: Vec::new(),
         }
+    }
+}
+
+// balance the started json with closing braces and quotes
+fn complete_json(partial: &str) -> (String, bool, bool) {
+    let mut brace_count = 0;
+    let mut quote_open = false;
+    let mut escaped = false;
+    let mut last_char = '\0';
+
+    for c in partial.chars() {
+        match (escaped, quote_open, c) {
+            (true, _, _) => escaped = false,
+            (false, _, '\\') => escaped = true,
+            (false, _, '"') => quote_open = !quote_open,
+            (false, false, '{') => brace_count += 1,
+            (false, false, '}') if brace_count > 0 => brace_count -= 1,
+            _ => {}
+        }
+        if !c.is_whitespace() {
+            last_char = c;
+        }
+    }
+
+    let mut completed = partial.to_string();
+
+    if last_char == ',' {
+        if let Some(pos) = completed.rfind(',') {
+            completed.replace_range(pos..pos + 1, "");
+        }
+    }
+
+    if quote_open {
+        completed.push('"');
+    }
+
+    if brace_count > 0 {
+        completed.push_str(&"}".repeat(brace_count));
+    }
+
+    (completed, quote_open, brace_count > 0)
+}
+
+/// Result type that includes both the parsed value and a completion status
+#[derive(Debug)]
+pub struct ParseResult<T> {
+    pub value: T,
+    pub last_value_whole: bool,
+}
+
+/// Parse partial JSON into a generic serializable type T
+/// Returns the parsed value along with a flag indicating if completion was needed
+pub fn parse_partial_json<T>(partial: &str) -> Result<ParseResult<T>, String>
+where
+    T: for<'de> Deserialize<'de> + std::fmt::Debug,
+{
+    let (completed, needed_close_quote, _need_close_brace) = complete_json(partial);
+    let obj = serde_json::from_str::<T>(&completed);
+    match obj {
+        Ok(value) => Ok(ParseResult {
+            value,
+            last_value_whole: !needed_close_quote,
+        }),
+        Err(e) => Err(format!("Failed to parse JSON: {}", e)),
     }
 }
 
@@ -1730,7 +1749,7 @@ mod tests {
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(
             serialized,
-            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}]}"#
+            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":"{\"format\":\"csv\"}"}}]}"#
         );
     }
 
@@ -1769,5 +1788,714 @@ mod tests {
                 name: "myfn".to_string(),
             })
         );
+    }
+}
+
+fn create_event(
+    token_text: &str,
+    model_id: &str,
+    system_fingerprint: &str,
+    tool_name: Option<&str>,
+    is_tool_arg: bool,
+    finish_reason: Option<String>,
+) -> Event {
+    let current_time = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    // Create the delta based on direct pattern matching of parameters
+    let (delta, finish) = match (tool_name, is_tool_arg, finish_reason) {
+        (Some(name), _, _) => (
+            // Tool call name event
+            ChatCompletionDelta::Tool(ToolCallDelta {
+                role: "assistant".to_string(),
+                tool_calls: vec![DeltaToolCall {
+                    index: 0,
+                    id: String::new(),
+                    r#type: "function".to_string(),
+                    function: Function {
+                        name: Some(name.to_string()),
+                        arguments: String::new(),
+                    },
+                }],
+            }),
+            None,
+        ),
+        (None, true, _) => (
+            // Tool call argument event
+            ChatCompletionDelta::Tool(ToolCallDelta {
+                role: "assistant".to_string(),
+                tool_calls: vec![DeltaToolCall {
+                    index: 0,
+                    id: String::new(),
+                    r#type: "function".to_string(),
+                    function: Function {
+                        name: None,
+                        arguments: token_text.to_string(),
+                    },
+                }],
+            }),
+            None,
+        ),
+        (None, false, reason) => (
+            // Regular text event
+            ChatCompletionDelta::Chat(TextMessage {
+                role: "assistant".to_string(),
+                content: token_text.to_string(),
+                ..Default::default()
+            }),
+            reason,
+        ),
+    };
+
+    // Create the ChatCompletionChunk with the appropriate delta
+    let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk {
+        id: String::new(),
+        created: current_time,
+        model: model_id.to_string(),
+        system_fingerprint: system_fingerprint.to_string(),
+        choices: vec![ChatCompletionChoice {
+            index: 0,
+            delta,
+            logprobs: None,
+            finish_reason: finish,
+        }],
+        usage: None,
+    });
+
+    Event::default()
+        .json_data(chat_complete)
+        .unwrap_or_else(|e| InferError::StreamSerializationError(e.to_string()).into())
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct ParseFunction {
+    #[serde(rename = "_name")]
+    name: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct ToolDecision {
+    #[serde(rename = "function")]
+    function: ParseFunction,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct NoToolDecision {
+    content: String,
+}
+
+use axum::response::sse::Event;
+use serde_json::Value;
+use std::convert::Infallible;
+
+fn get_timestamp() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+// Process stream token into events and mutates the buffers to keep track of the current state
+#[allow(clippy::too_many_arguments)]
+async fn process_stream_token(
+    token_text: String,
+    json_buffer: &mut String,
+    name_found: &mut bool,
+    no_tool_chosen: &mut bool,
+    first_quote_removed: &mut bool,
+    using_tools: bool,
+    model_id: &str,
+    system_fingerprint: &str,
+    stream_token: &StreamResponse,
+    stream_options: Option<&StreamOptions>,
+) -> (Vec<Result<Event, Infallible>>, bool) {
+    let mut events = Vec::new();
+    let mut should_break = false;
+
+    // Get usage information
+    let usage = stream_token.details.as_ref().map(|d| Usage {
+        completion_tokens: d.generated_tokens,
+        prompt_tokens: d.input_length,
+        total_tokens: d.input_length + d.generated_tokens,
+    });
+
+    json_buffer.push_str(&token_text);
+
+    // Phase 1: Function name discovery
+    if !*name_found {
+        // NOTE: when tools are supplied `name_found` is false until the generated buffer contains
+        // a partial JSON object with $.function._name value. This name determines the type
+        // of events to emit. If the name is "no_tool", we'll emit the "content" field as a chat
+        // completion event. Otherwise, we'll emit a tool call name event followed by a tool call
+        // argument event. In both cases we'll buffer tokens to get the name and then reset the buffer
+        // to collect the arguments.
+        if let Ok(ParseResult {
+            value: ToolDecision {
+                function: ParseFunction { name },
+            },
+            last_value_whole,
+        }) = parse_partial_json(json_buffer)
+        {
+            if !last_value_whole {
+                return (events, should_break);
+            }
+            *name_found = true;
+            if name == "no_tool" {
+                *no_tool_chosen = true;
+            } else {
+                events.push(Ok(create_event(
+                    &token_text,
+                    model_id,
+                    system_fingerprint,
+                    Some(name.as_str()),
+                    false,
+                    None,
+                )));
+                events.push(Ok(create_event(
+                    "{",
+                    model_id,
+                    system_fingerprint,
+                    None,
+                    true,
+                    None,
+                )));
+            }
+
+            // Reset buffer for arguments
+            json_buffer.clear();
+            json_buffer.push('{');
+        }
+
+        return (events, should_break);
+    }
+
+    // Phase 2: Content processing
+    let is_complete_json = json_buffer.ends_with('}')
+        && serde_json::from_str::<Value>(&json_buffer[..json_buffer.len() - 1]).is_ok();
+    let mut edited_token = token_text;
+
+    // Handle different flows based on context
+    if using_tools {
+        if *no_tool_chosen && !is_complete_json {
+            // Content-only flow
+            if let Ok(ParseResult {
+                value: _,
+                last_value_whole,
+            }) = parse_partial_json::<NoToolDecision>(json_buffer)
+            {
+                let cleaned_token = if !*first_quote_removed {
+                    // trim start until the first quote
+                    *first_quote_removed = true;
+                    edited_token
+                        .trim_start()
+                        .strip_prefix('"')
+                        .unwrap_or(&edited_token)
+                        .to_string()
+                } else if last_value_whole {
+                    should_break = true;
+                    // trim end until the last quote
+                    edited_token
+                        .trim_end()
+                        .strip_suffix('"')
+                        .unwrap_or(&edited_token)
+                        .to_string()
+                } else {
+                    edited_token.to_string()
+                };
+
+                if !cleaned_token.is_empty() {
+                    events.push(Ok(create_event(
+                        &cleaned_token,
+                        model_id,
+                        system_fingerprint,
+                        None,
+                        false,
+                        None,
+                    )));
+                }
+            }
+        } else {
+            // Tool with arguments flow
+            if is_complete_json {
+                edited_token.truncate(edited_token.len() - 1);
+                should_break = true;
+            }
+            events.push(Ok(create_event(
+                &edited_token,
+                model_id,
+                system_fingerprint,
+                None,
+                true,
+                None,
+            )));
+        }
+    } else {
+        // Standard chat completion flow
+        if let Some(details) = stream_token.details.as_ref() {
+            let finish_reason = details.finish_reason.format(true);
+            let text = if details.finish_reason == FinishReason::Length {
+                &edited_token
+            } else {
+                ""
+            };
+            events.push(Ok(create_event(
+                text,
+                model_id,
+                system_fingerprint,
+                None,
+                false,
+                Some(finish_reason),
+            )));
+            should_break = true;
+        } else {
+            events.push(Ok(create_event(
+                &edited_token,
+                model_id,
+                system_fingerprint,
+                None,
+                false,
+                None,
+            )));
+        }
+    }
+
+    // Emit usage data when requested
+    if let (Some(usage_data), true) = (
+        usage,
+        stream_options.as_ref().is_some_and(|o| o.include_usage),
+    ) {
+        let current_time = get_timestamp();
+
+        let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk {
+            id: String::new(),
+            created: current_time,
+            model: model_id.to_string(),
+            system_fingerprint: system_fingerprint.to_string(),
+            choices: vec![],
+            usage: Some(usage_data),
+        });
+
+        events.push(Ok(Event::default()
+            .json_data(chat_complete)
+            .unwrap_or_else(|e| {
+                InferError::StreamSerializationError(e.to_string()).into()
+            })));
+    }
+
+    (events, should_break)
+}
+
+#[cfg(test)]
+mod tool_streaming_tests {
+    use super::*;
+    use futures::StreamExt;
+
+    // Test json balancing and completion
+    #[test]
+    fn test_complete_json_basic_cases() {
+        // Already complete
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"name":"test"}"#);
+        assert_eq!(completed, r#"{"name":"test"}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, false);
+
+        // Missing brace
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"name":"test""#);
+        assert_eq!(completed, r#"{"name":"test"}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, true);
+
+        // Missing quote
+        let (completed, needed_close_quote, needed_close_brace) = complete_json(r#"{"name":"test"#);
+        assert_eq!(completed, r#"{"name":"test"}"#);
+        assert_eq!(needed_close_quote, true);
+        assert_eq!(needed_close_brace, true);
+    }
+
+    #[test]
+    fn test_complete_json_complex_cases() {
+        // Nested objects
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"user":{"name":"test","age":30"#);
+        assert_eq!(completed, r#"{"user":{"name":"test","age":30}}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, true);
+
+        // Trailing comma
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"name":"test","#);
+        assert_eq!(completed, r#"{"name":"test"}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, true);
+
+        // Escaped quotes
+        let (completed, needed_close_quote, needed_close_brace) =
+            complete_json(r#"{"message":"This is a \"quoted\" text"#);
+        assert_eq!(completed, r#"{"message":"This is a \"quoted\" text"}"#);
+        assert_eq!(needed_close_quote, true);
+        assert_eq!(needed_close_brace, true);
+    }
+
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
+    struct User {
+        name: String,
+        age: Option<u32>,
+    }
+
+    #[test]
+    fn test_parse_partial_json() {
+        // Complete
+        let result = parse_partial_json::<User>(r#"{"name":"Alice","age":30}"#);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(
+            parsed.value,
+            User {
+                name: "Alice".to_string(),
+                age: Some(30)
+            }
+        );
+        assert_eq!(parsed.last_value_whole, true);
+
+        // Incomplete
+        let result = parse_partial_json::<User>(r#"{"name":"Bob","age":25"#);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(
+            parsed.value,
+            User {
+                name: "Bob".to_string(),
+                age: Some(25)
+            }
+        );
+        assert_eq!(parsed.last_value_whole, true);
+
+        // Invalid
+        let result = parse_partial_json::<User>(r#"{"name":invalid}"#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nested_escaped_quotes() {
+        let json = r#"{"message":"This has \"nested\" quotes"#;
+        let (completed, needed_close_quote, needed_close_brace) = complete_json(json);
+        assert_eq!(completed, r#"{"message":"This has \"nested\" quotes"}"#);
+        assert_eq!(needed_close_quote, true);
+        assert_eq!(needed_close_brace, true);
+
+        let json = r#"{"message":"This has \"nested\" quotes""#;
+        let (completed, needed_close_quote, needed_close_brace) = complete_json(json);
+        assert_eq!(completed, r#"{"message":"This has \"nested\" quotes"}"#);
+        assert_eq!(needed_close_quote, false);
+        assert_eq!(needed_close_brace, true);
+    }
+
+    // Test incremental JSON parsing for a tool decision
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
+    struct ToolDecision {
+        function: Function,
+    }
+
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
+    struct Function {
+        #[serde(rename = "_name")]
+        name: String,
+    }
+
+    #[test]
+    fn test_streaming_no_tool_flow() {
+        let json_buffers = [
+            r#"{"function": {"_name": "no_tool""#,
+            r#"{ "content": "I am a helpful assistant""#,
+        ];
+
+        // Function decision
+        let result = parse_partial_json::<ToolDecision>(&json_buffers[0]);
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value.function.name, "no_tool");
+
+        // Content
+        let result = parse_partial_json::<serde_json::Value>(&json_buffers[1]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value["content"], "I am a helpful assistant");
+    }
+
+    #[test]
+    fn test_streaming_no_tool_flow_with_commas() {
+        let json_buffers = [
+            r#"{"function": {"_name": "no_tool","#,
+            r#"{ "content": "I am a helpful assistant""#,
+        ];
+
+        // Function decision
+        let result = parse_partial_json::<ToolDecision>(&json_buffers[0]);
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value.function.name, "no_tool");
+
+        // Content
+        let result = parse_partial_json::<serde_json::Value>(&json_buffers[1]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value["content"], "I am a helpful assistant");
+    }
+
+    #[test]
+    fn test_streaming_weather_function() {
+        // Test the incremental JSON parsing for the get_current_weather function
+        let json_buffers = [
+            r#"{"function": {"_name": "get_current_weather","#,
+            r#"{ "location": "San Francisco, CA", "format": "fahrenheit"}}"#,
+        ];
+
+        // Function name
+        let result = parse_partial_json::<ToolDecision>(&json_buffers[0]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().value.function.name, "get_current_weather");
+
+        // Function arguments
+        let result = parse_partial_json::<serde_json::Value>(&json_buffers[1]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_incremental_json_buffers() {
+        // Test individual incremental steps for get_current_weather
+        let steps = [
+            r#"{"function"#,
+            r#"{"function": {"_name""#,
+            r#"{"function": {"_name": "get_current_weather""#,
+            r#"{"function": {"_name": "get_current_weather","#,
+            r#"{ "location": "San"#,
+            r#"{ "location": "San Francisco, CA", "format": "f"#,
+            r#"{ "location": "San Francisco, CA", "format": "fahrenheit"}"#,
+        ];
+
+        // Early step should fail to parse
+        let result = parse_partial_json::<ToolDecision>(&steps[0]);
+        assert!(result.is_err());
+
+        // Middle step should parse name but be incomplete
+        let result = parse_partial_json::<ToolDecision>(&steps[2]);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(parsed.value.function.name, "get_current_weather");
+        assert_eq!(parsed.last_value_whole, true);
+
+        // Last step should be complete and parse correctly
+        let result = parse_partial_json::<serde_json::Value>(&steps[6]);
+        assert!(result.is_ok());
+        let parsed = result.unwrap();
+        assert_eq!(
+            parsed.value.as_object().unwrap()["location"],
+            "San Francisco, CA"
+        );
+        assert_eq!(parsed.value.as_object().unwrap()["format"], "fahrenheit");
+        assert_eq!(parsed.last_value_whole, true);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_no_tool_decision() {
+        let tokens_to_stream = vec![
+            "{\"".to_string(),
+            "function".to_string(),
+            "\":".to_string(),
+            " {\"".to_string(),
+            "_".to_string(),
+            "name".to_string(),
+            "\":".to_string(),
+            " \"".to_string(),
+            "no".to_string(),
+            "_tool".to_string(),
+            "\",".to_string(),
+            " \"".to_string(),
+            "content".to_string(),
+            "\":".to_string(),
+            " \"".to_string(),
+            "I".to_string(),          // Event 1
+            " am".to_string(),        // Event 2
+            " a".to_string(),         // Event 3
+            " helpful".to_string(),   // Event 4
+            " assistant".to_string(), // Event 5
+            "!\"".to_string(),        // Event 6 (with trailing quore removed)
+        ];
+
+        let event_to_stream = tokens_to_stream
+            .into_iter()
+            .enumerate()
+            .map(|(i, token)| StreamResponse {
+                index: i as u32,
+                token: Token {
+                    id: 0,
+                    text: token,
+                    logprob: 0.0,
+                    special: false,
+                },
+                top_tokens: vec![],
+                generated_text: None,
+                details: None,
+            })
+            .collect::<Vec<_>>();
+
+        // Create a stream from our test events
+        let stream = futures::stream::iter(
+            event_to_stream
+                .into_iter()
+                .map(Ok::<StreamResponse, Infallible>),
+        );
+
+        // Initialize variables
+        let mut json_buffer = String::new();
+        let mut name_found = false;
+        let mut no_tool_chosen = false;
+        let mut first_quote_removed = false;
+        let mut events = Vec::new();
+
+        let using_tools = true;
+        let model_id = "gpt2";
+        let system_fingerprint = "test";
+
+        let stream_options = Some(StreamOptions {
+            include_usage: true,
+        });
+
+        // Use StreamExt to get access to next() method
+        use futures::StreamExt;
+        let mut stream = Box::pin(stream);
+
+        // Process the stream asynchronously
+        while let Some(Ok(stream_token)) = stream.next().await {
+            let (new_events, should_break) = process_stream_token(
+                stream_token.token.text.clone(),
+                &mut json_buffer,
+                &mut name_found,
+                &mut no_tool_chosen,
+                &mut first_quote_removed,
+                using_tools,
+                model_id,
+                system_fingerprint,
+                &stream_token,
+                stream_options.as_ref(),
+            )
+            .await;
+
+            events.extend(new_events);
+            if should_break {
+                break;
+            }
+        }
+        // Expect 6 events (the relevant tokens within content)
+        assert_eq!(events.len(), 6);
+        // "I am a helpful assistant!"
+    }
+
+    #[tokio::test]
+    async fn test_streaming_tool_decision() {
+        let tokens_to_stream = vec![
+            "{\"".to_string(),
+            "function".to_string(),
+            "\":".to_string(),
+            " {\"".to_string(),
+            "_".to_string(),
+            "name".to_string(),
+            "\":".to_string(),
+            " \"".to_string(),
+            "get".to_string(),
+            "_current".to_string(),
+            "_weather".to_string(),
+            "\",".to_string(),
+            // Event 1 is the function name
+            // Event 2 is the start of the arguments "{"
+            " \"".to_string(),        // Event 3
+            "location".to_string(),   // Event 4
+            "\":".to_string(),        // Event 5
+            " \"".to_string(),        // Event 6
+            "San".to_string(),        // Event 7
+            " Francisco".to_string(), // Event 8
+            ",".to_string(),          // Event 9
+            " CA".to_string(),        // Event 10
+            "\",".to_string(),        // Event 11
+            " \"".to_string(),        // Event 12
+            "format".to_string(),     // Event 13
+            "\":".to_string(),        // Event 14
+            " \"".to_string(),        // Event 15
+            "c".to_string(),          // Event 16
+            "elsius".to_string(),     // Event 17
+            "\"}}".to_string(),       // Event 18 retained (trailing brace removed)
+        ];
+
+        let event_to_stream = tokens_to_stream
+            .into_iter()
+            .enumerate()
+            .map(|(i, token)| StreamResponse {
+                index: i as u32,
+                token: Token {
+                    id: 0,
+                    text: token,
+                    logprob: 0.0,
+                    special: false,
+                },
+                top_tokens: vec![],
+                generated_text: None,
+                details: None,
+            })
+            .collect::<Vec<_>>();
+
+        // Create a stream from our test events
+        let stream = futures::stream::iter(
+            event_to_stream
+                .into_iter()
+                .map(Ok::<StreamResponse, Infallible>),
+        );
+
+        // Initialize variables
+        let mut json_buffer = String::new();
+        let mut name_found = false;
+        let mut no_tool_chosen = false;
+        let mut first_quote_removed = false;
+        let mut events = Vec::new();
+
+        let using_tools = true;
+        let model_id = "gpt2";
+        let system_fingerprint = "test";
+
+        let stream_options = Some(StreamOptions {
+            include_usage: true,
+        });
+
+        let mut stream = Box::pin(stream);
+
+        // Process the stream asynchronously
+        while let Some(Ok(stream_token)) = stream.next().await {
+            let (new_events, should_break) = process_stream_token(
+                stream_token.token.text.clone(),
+                &mut json_buffer,
+                &mut name_found,
+                &mut no_tool_chosen,
+                &mut first_quote_removed,
+                using_tools,
+                model_id,
+                system_fingerprint,
+                &stream_token,
+                stream_options.as_ref(),
+            )
+            .await;
+
+            events.extend(new_events);
+            if should_break {
+                break;
+            }
+        }
+
+        for event in &events {
+            println!("{:?}", event);
+        }
+
+        assert_eq!(events.len(), 18);
+        // "{ "location": "San Francisco, CA", "format": "celsius"}"
     }
 }
