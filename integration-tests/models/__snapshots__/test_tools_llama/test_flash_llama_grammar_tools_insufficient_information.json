@@ -13,14 +13,14 @@
       "usage": null
     }
   ],
-  "created": 1728497062,
+  "created": 1741195542,
   "id": "",
   "model": "meta-llama/Llama-3.1-8B-Instruct",
   "object": "chat.completion",
-  "system_fingerprint": "2.4.2-dev0-native",
+  "system_fingerprint": "3.1.2-dev0-native",
   "usage": {
-    "completion_tokens": 23,
-    "prompt_tokens": 604,
-    "total_tokens": 627
+    "completion_tokens": 22,
+    "prompt_tokens": 608,
+    "total_tokens": 630
   }
 }

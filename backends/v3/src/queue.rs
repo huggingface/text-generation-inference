@@ -311,7 +311,7 @@ impl State {
                         + entry.request.stopping_parameters.max_new_tokens
                         + self.speculate
                         - 1;
-                    tracing::debug!("Allocating {tokens} with {input_ids:?}");
+                    // tracing::debug!("Allocating {tokens} with {input_ids:?}");
 
                     let block_allocation = match block_allocator.allocate(tokens, input_ids).await {
                         None => {
@@ -322,7 +322,7 @@ impl State {
                             break 'entry_loop;
                         }
                         Some(mut block_allocation) => {
-                            tracing::debug!("Allocation: {block_allocation:?}");
+                            // tracing::debug!("Allocation: {block_allocation:?}");
                             max_blocks = max(max_blocks, block_allocation.blocks.len() as u32);
 
                             if block_allocation.prefix_len == entry.request.input_length {

@@ -1,6 +1,7 @@
 import pytest
 import requests
 import json
+from openai import OpenAI
 
 
 @pytest.fixture(scope="module")
@@ -110,6 +111,38 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
 
 @pytest.mark.asyncio
 @pytest.mark.private
+async def test_flash_llama_grammar_tools_openai(
+    flash_llama_grammar_tools, response_snapshot
+):
+    client = OpenAI(api_key="xx", base_url=f"{flash_llama_grammar_tools.base_url}/v1")
+    stream = client.chat.completions.create(
+        model="tgi",
+        max_tokens=100,
+        seed=1,
+        tools=tools,
+        stream=True,
+        temperature=0.0,
+        messages=[
+            {
+                "role": "system",
+                "content": "Youre a helpful assistant! Answer the users question best you can.",
+            },
+            {
+                "role": "user",
+                "content": "What is the weather like in Brooklyn, New York?",
+            },
+        ],
+    )
+
+    chunks = []
+    for chunk in stream:
+        chunks.append(chunk)
+
+    assert chunks == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
 async def test_flash_llama_grammar_tools_auto(
     flash_llama_grammar_tools, response_snapshot
 ):
@@ -213,7 +246,9 @@ async def test_flash_llama_grammar_tools_stream(
     last_response = None
     async for response in responses:
         count += 1
-        tool_calls_generated += response.choices[0].delta.tool_calls.function.arguments
+        tool_calls_generated += (
+            response.choices[0].delta.tool_calls[0].function.arguments
+        )
         last_response = response
         assert response.choices[0].delta.content is None
 
@@ -360,7 +395,9 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_required(
     async for response in responses:
         count += 1
         assert response.choices[0].delta.content is None
-        tool_calls_generated += response.choices[0].delta.tool_calls.function.arguments
+        tool_calls_generated += (
+            response.choices[0].delta.tool_calls[0].function.arguments
+        )
         last_response = response
 
     assert count == 29
@@ -458,8 +495,8 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
                     break
                 response = json.loads(line)
                 tool_calls_generated += response["choices"][0]["delta"]["tool_calls"][
-                    "function"
-                ]["arguments"]
+                    0
+                ]["function"]["arguments"]
                 last_response = response
 
     assert count == 39
