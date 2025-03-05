@@ -11,10 +11,10 @@
       "logprobs": null
     }
   ],
-  "created": 1728497531,
+  "created": 1741195542,
   "id": "",
   "model": "meta-llama/Llama-3.1-8B-Instruct",
   "object": "chat.completion.chunk",
-  "system_fingerprint": "2.4.2-dev0-native",
+  "system_fingerprint": "3.1.2-dev0-native",
   "usage": null
 }

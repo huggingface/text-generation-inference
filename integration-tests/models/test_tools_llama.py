@@ -246,7 +246,9 @@ async def test_flash_llama_grammar_tools_stream(
     last_response = None
     async for response in responses:
         count += 1
-        tool_calls_generated += response.choices[0].delta.tool_calls.function.arguments
+        tool_calls_generated += (
+            response.choices[0].delta.tool_calls[0].function.arguments
+        )
         last_response = response
         assert response.choices[0].delta.content is None
 
@@ -393,7 +395,9 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_required(
     async for response in responses:
         count += 1
         assert response.choices[0].delta.content is None
-        tool_calls_generated += response.choices[0].delta.tool_calls.function.arguments
+        tool_calls_generated += (
+            response.choices[0].delta.tool_calls[0].function.arguments
+        )
         last_response = response
 
     assert count == 29
@@ -491,8 +495,8 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
                     break
                 response = json.loads(line)
                 tool_calls_generated += response["choices"][0]["delta"]["tool_calls"][
-                    "function"
-                ]["arguments"]
+                    0
+                ]["function"]["arguments"]
                 last_response = response
 
     assert count == 39
