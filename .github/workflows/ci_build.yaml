@@ -20,6 +20,7 @@ on:
       - "Dockerfile"
       - "Dockerfile_amd"
       - "Dockerfile_intel"
+      - "Dockerfile.neuron"
     branches:
       - "main"
   workflow_dispatch:
