@@ -33,6 +33,7 @@ from text_generation_server.utils.adapter import (
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 
 
+SDP_ON_BF16 = int(os.environ.get("SDP_ON_BF16", 1))
 # Disable gradients
 torch.set_grad_enabled(False)
 
@@ -49,6 +50,8 @@ def get_model(
     max_input_tokens: int,
 ) -> Model:
     adapt_transformers_to_gaudi()
+    if SDP_ON_BF16 == 1:
+        torch._C._set_math_sdp_allow_fp16_bf16_reduction(True)
 
     if speculate is not None:
         set_speculate(speculate)
