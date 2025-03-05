@@ -1138,8 +1138,15 @@ pub struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
-    #[serde(alias = "parameters")]
+    #[serde(alias = "parameters", serialize_with = "serialize_as_string")]
     pub arguments: serde_json::Value,
+}
+
+fn serialize_as_string<S>(value: &serde_json::Value, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&value.to_string())
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
@@ -1730,7 +1737,7 @@ mod tests {
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(
             serialized,
-            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}]}"#
+            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":"{\"format\":\"csv\"}"}}]}"#
         );
     }
 
