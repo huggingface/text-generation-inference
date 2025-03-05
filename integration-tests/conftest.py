@@ -269,17 +269,25 @@ class ResponseComparator(JSONSnapshotExtension):
         def eq_chat_complete_chunk(
             response: ChatCompletionChunk, other: ChatCompletionChunk
         ) -> bool:
-            if response.choices[0].delta.content is not None:
-                return (
-                    response.choices[0].delta.content == other.choices[0].delta.content
-                )
-            elif response.choices[0].delta.tool_calls is not None:
-                return (
-                    response.choices[0].delta.tool_calls
-                    == other.choices[0].delta.tool_calls
-                )
+            if response.choices:
+                if response.choices[0].delta.content is not None:
+                    return (
+                        response.choices[0].delta.content
+                        == other.choices[0].delta.content
+                    )
+                elif response.choices[0].delta.tool_calls is not None:
+                    return (
+                        response.choices[0].delta.tool_calls
+                        == other.choices[0].delta.tool_calls
+                    )
+                else:
+                    raise RuntimeError(
+                        f"Invalid empty chat chunk {response} vs {other}"
+                    )
+            elif response.usage is not None:
+                return response.usage == other.usage
             else:
-                raise RuntimeError(f"Invalid empty chat chunk {response} vs {other}")
+                raise RuntimeError(f"Invalid empty chat {response} vs {other}")
 
         def eq_response(response: Response, other: Response) -> bool:
             return response.generated_text == other.generated_text and eq_details(
