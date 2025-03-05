@@ -1,6 +1,7 @@
 import pytest
 import requests
 import json
+from openai import OpenAI
 
 
 @pytest.fixture(scope="module")
@@ -106,6 +107,38 @@ async def test_flash_llama_grammar_tools(flash_llama_grammar_tools, response_sna
         }
     ]
     assert response == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_flash_llama_grammar_tools_openai(
+    flash_llama_grammar_tools, response_snapshot
+):
+    client = OpenAI(api_key="xx", base_url=f"{flash_llama_grammar_tools.base_url}/v1")
+    stream = client.chat.completions.create(
+        model="tgi",
+        max_tokens=100,
+        seed=1,
+        tools=tools,
+        stream=True,
+        temperature=0.0,
+        messages=[
+            {
+                "role": "system",
+                "content": "Youre a helpful assistant! Answer the users question best you can.",
+            },
+            {
+                "role": "user",
+                "content": "What is the weather like in Brooklyn, New York?",
+            },
+        ],
+    )
+
+    chunks = []
+    for chunk in stream:
+        chunks.append(chunk)
+
+    assert chunks == response_snapshot
 
 
 @pytest.mark.asyncio
