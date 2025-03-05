@@ -1287,6 +1287,20 @@ pub(crate) async fn chat_completions(
                 match result{
                 Ok(stream_token) => {
                     let token_text = &stream_token.token.text.clone();
+<<<<<<< Updated upstream
+=======
+                    let usage = stream_token.details.as_ref().map(|details| {
+                        let completion_tokens = details.generated_tokens;
+                        let prompt_tokens = details.input_length;
+                        let total_tokens = prompt_tokens + completion_tokens;
+
+                        Usage {
+                            completion_tokens,
+                            prompt_tokens,
+                            total_tokens,
+                        }
+                    });
+>>>>>>> Stashed changes
                     match state {
                         StreamState::Buffering => {
                             json_buffer.push_str(&token_text.replace(" ", ""));
@@ -1711,9 +1725,10 @@ pub async fn run(
 
     // Shared API builder initialization
     let api_builder = || {
-        let mut builder = ApiBuilder::new()
-            .with_progress(false)
-            .with_token(authorization_token);
+        let mut builder = ApiBuilder::new().with_progress(false);
+        if let Some(token) = authorization_token {
+            builder = builder.with_token(Some(token));
+        }
 
         if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
             builder = builder.with_cache_dir(cache_dir.into());
