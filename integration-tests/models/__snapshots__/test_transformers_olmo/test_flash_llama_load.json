@@ -1,0 +1,294 @@
+[
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 27,
+          "logprob": -1.3457031,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 187,
+          "logprob": -1.453125,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -1.4111328,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 11202,
+          "logprob": -0.45898438,
+          "special": false,
+          "text": "```"
+        },
+        {
+          "id": 8456,
+          "logprob": -0.41918945,
+          "special": false,
+          "text": "json"
+        },
+        {
+          "id": 187,
+          "logprob": -0.003189087,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 92,
+          "logprob": -0.061187744,
+          "special": false,
+          "text": "{"
+        },
+        {
+          "id": 187,
+          "logprob": -0.009010315,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 50276,
+          "logprob": -0.484375,
+          "special": false,
+          "text": "  "
+        },
+        {
+          "id": 3,
+          "logprob": -0.0002951622,
+          "special": false,
+          "text": "\""
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": ":\n\n```json\n{\n  \""
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 27,
+          "logprob": -1.3457031,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 187,
+          "logprob": -1.453125,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -1.4111328,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 11202,
+          "logprob": -0.45898438,
+          "special": false,
+          "text": "```"
+        },
+        {
+          "id": 8456,
+          "logprob": -0.41918945,
+          "special": false,
+          "text": "json"
+        },
+        {
+          "id": 187,
+          "logprob": -0.003189087,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 92,
+          "logprob": -0.061187744,
+          "special": false,
+          "text": "{"
+        },
+        {
+          "id": 187,
+          "logprob": -0.009010315,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 50276,
+          "logprob": -0.484375,
+          "special": false,
+          "text": "  "
+        },
+        {
+          "id": 3,
+          "logprob": -0.0002951622,
+          "special": false,
+          "text": "\""
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": ":\n\n```json\n{\n  \""
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 27,
+          "logprob": -1.3457031,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 187,
+          "logprob": -1.453125,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -1.4111328,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 11202,
+          "logprob": -0.45898438,
+          "special": false,
+          "text": "```"
+        },
+        {
+          "id": 8456,
+          "logprob": -0.41918945,
+          "special": false,
+          "text": "json"
+        },
+        {
+          "id": 187,
+          "logprob": -0.003189087,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 92,
+          "logprob": -0.061187744,
+          "special": false,
+          "text": "{"
+        },
+        {
+          "id": 187,
+          "logprob": -0.009010315,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 50276,
+          "logprob": -0.484375,
+          "special": false,
+          "text": "  "
+        },
+        {
+          "id": 3,
+          "logprob": -0.0002951622,
+          "special": false,
+          "text": "\""
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": ":\n\n```json\n{\n  \""
+  },
+  {
+    "details": {
+      "best_of_sequences": null,
+      "finish_reason": "length",
+      "generated_tokens": 10,
+      "prefill": [],
+      "seed": null,
+      "tokens": [
+        {
+          "id": 27,
+          "logprob": -1.3457031,
+          "special": false,
+          "text": ":"
+        },
+        {
+          "id": 187,
+          "logprob": -1.453125,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 187,
+          "logprob": -1.4111328,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 11202,
+          "logprob": -0.45898438,
+          "special": false,
+          "text": "```"
+        },
+        {
+          "id": 8456,
+          "logprob": -0.41918945,
+          "special": false,
+          "text": "json"
+        },
+        {
+          "id": 187,
+          "logprob": -0.003189087,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 92,
+          "logprob": -0.061187744,
+          "special": false,
+          "text": "{"
+        },
+        {
+          "id": 187,
+          "logprob": -0.009010315,
+          "special": false,
+          "text": "\n"
+        },
+        {
+          "id": 50276,
+          "logprob": -0.484375,
+          "special": false,
+          "text": "  "
+        },
+        {
+          "id": 3,
+          "logprob": -0.0002951622,
+          "special": false,
+          "text": "\""
+        }
+      ],
+      "top_tokens": null
+    },
+    "generated_text": ":\n\n```json\n{\n  \""
+  }
+]
