@@ -211,6 +211,9 @@ async fn main() -> Result<(), RouterError> {
         if let Ok(token) = std::env::var("HF_TOKEN") {
             builder = builder.with_token(token.into());
         }
+        if let Ok(origin) = std::env::var("HF_HUB_USER_AGENT_ORIGIN") {
+            builder = builder.with_user_agent("origin", origin.as_str());
+        }
         builder
     };
     let api_repo = api_builder().build()?.repo(Repo::with_revision(
