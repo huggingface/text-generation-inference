@@ -1711,9 +1711,10 @@ pub async fn run(
 
     // Shared API builder initialization
     let api_builder = || {
-        let mut builder = ApiBuilder::new()
-            .with_progress(false)
-            .with_token(authorization_token);
+        let mut builder = ApiBuilder::new().with_progress(false);
+        if let Some(token) = authorization_token {
+            builder = builder.with_token(Some(token));
+        }
 
         if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
             builder = builder.with_cache_dir(cache_dir.into());
