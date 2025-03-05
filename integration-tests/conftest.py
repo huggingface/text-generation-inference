@@ -98,7 +98,7 @@ def pytest_collection_modifyitems(config, items):
             selector(item)
 
 
-@pytest.fixture(autouse=True, scope="module")
+@pytest.fixture(autouse=True)
 def container_log(request: SubRequest):
     error_log = request.getfixturevalue("error_log")
     assert error_log is not None
