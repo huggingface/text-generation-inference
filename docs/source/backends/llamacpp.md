@@ -25,9 +25,12 @@ You will find the best models on [Hugging Face][GGUF].
 ## Build Docker image
 
 For optimal performance, the Docker image is compiled with native CPU
-instructions, thus it's highly recommended to execute the container on
-the host used during the build process. Efforts are ongoing to enhance
-portability while maintaining high computational efficiency.
+instructions by default. As a result, it is strongly recommended to run
+the container on the same host architecture used during the build
+process. Efforts are ongoing to improve portability across different
+systems while preserving high computational efficiency.
+
+To build the Docker image, use the following command:
 
 ```bash
 docker build \
@@ -38,11 +41,25 @@ docker build \
 
 ### Build parameters
 
-| Parameter                            | Description                       |
-| ------------------------------------ | --------------------------------- |
-| `--build-arg llamacpp_version=bXXXX` | Specific version of llama.cpp     |
-| `--build-arg llamacpp_cuda=ON`       | Enables CUDA acceleration         |
-| `--build-arg cuda_arch=ARCH`         | Defines target CUDA architecture  |
+| Parameter (with --build-arg)              | Description                      |
+| ----------------------------------------- | -------------------------------- |
+| `llamacpp_version=bXXXX`                  | Specific version of llama.cpp    |
+| `llamacpp_cuda=ON`                        | Enables CUDA acceleration        |
+| `llamacpp_native=OFF`                     | Disable automatic CPU detection  |
+| `llamacpp_cpu_arm_arch=ARCH[+FEATURE]...` | Specific ARM CPU and features    |
+| `cuda_arch=ARCH`                          | Defines target CUDA architecture |
+
+For example, to target Graviton4 when building on another ARM
+architecture:
+
+```bash
+docker build \
+    -t tgi-llamacpp \
+    --build-arg llamacpp_native=OFF \
+    --build-arg llamacpp_cpu_arm_arch=armv9-a+i8mm \
+    https://github.com/huggingface/text-generation-inference.git \
+    -f Dockerfile_llamacpp
+```
 
 ## Run Docker image
 

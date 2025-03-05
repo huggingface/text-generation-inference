@@ -2,6 +2,8 @@ FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu24.04 AS deps
 
 ARG llamacpp_version=b4827
 ARG llamacpp_cuda=OFF
+ARG llamacpp_native=ON
+ARG llamacpp_cpu_arm_arch=native
 ARG cuda_arch=75-real;80-real;86-real;89-real;90-real
 
 WORKDIR /opt/src
@@ -28,6 +30,8 @@ RUN mkdir -p llama.cpp \
     -DCMAKE_CXX_COMPILER=clang++ \
     -DCMAKE_CUDA_ARCHITECTURES=${cuda_arch} \
     -DGGML_CUDA=${llamacpp_cuda} \
+    -DGGML_NATIVE=${llamacpp_native} \
+    -DGGML_CPU_ARM_ARCH=${llamacpp_cpu_arm_arch} \
     -DLLAMA_BUILD_COMMON=OFF \
     -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_EXAMPLES=OFF \
