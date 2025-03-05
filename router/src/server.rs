@@ -1287,20 +1287,6 @@ pub(crate) async fn chat_completions(
                 match result{
                 Ok(stream_token) => {
                     let token_text = &stream_token.token.text.clone();
-<<<<<<< Updated upstream
-=======
-                    let usage = stream_token.details.as_ref().map(|details| {
-                        let completion_tokens = details.generated_tokens;
-                        let prompt_tokens = details.input_length;
-                        let total_tokens = prompt_tokens + completion_tokens;
-
-                        Usage {
-                            completion_tokens,
-                            prompt_tokens,
-                            total_tokens,
-                        }
-                    });
->>>>>>> Stashed changes
                     match state {
                         StreamState::Buffering => {
                             json_buffer.push_str(&token_text.replace(" ", ""));
