@@ -561,6 +561,10 @@ struct Args {
     #[clap(default_value = "bigscience/bloom-560m", long, env)]
     model_id: String,
 
+    /// Name under which the model is served. Defaults to `model_id` if not provided.
+    #[clap(long, env)]
+    served_model_name: Option<String>,
+
     /// The actual revision of the model if you're referring to a model
     /// on the hub. You can use a specific commit id or a branch like `refs/pr/2`.
     #[clap(long, env)]
@@ -1812,7 +1816,7 @@ fn spawn_webserver(
         "--master-shard-uds-path".to_string(),
         format!("{}-0", args.shard_uds_path),
         "--tokenizer-name".to_string(),
-        args.model_id,
+        args.model_id.clone(),
         "--payload-limit".to_string(),
         args.payload_limit.to_string(),
     ];
@@ -1982,6 +1986,12 @@ fn terminate(process_name: &str, mut process: Child, timeout: Duration) -> io::R
 fn main() -> Result<(), LauncherError> {
     // Pattern match configuration
     let args: Args = Args::parse();
+
+    let served_model_name = args.served_model_name
+        .clone()
+        .unwrap_or_else(|| args.model_id.clone());
+
+    env::set_var("SERVED_MODEL_NAME", &served_model_name);
 
     // Filter events with LOG_LEVEL
     let varname = "LOG_LEVEL";
