@@ -391,14 +391,16 @@ class VlmCausalLMBatch(CausalLMBatch):
                 elif chunk_type == "image":
                     image = Image.open(BytesIO(chunk.image.data))
                     # TODO unsure about BOS
-                    if config.model_type == "mllama":
-                        curr_text = image_text_replacement(config) + curr_text
-                    else:
-                        curr_text += image_text_replacement(config)
                     curr_image = image
                     curr_i = i
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
+
+            if image_text_replacement(config) not in curr_text:
+                if "<image>" in curr_text:
+                    curr_text = curr_text.replace("<image>", image_text_replacement(config))
+                else:
+                    curr_text = image_text_replacement(config) + curr_text
 
             texts.append(curr_text)
             if curr_image is not None:
@@ -416,18 +418,17 @@ class VlmCausalLMBatch(CausalLMBatch):
                 dummy_inputs = []
                 if len(texts) > 0:
                     dummy_inputs = [texts[0]] * missing_inputs
-                    if config.model_type == "mllama":
-                        dummy_images = [images[0]] * missing_inputs
-                    else:
-                        dummy_images = [images[0]] * missing_inputs
+                    dummy_images = [images[0]] * missing_inputs
                 texts += dummy_inputs
                 images += dummy_images
+
         processor_output = processor(images,
                                      texts,
                                      truncation=True,
                                      max_length=r.truncate,
                                      add_special_tokens=r.add_special_tokens,
                                      return_tensors="pt",
+                                     padding_side="left",
                                      padding="longest")
         if "input_ids" in processor_output:
             batch_tokenized_inputs.update({"input_ids" : processor_output["input_ids"]})
