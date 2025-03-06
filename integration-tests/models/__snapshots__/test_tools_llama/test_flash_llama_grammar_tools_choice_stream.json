@@ -22,7 +22,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -52,7 +52,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -82,7 +82,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -112,7 +112,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -142,7 +142,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -158,7 +158,7 @@
           "tool_calls": [
             {
               "function": {
-                "arguments": "n",
+                "arguments": "name",
                 "name": null
               },
               "id": "",
@@ -172,67 +172,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "am",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263698,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "e",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -262,7 +202,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -292,7 +232,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -322,7 +262,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -338,7 +278,7 @@
           "tool_calls": [
             {
               "function": {
-                "arguments": "_n",
+                "arguments": "_current",
                 "name": null
               },
               "id": "",
@@ -352,37 +292,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "_day",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -412,67 +322,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "_fore",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263698,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "cast",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -502,7 +352,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -532,7 +382,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -562,7 +412,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -592,7 +442,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -622,7 +472,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263698,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -638,7 +488,7 @@
           "tool_calls": [
             {
               "function": {
-                "arguments": "San",
+                "arguments": "Paris",
                 "name": null
               },
               "id": "",
@@ -652,37 +502,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": " Francisco",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -712,7 +532,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -728,7 +548,7 @@
           "tool_calls": [
             {
               "function": {
-                "arguments": " CA",
+                "arguments": " France",
                 "name": null
               },
               "id": "",
@@ -742,7 +562,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -772,7 +592,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -802,7 +622,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -832,7 +652,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -862,7 +682,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -892,7 +712,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -922,7 +742,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -952,7 +772,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -968,7 +788,7 @@
           "tool_calls": [
             {
               "function": {
-                "arguments": "\",",
+                "arguments": "\"}}",
                 "name": null
               },
               "id": "",
@@ -982,217 +802,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": " \"",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263699,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "num",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263699,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "_days",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263699,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "\":",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263699,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": " ",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263699,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "3",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263699,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": null,
-          "role": "assistant",
-          "tool_calls": [
-            {
-              "function": {
-                "arguments": "}}",
-                "name": null
-              },
-              "id": "",
-              "index": 0,
-              "type": "function"
-            }
-          ]
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1222,7 +832,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263699,
+    "created": 1741263685,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
