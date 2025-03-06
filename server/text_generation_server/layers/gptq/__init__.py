@@ -188,8 +188,6 @@ class GPTQWeightsLoader(WeightsLoader):
     def is_layer_skipped_quantization(
         self, prefix: str, modules_to_not_convert: List[str]
     ):
-        if modules_to_not_convert is None:
-            return False
         return any(module_name in prefix for module_name in modules_to_not_convert)
 
     def get_weights_col_packed(
