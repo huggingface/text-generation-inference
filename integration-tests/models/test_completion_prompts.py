@@ -2,8 +2,8 @@ import pytest
 import requests
 import json
 from aiohttp import ClientSession
+from openai import OpenAI
 from huggingface_hub import InferenceClient
-
 from text_generation.types import Completion
 
 
@@ -158,51 +158,123 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
 async def test_flash_llama_completion_many_prompts_stream(
     flash_llama_completion, response_snapshot
 ):
-    request = {
-        "model": "tgi",
-        "prompt": [
+    client = InferenceClient(base_url=f"{flash_llama_completion.base_url}/v1")
+    stream = client.completion(
+        model="tgi",
+        prompt=[
             "What is Deep Learning?",
             "Is water wet?",
             "What is the capital of France?",
             "def mai",
         ],
-        "max_tokens": 10,
-        "seed": 0,
-        "temperature": 0.0,
-        "stream": True,
-    }
+        max_tokens=10,
+        seed=0,
+        temperature=0.0,
+        stream=True,
+    )
 
-    url = f"{flash_llama_completion.base_url}/v1/completions"
-
-    chunks = []
     strings = [""] * 4
-    async with ClientSession(headers=flash_llama_completion.headers) as session:
-        async with session.post(url, json=request) as response:
-            # iterate over the stream
-            async for chunk in response.content.iter_any():
-                # remove "data:"
-                chunk = chunk.decode().split("\n\n")
-                # remove "data:" if present
-                chunk = [c.replace("data:", "") for c in chunk]
-                # remove empty strings
-                chunk = [c for c in chunk if c]
-                # remove completion marking chunk
-                chunk = [c for c in chunk if c != " [DONE]"]
-                # parse json
-                chunk = [json.loads(c) for c in chunk]
+    chunks = []
+    for chunk in stream:
+        chunks.append(chunk)
+        assert "choices" in chunk
+        index = chunk.choices[0].index
+        assert 0 <= index <= 4
+        strings[index] += chunk.choices[0].text
 
-                for c in chunk:
-                    chunks.append(Completion(**c))
-                    assert "choices" in c
-                    index = c["choices"][0]["index"]
-                    assert 0 <= index <= 4
-                    strings[index] += c["choices"][0]["text"]
-
-    assert response.status == 200
     assert list(strings) == [
         " A Beginner’s Guide\nDeep learning is a subset",
         " This is a question that has puzzled many people for",
         " Paris\nWhat is the capital of France?\nThe",
         'usculas_minusculas(s):\n    """\n',
     ]
+    assert chunks == response_snapshot
+
+
+@pytest.mark.release
+async def test_chat_openai_usage(flash_llama_completion, response_snapshot):
+    client = OpenAI(api_key="xx", base_url=f"{flash_llama_completion.base_url}/v1")
+
+    stream = client.chat.completions.create(
+        model="tgi",
+        messages=[{"role": "user", "content": "Say 'OK!'"}],
+        stream=True,
+        max_tokens=10,
+        seed=42,
+        stream_options={"include_usage": True},
+    )
+
+    chunks = []
+    for chunk in stream:
+        chunks.append(chunk)
+    for chunk in chunks[:-1]:
+        assert chunk.usage is None
+    for chunk in chunks[-1:]:
+        assert chunk.usage is not None
+
+    assert chunks == response_snapshot
+
+
+@pytest.mark.release
+async def test_chat_openai_nousage(flash_llama_completion, response_snapshot):
+    client = OpenAI(api_key="xx", base_url=f"{flash_llama_completion.base_url}/v1")
+
+    stream = client.chat.completions.create(
+        model="tgi",
+        messages=[{"role": "user", "content": "Say 'OK!'"}],
+        stream=True,
+        max_tokens=10,
+        seed=42,
+        stream_options={"include_usage": False},
+    )
+
+    chunks = []
+    for chunk in stream:
+        assert chunk.usage is None
+        chunks.append(chunk)
+
+    assert chunks == response_snapshot
+
+
+@pytest.mark.release
+async def test_chat_hfhub_usage(flash_llama_completion, response_snapshot):
+    client = InferenceClient(base_url=f"{flash_llama_completion.base_url}/v1")
+    stream = client.chat_completion(
+        model="tgi",
+        messages=[{"role": "user", "content": "Say 'OK!'"}],
+        stream=True,
+        max_tokens=10,
+        seed=42,
+        stream_options={"include_usage": True},
+    )
+
+    chunks = []
+    for chunk in stream:
+        chunks.append(chunk)
+
+    for chunk in chunks[:-1]:
+        assert chunk.usage is None
+    for chunk in chunks[-1:]:
+        assert chunk.usage is not None
+
+    assert chunks == response_snapshot
+
+
+@pytest.mark.release
+async def test_chat_hfhub_nousage(flash_llama_completion, response_snapshot):
+    client = InferenceClient(base_url=f"{flash_llama_completion.base_url}/v1")
+    stream = client.chat_completion(
+        model="tgi",
+        messages=[{"role": "user", "content": "Say 'OK!'"}],
+        stream=True,
+        max_tokens=10,
+        seed=42,
+        stream_options={"include_usage": False},
+    )
+
+    chunks = []
+    for chunk in stream:
+        assert chunk.usage is None
+        chunks.append(chunk)
+
     assert chunks == response_snapshot
