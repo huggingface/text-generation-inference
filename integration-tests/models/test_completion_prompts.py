@@ -1,10 +1,7 @@
 import pytest
 import requests
-import json
-from aiohttp import ClientSession
 from openai import OpenAI
 from huggingface_hub import InferenceClient
-from text_generation.types import Completion
 
 
 @pytest.fixture(scope="module")

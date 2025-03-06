@@ -39,13 +39,6 @@ from typing import Dict, List, Optional
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
 from syrupy.extensions.json import JSONSnapshotExtension
-from huggingface_hub.inference._generated.types.chat_completion import (
-    ChatCompletionStreamOutput,
-    ChatCompletionOutput,
-)
-from openai.types.chat.chat_completion_chunk import (
-    ChatCompletionChunk as OAIChatCompletionChunk,
-)
 from text_generation import AsyncClient
 from text_generation.types import (
     BestOfSequence,

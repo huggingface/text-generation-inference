@@ -13,4 +13,3 @@ def chat_handle(launcher):
 async def chat_client(chat_handle):
     await chat_handle.health(300)
     return chat_handle.client
-
