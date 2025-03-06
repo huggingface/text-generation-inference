@@ -42,6 +42,7 @@ from syrupy.extensions.json import JSONSnapshotExtension
 
 from text_generation import AsyncClient
 from text_generation.types import (
+    Completion,
     BestOfSequence,
     Message,
     ChatComplete,
@@ -131,6 +132,7 @@ class ResponseComparator(JSONSnapshotExtension):
             or isinstance(data, ChatComplete)
             or isinstance(data, ChatCompletionChunk)
             or isinstance(data, ChatCompletionComplete)
+            or isinstance(data, Completion)
             or isinstance(data, OAIChatCompletionChunk)
         ):
             data = data.model_dump()
@@ -140,6 +142,8 @@ class ResponseComparator(JSONSnapshotExtension):
             data = dict(data)
         elif isinstance(data, List):
             data = [self._serialize(d) for d in data]
+        elif isinstance(data, dict):
+            return data
         else:
             raise RuntimeError(f"Unexpected data {type(data)} : {data}")
         return data

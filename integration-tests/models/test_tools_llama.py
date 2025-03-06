@@ -1,6 +1,4 @@
 import pytest
-import requests
-import json
 from openai import OpenAI
 from huggingface_hub import InferenceClient
 from huggingface_hub.inference._generated.types.chat_completion import (

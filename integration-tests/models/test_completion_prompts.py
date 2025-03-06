@@ -96,8 +96,10 @@ async def test_flash_llama_completion_stream_usage(
                         assert not had_usage
                         if has_usage:
                             had_usage = True
+                    elif c["usage"]:
+                        had_usage = True
                     else:
-                        raise RuntimeError("Expected different payload")
+                        raise RuntimeError(f"Expected different payload: {c}")
     assert had_usage
     assert (
         string
@@ -147,6 +149,8 @@ async def test_flash_llama_completion_stream_usage(
                         assert not had_usage
                         if has_usage:
                             had_usage = True
+                    elif c["usage"]:
+                        had_usage = True
                     else:
                         raise RuntimeError("Expected different payload")
     assert not had_usage
