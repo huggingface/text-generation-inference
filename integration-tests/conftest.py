@@ -42,7 +42,6 @@ from syrupy.extensions.json import JSONSnapshotExtension
 
 from text_generation import AsyncClient
 from text_generation.types import (
-    Completion,
     BestOfSequence,
     Message,
     ChatComplete,
