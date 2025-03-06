@@ -21,7 +21,7 @@ class _QuantizerConfig:
     quant_method: str
     sym: bool
     weight_block_size: Optional[List[int]]
-    modules_to_not_convert: Optional[List[str]]
+    modules_to_not_convert: List[str]
 
 
 @dataclass
@@ -52,7 +52,7 @@ def _get_quantizer_config(model_id, revision):
     sym = False
     desc_act = False
     weight_block_size = None
-    modules_to_not_convert = None
+    modules_to_not_convert = []
 
     filename = "config.json"
     try:
