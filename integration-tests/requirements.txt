@@ -40,7 +40,9 @@ httpcore==1.0.7
 httpx==0.28.1
     # via openai
 huggingface-hub==0.29.0
-    # via text-generation
+    # via
+    #   text-generation-integration-tests (pyproject.toml)
+    #   text-generation
 idna==3.10
     # via
     #   anyio
