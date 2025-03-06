@@ -254,5 +254,14 @@ COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/root/.local/share/uv/python/cpython-3.11.11-linux-x86_64-gnu/lib/"
+ENV UID=1000
+ENV USER=llm
+RUN groupadd -g "${UID}" "${USER}" && useradd -m -u "${UID}" -g "${USER}" "${USER}"
+# Switch to non-root user and use their home as workdir
+RUN mkdir /data
+RUN chown -R ${USER}:${USER} /data
+USER ${USER}
+WORKDIR /home/${USER}
+ENV HF_HOME=/home/${USER}/cache
 ENTRYPOINT ["/tgi-entrypoint.sh"]
 # CMD ["--json-output"]
