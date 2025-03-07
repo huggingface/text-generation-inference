@@ -250,9 +250,15 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base
 
-COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
-RUN chmod +x /tgi-entrypoint.sh
-
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/root/.local/share/uv/python/cpython-3.11.11-linux-x86_64-gnu/lib/"
-ENTRYPOINT ["/tgi-entrypoint.sh"]
-# CMD ["--json-output"]
+ENV UID=1000
+ENV USER=llm
+RUN groupadd -g "${UID}" "${USER}" && useradd -m -u "${UID}" -g "${USER}" "${USER}"
+# Give access to users to `/root/.local` where the python interpreter is located (since it was installed as root by uv).
+RUN chmod 555 /root
+USER ${USER}
+WORKDIR /home/${USER}
+RUN mkdir -p -m 0744 /home/${USER}/cache
+COPY --chown=${USER}:${USER} ./tgi-entrypoint.sh tgi-entrypoint.sh
+RUN chmod +x tgi-entrypoint.sh
+ENTRYPOINT ["./tgi-entrypoint.sh"]
