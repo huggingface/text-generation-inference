@@ -183,12 +183,12 @@ COPY server server
 COPY server/Makefile server/Makefile
 ENV HF_KERNELS_CACHE=/kernels
 RUN cd server && \
-	uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines --no-install-project --active && \
+	uv sync --frozen --extra gen --extra bnb --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --no-install-project --active && \
     make gen-server-raw && \
-    hf-kernels download .
+    kernels download .
 
 RUN cd server && \
-    uv sync --frozen --extra gen --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines --active --python=${PYTHON_VERSION} && \
+    uv sync --frozen --extra gen --extra bnb --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --active --python=${PYTHON_VERSION} && \
     uv pip install nvidia-nccl-cu12==2.25.1 && \
     pwd && \
     text-generation-server --help
