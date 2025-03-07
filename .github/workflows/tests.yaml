@@ -46,7 +46,7 @@ jobs:
       - name: Download locked kernels
         run: |
           source ./.venv/bin/activate
-          hf-kernels download server
+          kernels download server
       - name: Run server tests
         run: |
           source ./.venv/bin/activate
