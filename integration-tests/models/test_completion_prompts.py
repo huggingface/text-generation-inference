@@ -70,7 +70,6 @@ async def test_flash_llama_completion_stream_usage(
     for chunk in stream:
         # remove "data:"
         chunks.append(chunk)
-        print(f"Chunk {chunk}")
         if len(chunk.choices) == 1:
             index = chunk.choices[0].index
             assert index == 0
