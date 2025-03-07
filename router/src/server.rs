@@ -295,10 +295,10 @@ pub(crate) async fn generate_internal(
     );
 
     let compute_characters = req.inputs.chars().count();
-    let mut add_prompt = None;
-    if req.parameters.return_full_text.unwrap_or(false) {
-        add_prompt = Some(req.inputs.clone());
-    }
+    //let mut add_prompt = None;
+    //if req.parameters.return_full_text.unwrap_or(false) {
+    //    add_prompt = Some(req.inputs.clone());
+    //}
 
     let details: bool = req.parameters.details || req.parameters.decoder_input_details;
 
@@ -321,10 +321,10 @@ pub(crate) async fn generate_internal(
                     .into_iter()
                     .map(|response: InferResponse| {
                         // Add prompt if return_full_text
-                        let mut output_text = response.generated_text.text;
-                        if let Some(prompt) = &add_prompt {
-                            output_text = prompt.clone() + &output_text;
-                        }
+                        let output_text = response.generated_text.text.clone();
+                        //if let Some(prompt) = &add_prompt {
+                        //    output_text = prompt.clone() + &output_text;
+                        //}
 
                         BestOfSequence {
                             generated_text: output_text,
@@ -416,10 +416,10 @@ pub(crate) async fn generate_internal(
         .record(response.generated_text.generated_tokens as f64);
 
     // Send response
-    let mut output_text = response.generated_text.text;
-    if let Some(prompt) = add_prompt {
-        output_text = prompt + &output_text;
-    }
+    let output_text = response.generated_text.text.clone();
+    //if let Some(prompt) = add_prompt {
+    //    output_text = prompt + &output_text;
+    //}
 
     tracing::debug!("Output: {}", output_text);
     tracing::info!("Success");
@@ -522,10 +522,10 @@ async fn generate_stream_internal(
         let mut end_reached = false;
         let mut error = false;
 
-        let mut add_prompt = None;
-        if req.parameters.return_full_text.unwrap_or(false) {
-            add_prompt = Some(req.inputs.clone());
-        }
+        //let mut add_prompt = None;
+        //if req.parameters.return_full_text.unwrap_or(false) {
+        //    add_prompt = Some(req.inputs.clone());
+        //}
         let details = req.parameters.details;
 
         let best_of = req.parameters.best_of.unwrap_or(1);
@@ -616,10 +616,10 @@ async fn generate_stream_internal(
                                         // StreamResponse
                                         end_reached = true;
 
-                                        let mut output_text = generated_text.text;
-                                        if let Some(prompt) = add_prompt {
-                                            output_text = prompt + &output_text;
-                                        }
+                                        let output_text = generated_text.text;
+                                        //if let Some(prompt) = add_prompt {
+                                        //    output_text = prompt + &output_text;
+                                        //}
 
                                         tracing::debug!(parent: &span, "Output: {}", output_text);
                                         tracing::info!(parent: &span, "Success");
@@ -1711,10 +1711,9 @@ pub async fn run(
 
     // Shared API builder initialization
     let api_builder = || {
-        let mut builder = ApiBuilder::new().with_progress(false);
-        if let Some(token) = authorization_token {
-            builder = builder.with_token(Some(token));
-        }
+        let mut builder = ApiBuilder::new()
+            .with_progress(false)
+            .with_token(authorization_token);
 
         if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
             builder = builder.with_cache_dir(cache_dir.into());
