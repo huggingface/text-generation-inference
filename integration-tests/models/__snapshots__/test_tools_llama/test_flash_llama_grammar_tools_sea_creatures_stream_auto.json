@@ -3,6 +3,26 @@
     "choices": [
       {
         "delta": {
+          "content": "",
+          "role": "assistant",
+          "tool_calls": null
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741371722,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
           "content": "There",
           "role": "assistant",
           "tool_calls": null
@@ -12,7 +32,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -32,7 +52,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -52,7 +72,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -72,7 +92,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -92,7 +112,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -112,7 +132,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -132,7 +152,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -152,7 +172,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -172,7 +192,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -192,7 +212,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -212,7 +232,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -232,7 +252,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -252,7 +272,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -272,7 +292,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -292,7 +312,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -312,7 +332,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -332,7 +352,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371722,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -352,7 +372,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -372,7 +392,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -392,7 +412,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -412,7 +432,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -432,7 +452,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -452,7 +472,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -472,7 +492,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -492,7 +512,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -512,7 +532,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -532,7 +552,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -552,7 +572,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -572,7 +592,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -592,7 +612,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -612,7 +632,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -632,7 +652,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -652,7 +672,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -672,7 +692,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -692,7 +712,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -712,7 +732,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -732,7 +752,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -752,7 +772,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -772,7 +792,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -792,7 +812,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -812,7 +832,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -832,7 +852,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -852,7 +872,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -872,7 +892,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -892,7 +912,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -912,7 +932,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -932,7 +952,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371723,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -952,7 +972,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -972,7 +992,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -992,7 +1012,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1012,7 +1032,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1032,7 +1052,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1052,7 +1072,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1072,7 +1092,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263689,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1092,7 +1112,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1112,7 +1132,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1132,7 +1152,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1152,7 +1172,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1172,7 +1192,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1192,7 +1212,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1212,7 +1232,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1232,7 +1252,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1252,7 +1272,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1272,7 +1292,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1292,7 +1312,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1312,7 +1332,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1332,7 +1352,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1352,7 +1372,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1372,7 +1392,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1392,7 +1412,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1412,7 +1432,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1432,7 +1452,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1452,7 +1472,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1472,7 +1492,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1492,7 +1512,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1512,7 +1532,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1532,7 +1552,27 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741371724,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": ".",
+          "role": "assistant",
+          "tool_calls": null
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741371725,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
