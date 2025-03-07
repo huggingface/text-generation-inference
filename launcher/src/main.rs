@@ -702,8 +702,8 @@ struct Args {
     /// Overall this number should be the largest possible amount that fits the
     /// remaining memory (after the model is loaded). Since the actual memory overhead
     /// depends on other parameters like if you're using quantization, flash attention
-    /// or the model implementation, text-generation-inference cannot infer this number
-    /// automatically.
+    /// or the model implementation, text-generation-inference infers this number automatically
+    /// if not provided ensuring that the value is as large as possible.
     #[clap(long, env)]
     max_batch_total_tokens: Option<u32>,
 
