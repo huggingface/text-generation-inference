@@ -1,0 +1,666 @@
+[
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " A"
+      }
+    ],
+    "created": 1741340006,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " This"
+      }
+    ],
+    "created": 1741340006,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": " Paris"
+      }
+    ],
+    "created": 1741340006,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "us"
+      }
+    ],
+    "created": 1741340006,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " Beginner"
+      }
+    ],
+    "created": 1741340006,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " is"
+      }
+    ],
+    "created": 1741340006,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": "\n"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "cul"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": "’s"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " a"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": "What"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "as"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " Guide"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " question"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": " is"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "_minus"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": "\n"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " that"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": " the"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "cul"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": "Deep"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " has"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": " capital"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "as"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " learning"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " puzzled"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": " of"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "(s"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " is"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " many"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": " France"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "):\n"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 0,
+        "logprobs": null,
+        "text": " a"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 1,
+        "logprobs": null,
+        "text": " people"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 2,
+        "logprobs": null,
+        "text": "?\n"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "",
+        "index": 3,
+        "logprobs": null,
+        "text": "   "
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "length",
+        "index": 0,
+        "logprobs": null,
+        "text": " subset"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": {
+      "completion_tokens": 10,
+      "completion_tokens_details": null,
+      "prompt_tokens": 6,
+      "prompt_tokens_details": null,
+      "total_tokens": 16
+    }
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "length",
+        "index": 1,
+        "logprobs": null,
+        "text": " for"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": {
+      "completion_tokens": 10,
+      "completion_tokens_details": null,
+      "prompt_tokens": 5,
+      "prompt_tokens_details": null,
+      "total_tokens": 15
+    }
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "length",
+        "index": 2,
+        "logprobs": null,
+        "text": "The"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": {
+      "completion_tokens": 10,
+      "completion_tokens_details": null,
+      "prompt_tokens": 8,
+      "prompt_tokens_details": null,
+      "total_tokens": 18
+    }
+  },
+  {
+    "choices": [
+      {
+        "finish_reason": "length",
+        "index": 3,
+        "logprobs": null,
+        "text": " \"\"\"\n"
+      }
+    ],
+    "created": 1741340007,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "text_completion",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": {
+      "completion_tokens": 10,
+      "completion_tokens_details": null,
+      "prompt_tokens": 3,
+      "prompt_tokens_details": null,
+      "total_tokens": 13
+    }
+  }
+]

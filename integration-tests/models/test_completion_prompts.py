@@ -1,7 +1,10 @@
 import pytest
 import requests
+import json
+from aiohttp import ClientSession
 from openai import OpenAI
 from huggingface_hub import InferenceClient
+from text_generation.types import Completion
 
 
 @pytest.fixture(scope="module")
@@ -155,8 +158,8 @@ def test_flash_llama_completion_many_prompts(flash_llama_completion, response_sn
 async def test_flash_llama_completion_many_prompts_stream(
     flash_llama_completion, response_snapshot
 ):
-    client = InferenceClient(base_url=f"{flash_llama_completion.base_url}/v1")
-    stream = client.completion(
+    client = OpenAI(api_key="xx", base_url=f"{flash_llama_completion.base_url}/v1")
+    stream = client.completions.create(
         model="tgi",
         prompt=[
             "What is Deep Learning?",
@@ -174,7 +177,6 @@ async def test_flash_llama_completion_many_prompts_stream(
     chunks = []
     for chunk in stream:
         chunks.append(chunk)
-        assert "choices" in chunk
         index = chunk.choices[0].index
         assert 0 <= index <= 4
         strings[index] += chunk.choices[0].text
