@@ -60,6 +60,7 @@ mkShell {
       pip
       ipdb
       click
+      openai
       pytest
       pytest-asyncio
       syrupy
