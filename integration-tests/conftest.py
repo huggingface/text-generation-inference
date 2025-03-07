@@ -1,6 +1,13 @@
 pytest_plugins = ["fixtures.neuron.service", "fixtures.neuron.export_models"]
 # ruff: noqa: E402
 from _pytest.fixtures import SubRequest
+from huggingface_hub.inference._generated.types.chat_completion import (
+    ChatCompletionStreamOutput,
+    ChatCompletionOutput,
+)
+from openai.types.chat.chat_completion_chunk import (
+    ChatCompletionChunk as OAIChatCompletionChunk,
+)
 import requests
 
 
@@ -115,6 +122,31 @@ class ResponseComparator(JSONSnapshotExtension):
     rtol = 0.2
     ignore_logprob = False
 
+    def _serialize(
+        self,
+        data,
+    ):
+        if (
+            isinstance(data, Response)
+            or isinstance(data, ChatComplete)
+            or isinstance(data, ChatCompletionChunk)
+            or isinstance(data, ChatCompletionComplete)
+            or isinstance(data, Completion)
+            or isinstance(data, OAIChatCompletionChunk)
+        ):
+            data = data.model_dump()
+        elif isinstance(data, ChatCompletionStreamOutput) or isinstance(
+            data, ChatCompletionOutput
+        ):
+            data = dict(data)
+        elif isinstance(data, List):
+            data = [self._serialize(d) for d in data]
+        elif isinstance(data, dict):
+            return data
+        else:
+            raise RuntimeError(f"Unexpected data {type(data)} : {data}")
+        return data
+
     def serialize(
         self,
         data,
@@ -123,17 +155,7 @@ class ResponseComparator(JSONSnapshotExtension):
         exclude=None,
         matcher=None,
     ):
-        if (
-            isinstance(data, Response)
-            or isinstance(data, ChatComplete)
-            or isinstance(data, ChatCompletionChunk)
-            or isinstance(data, ChatCompletionComplete)
-        ):
-            data = data.model_dump()
-
-        if isinstance(data, List):
-            data = [d.model_dump() for d in data]
-
+        data = self._serialize(data)
         data = self._filter(
             data=data,
             depth=0,
@@ -142,7 +164,8 @@ class ResponseComparator(JSONSnapshotExtension):
             include=include,
             matcher=matcher,
         )
-        return json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+        data = json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+        return data
 
     def matches(
         self,
@@ -158,7 +181,7 @@ class ResponseComparator(JSONSnapshotExtension):
             if isinstance(data, Dict):
                 if "choices" in data:
                     data["choices"] = list(
-                        sorted(data["choices"], key=lambda x: x["index"])
+                        sorted(data["choices"], key=lambda x: int(x["index"]))
                     )
                     choices = data["choices"]
                     if isinstance(choices, List) and len(choices) >= 1:
@@ -171,7 +194,7 @@ class ResponseComparator(JSONSnapshotExtension):
                     return Response(**data)
             if isinstance(data, List):
                 return [_convert_data(d) for d in data]
-            raise NotImplementedError
+            raise NotImplementedError(f"Data: {data}")
 
         def eq_token(token: Token, other: Token) -> bool:
             return (
@@ -269,17 +292,25 @@ class ResponseComparator(JSONSnapshotExtension):
         def eq_chat_complete_chunk(
             response: ChatCompletionChunk, other: ChatCompletionChunk
         ) -> bool:
-            if response.choices[0].delta.content is not None:
-                return (
-                    response.choices[0].delta.content == other.choices[0].delta.content
-                )
-            elif response.choices[0].delta.tool_calls is not None:
-                return (
-                    response.choices[0].delta.tool_calls
-                    == other.choices[0].delta.tool_calls
-                )
+            if response.choices:
+                if response.choices[0].delta.content is not None:
+                    return (
+                        response.choices[0].delta.content
+                        == other.choices[0].delta.content
+                    )
+                elif response.choices[0].delta.tool_calls is not None:
+                    return (
+                        response.choices[0].delta.tool_calls
+                        == other.choices[0].delta.tool_calls
+                    )
+                else:
+                    raise RuntimeError(
+                        f"Invalid empty chat chunk {response} vs {other}"
+                    )
+            elif response.usage is not None:
+                return response.usage == other.usage
             else:
-                raise RuntimeError(f"Invalid empty chat chunk {response} vs {other}")
+                raise RuntimeError(f"Invalid empty chat {response} vs {other}")
 
         def eq_response(response: Response, other: Response) -> bool:
             return response.generated_text == other.generated_text and eq_details(
@@ -293,6 +324,9 @@ class ResponseComparator(JSONSnapshotExtension):
             serialized_data = [serialized_data]
         if not isinstance(snapshot_data, List):
             snapshot_data = [snapshot_data]
+
+        if len(serialized_data) == 0:
+            return len(snapshot_data) == len(serialized_data)
 
         if isinstance(serialized_data[0], Completion):
             return len(snapshot_data) == len(serialized_data) and all(
