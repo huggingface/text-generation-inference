@@ -10,7 +10,7 @@
         "tool_calls": [
           {
             "function": {
-              "arguments": "{\"format\":\"fahrenheit\",\"location\":\"Brooklyn, NY\"}",
+              "arguments": "{\"location\":\"Brooklyn, NY\",\"format\":\"fahrenheit\"}",
               "description": null,
               "name": "get_current_weather"
             },
@@ -21,7 +21,7 @@
       }
     }
   ],
-  "created": 1741263682,
+  "created": 1741372434,
   "id": "",
   "model": "meta-llama/Llama-3.1-8B-Instruct",
   "object": "chat.completion",

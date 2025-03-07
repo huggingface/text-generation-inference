@@ -108,7 +108,7 @@ async def test_flash_llama_grammar_tools_nostream(
             function=ChatCompletionOutputFunctionDefinition(
                 description=None,
                 name="get_current_weather",
-                arguments='{"format":"fahrenheit","location":"Brooklyn, NY"}',
+                arguments='{"location":"Brooklyn, NY","format":"fahrenheit"}',
             ),
         )
     ]
@@ -142,14 +142,15 @@ async def test_flash_llama_grammar_tools_openai(
 
     chunks = []
     tool = ""
+    name = ""
     for chunk in stream:
+        if chunk.choices[0].delta.tool_calls[0].function.name:
+            name += chunk.choices[0].delta.tool_calls[0].function.name
         tool += chunk.choices[0].delta.tool_calls[0].function.arguments
         chunks.append(chunk)
 
-    assert (
-        tool
-        == '{"function": {"_name": "get_current_weather", "location": "Brooklyn, NY", "format": "fahrenheit"}}<|eot_id|>'
-    )
+    assert name == "get_current_weather"
+    assert tool == '{ "location": "Brooklyn, NY", "format": "fahrenheit"}'
     assert chunks == response_snapshot
 
 
@@ -184,7 +185,7 @@ async def test_flash_llama_grammar_tools_auto_nostream(
             function=ChatCompletionOutputFunctionDefinition(
                 description=None,
                 name="get_current_weather",
-                arguments='{"format":"fahrenheit","location":"Brooklyn, NY"}',
+                arguments='{"location":"Brooklyn, NY","format":"fahrenheit"}',
             ),
         )
     ]
@@ -223,7 +224,7 @@ async def test_flash_llama_grammar_tools_choice_nostream(
             function=ChatCompletionOutputFunctionDefinition(
                 description=None,
                 name="get_current_weather",
-                arguments='{"format":"fahrenheit","location":"Brooklyn, NY"}',
+                arguments='{"location":"Brooklyn, NY","format":"fahrenheit"}',
             ),
         )
     ]
@@ -250,23 +251,24 @@ async def test_flash_llama_grammar_tools_choice_stream(
             },
             {
                 "role": "user",
-                "content": "What is the weather like in Paris, France?",
+                "content": "What is the weather like in Brooklyn, New York?",
             },
         ],
         stream=True,
     )
 
-    tool_calls_generated = ""
+    arguments = ""
     chunks = []
+    name = ""
     for chunk in stream:
-        tool_calls_generated += chunk.choices[0].delta.tool_calls[0].function.arguments
+        if chunk.choices[0].delta.tool_calls[0].function.name:
+            name += chunk.choices[0].delta.tool_calls[0].function.name
+        arguments += chunk.choices[0].delta.tool_calls[0].function.arguments
         assert chunk.choices[0].delta.content is None
         chunks.append(chunk)
 
-    assert (
-        tool_calls_generated
-        == '{"function": {"_name": "get_current_weather", "location": "Paris, France", "format": "celsius"}}<|eot_id|>'
-    )
+    assert name == "get_current_weather"
+    assert arguments == '{ "location": "Brooklyn, NY", "format": "fahrenheit"}'
     assert chunks == response_snapshot
 
 
@@ -297,8 +299,6 @@ async def test_flash_llama_grammar_tools_insufficient_information_nostream(
     content_generated = response.choices[0].message.content
     assert response.choices[0].message.tool_calls is None
 
-    ######## FIXME before MERGE ############################
-    # TODO This is different from  the streaming case, this is NOT normal.
     assert content_generated == "I am a helpful assistant!"
     assert response == response_snapshot
 
@@ -334,7 +334,8 @@ async def test_flash_llama_grammar_tools_insufficient_information_stream(
         chunks.append(chunk)
         assert chunk.choices[0].delta.tool_calls is None
 
-    assert content_generated == "I am a helpful assistant"
+    ######## This is exactly the same as the non streaming case
+    assert content_generated == "I am a helpful assistant!"
     assert chunks == response_snapshot
 
 
@@ -371,7 +372,7 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_auto(
 
     assert (
         content_generated
-        == "There was a wise old octopus named Oracle. He lived in a cozy little cave beneath the waves with his best friend, a curious seahorse named Finley. One day, Finley met a playful dolphin named Daisy, and the three became inseparable. They spent their days exploring the ocean, playing hide-and-seek, and learning about the wonders of the sea from Oracle"
+        == "There was a wise old octopus named Oracle. He lived in a cozy little cave beneath the waves with his best friend, a curious seahorse named Finley. One day, Finley met a playful dolphin named Daisy, and the three became inseparable. They spent their days exploring the ocean, playing hide-and-seek, and learning about the wonders of the sea from Oracle."
     )
     assert chunks == response_snapshot
 
@@ -401,14 +402,18 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_required(
     )
 
     tool_calls_generated = ""
+    name = ""
     chunks = []
     for chunk in stream:
         assert chunk.choices[0].delta.content is None
+        if chunk.choices[0].delta.tool_calls[0].function.name:
+            name += chunk.choices[0].delta.tool_calls[0].function.name
         tool_calls_generated += chunk.choices[0].delta.tool_calls[0].function.arguments
 
+    assert name == "get_n_day_weather_forecast"
     assert (
         tool_calls_generated
-        == '{"function": {"_name": "get_n_day_weather_forecast", "location": "San Francisco, CA", "format": "fahrenheit", "num_days":3}}<|eot_id|>'
+        == '{ "location": "San Francisco, CA", "format": "fahrenheit", "num_days":3}'
     )
     assert chunks == response_snapshot
 
@@ -479,12 +484,17 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_function_object(
     )
     chunks = []
     tool_calls_generated = ""
+    name = ""
     for chunk in stream:
+        assert chunk.choices[0].delta.content is None
+        if chunk.choices[0].delta.tool_calls[0].function.name:
+            name += chunk.choices[0].delta.tool_calls[0].function.name
         tool_calls_generated += chunk.choices[0].delta.tool_calls[0].function.arguments
-        chunks.append(chunk)
+
+    assert name == "get_n_day_weather_forecast"
     assert (
         tool_calls_generated
-        == '{"function": {"_name": "get_n_day_weather_forecast", "location": "San Francisco, CA", "format": "celsius", "num_days": 3}}<|eot_id|>'
+        == '{ "location": "San Francisco, CA", "format": "celsius", "num_days": 3}'
     )
     assert chunks == response_snapshot
 
