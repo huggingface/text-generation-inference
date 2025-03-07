@@ -1,0 +1,87 @@
+[
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "OK",
+          "function_call": null,
+          "refusal": null,
+          "role": "assistant",
+          "tool_calls": null
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741265133,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "chat.completion.chunk",
+    "service_tier": null,
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "!",
+          "function_call": null,
+          "refusal": null,
+          "role": "assistant",
+          "tool_calls": null
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741265133,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "chat.completion.chunk",
+    "service_tier": null,
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "",
+          "function_call": null,
+          "refusal": null,
+          "role": "assistant",
+          "tool_calls": null
+        },
+        "finish_reason": "stop",
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741265133,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "chat.completion.chunk",
+    "service_tier": null,
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [],
+    "created": 1741265133,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "chat.completion.chunk",
+    "service_tier": null,
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": {
+      "completion_tokens": 3,
+      "completion_tokens_details": null,
+      "prompt_tokens": 39,
+      "prompt_tokens_details": null,
+      "total_tokens": 42
+    }
+  }
+]
