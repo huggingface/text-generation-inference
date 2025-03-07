@@ -764,7 +764,6 @@ impl ChatCompletionChunk {
         created: u64,
         logprobs: Option<ChatCompletionLogprobs>,
         finish_reason: Option<String>,
-        usage: Option<Usage>,
     ) -> Self {
         let delta = match (delta, tool_calls) {
             (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
@@ -801,7 +800,7 @@ impl ChatCompletionChunk {
                 logprobs,
                 finish_reason,
             }],
-            usage,
+            usage: None,
         }
     }
 }
