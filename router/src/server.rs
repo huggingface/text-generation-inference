@@ -1,4 +1,4 @@
-use crate::chat::ChatState;
+use crate::chat::{ChatState, ChatEvent};
 /// HTTP Server logic
 use crate::config::Config;
 use crate::infer::{Backend, Infer, InferError, InferResponse, InferStreamResponse};
@@ -1151,7 +1151,7 @@ pub(crate) async fn chat_completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
-    Json(chat): Json<ChatRequest>,
+    Json(mut chat): Json<ChatRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
     metrics::counter!("tgi_request_count").increment(1);
@@ -1166,7 +1166,7 @@ pub(crate) async fn chat_completions(
     tracing::debug!("Got chat_template {:?}", infer.chat_template);
     let id = chat.next_tool_call_id();
     let (generate_request, using_tools): (GenerateRequest, bool) =
-        chat.try_into_generate(&infer)?;
+        chat.clone().try_into_generate(&infer)?;
     span.record("parameters", format!("{:?}", generate_request.parameters));
     let logprobs = logprobs.unwrap_or_default();
 
@@ -1179,20 +1179,35 @@ pub(crate) async fn chat_completions(
     // switch on stream
     if stream {
         let (headers, response_stream) =
-            generate_stream_internal(infer, compute_type, Json(generate_request), span).await;
+            generate_stream_internal(infer.clone(), compute_type.clone(), Json(generate_request), span.clone()).await;
 
         let response_stream = async_stream::stream! {
             let mut response_stream = Box::pin(response_stream);
-            let mut state = ChatState::new(using_tools, stream_options, system_fingerprint, model_id, logprobs, id);
+            let mut state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
             while let Some(result) = response_stream.next().await {
                 match result{
                 Ok(stream_token) => {
                     let events = state.push(stream_token);
-                    for chat_complete in events{
-                        yield Ok(Event::default().json_data(chat_complete).unwrap_or_else(|e| {
-                            tracing::error!("Failed to serialize ChatCompletionChunk: {:?}", e);
-                            Event::default()
-                        }));
+                    match events{
+                        ChatEvent::NoTool => {
+                            chat.tools = None;
+                            chat.response_format = None;
+        let (generate_request, using_tools): (GenerateRequest, bool) =
+            chat.clone().try_into_generate(&infer).unwrap();
+        assert_eq!(using_tools, false);
+                            let (_headers, response_stream2) =
+                                generate_stream_internal(infer.clone(), compute_type.clone(), Json(generate_request), span.clone()).await;
+            state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs.clone(), id.clone());
+                            response_stream = Box::pin(response_stream2);
+                        }
+                        ChatEvent::Events(events) => {
+                            for chat_complete in events{
+                                yield Ok(Event::default().json_data(chat_complete).unwrap_or_else(|e| {
+                                    tracing::error!("Failed to serialize ChatCompletionChunk: {:?}", e);
+                                    Event::default()
+                                }));
+                            }
+                        }
                     }
                 }
                 Err(err) => yield Ok(err.into_openai_event())
