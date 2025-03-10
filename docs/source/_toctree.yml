@@ -52,6 +52,8 @@
 - sections:
   - local: backends/neuron
     title: Neuron
+  - local: backends/gaudi
+    title: Gaudi
   - local: backends/trtllm
     title: TensorRT-LLM
   - local: backends/llamacpp
