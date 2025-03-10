@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.9"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -675,18 +676,6 @@ wheels = [
 ]
 
 [[package]]
-name = "hf-kernels"
-version = "0.1.6"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "huggingface-hub" },
-    { name = "packaging" },
-    { name = "tomli", marker = "python_full_version < '3.11'" },
-    { name = "torch" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/01/fe/5aa3ea1b66bcc7d81aff19683ea04d4a9cd414c8d4ff05b150fc1f196ccd/hf_kernels-0.1.6.tar.gz", hash = "sha256:5effee5046552ce226ff86d3870a799f4ecae399bcb2beb4046c28c2dd736d2f", size = 8704 }
-
-[[package]]
 name = "hf-transfer"
 version = "0.1.9"
 source = { registry = "https://pypi.org/simple" }
@@ -813,6 +802,18 @@ sdist = { url = "https://files.pythonhosted.org/packages/10/db/58f950c996c793472
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/0f/8910b19ac0670a0f80ce1008e5e751c4a57e14d2c4c13a482aa6079fa9d6/jsonschema_specifications-2024.10.1-py3-none-any.whl", hash = "sha256:a09a0680616357d9a0ecf05c12ad234479f549239d0f5b55f3deea67475da9bf", size = 18459 },
 ]
+
+[[package]]
+name = "kernels"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "packaging" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/26/99/41af9dce502bb1682977fee1bc487a73fa8418cebbce16b8d27733947375/kernels-0.2.1.tar.gz", hash = "sha256:918942332819b28377b9d07070daddecfd8a5e7bab574dd3dc64a209ca6008b2", size = 9395 }
 
 [[package]]
 name = "lark"
@@ -2561,9 +2562,9 @@ dependencies = [
     { name = "grpcio" },
     { name = "grpcio-reflection" },
     { name = "grpcio-status" },
-    { name = "hf-kernels" },
     { name = "hf-transfer" },
     { name = "huggingface-hub" },
+    { name = "kernels" },
     { name = "loguru" },
     { name = "numpy", version = "2.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "numpy", version = "2.2.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
@@ -2626,9 +2627,9 @@ requires-dist = [
     { name = "grpcio-status", specifier = ">=1.67.0" },
     { name = "grpcio-tools", marker = "extra == 'dev'", specifier = ">=1.51.1,<2.0" },
     { name = "grpcio-tools", marker = "extra == 'gen'", specifier = ">=1.69.0" },
-    { name = "hf-kernels", specifier = ">=0.1.5" },
     { name = "hf-transfer", specifier = ">=0.1.8" },
     { name = "huggingface-hub", specifier = ">=0.29.0" },
+    { name = "kernels", specifier = ">=0.2.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "mypy-protobuf", marker = "extra == 'gen'", specifier = ">=3.6.0" },
     { name = "numpy", specifier = ">=1.26,<3" },
@@ -2651,6 +2652,7 @@ requires-dist = [
     { name = "transformers", specifier = ">=4.49.0" },
     { name = "typer", specifier = ">=0.15.1" },
 ]
+provides-extras = ["accelerate", "bnb", "compressed-tensors", "peft", "outlines", "dev", "quantize", "gen"]
 
 [[package]]
 name = "texttable"

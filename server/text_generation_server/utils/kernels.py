@@ -1,7 +1,7 @@
 import importlib
 
 from loguru import logger
-from hf_kernels import load_kernel as hf_load_kernel
+from kernels import load_kernel as hf_load_kernel
 
 from text_generation_server.utils.log import log_once
 
