@@ -1,13 +1,21 @@
 mod backend;
+mod llamacpp;
+mod quantize;
+
+use quantize::QuantizeType;
 
 use backend::{
     BackendError, LlamacppBackend, LlamacppConfig, LlamacppGGMLType, LlamacppNuma,
     LlamacppSplitMode,
 };
 use clap::Parser;
+use hf_hub::api::tokio::ApiBuilder;
+use hf_hub::{Repo, RepoType};
+use std::path::Path;
 use text_generation_router::{logging, server, usage_stats};
 use thiserror::Error;
-use tokenizers::{FromPretrainedParameters, Tokenizer};
+use tokenizers::Tokenizer;
+use tokio::process::Command;
 use tokio::sync::oneshot::error::RecvError;
 use tracing::{error, warn};
 
@@ -25,7 +33,7 @@ struct Args {
 
     /// Path to the GGUF model file for inference.
     #[clap(long, env)]
-    model_gguf: String, // TODO Option() with hf->gguf & quantize
+    model_gguf: Option<String>,
 
     /// Number of threads to use for generation.
     #[clap(long, env)]
@@ -53,7 +61,7 @@ struct Args {
 
     /// Use memory mapping for the model.
     #[clap(long, env)]
-    use_mmap: bool,
+    disable_mmap: bool,
 
     /// Use memory locking to prevent swapping.
     #[clap(long, env)]
@@ -61,11 +69,11 @@ struct Args {
 
     /// Enable offloading of KQV operations to the GPU.
     #[clap(long, env)]
-    offload_kqv: bool,
+    disable_offload_kqv: bool,
 
     /// Enable flash attention for faster inference. (EXPERIMENTAL)
     #[clap(long, env)]
-    flash_attention: bool,
+    disable_flash_attention: bool,
 
     /// Data type used for K cache.
     #[clap(default_value = "f16", value_enum, long, env)]
@@ -194,35 +202,80 @@ async fn main() -> Result<(), RouterError> {
         ));
     }
 
-    // TODO: check if we use the same cache of Server
-    // check if llamacpp is faster
-    let tokenizer = {
-        let token = std::env::var("HF_TOKEN")
-            .or_else(|_| std::env::var("HUGGING_FACE_HUB_TOKEN"))
-            .ok();
-        let params = FromPretrainedParameters {
-            revision: args.revision.clone(),
-            token,
-            ..Default::default()
-        };
-        Tokenizer::from_pretrained(args.model_id.clone(), Some(params))?
+    let api_builder = || {
+        let mut builder = ApiBuilder::new().with_progress(true);
+
+        if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
+            builder = builder.with_cache_dir(cache_dir.into());
+        }
+        if let Ok(token) = std::env::var("HF_TOKEN") {
+            builder = builder.with_token(token.into());
+        }
+        if let Ok(origin) = std::env::var("HF_HUB_USER_AGENT_ORIGIN") {
+            builder = builder.with_user_agent("origin", origin.as_str());
+        }
+        builder
+    };
+    let api_repo = api_builder().build()?.repo(Repo::with_revision(
+        args.model_id.clone(),
+        RepoType::Model,
+        args.revision.clone(),
+    ));
+
+    let tokenizer_path = api_repo.get("tokenizer.json").await?;
+    let tokenizer = Tokenizer::from_file(&tokenizer_path)?;
+
+    let model_gguf = if let Some(model_gguf) = args.model_gguf {
+        model_gguf
+    } else {
+        let model_gguf = format!("models/{}/model.gguf", args.model_id);
+        let model_gguf_path = Path::new(&model_gguf);
+
+        if !model_gguf_path.exists() {
+            let tmp_gguf = "models/tmp.gguf";
+
+            if let Some(parent) = Path::new(model_gguf_path).parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let cache_path = tokenizer_path.parent().unwrap();
+
+            for sibling in api_repo.info().await?.siblings {
+                let _ = api_repo.get(&sibling.rfilename).await?;
+            }
+            let status = Command::new("convert_hf_to_gguf.py")
+                .arg("--outfile")
+                .arg(tmp_gguf)
+                .arg(cache_path)
+                .spawn()?
+                .wait()
+                .await?;
+
+            if !status.success() {
+                let exit_code = status.code().unwrap_or(-1);
+                error!("Failed to generate GGUF, exit code: {}", exit_code);
+                return Err(RouterError::CommandError(exit_code));
+            }
+            quantize::model(tmp_gguf, &model_gguf, QuantizeType::MostlyQ4_0, n_threads)
+                .map_err(RouterError::QuantizeError)?;
+        }
+        model_gguf
     };
 
     let (backend, ok, shutdown) = LlamacppBackend::new(
         LlamacppConfig {
-            model_gguf: args.model_gguf,
+            model_gguf,
             n_threads,
             n_threads_batch,
             n_gpu_layers: args.n_gpu_layers,
             split_mode: args.split_mode,
             defrag_threshold: args.defrag_threshold,
             numa: args.numa,
-            use_mmap: args.use_mmap,
+            use_mmap: !args.disable_mmap,
             use_mlock: args.use_mlock,
-            flash_attention: args.flash_attention,
+            flash_attention: !args.disable_flash_attention,
             type_k: args.type_k,
             type_v: args.type_v,
-            offload_kqv: args.offload_kqv,
+            offload_kqv: !args.disable_offload_kqv,
             max_batch_total_tokens,
             max_physical_batch_total_tokens,
             max_batch_size,
@@ -281,4 +334,14 @@ enum RouterError {
     WebServer(#[from] server::WebServerError),
     #[error("Recv error: {0}")]
     RecvError(#[from] RecvError),
+    #[error("Io error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("Var error: {0}")]
+    VarError(#[from] std::env::VarError),
+    #[error("Quantize error: {0}")]
+    QuantizeError(String),
+    #[error("Command error: {0}")]
+    CommandError(i32),
+    #[error("HF hub error: {0}")]
+    HubError(#[from] hf_hub::api::tokio::ApiError),
 }
