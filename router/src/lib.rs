@@ -22,6 +22,7 @@ use tokenizers::Encoding;
 use tracing::warn;
 use utoipa::ToSchema;
 use validation::Validation;
+use uuid::Uuid;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
@@ -994,6 +995,29 @@ impl ChatRequest {
             },
             using_tools,
         ))
+    }
+
+    fn next_int_id(&self) -> Result<String, Box<dyn std::error::Error>>{
+        let mut id: usize = 0;
+        for message in &self.messages{
+            if let MessageBody::Tool{tool_calls} = &message.body {
+                for tool_call in tool_calls{
+                    let new_id: usize = tool_call.id.parse()?;
+                    id = std::cmp::max(id, new_id + 1);
+                }
+            }
+        }
+        Ok(id.to_string())
+    }
+
+    /// Try to have linearly increasing id
+    /// or resort to using Uuid if the initial
+    /// scheme is not understood
+    fn next_tool_call_id(&self) -> String{
+        self.next_int_id().unwrap_or_else(|_|{
+            let uid = Uuid::new_v4().to_string();
+            uid.to_string()
+        })
     }
 }
 
