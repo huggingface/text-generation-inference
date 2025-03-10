@@ -16,6 +16,9 @@ limitations under the License.
 
 # Text Generation Inference on Habana Gaudi
 
+> [!WARNING]
+> This repository is deprecated. Please use the [text-generation-inference](https://github.com/huggingface/text-generation-inference) repository instead for the latest version of TGI on Habana Gaudi. You should now use the latest image hosted on the TGI repo `ghcr.io/huggingface/text-generation-inference:latest-gaudi` instead of `ghcr.io/huggingface/tgi-gaudi:latest`. You can check the [Gaudi Backend documentation](https://huggingface.co/docs/text-generation-inference/en/backends/gaudi) for more information. 
+
 ## Table of contents
 
 - [Text Generation Inference on Habana Gaudi](#text-generation-inference-on-habana-gaudi)
