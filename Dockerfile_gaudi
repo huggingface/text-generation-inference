@@ -1,6 +1,6 @@
 # Those arguments are required to build the image
-ARG HABANA_VERSION
-ARG PYTORCH_VERSION
+ARG HABANA_VERSION=1.19.0
+ARG PYTORCH_VERSION=2.5.1
 
 # Rust builder
 FROM lukemathwalker/cargo-chef:latest-rust-1.85.0 AS chef
