@@ -1,4 +1,4 @@
-use crate::chat::{ChatState, ChatEvent};
+use crate::chat::{ChatChoice, ChatEvent, ChatState};
 /// HTTP Server logic
 use crate::config::Config;
 use crate::infer::{Backend, Infer, InferError, InferResponse, InferStreamResponse};
@@ -1178,8 +1178,13 @@ pub(crate) async fn chat_completions(
     let system_fingerprint = format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
     // switch on stream
     if stream {
-        let (headers, response_stream) =
-            generate_stream_internal(infer.clone(), compute_type.clone(), Json(generate_request), span.clone()).await;
+        let (headers, response_stream) = generate_stream_internal(
+            infer.clone(),
+            compute_type.clone(),
+            Json(generate_request),
+            span.clone(),
+        )
+        .await;
 
         let response_stream = async_stream::stream! {
             let mut response_stream = Box::pin(response_stream);
@@ -1192,12 +1197,12 @@ pub(crate) async fn chat_completions(
                         ChatEvent::NoTool => {
                             chat.tools = None;
                             chat.response_format = None;
-        let (generate_request, using_tools): (GenerateRequest, bool) =
-            chat.clone().try_into_generate(&infer).unwrap();
-        assert_eq!(using_tools, false);
+                            let (generate_request, using_tools): (GenerateRequest, bool) =
+                                chat.clone().try_into_generate(&infer).unwrap();
+                            assert!(!using_tools);
                             let (_headers, response_stream2) =
                                 generate_stream_internal(infer.clone(), compute_type.clone(), Json(generate_request), span.clone()).await;
-            state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs.clone(), id.clone());
+                            state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
                             response_stream = Box::pin(response_stream2);
                         }
                         ChatEvent::Events(events) => {
@@ -1219,8 +1224,13 @@ pub(crate) async fn chat_completions(
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
-        let (headers, input_length, Json(generation)) =
-            generate_internal(Extension(infer), compute_type, Json(generate_request), span).await?;
+        let (mut headers, mut input_length, Json(generation)) = generate_internal(
+            Extension(infer.clone()),
+            compute_type.clone(),
+            Json(generate_request),
+            span.clone(),
+        )
+        .await?;
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1228,7 +1238,26 @@ pub(crate) async fn chat_completions(
             .as_secs();
 
         let (tool_calls, output) = if using_tools {
-            crate::chat::parse_output(&generation.generated_text)?
+            match crate::chat::parse_output(&generation.generated_text)? {
+                ChatChoice::NoTool => {
+                    chat.tools = None;
+                    chat.response_format = None;
+                    let (generate_request, using_tools): (GenerateRequest, bool) =
+                        chat.clone().try_into_generate(&infer)?;
+                    assert!(!using_tools);
+                    let (headers_final, input_length_final, Json(generation)) = generate_internal(
+                        Extension(infer),
+                        compute_type,
+                        Json(generate_request),
+                        span,
+                    )
+                    .await?;
+                    headers = headers_final;
+                    input_length = input_length_final;
+                    (None, Some(generation.generated_text))
+                }
+                ChatChoice::ToolCalls(tool_calls) => (Some(tool_calls), None),
+            }
         } else {
             (None, Some(generation.generated_text))
         };

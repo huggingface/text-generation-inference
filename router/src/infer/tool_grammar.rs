@@ -40,13 +40,13 @@ impl ToolGrammar {
                             ),
                             arguments: json!({
                                 "type": "object",
-                                "properties": {
-                                    "content": {
-                                        "type": "string",
-                                        "description": "The response content",
-                                    }
-                                },
-                                "required": ["content"]
+                                // "properties": {
+                                //     "content": {
+                                //         "type": "string",
+                                //         "description": "The response content",
+                                //     }
+                                // },
+                                // "required": ["content"]
                             }),
                         },
                     }))
