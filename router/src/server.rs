@@ -1164,6 +1164,7 @@ pub(crate) async fn chat_completions(
     } = chat.clone();
 
     tracing::debug!("Got chat_template {:?}", infer.chat_template);
+    let id = chat.next_tool_call_id();
     let (generate_request, using_tools): (GenerateRequest, bool) =
         chat.try_into_generate(&infer)?;
     span.record("parameters", format!("{:?}", generate_request.parameters));
@@ -1182,7 +1183,7 @@ pub(crate) async fn chat_completions(
 
         let response_stream = async_stream::stream! {
             let mut response_stream = Box::pin(response_stream);
-            let mut state = ChatState::new(using_tools, stream_options, system_fingerprint, model_id, logprobs);
+            let mut state = ChatState::new(using_tools, stream_options, system_fingerprint, model_id, logprobs, id);
             while let Some(result) = response_stream.next().await {
                 match result{
                 Ok(stream_token) => {

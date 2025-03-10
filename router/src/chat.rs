@@ -86,6 +86,7 @@ fn create_event_from_stream_token(
     system_fingerprint: String,
     model_id: String,
     function_name: Option<String>,
+    id: String,
 ) -> CompletionType {
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -122,7 +123,7 @@ fn create_event_from_stream_token(
             role: "assistant".to_string(),
             tool_calls: vec![DeltaToolCall {
                 index: 0,
-                id: String::new(),
+                id,
                 r#type: "function".to_string(),
                 function: Function {
                     name: function_name,
@@ -172,6 +173,7 @@ pub struct ChatState {
     model_id: String,
     fingerprint: String,
     logprobs: bool,
+    id: String,
 }
 
 impl ChatState {
@@ -181,6 +183,7 @@ impl ChatState {
         fingerprint: String,
         model_id: String,
         logprobs: bool,
+        id: String,
     ) -> Self {
         let state = if using_tools {
             StreamState::Buffering
@@ -195,13 +198,13 @@ impl ChatState {
             fingerprint,
             model_id,
             logprobs,
+            id,
         }
     }
 
     pub fn push(&mut self, mut stream_token: StreamResponse) -> Vec<CompletionType> {
         let mut events = vec![];
         let token_text = &stream_token.token.text;
-        println!("Got {token_text:?} - State {:?}", self.state);
         match self.state {
             StreamState::Buffering => {
                 self.text.push_str(token_text);
@@ -218,6 +221,7 @@ impl ChatState {
                         self.fingerprint.clone(),
                         self.model_id.clone(),
                         None,
+                        self.id.clone(),
                     );
 
                     events.push(chat_complete);
@@ -237,6 +241,7 @@ impl ChatState {
                             self.fingerprint.clone(),
                             self.model_id.clone(),
                             Some(call.function._name),
+                            self.id.clone(),
                         );
 
                         events.push(chat_complete);
@@ -261,6 +266,7 @@ impl ChatState {
                         self.fingerprint.clone(),
                         self.model_id.clone(),
                         None,
+                        self.id.clone(),
                     );
                     events.push(chat_complete);
                 } else {
@@ -271,8 +277,8 @@ impl ChatState {
                         self.fingerprint.clone(),
                         self.model_id.clone(),
                         None,
+                        self.id.clone(),
                     );
-
                     events.push(chat_complete);
                 }
             }
@@ -301,10 +307,8 @@ impl ChatState {
                             if text.ends_with("\"") {
                                 text = &text[..text.len() - 1];
                             }
-                            println!("Detected end of content {text:?}");
                             stream_token.token.text = text.to_string();
                             self.state = StreamState::NoToolFinish;
-                            println!("NNew state {:?}", self.state);
                         }
                     }
                 }
@@ -317,6 +321,7 @@ impl ChatState {
                     self.fingerprint.clone(),
                     self.model_id.clone(),
                     None,
+                    self.id.clone(),
                 );
 
                 events.push(chat_complete);
@@ -329,6 +334,7 @@ impl ChatState {
                     self.fingerprint.clone(),
                     self.model_id.clone(),
                     None,
+                    self.id.clone(),
                 );
 
                 events.push(chat_complete);
@@ -414,7 +420,7 @@ mod tests {
                         function,
                     } = &tool_calls[0];
                     assert_eq!(*index, 0);
-                    assert_eq!(id, "");
+                    assert_eq!(id, "0");
                     assert_eq!(r#type, "function");
                     (function.name.as_ref(), &function.arguments)
                 } else {
@@ -435,6 +441,7 @@ mod tests {
             "fingerprint".to_string(),
             "model_id".to_string(),
             false,
+            "0".to_string(),
         );
 
         let events = chat_state.push(StreamResponse {
@@ -480,6 +487,7 @@ mod tests {
             "fingerprint".to_string(),
             "model_id".to_string(),
             false,
+            "0".to_string(),
         );
 
         let events = chat_state.push(StreamResponse {
@@ -544,6 +552,7 @@ mod tests {
             "fingerprint".to_string(),
             "model_id".to_string(),
             false,
+            "0".to_string(),
         );
 
         let tokens = vec![
@@ -621,6 +630,7 @@ mod tests {
             "fingerprint".to_string(),
             "model_id".to_string(),
             false,
+            "0".to_string(),
         );
 
         let tokens = vec![
@@ -729,6 +739,7 @@ mod tests {
             "fingerprint".to_string(),
             "model_id".to_string(),
             false,
+            "0".to_string(),
         );
 
         let tokens = vec![
@@ -810,6 +821,7 @@ mod tests {
             "fingerprint".to_string(),
             "model_id".to_string(),
             false,
+            "0".to_string(),
         );
 
         let tokens = vec![
@@ -880,6 +892,7 @@ mod tests {
             "fingerprint".to_string(),
             "model_id".to_string(),
             false,
+            "0".to_string(),
         );
 
         let tokens = vec![
