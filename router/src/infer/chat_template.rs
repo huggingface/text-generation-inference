@@ -16,7 +16,7 @@ pub(crate) fn strftime_now(format_str: String) -> Result<String, minijinja::Erro
     Ok(Local::now().format(&format_str).to_string())
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct ChatTemplate {
     template: Template<'static, 'static>,
     bos_token: Option<String>,

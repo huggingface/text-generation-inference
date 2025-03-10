@@ -1162,6 +1162,8 @@ pub(crate) async fn chat_completions(
         logprobs,
         ..
     } = chat.clone();
+
+    tracing::debug!("Got chat_template {:?}", infer.chat_template);
     let (generate_request, using_tools): (GenerateRequest, bool) =
         chat.try_into_generate(&infer)?;
     span.record("parameters", format!("{:?}", generate_request.parameters));
@@ -1565,6 +1567,7 @@ pub async fn run(
             )
         }
         Type::Cache(cache) => {
+            tracing::info!("Cache {cache:?}");
             let repo = cache.repo(Repo::with_revision(
                 tokenizer_name.to_string(),
                 RepoType::Model,
@@ -1581,6 +1584,7 @@ pub async fn run(
     };
 
     // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
+    tracing::warn!("Tokenizer_config {tokenizer_config_path:?} - {tokenizer_config_filename:?}");
     let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
     {
         HubTokenizerConfig::from_file(filename)
