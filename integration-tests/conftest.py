@@ -8,6 +8,7 @@ from huggingface_hub.inference._generated.types.chat_completion import (
 from openai.types.chat.chat_completion_chunk import (
     ChatCompletionChunk as OAIChatCompletionChunk,
 )
+from openai.types.completion import Completion as OAICompletion
 import requests
 
 
@@ -39,7 +40,6 @@ from typing import Dict, List, Optional
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
 from syrupy.extensions.json import JSONSnapshotExtension
-
 from text_generation import AsyncClient
 from text_generation.types import (
     BestOfSequence,
@@ -133,6 +133,7 @@ class ResponseComparator(JSONSnapshotExtension):
             or isinstance(data, ChatCompletionComplete)
             or isinstance(data, Completion)
             or isinstance(data, OAIChatCompletionChunk)
+            or isinstance(data, OAICompletion)
         ):
             data = data.model_dump()
         elif isinstance(data, ChatCompletionStreamOutput) or isinstance(
