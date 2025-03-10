@@ -28,3 +28,4 @@ server/fbgemmm
 hl-smi_log*.txt
 .graph_dumps
 out
+hqt_output
