@@ -1215,16 +1215,16 @@ example = json ! ({"error": "Incomplete generation"})),
 )
 )]
 #[instrument(
-skip_all,
-fields(
-parameters,
-total_time,
-validation_time,
-queue_time,
-inference_time,
-time_per_token,
-seed,
-)
+    skip_all,
+    fields(
+        parameters,
+        total_time,
+        validation_time,
+        queue_time,
+        inference_time,
+        time_per_token,
+        seed,
+    )
 )]
 pub(crate) async fn chat_completions(
     Extension(infer): Extension<Infer>,
