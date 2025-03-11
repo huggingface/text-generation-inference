@@ -23,7 +23,7 @@ docker run -p 8080:80 \
    -e PREFILL_BATCH_BUCKET_SIZE=2 \
    -e BATCH_BUCKET_SIZE=32 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=256 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --max-input-tokens 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-size 32 \
@@ -47,7 +47,7 @@ docker run -p 8080:80 \
    -e BATCH_BUCKET_SIZE=256 \
    -e PREFILL_BATCH_BUCKET_SIZE=4 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=64 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 1024 --max-total-tokens 2048 \
@@ -72,7 +72,7 @@ docker run -p 8080:80 \
    -e PREFILL_BATCH_BUCKET_SIZE=2 \
    -e BATCH_BUCKET_SIZE=32 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=256 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --max-input-tokens 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-size 32 \
@@ -96,7 +96,7 @@ docker run -p 8080:80 \
    -e BATCH_BUCKET_SIZE=256 \
    -e PREFILL_BATCH_BUCKET_SIZE=4 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=64 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 1024 --max-total-tokens 2048 \
@@ -117,7 +117,7 @@ docker run -p 8080:80 \
    -v $volume:/data \
     -e PREFILL_BATCH_BUCKET_SIZE=1 \
     -e BATCH_BUCKET_SIZE=1 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-size 4
@@ -147,7 +147,7 @@ docker run -p 8080:80 \
    -e PREFILL_BATCH_BUCKET_SIZE=2 \
    -e BATCH_BUCKET_SIZE=32 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=256 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --max-input-tokens 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-size 32 \
@@ -174,7 +174,7 @@ docker run -p 8080:80 \
    -e BATCH_BUCKET_SIZE=256 \
    -e PREFILL_BATCH_BUCKET_SIZE=4 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=64 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 1024 --max-total-tokens 2048 \
@@ -202,7 +202,7 @@ docker run -p 8080:80 \
    -e PREFILL_BATCH_BUCKET_SIZE=2 \
    -e BATCH_BUCKET_SIZE=32 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=256 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --max-input-tokens 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-size 32 \
@@ -229,7 +229,7 @@ docker run -p 8080:80 \
    -e BATCH_BUCKET_SIZE=256 \
    -e PREFILL_BATCH_BUCKET_SIZE=4 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=64 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 1024 --max-total-tokens 2048 \
@@ -253,7 +253,7 @@ docker run -p 8080:80 \
    -e QUANT_CONFIG=./quantization_config/maxabs_quant.json \
     -e PREFILL_BATCH_BUCKET_SIZE=1 \
     -e BATCH_BUCKET_SIZE=1 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-size 4
@@ -275,7 +275,7 @@ docker run -p 8080:80 \
    -e QUANT_CONFIG=./quantization_config/maxabs_quant.json \
     -e PREFILL_BATCH_BUCKET_SIZE=1 \
     -e BATCH_BUCKET_SIZE=1 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \

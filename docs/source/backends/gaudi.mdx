@@ -20,7 +20,7 @@ hf_token=YOUR_HF_ACCESS_TOKEN
 
 docker run --runtime=habana --cap-add=sys_nice --ipc=host \
     -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
-    ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+    ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
     --model-id $model
 ```
 
@@ -74,7 +74,7 @@ hf_token=YOUR_ACCESS_TOKEN
 
 docker run --runtime=habana --cap-add=sys_nice --ipc=host \
     -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
-    ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+    ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
     --model-id $model
     <text-generation-inference-launcher-arguments>
 ```
@@ -137,7 +137,7 @@ docker run -p 8080:80 \
    -e BATCH_BUCKET_SIZE=256 \
    -e PREFILL_BATCH_BUCKET_SIZE=4 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=64 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 1024 --max-total-tokens 2048 \
@@ -163,7 +163,7 @@ docker run -p 8080:80 \
    -v $volume:/data \
     -e PREFILL_BATCH_BUCKET_SIZE=1 \
     -e BATCH_BUCKET_SIZE=1 \
-   ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-size 4
@@ -181,18 +181,30 @@ curl -N 127.0.0.1:8080/generate \
 
 ### How to Benchmark Performance
 
-#### Option 1: Static Batching Benchmark (Recommended)
-To run static batching benchmark, please refer to [TGI's benchmark tool](https://github.com/huggingface/text-generation-inference/tree/main/benchmark).
+We recommend using the [inference-benchmarker tool](https://github.com/huggingface/inference-benchmarker) to benchmark performance on Gaudi hardware.
+
+This benchmark tool simulates user requests and measures the performance of the model on realistic scenarios.
 
 To run it on the same machine, you can do the following:
-* `docker exec -it <docker name> bash` , pick the docker started from step 2 using docker ps
-* `text-generation-benchmark -t <model-id>` , pass the model-id from docker run command
-* after the completion of tests, hit ctrl+c to see the performance data summary.
+```bash
+MODEL=meta-llama/Llama-3.1-8B-Instruct
+HF_TOKEN=<your HF READ token>
+# run a benchmark to evaluate the performance of the model for chat use case
+# we mount results to the current directory
+docker run \
+    --rm \
+    -it \
+    --net host \
+    -v $(pwd):/opt/inference-benchmarker/results \
+    -e "HF_TOKEN=$HF_TOKEN" \
+    ghcr.io/huggingface/inference-benchmarker:latest \
+    inference-benchmarker \
+    --tokenizer-name "$MODEL" \
+    --url http://localhost:8080 \
+    --profile chat
+```
 
-> Note: This benchmark runs the model with bs=[1, 2, 4, 8, 16, 32], sequence_length=10 and decode_length=8 by default. if you want to run other configs, please check text-generation-benchmark -h and change the parameters.
-
-#### Option 2: Continuous Batching Benchmark
-To run continuous batching benchmark, please refer to [README in examples/benchmark folder in the gaudi backend](https://github.com/huggingface/text-generation-inference/tree/main/backends/gaudi/examples/benchmark).
+Please refer to the [inference-benchmarker README](https://github.com/huggingface/inference-benchmarker) for more details.
 
 ### How to Profile Performance
 
@@ -218,7 +230,7 @@ docker run --runtime=habana --ipc=host --cap-add=sys_nice \
     -e PROF_PATH=/tmp/hpu_profile \
     -e PROF_RANKS=0 \
     -e PROF_RECORD_SHAPES=True \
-    ghcr.io/huggingface/text-generation-inference:latest-gaudi \
+    ghcr.io/huggingface/text-generation-inference:3.1.1-gaudi \
     --model-id $model
 ```
 
