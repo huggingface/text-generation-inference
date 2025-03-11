@@ -4754,6 +4754,7 @@ dependencies = [
  "async-trait",
  "bindgen 0.71.1",
  "clap 4.5.30",
+ "hf-hub 0.3.2",
  "num_cpus",
  "pkg-config",
  "text-generation-router",
