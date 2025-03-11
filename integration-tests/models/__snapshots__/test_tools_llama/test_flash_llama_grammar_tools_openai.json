@@ -13,7 +13,7 @@
                 "arguments": "{",
                 "name": "get_current_weather"
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -24,7 +24,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -46,7 +46,7 @@
                 "arguments": " \"",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -57,7 +57,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -79,7 +79,7 @@
                 "arguments": "location",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -90,7 +90,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -112,7 +112,7 @@
                 "arguments": "\":",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -123,7 +123,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -145,7 +145,7 @@
                 "arguments": " \"",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -156,7 +156,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -178,7 +178,7 @@
                 "arguments": "Bro",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -189,7 +189,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -211,7 +211,7 @@
                 "arguments": "oklyn",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -222,7 +222,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -244,7 +244,7 @@
                 "arguments": ",",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -255,7 +255,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -277,7 +277,7 @@
                 "arguments": " NY",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -288,7 +288,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -310,7 +310,7 @@
                 "arguments": "\",",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -321,7 +321,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -343,7 +343,7 @@
                 "arguments": " \"",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -354,7 +354,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370464,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -376,7 +376,7 @@
                 "arguments": "format",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -387,7 +387,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370465,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -409,7 +409,7 @@
                 "arguments": "\":",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -420,7 +420,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370465,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -442,7 +442,7 @@
                 "arguments": " \"",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -453,7 +453,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370465,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -475,7 +475,7 @@
                 "arguments": "f",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -486,7 +486,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370465,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -508,7 +508,7 @@
                 "arguments": "ahrenheit",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -519,7 +519,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370465,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -541,7 +541,7 @@
                 "arguments": "\"}",
                 "name": null
               },
-              "id": "",
+              "id": "0",
               "index": 0,
               "type": "function"
             }
@@ -552,7 +552,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741370465,
+    "created": 1741689423,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
