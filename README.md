@@ -264,7 +264,7 @@ After that you can run TGI with `nix run`:
 
 ```shell
 cd text-generation-inference
-nix run --extra-experimental-features nix-command --extra-experimental-features flakes . -- --model-idmeta-llama/Llama-3.1-8B-Instruct
+nix run --extra-experimental-features nix-command --extra-experimental-features flakes . -- --model-id meta-llama/Llama-3.1-8B-Instruct
 ```
 
 **Note:** when you are using Nix on a non-NixOS system, you have to [make some symlinks](https://danieldk.eu/Nix-CUDA-on-non-NixOS-systems#make-runopengl-driverlib-and-symlink-the-driver-library)
