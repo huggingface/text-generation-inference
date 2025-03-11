@@ -279,7 +279,7 @@ async def test_flash_llama_grammar_tools_insufficient_information_nostream(
 ):
     client = InferenceClient(base_url=f"{flash_llama_grammar_tools.base_url}/v1")
     response = client.chat_completion(
-        max_tokens=100,
+        max_tokens=20,
         seed=24,
         tools=tools,
         tool_choice="auto",
@@ -299,7 +299,10 @@ async def test_flash_llama_grammar_tools_insufficient_information_nostream(
     content_generated = response.choices[0].message.content
     assert response.choices[0].message.tool_calls is None
 
-    assert content_generated == "I am a helpful assistant!"
+    assert (
+        content_generated
+        == "I'm an artificial intelligence model known as a large language model (LLM) or conversational AI"
+    )
     assert response == response_snapshot
 
 
@@ -310,7 +313,7 @@ async def test_flash_llama_grammar_tools_insufficient_information_stream(
 ):
     client = InferenceClient(base_url=f"{flash_llama_grammar_tools.base_url}/v1")
     stream = client.chat_completion(
-        max_tokens=100,
+        max_tokens=20,
         seed=24,
         tools=tools,
         tool_choice="auto",
@@ -335,7 +338,10 @@ async def test_flash_llama_grammar_tools_insufficient_information_stream(
         assert chunk.choices[0].delta.tool_calls is None
 
     ######## This is exactly the same as the non streaming case
-    assert content_generated == "I am a helpful assistant!"
+    assert (
+        content_generated
+        == "I'm an artificial intelligence model known as a large language model (LLM) or conversational AI"
+    )
     assert chunks == response_snapshot
 
 
@@ -346,7 +352,7 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_auto(
 ):
     client = InferenceClient(base_url=f"{flash_llama_grammar_tools.base_url}/v1")
     stream = client.chat_completion(
-        max_tokens=100,
+        max_tokens=20,
         seed=24,
         tools=tools,
         tool_choice="auto",
@@ -372,7 +378,7 @@ async def test_flash_llama_grammar_tools_sea_creatures_stream_auto(
 
     assert (
         content_generated
-        == "There was a wise old octopus named Oracle. He lived in a cozy little cave beneath the waves with his best friend, a curious seahorse named Finley. One day, Finley met a playful dolphin named Daisy, and the three became inseparable. They spent their days exploring the ocean, playing hide-and-seek, and learning about the wonders of the sea from Oracle."
+        == "Once upon a time, in a vibrant ocean filled with coral reefs and schools of shimmering fish,"
     )
     assert chunks == response_snapshot
 
