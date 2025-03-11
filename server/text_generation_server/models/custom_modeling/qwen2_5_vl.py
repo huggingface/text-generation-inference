@@ -313,7 +313,6 @@ class Qwen2_5_VLVisionConfig(PretrainedConfig):
 
 
 class Qwen2_5_VLConfig(PretrainedConfig):
-
     def __init__(
         self,
         vocab_size=152064,
@@ -702,7 +701,6 @@ class Qwen2_5VisionModel(nn.Module):
         pixel_values: torch.Tensor,
         grid_thw: Optional[torch.LongTensor] = None,
     ) -> torch.Tensor:
-
         # reshape the input tensor for processing
         shape = (
             -1,
@@ -967,6 +965,7 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
             max_s=max_s,
             true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,
+            adapter_data=adapter_data,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
