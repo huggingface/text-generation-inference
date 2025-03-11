@@ -21,6 +21,7 @@ class _QuantizerConfig:
     quant_method: str
     sym: bool
     weight_block_size: Optional[List[int]]
+    modules_to_not_convert: List[str]
 
 
 @dataclass
@@ -51,6 +52,7 @@ def _get_quantizer_config(model_id, revision):
     sym = False
     desc_act = False
     weight_block_size = None
+    modules_to_not_convert = []
 
     filename = "config.json"
     try:
@@ -73,7 +75,10 @@ def _get_quantizer_config(model_id, revision):
         # Order is important here, desc_act is missing on some real models
         quant_method = data["quantization_config"]["quant_method"]
         checkpoint_format = data["quantization_config"].get("checkpoint_format")
-        desc_act = data["quantization_config"]["desc_act"]
+        desc_act = data["quantization_config"].get("desc_act", False)
+        modules_to_not_convert = data["quantization_config"].get(
+            "modules_to_not_convert", []
+        )
     except Exception:
         filename = "quantize_config.json"
         try:
@@ -110,6 +115,7 @@ def _get_quantizer_config(model_id, revision):
         sym=sym,
         desc_act=desc_act,
         weight_block_size=weight_block_size,
+        modules_to_not_convert=modules_to_not_convert,
     )
 
 
@@ -159,6 +165,7 @@ def get_loader(
                 quant_method=quantizer_config.quant_method,
                 quantize=quantize,
                 sym=quantizer_config.sym,
+                modules_to_not_convert=quantizer_config.modules_to_not_convert,
             )
     elif quantize == "bitsandbytes":
         from text_generation_server.layers.bnb import BNBWeight

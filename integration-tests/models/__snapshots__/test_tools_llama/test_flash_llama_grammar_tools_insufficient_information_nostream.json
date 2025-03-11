@@ -1,0 +1,24 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "I am a helpful assistant!",
+        "role": "assistant",
+        "tool_calls": null
+      }
+    }
+  ],
+  "created": 1741263686,
+  "id": "",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.1.2-dev0-native",
+  "usage": {
+    "completion_tokens": 23,
+    "prompt_tokens": 494,
+    "total_tokens": 517
+  }
+}

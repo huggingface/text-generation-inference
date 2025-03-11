@@ -13,6 +13,8 @@ dependencies = [
     "pytest-asyncio>=0.23.1",
     "docker>=7",
     "numpy>=2.0",
+    "openai>=1.65",
+    "huggingface_hub>=0.29",
 ]
 
 [tool.isort]

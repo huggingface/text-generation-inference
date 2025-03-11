@@ -6,7 +6,12 @@ import torch
 from loguru import logger
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
-from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
+from text_generation_server.utils.weights import (
+    Weight,
+    Weights,
+    WeightsLoader,
+    DefaultWeightsLoader,
+)
 
 if SYSTEM == "ipex":
     from .ipex import QuantLinear
@@ -90,6 +95,7 @@ class GPTQWeightsLoader(WeightsLoader):
         quant_method: str,
         quantize: str,
         sym: bool,
+        modules_to_not_convert: List[str],
     ):
         self.bits = bits
         self.desc_act = desc_act
@@ -97,6 +103,7 @@ class GPTQWeightsLoader(WeightsLoader):
         self.quant_method = quant_method
         self.quantize = quantize
         self.sym = sym
+        self.modules_to_not_convert = modules_to_not_convert
 
     def get_weights(self, weights: Weights, prefix: str):
         self._get_gptq_params(weights)
@@ -108,6 +115,9 @@ class GPTQWeightsLoader(WeightsLoader):
         if self.desc_act:
             log_once(logger.warning, "Disabling exllama because desc_act=True")
             use_exllama = False
+
+        if self.is_layer_skipped_quantization(prefix, self.modules_to_not_convert):
+            return DefaultWeightsLoader.get_weights(weights, prefix)
 
         try:
             qweight = weights.get_tensor(f"{prefix}.qweight")
@@ -171,8 +181,14 @@ class GPTQWeightsLoader(WeightsLoader):
             g_idx=g_idx,
             bits=self.bits,
             groupsize=self.groupsize,
+            use_awq_kernel=self.quantize == "awq",
             use_exllama=use_exllama,
         )
+
+    def is_layer_skipped_quantization(
+        self, prefix: str, modules_to_not_convert: List[str]
+    ):
+        return any(module_name in prefix for module_name in modules_to_not_convert)
 
     def get_weights_col_packed(
         self,
@@ -180,6 +196,10 @@ class GPTQWeightsLoader(WeightsLoader):
         prefix: str,
         block_sizes: Union[int, List[int]],
     ):
+        if self.is_layer_skipped_quantization(prefix, self.modules_to_not_convert):
+            return DefaultWeightsLoader.get_weights_col_packed(
+                weights, prefix, block_sizes
+            )
         try:
             qweight = weights.get_packed_sharded(
                 f"{prefix}.qweight", dim=1, block_sizes=block_sizes
@@ -231,6 +251,8 @@ class GPTQWeightsLoader(WeightsLoader):
         )
 
     def get_multi_weights_col(self, weights: Weights, prefixes: List[str], dim: int):
+        if self.is_layer_skipped_quantization(prefixes[0], self.modules_to_not_convert):
+            return DefaultWeightsLoader.get_multi_weights_col(weights, prefixes, dim)
         try:
             qweight = torch.cat(
                 [weights.get_sharded(f"{p}.qweight", dim=1) for p in prefixes], dim=1
@@ -309,6 +331,8 @@ class GPTQWeightsLoader(WeightsLoader):
             log_once(logger.warning, "Disabling exllama because desc_act=True")
             use_exllama = False
 
+        if self.is_layer_skipped_quantization(prefix, self.modules_to_not_convert):
+            return DefaultWeightsLoader.get_weights_row(weights, prefix)
         try:
             qweight = weights.get_sharded(f"{prefix}.qweight", dim=0)
         except RuntimeError:

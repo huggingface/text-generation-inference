@@ -71,7 +71,7 @@ ARG actions_runtime_token
 
 # Install Rust
 ENV PATH="/root/.cargo/bin:$PATH"
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y && \
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.85.0 --profile minimal -y && \
     chmod -R a+w /root/.rustup && \
     chmod -R a+w /root/.cargo && \
     cargo install sccache --locked

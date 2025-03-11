@@ -1,8 +1,5 @@
 use clap::{Parser, ValueEnum};
-use hf_hub::{
-    api::sync::{Api, ApiBuilder},
-    Repo, RepoType,
-};
+use hf_hub::{api::sync::ApiBuilder, Repo, RepoType};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use serde::Deserialize;
@@ -100,12 +97,16 @@ fn get_config(
     let filename = if !path.exists() {
         // Assume it's a hub id
 
-        let api = if let Ok(token) = std::env::var("HF_TOKEN") {
+        let mut builder = if let Ok(token) = std::env::var("HF_TOKEN") {
             // env variable has precedence over on file token.
-            ApiBuilder::new().with_token(Some(token)).build()?
+            ApiBuilder::new().with_token(Some(token))
         } else {
-            Api::new()?
+            ApiBuilder::new()
         };
+        if let Ok(origin) = env::var("HF_HUB_USER_AGENT_ORIGIN") {
+            builder = builder.with_user_agent("origin", origin.as_str());
+        }
+        let api = builder.build()?;
         let repo = if let Some(ref revision) = revision {
             api.repo(Repo::with_revision(
                 model_id,
@@ -701,8 +702,8 @@ struct Args {
     /// Overall this number should be the largest possible amount that fits the
     /// remaining memory (after the model is loaded). Since the actual memory overhead
     /// depends on other parameters like if you're using quantization, flash attention
-    /// or the model implementation, text-generation-inference cannot infer this number
-    /// automatically.
+    /// or the model implementation, text-generation-inference infers this number automatically
+    /// if not provided ensuring that the value is as large as possible.
     #[clap(long, env)]
     max_batch_total_tokens: Option<u32>,
 
@@ -1531,6 +1532,11 @@ fn spawn_shards(
 ) -> Result<(), LauncherError> {
     // Start shard processes
     for rank in 0..num_shard {
+        if rank != 0 && env_runtime::Env::new().is_hpu_device() {
+            tracing::info!("Running on HPU, the launcher will not do any sharding as actual sharding is done in the server");
+            break;
+        }
+
         let model_id = args.model_id.clone();
         let revision = args.revision.clone();
         let uds_path = args.shard_uds_path.clone();
@@ -1603,6 +1609,10 @@ fn spawn_shards(
             Ok(ShardStatus::Ready) => {
                 shard_ready += 1;
                 if shard_ready == num_shard {
+                    break;
+                }
+                if env_runtime::Env::new().is_hpu_device() {
+                    tracing::info!("HPU detected, shard is ready");
                     break;
                 }
             }

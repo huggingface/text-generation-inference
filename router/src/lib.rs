@@ -730,7 +730,7 @@ pub(crate) struct ChatCompletionChoice {
 pub struct ToolCallDelta {
     #[schema(example = "assistant")]
     role: String,
-    tool_calls: DeltaToolCall,
+    tool_calls: Vec<DeltaToolCall>,
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
@@ -764,7 +764,6 @@ impl ChatCompletionChunk {
         created: u64,
         logprobs: Option<ChatCompletionLogprobs>,
         finish_reason: Option<String>,
-        usage: Option<Usage>,
     ) -> Self {
         let delta = match (delta, tool_calls) {
             (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
@@ -774,7 +773,7 @@ impl ChatCompletionChunk {
             }),
             (None, Some(tool_calls)) => ChatCompletionDelta::Tool(ToolCallDelta {
                 role: "assistant".to_string(),
-                tool_calls: DeltaToolCall {
+                tool_calls: vec![DeltaToolCall {
                     index: 0,
                     id: String::new(),
                     r#type: "function".to_string(),
@@ -782,7 +781,7 @@ impl ChatCompletionChunk {
                         name: None,
                         arguments: tool_calls[0].to_string(),
                     },
-                },
+                }],
             }),
             (None, None) => ChatCompletionDelta::Chat(TextMessage {
                 role: "assistant".to_string(),
@@ -801,7 +800,7 @@ impl ChatCompletionChunk {
                 logprobs,
                 finish_reason,
             }],
-            usage,
+            usage: None,
         }
     }
 }
@@ -947,7 +946,7 @@ impl ChatRequest {
         let stop = stop.unwrap_or_default();
         // enable greedy only when temperature is 0
         let (do_sample, temperature) = match temperature {
-            Some(temperature) if temperature == 0.0 => (false, None),
+            Some(0.0) => (false, None),
             other => (true, other),
         };
 
@@ -1010,7 +1009,7 @@ impl ChatRequest {
                     seed,
                     top_n_tokens: top_logprobs,
                     grammar,
-                    adapter_id: model.filter(|m| *m != "tgi").map(String::from),
+                    adapter_id: model.filter(|m| *m != "tgi"),
                 },
             },
             using_tools,
@@ -1138,8 +1137,15 @@ pub struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
-    #[serde(alias = "parameters")]
+    #[serde(alias = "parameters", serialize_with = "serialize_as_string")]
     pub arguments: serde_json::Value,
+}
+
+fn serialize_as_string<S>(value: &serde_json::Value, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&value.to_string())
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
@@ -1730,7 +1736,7 @@ mod tests {
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(
             serialized,
-            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}]}"#
+            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":"{\"format\":\"csv\"}"}}]}"#
         );
     }
 

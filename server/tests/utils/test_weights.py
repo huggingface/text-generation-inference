@@ -25,6 +25,7 @@ def gptq_weights_loader():
         quant_method="gptq",
         quantize="gptq",
         sym=True,
+        modules_to_not_convert=[],
     )
 
 
@@ -37,6 +38,7 @@ def gptq_weights_loader_awq():
         quant_method="awq",
         quantize="awq",
         sym=True,
+        modules_to_not_convert=[],
     )
 
 

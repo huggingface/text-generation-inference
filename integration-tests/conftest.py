@@ -1,5 +1,14 @@
+pytest_plugins = ["fixtures.neuron.service", "fixtures.neuron.export_models"]
 # ruff: noqa: E402
 from _pytest.fixtures import SubRequest
+from huggingface_hub.inference._generated.types.chat_completion import (
+    ChatCompletionStreamOutput,
+    ChatCompletionOutput,
+)
+from openai.types.chat.chat_completion_chunk import (
+    ChatCompletionChunk as OAIChatCompletionChunk,
+)
+from openai.types.completion import Completion as OAICompletion
 import requests
 
 
@@ -31,7 +40,6 @@ from typing import Dict, List, Optional
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
 from syrupy.extensions.json import JSONSnapshotExtension
-
 from text_generation import AsyncClient
 from text_generation.types import (
     BestOfSequence,
@@ -57,23 +65,47 @@ def pytest_addoption(parser):
     parser.addoption(
         "--release", action="store_true", default=False, help="run release tests"
     )
+    parser.addoption(
+        "--neuron", action="store_true", default=False, help="run neuron tests"
+    )
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "release: mark test as a release-only test")
+    config.addinivalue_line("markers", "neuron: mark test as a neuron test")
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--release"):
-        # --release given in cli: do not skip release tests
-        return
-    skip_release = pytest.mark.skip(reason="need --release option to run")
+    selectors = []
+    if not config.getoption("--release"):
+        # --release not given in cli: skip release tests
+        def skip_release(item):
+            if "release" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="need --release option to run"))
+
+        selectors.append(skip_release)
+    if config.getoption("--neuron"):
+
+        def skip_not_neuron(item):
+            if "neuron" not in item.keywords:
+                item.add_marker(
+                    pytest.mark.skip(reason="incompatible with --neuron option")
+                )
+
+        selectors.append(skip_not_neuron)
+    else:
+
+        def skip_neuron(item):
+            if "neuron" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --neuron to run"))
+
+        selectors.append(skip_neuron)
     for item in items:
-        if "release" in item.keywords:
-            item.add_marker(skip_release)
+        for selector in selectors:
+            selector(item)
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope="module")
 def container_log(request: SubRequest):
     error_log = request.getfixturevalue("error_log")
     assert error_log is not None
@@ -83,11 +115,38 @@ def container_log(request: SubRequest):
         print(error_log.read(), file=sys.stderr)
     else:
         error_log.truncate(0)
+        error_log.seek(0)
 
 
 class ResponseComparator(JSONSnapshotExtension):
     rtol = 0.2
     ignore_logprob = False
+
+    def _serialize(
+        self,
+        data,
+    ):
+        if (
+            isinstance(data, Response)
+            or isinstance(data, ChatComplete)
+            or isinstance(data, ChatCompletionChunk)
+            or isinstance(data, ChatCompletionComplete)
+            or isinstance(data, Completion)
+            or isinstance(data, OAIChatCompletionChunk)
+            or isinstance(data, OAICompletion)
+        ):
+            data = data.model_dump()
+        elif isinstance(data, ChatCompletionStreamOutput) or isinstance(
+            data, ChatCompletionOutput
+        ):
+            data = dict(data)
+        elif isinstance(data, List):
+            data = [self._serialize(d) for d in data]
+        elif isinstance(data, dict):
+            return data
+        else:
+            raise RuntimeError(f"Unexpected data {type(data)} : {data}")
+        return data
 
     def serialize(
         self,
@@ -97,17 +156,7 @@ class ResponseComparator(JSONSnapshotExtension):
         exclude=None,
         matcher=None,
     ):
-        if (
-            isinstance(data, Response)
-            or isinstance(data, ChatComplete)
-            or isinstance(data, ChatCompletionChunk)
-            or isinstance(data, ChatCompletionComplete)
-        ):
-            data = data.model_dump()
-
-        if isinstance(data, List):
-            data = [d.model_dump() for d in data]
-
+        data = self._serialize(data)
         data = self._filter(
             data=data,
             depth=0,
@@ -116,7 +165,8 @@ class ResponseComparator(JSONSnapshotExtension):
             include=include,
             matcher=matcher,
         )
-        return json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+        data = json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+        return data
 
     def matches(
         self,
@@ -132,7 +182,7 @@ class ResponseComparator(JSONSnapshotExtension):
             if isinstance(data, Dict):
                 if "choices" in data:
                     data["choices"] = list(
-                        sorted(data["choices"], key=lambda x: x["index"])
+                        sorted(data["choices"], key=lambda x: int(x["index"]))
                     )
                     choices = data["choices"]
                     if isinstance(choices, List) and len(choices) >= 1:
@@ -145,7 +195,7 @@ class ResponseComparator(JSONSnapshotExtension):
                     return Response(**data)
             if isinstance(data, List):
                 return [_convert_data(d) for d in data]
-            raise NotImplementedError
+            raise NotImplementedError(f"Data: {data}")
 
         def eq_token(token: Token, other: Token) -> bool:
             return (
@@ -243,7 +293,25 @@ class ResponseComparator(JSONSnapshotExtension):
         def eq_chat_complete_chunk(
             response: ChatCompletionChunk, other: ChatCompletionChunk
         ) -> bool:
-            return response.choices[0].delta.content == other.choices[0].delta.content
+            if response.choices:
+                if response.choices[0].delta.content is not None:
+                    return (
+                        response.choices[0].delta.content
+                        == other.choices[0].delta.content
+                    )
+                elif response.choices[0].delta.tool_calls is not None:
+                    return (
+                        response.choices[0].delta.tool_calls
+                        == other.choices[0].delta.tool_calls
+                    )
+                else:
+                    raise RuntimeError(
+                        f"Invalid empty chat chunk {response} vs {other}"
+                    )
+            elif response.usage is not None:
+                return response.usage == other.usage
+            else:
+                raise RuntimeError(f"Invalid empty chat {response} vs {other}")
 
         def eq_response(response: Response, other: Response) -> bool:
             return response.generated_text == other.generated_text and eq_details(
@@ -257,6 +325,9 @@ class ResponseComparator(JSONSnapshotExtension):
             serialized_data = [serialized_data]
         if not isinstance(snapshot_data, List):
             snapshot_data = [snapshot_data]
+
+        if len(serialized_data) == 0:
+            return len(snapshot_data) == len(serialized_data)
 
         if isinstance(serialized_data[0], Completion):
             return len(snapshot_data) == len(serialized_data) and all(

@@ -23,3 +23,8 @@ server/fbgemmm
 
 .direnv/
 .venv/
+
+# Gaudi auto-generated files
+hl-smi_log*.txt
+.graph_dumps
+out

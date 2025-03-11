@@ -71,6 +71,7 @@ prost-build = "0.12.1"
 [dev-dependencies]
 criterion = "0.3"
 itertools = "0.13"
+rustc-hash = "2"
 
 [features]
 default = ["ngrok"]
