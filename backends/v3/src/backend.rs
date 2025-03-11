@@ -34,6 +34,7 @@ impl BackendV3 {
         max_waiting_tokens: usize,
         max_batch_size: Option<usize>,
         shard_info: InfoResponse,
+        served_model_name: String,
     ) -> Self {
         if shard_info.support_chunking {
             tracing::warn!("Model supports prefill chunking. `waiting_served_ratio` and `max_waiting_tokens` will be ignored.");
@@ -49,6 +50,7 @@ impl BackendV3 {
             shard_info.speculate,
             max_batch_total_tokens,
             shard_info.support_chunking,
+            served_model_name.clone(),
         );
         let batching_task_notifier = Arc::new(Notify::new());
 
@@ -63,6 +65,7 @@ impl BackendV3 {
             shard_info.support_chunking,
             queue.clone(),
             batching_task_notifier.clone(),
+            served_model_name.clone(),
         ));
 
         Self {
@@ -136,6 +139,7 @@ pub(crate) async fn batching_task(
     support_chunking: bool,
     queue: Queue,
     notifier: Arc<Notify>,
+    served_model_name: String,
 ) {
     // Infinite loop
     loop {
@@ -154,7 +158,7 @@ pub(crate) async fn batching_task(
             )
             .await
         {
-            let mut cached_batch = prefill(&mut client, batch, None, &mut entries)
+            let mut cached_batch = prefill(&mut client, batch, None, &mut entries, served_model_name.clone())
                 .instrument(span)
                 .await;
             let mut waiting_tokens = 1;
@@ -167,8 +171,8 @@ pub(crate) async fn batching_task(
                 let batch_max_tokens = batch.max_tokens;
                 let current_tokens = batch.current_tokens;
                 let mut batches = vec![batch];
-                metrics::gauge!("tgi_batch_current_size").set(batch_size as f64);
-                metrics::gauge!("tgi_batch_current_max_tokens").set(batch_max_tokens as f64);
+                metrics::gauge!("tgi_batch_current_size", "model_name" => served_model_name.clone()).set(batch_size as f64);
+                metrics::gauge!("tgi_batch_current_max_tokens", "model_name" => served_model_name.clone()).set(batch_max_tokens as f64);
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
 
@@ -207,13 +211,13 @@ pub(crate) async fn batching_task(
                 {
                     // Tracking metrics
                     if min_size.is_some() {
-                        metrics::counter!("tgi_batch_concat", "reason" => "backpressure")
+                        metrics::counter!("tgi_batch_concat", "reason" => "backpressure", "model_name" => served_model_name.clone())
                             .increment(1);
                     } else {
                         let counter = if support_chunking {
-                            metrics::counter!("tgi_batch_concat", "reason" => "chunking")
+                            metrics::counter!("tgi_batch_concat", "reason" => "chunking", "model_name" => served_model_name.clone())
                         } else {
-                            metrics::counter!("tgi_batch_concat", "reason" => "wait_exceeded")
+                            metrics::counter!("tgi_batch_concat", "reason" => "wait_exceeded", "model_name" => served_model_name.clone())
                         };
                         counter.increment(1);
                     }
@@ -226,7 +230,7 @@ pub(crate) async fn batching_task(
                         entries.extend(new_entries);
                         // Generate one token for both the cached batch and the new batch
                         let new_cached_batch =
-                            prefill(&mut client, new_batch, cached_batch, &mut entries)
+                            prefill(&mut client, new_batch, cached_batch, &mut entries, served_model_name.clone())
                                 .instrument(span)
                                 .await;
                         if new_cached_batch.is_none() {
@@ -250,7 +254,7 @@ pub(crate) async fn batching_task(
 
                         // Generate one token for this new batch to have the attention past in cache
                         let new_cached_batch =
-                            prefill(&mut client, new_batch, None, &mut new_entries)
+                            prefill(&mut client, new_batch, None, &mut new_entries, served_model_name.clone())
                                 .instrument(span)
                                 .await;
                         if new_cached_batch.is_some() {
@@ -282,13 +286,13 @@ pub(crate) async fn batching_task(
                     entry.temp_span = Some(entry_batch_span);
                 });
 
-                cached_batch = decode(&mut client, batches, &mut entries)
+                cached_batch = decode(&mut client, batches, &mut entries, served_model_name.clone())
                     .instrument(next_batch_span)
                     .await;
                 waiting_tokens += 1;
             }
-            metrics::gauge!("tgi_batch_current_size").set(0.0);
-            metrics::gauge!("tgi_batch_current_max_tokens").set(0.0);
+            metrics::gauge!("tgi_batch_current_size", "model_name" => served_model_name.clone()).set(0.0);
+            metrics::gauge!("tgi_batch_current_max_tokens", "model_name" => served_model_name.clone()).set(0.0);
         }
     }
 }
@@ -299,40 +303,41 @@ async fn prefill(
     batch: Batch,
     cached_batch: Option<CachedBatch>,
     entries: &mut IntMap<u64, Entry>,
+    served_model_name: String,
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_id = batch.id;
-    metrics::counter!("tgi_batch_inference_count", "method" => "prefill").increment(1);
+    metrics::counter!("tgi_batch_inference_count", "method" => "prefill", "model_name" => served_model_name.clone()).increment(1);
 
     match client.prefill(batch, cached_batch).await {
         Ok((generations, next_batch, timings)) => {
             let start_filtering_time = Instant::now();
             // Send generated tokens and filter stopped entries
-            filter_send_generations(generations, entries);
+            filter_send_generations(generations, entries, served_model_name.clone());
 
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
 
             if let Some(concat_duration) = timings.concat {
-                metrics::histogram!("tgi_batch_concat_duration", "method" => "decode")
+                metrics::histogram!("tgi_batch_concat_duration", "method" => "decode", "model_name" => served_model_name.clone())
                     .record(concat_duration.as_secs_f64());
             }
-            metrics::histogram!("tgi_batch_forward_duration", "method" => "prefill")
+            metrics::histogram!("tgi_batch_forward_duration", "method" => "prefill", "model_name" => served_model_name.clone())
                 .record(timings.forward.as_secs_f64());
-            metrics::histogram!("tgi_batch_decode_duration", "method" => "prefill")
+            metrics::histogram!("tgi_batch_decode_duration", "method" => "prefill", "model_name" => served_model_name.clone())
                 .record(timings.decode.as_secs_f64());
-            metrics::histogram!("tgi_batch_filter_duration", "method" => "prefill")
+            metrics::histogram!("tgi_batch_filter_duration", "method" => "prefill", "model_name" => served_model_name.clone())
                 .record(start_filtering_time.elapsed().as_secs_f64());
-            metrics::histogram!("tgi_batch_inference_duration", "method" => "prefill")
+            metrics::histogram!("tgi_batch_inference_duration", "method" => "prefill", "model_name" => served_model_name.clone())
                 .record(start_time.elapsed().as_secs_f64());
-            metrics::counter!("tgi_batch_inference_success", "method" => "prefill").increment(1);
+            metrics::counter!("tgi_batch_inference_success", "method" => "prefill", "model_name" => served_model_name.clone()).increment(1);
             next_batch
         }
         // If we have an error, we discard the whole batch
         Err(err) => {
             let _ = client.clear_cache(Some(batch_id)).await;
-            send_errors(err, entries);
-            metrics::counter!("tgi_batch_inference_failure", "method" => "prefill").increment(1);
+            send_errors(err, entries, served_model_name.clone());
+            metrics::counter!("tgi_batch_inference_failure", "method" => "prefill", "model_name" => served_model_name.clone()).increment(1);
             None
         }
     }
@@ -343,33 +348,34 @@ async fn decode(
     client: &mut ShardedClient,
     batches: Vec<CachedBatch>,
     entries: &mut IntMap<u64, Entry>,
+    served_model_name: String,
 ) -> Option<CachedBatch> {
     let start_time = Instant::now();
     let batch_ids: Vec<u64> = batches.iter().map(|b| b.id).collect();
-    metrics::counter!("tgi_batch_inference_count", "method" => "decode").increment(1);
+    metrics::counter!("tgi_batch_inference_count", "method" => "decode", "model_name" => served_model_name.clone()).increment(1);
 
     match client.decode(batches).await {
         Ok((generations, next_batch, timings)) => {
             let start_filtering_time = Instant::now();
             // Send generated tokens and filter stopped entries
-            filter_send_generations(generations, entries);
+            filter_send_generations(generations, entries, served_model_name.clone());
 
             // Filter next batch and remove requests that were stopped
             let next_batch = filter_batch(client, next_batch, entries).await;
 
             if let Some(concat_duration) = timings.concat {
-                metrics::histogram!("tgi_batch_concat_duration", "method" => "decode")
+                metrics::histogram!("tgi_batch_concat_duration", "method" => "decode", "model_name" => served_model_name.clone())
                     .record(concat_duration.as_secs_f64());
             }
-            metrics::histogram!("tgi_batch_forward_duration", "method" => "decode")
+            metrics::histogram!("tgi_batch_forward_duration", "method" => "decode", "model_name" => served_model_name.clone())
                 .record(timings.forward.as_secs_f64());
-            metrics::histogram!("tgi_batch_decode_duration", "method" => "decode")
+            metrics::histogram!("tgi_batch_decode_duration", "method" => "decode", "model_name" => served_model_name.clone())
                 .record(timings.decode.as_secs_f64());
-            metrics::histogram!("tgi_batch_filter_duration", "method" => "decode")
+            metrics::histogram!("tgi_batch_filter_duration", "method" => "decode", "model_name" => served_model_name.clone())
                 .record(start_filtering_time.elapsed().as_secs_f64());
-            metrics::histogram!("tgi_batch_inference_duration", "method" => "decode")
+            metrics::histogram!("tgi_batch_inference_duration", "method" => "decode", "model_name" => served_model_name.clone())
                 .record(start_time.elapsed().as_secs_f64());
-            metrics::counter!("tgi_batch_inference_success", "method" => "decode").increment(1);
+            metrics::counter!("tgi_batch_inference_success", "method" => "decode", "model_name" => served_model_name.clone()).increment(1);
             next_batch
         }
         // If we have an error, we discard the whole batch
@@ -377,8 +383,8 @@ async fn decode(
             for id in batch_ids {
                 let _ = client.clear_cache(Some(id)).await;
             }
-            send_errors(err, entries);
-            metrics::counter!("tgi_batch_inference_failure", "method" => "decode").increment(1);
+            send_errors(err, entries, served_model_name.clone());
+            metrics::counter!("tgi_batch_inference_failure", "method" => "decode", "model_name" => served_model_name.clone()).increment(1);
             None
         }
     }
@@ -420,7 +426,7 @@ async fn filter_batch(
 /// Send one or multiple `InferStreamResponse` to Infer for all `entries`
 /// and filter entries
 #[instrument(skip_all)]
-fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>) {
+fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u64, Entry>, served_model_name: String) {
     generations.into_iter().for_each(|generation| {
         let id = generation.request_id;
         // Get entry
@@ -434,9 +440,9 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
         // Send generation responses back to the infer task
         // If the receive an error from the Flume channel, it means that the client dropped the
         // request and we need to stop generating hence why we unwrap_or(true)
-        let stopped = send_responses(generation, entry).inspect_err(|_err| {
+        let stopped = send_responses(generation, entry, served_model_name.clone()).inspect_err(|_err| {
             tracing::error!("Entry response channel error.");
-            metrics::counter!("tgi_request_failure", "err" => "dropped").increment(1);
+            metrics::counter!("tgi_request_failure", "err" => "dropped", "model_name" => served_model_name.clone()).increment(1);
         }).unwrap_or(true);
         if stopped {
             entries.remove(&id).expect("ID not found in entries. This is a bug.");
@@ -448,10 +454,11 @@ fn filter_send_generations(generations: Vec<Generation>, entries: &mut IntMap<u6
 fn send_responses(
     generation: Generation,
     entry: &Entry,
+    served_model_name: String,
 ) -> Result<bool, Box<SendError<Result<InferStreamResponse, InferError>>>> {
     // Return directly if the channel is disconnected
     if entry.response_tx.is_closed() {
-        metrics::counter!("tgi_request_failure", "err" => "dropped").increment(1);
+        metrics::counter!("tgi_request_failure", "err" => "dropped", "model_name" => served_model_name.clone()).increment(1);
         return Ok(true);
     }
 
@@ -477,7 +484,7 @@ fn send_responses(
     // Create last Token
     let tokens_ = generation.tokens.expect("Non empty tokens in generation");
     let n = tokens_.ids.len();
-    metrics::histogram!("tgi_request_skipped_tokens").record((n - 1) as f64);
+    metrics::histogram!("tgi_request_skipped_tokens", "model_name" => served_model_name.clone()).record((n - 1) as f64);
     let mut iterator = tokens_
         .ids
         .into_iter()
@@ -537,12 +544,12 @@ fn send_responses(
 
 /// Send errors to Infer for all `entries`
 #[instrument(skip_all)]
-fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>) {
+fn send_errors(error: ClientError, entries: &mut IntMap<u64, Entry>, served_model_name: String) {
     entries.drain().for_each(|(_, entry)| {
         // Create and enter a span to link this function back to the entry
         let _send_error_span = info_span!(parent: entry.temp_span.as_ref().expect("batch_span is None. This is a bug."), "send_error").entered();
         let err = InferError::GenerationError(error.to_string());
-        metrics::counter!("tgi_request_failure", "err" => "generation").increment(1);
+        metrics::counter!("tgi_request_failure", "err" => "generation", "model_name" => served_model_name.clone()).increment(1);
         tracing::error!("{err}");
 
         // unwrap_or is valid here as we don't care if the receiver is gone.

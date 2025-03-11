@@ -129,6 +129,7 @@ pub(crate) async fn compat_generate(
     Extension(default_return_full_text): Extension<bool>,
     infer: Extension<Infer>,
     compute_type: Extension<ComputeType>,
+    served_model_name: Extension<String>,
     Json(mut req): Json<CompatGenerateRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     // default return_full_text given the pipeline_tag
@@ -138,11 +139,11 @@ pub(crate) async fn compat_generate(
 
     // switch on stream
     if req.stream {
-        Ok(generate_stream(infer, compute_type, Json(req.into()))
+        Ok(generate_stream(infer, served_model_name.clone(), compute_type, Json(req.into()))
             .await
             .into_response())
     } else {
-        let (headers, Json(generation)) = generate(infer, compute_type, Json(req.into())).await?;
+        let (headers, Json(generation)) = generate(infer, served_model_name.clone(), compute_type, Json(req.into())).await?;
         // wrap generation inside a Vec to match api-inference
         Ok((headers, Json(vec![generation])).into_response())
     }
@@ -196,9 +197,10 @@ async fn openai_get_model_info(info: Extension<Info>) -> Json<ModelsInfo> {
 )]
 async fn get_chat_tokenize(
     Extension(infer): Extension<Infer>,
+    Extension(served_model_name): Extension<String>,
     Json(chat): Json<ChatRequest>,
 ) -> Result<(HeaderMap, Json<ChatTokenizeResponse>), (StatusCode, Json<ErrorResponse>)> {
-    metrics::counter!("tgi_request_count").increment(1);
+    metrics::counter!("tgi_request_count", "model_name" => served_model_name).increment(1);
 
     let generate_request: GenerateRequest = chat.try_into_generate(&infer)?.0;
     let input = generate_request.inputs.clone();
@@ -270,23 +272,25 @@ seed,
 )]
 async fn generate(
     infer: Extension<Infer>,
+    served_model_name: Extension<String>,
     Extension(ComputeType(compute_type)): Extension<ComputeType>,
     Json(req): Json<GenerateRequest>,
 ) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
     let (headers, _, response) =
-        generate_internal(infer, ComputeType(compute_type), Json(req), span).await?;
+        generate_internal(infer, served_model_name, ComputeType(compute_type), Json(req), span).await?;
     Ok((headers, response))
 }
 
 pub(crate) async fn generate_internal(
     infer: Extension<Infer>,
+    served_model_name: Extension<String>,
     ComputeType(compute_type): ComputeType,
     Json(req): Json<GenerateRequest>,
     span: tracing::Span,
 ) -> Result<(HeaderMap, u32, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
-    metrics::counter!("tgi_request_count").increment(1);
+    metrics::counter!("tgi_request_count", "model_name" => served_model_name.0.clone()).increment(1);
 
     // Do not long ultra long inputs, like image payloads.
     tracing::debug!(
@@ -305,10 +309,10 @@ pub(crate) async fn generate_internal(
     // Inference
     let (response, best_of_responses) = match req.parameters.best_of {
         Some(best_of) if best_of > 1 => {
-            let (response, best_of_responses) = infer.generate_best_of(req, best_of).await?;
+            let (response, best_of_responses) = infer.generate_best_of(req, best_of, served_model_name.0.clone()).await?;
             (response, Some(best_of_responses))
         }
-        _ => (infer.generate(req).await?, None),
+        _ => (infer.generate(req, served_model_name.0.clone()).await?, None),
     };
 
     // Token details
@@ -405,14 +409,14 @@ pub(crate) async fn generate_internal(
     );
 
     // Metrics
-    metrics::counter!("tgi_request_success").increment(1);
-    metrics::histogram!("tgi_request_duration").record(total_time.as_secs_f64());
-    metrics::histogram!("tgi_request_validation_duration").record(validation_time.as_secs_f64());
-    metrics::histogram!("tgi_request_queue_duration").record(queue_time.as_secs_f64());
-    metrics::histogram!("tgi_request_inference_duration").record(inference_time.as_secs_f64());
-    metrics::histogram!("tgi_request_mean_time_per_token_duration")
+    metrics::counter!("tgi_request_success", "model_name" => served_model_name.0.clone()).increment(1);
+    metrics::histogram!("tgi_request_duration", "model_name" => served_model_name.0.clone()).record(total_time.as_secs_f64());
+    metrics::histogram!("tgi_request_validation_duration", "model_name" => served_model_name.0.clone()).record(validation_time.as_secs_f64());
+    metrics::histogram!("tgi_request_queue_duration", "model_name" => served_model_name.0.clone()).record(queue_time.as_secs_f64());
+    metrics::histogram!("tgi_request_inference_duration", "model_name" => served_model_name.0.clone()).record(inference_time.as_secs_f64());
+    metrics::histogram!("tgi_request_mean_time_per_token_duration", "model_name" => served_model_name.0.clone())
         .record(time_per_token.as_secs_f64());
-    metrics::histogram!("tgi_request_generated_tokens")
+    metrics::histogram!("tgi_request_generated_tokens", "model_name" => served_model_name.0.clone())
         .record(response.generated_text.generated_tokens as f64);
 
     // Send response
@@ -468,6 +472,7 @@ seed,
 )]
 async fn generate_stream(
     Extension(infer): Extension<Infer>,
+    Extension(served_model_name): Extension<String>,
     Extension(compute_type): Extension<ComputeType>,
     Json(req): Json<GenerateRequest>,
 ) -> (
@@ -476,7 +481,7 @@ async fn generate_stream(
 ) {
     let span = tracing::Span::current();
     let (headers, response_stream) =
-        generate_stream_internal(infer, compute_type, Json(req), span).await;
+        generate_stream_internal(infer, served_model_name, compute_type, Json(req), span).await;
 
     let response_stream = async_stream::stream! {
         let mut response_stream = Box::pin(response_stream);
@@ -495,6 +500,7 @@ async fn generate_stream(
 
 async fn generate_stream_internal(
     infer: Infer,
+    served_model_name: String,
     ComputeType(compute_type): ComputeType,
     Json(req): Json<GenerateRequest>,
     span: tracing::Span,
@@ -503,7 +509,7 @@ async fn generate_stream_internal(
     impl Stream<Item = Result<StreamResponse, InferError>>,
 ) {
     let start_time = Instant::now();
-    metrics::counter!("tgi_request_count").increment(1);
+    metrics::counter!("tgi_request_count", "model_name" => served_model_name.clone()).increment(1);
 
     tracing::debug!("Input: {}", req.inputs);
 
@@ -540,7 +546,7 @@ async fn generate_stream_internal(
             tracing::error!("{err}");
             yield Err(err);
         } else {
-            match infer.generate_stream(req).instrument(info_span!(parent: &span, "async_stream")).await {
+            match infer.generate_stream(req, served_model_name.clone()).instrument(info_span!(parent: &span, "async_stream")).await {
                 // Keep permit as long as generate_stream lives
                 Ok((_permit, input_length, response_stream)) => {
                     let mut index = 0;
@@ -605,13 +611,13 @@ async fn generate_stream_internal(
                                         span.record("seed", format!("{:?}", generated_text.seed));
 
                                         // Metrics
-                                        metrics::counter!("tgi_request_success").increment(1);
-                                        metrics::histogram!("tgi_request_duration").record(total_time.as_secs_f64());
-                                        metrics::histogram!("tgi_request_validation_duration").record(validation_time.as_secs_f64());
-                                        metrics::histogram!("tgi_request_queue_duration").record(queue_time.as_secs_f64());
-                                        metrics::histogram!("tgi_request_inference_duration").record(inference_time.as_secs_f64());
-                                        metrics::histogram!("tgi_request_mean_time_per_token_duration").record(time_per_token.as_secs_f64());
-                                        metrics::histogram!("tgi_request_generated_tokens").record(generated_text.generated_tokens as f64);
+                                        metrics::counter!("tgi_request_success", "model_name" => served_model_name.clone()).increment(1);
+                                        metrics::histogram!("tgi_request_duration", "model_name" => served_model_name.clone()).record(total_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_validation_duration", "model_name" => served_model_name.clone()).record(validation_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_queue_duration", "model_name" => served_model_name.clone()).record(queue_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_inference_duration", "model_name" => served_model_name.clone()).record(inference_time.as_secs_f64());
+                                        metrics::histogram!("tgi_request_mean_time_per_token_duration", "model_name" => served_model_name.clone()).record(time_per_token.as_secs_f64());
+                                        metrics::histogram!("tgi_request_generated_tokens", "model_name" => served_model_name.clone()).record(generated_text.generated_tokens as f64);
 
                                         // StreamResponse
                                         end_reached = true;
@@ -704,10 +710,11 @@ pub(crate) async fn completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
+    Extension(served_model_name): Extension<String>,
     Json(req): Json<CompletionRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
-    metrics::counter!("tgi_request_count").increment(1);
+    metrics::counter!("tgi_request_count", "model_name" => served_model_name.clone()).increment(1);
 
     let CompletionRequest {
         model,
@@ -798,6 +805,7 @@ pub(crate) async fn completions(
             let infer_clone = infer.clone();
             let compute_type_clone = compute_type.clone();
             let span_clone = span.clone();
+            let served_model_name_clone = served_model_name.clone();
 
             // Create a future for each generate_stream_internal call.
             let generate_future = async move {
@@ -807,6 +815,7 @@ pub(crate) async fn completions(
                 tokio::spawn(async move {
                     let (headers, response_stream) = generate_stream_internal(
                         infer_clone.clone(),
+                        served_model_name_clone.clone(),
                         compute_type_clone.clone(),
                         Json(generate_request),
                         span_clone.clone(),
@@ -975,11 +984,13 @@ pub(crate) async fn completions(
         let responses = FuturesUnordered::new();
         for (index, generate_request) in generate_requests.into_iter().enumerate() {
             let infer_clone = infer.clone();
+            let served_model_name_clone = served_model_name.clone();
             let compute_type_clone = compute_type.clone();
             let span_clone = span.clone();
             let response_future = async move {
                 let result = generate_internal(
                     Extension(infer_clone),
+                    Extension(served_model_name_clone),
                     compute_type_clone,
                     Json(generate_request),
                     span_clone,
@@ -1208,10 +1219,11 @@ pub(crate) async fn chat_completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
+    Extension(served_model_name): Extension<String>,
     Json(chat): Json<ChatRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
-    metrics::counter!("tgi_request_count").increment(1);
+    metrics::counter!("tgi_request_count", "model_name" => served_model_name.clone()).increment(1);
     let ChatRequest {
         model,
         stream,
@@ -1233,7 +1245,7 @@ pub(crate) async fn chat_completions(
     // switch on stream
     if stream {
         let (headers, response_stream) =
-            generate_stream_internal(infer, compute_type, Json(generate_request), span).await;
+            generate_stream_internal(infer, served_model_name, compute_type, Json(generate_request), span).await;
 
         // regex to match any function name
         let function_regex = match Regex::new(r#"\{"function":\{"_name":"([^"]+)""#) {
@@ -1405,7 +1417,7 @@ pub(crate) async fn chat_completions(
         Ok((headers, sse).into_response())
     } else {
         let (headers, input_length, Json(generation)) =
-            generate_internal(Extension(infer), compute_type, Json(generate_request), span).await?;
+            generate_internal(Extension(infer), Extension(served_model_name), compute_type, Json(generate_request), span).await?;
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1704,6 +1716,7 @@ pub async fn run(
     max_client_batch_size: usize,
     usage_stats_level: usage_stats::UsageStatsLevel,
     payload_limit: usize,
+    served_model_name: String,
 ) -> Result<(), WebServerError> {
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
@@ -1984,6 +1997,7 @@ pub async fn run(
         compat_return_full_text,
         allow_origin,
         payload_limit,
+        served_model_name,
     )
     .await;
 
@@ -2045,6 +2059,7 @@ async fn start(
     compat_return_full_text: bool,
     allow_origin: Option<AllowOrigin>,
     payload_limit: usize,
+    served_model_name: String,
 ) -> Result<(), WebServerError> {
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
@@ -2097,22 +2112,22 @@ async fn start(
         duration_buckets.push(value);
     }
     // Input Length buckets
-    let input_length_matcher = Matcher::Full(String::from("tgi_request_input_length"));
+    let input_length_matcher = Matcher::Full(format!("tgi_request_input_length{{model_name=\"{}\"}}", served_model_name));
     let input_length_buckets: Vec<f64> = (0..100)
         .map(|x| (max_input_tokens as f64 / 100.0) * (x + 1) as f64)
         .collect();
     // Generated tokens buckets
-    let generated_tokens_matcher = Matcher::Full(String::from("tgi_request_generated_tokens"));
+    let generated_tokens_matcher = Matcher::Full(format!("tgi_request_generated_tokens{{model_name=\"{}\"}}", served_model_name));
     let generated_tokens_buckets: Vec<f64> = (0..100)
         .map(|x| (max_total_tokens as f64 / 100.0) * (x + 1) as f64)
         .collect();
     // Input Length buckets
-    let max_new_tokens_matcher = Matcher::Full(String::from("tgi_request_max_new_tokens"));
+    let max_new_tokens_matcher = Matcher::Full(format!("tgi_request_max_new_tokens{{model_name=\"{}\"}}", served_model_name));
     let max_new_tokens_buckets: Vec<f64> = (0..100)
         .map(|x| (max_total_tokens as f64 / 100.0) * (x + 1) as f64)
         .collect();
     // Batch size buckets
-    let batch_size_matcher = Matcher::Full(String::from("tgi_batch_next_size"));
+    let batch_size_matcher = Matcher::Full(format!("ttgi_batch_next_size{{model_name=\"{}\"}}", served_model_name));
     let batch_size_buckets: Vec<f64> = (0..1024).map(|x| (x + 1) as f64).collect();
     // Speculated tokens buckets
     // let skipped_matcher = Matcher::Full(String::from("tgi_request_skipped_tokens"));
@@ -2355,7 +2370,8 @@ async fn start(
         .route("/v1/completions", post(completions))
         .route("/vertex", post(vertex_compatibility))
         .route("/invocations", post(sagemaker_compatibility))
-        .route("/tokenize", post(tokenize));
+        .route("/tokenize", post(tokenize))
+            .layer(Extension(served_model_name));
 
     if let Some(api_key) = api_key {
         let mut prefix = "Bearer ".to_string();

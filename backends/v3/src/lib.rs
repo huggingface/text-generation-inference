@@ -54,6 +54,7 @@ pub async fn connect_backend(
     max_batch_total_tokens: Option<u32>,
     max_waiting_tokens: usize,
     max_batch_size: Option<usize>,
+    served_model_name: String,
 ) -> Result<(BackendV3, BackendInfo), V3Error> {
     // Helper function
     let check_max_batch_total_tokens = |(
@@ -161,6 +162,7 @@ pub async fn connect_backend(
         max_waiting_tokens,
         max_batch_size,
         shard_info,
+        served_model_name,
     );
 
     tracing::info!("Using backend V3");

@@ -7,6 +7,9 @@ use thiserror::Error;
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
+    #[clap(long, env)]
+    served_model_name: String,
+
     #[command(subcommand)]
     command: Option<Commands>,
 
@@ -74,6 +77,7 @@ struct Args {
     payload_limit: usize,
 }
 
+
 #[derive(Debug, Subcommand)]
 enum Commands {
     PrintSchema,
@@ -83,8 +87,11 @@ enum Commands {
 async fn main() -> Result<(), RouterError> {
     // Get args
     let args = Args::parse();
+    let _served_model_name = args.served_model_name.clone();
+
     // Pattern match configuration
     let Args {
+        served_model_name,
         command,
         max_concurrent_requests,
         max_best_of,
@@ -151,6 +158,7 @@ async fn main() -> Result<(), RouterError> {
         max_batch_total_tokens,
         max_waiting_tokens,
         max_batch_size,
+        served_model_name.clone(),
     )
     .await?;
 
@@ -214,6 +222,7 @@ async fn main() -> Result<(), RouterError> {
         max_client_batch_size,
         usage_stats,
         payload_limit,
+        served_model_name.clone(),
     )
     .await?;
     Ok(())

@@ -100,6 +100,7 @@ impl Infer {
     pub(crate) async fn generate_stream<'a>(
         &'a self,
         request: GenerateRequest,
+        served_model_name: String,
     ) -> Result<
         (
             OwnedSemaphorePermit,
@@ -121,7 +122,7 @@ impl Infer {
 
         // Validate request
         let mut local_request = request.clone();
-        let valid_request = self.validation.validate(request).await.map_err(|err| {
+        let valid_request = self.validation.validate(request, served_model_name.clone()).await.map_err(|err| {
             metrics::counter!("tgi_request_failure", "err" => "validation").increment(1);
             tracing::error!("{err}");
             err
@@ -165,7 +166,7 @@ impl Infer {
                             local_request.inputs.push_str(&generated_text.text);
                             all_generated_text = all_generated_text.or(Some(generated_text));
 
-                            let valid_request = match self.validation.validate(local_request.clone()).await {
+                            let valid_request = match self.validation.validate(local_request.clone(), served_model_name.clone()).await {
                                 Ok(valid_request) => valid_request,
                                 Err(err) => {
                                     tracing::debug!("Failed to continue request: {err}");
@@ -245,11 +246,12 @@ impl Infer {
     pub(crate) async fn generate(
         &self,
         request: GenerateRequest,
+        served_model_name: String,
     ) -> Result<InferResponse, InferError> {
         let use_top_tokens = request.parameters.top_n_tokens.is_some_and(|x| x > 0);
 
         // Create stream and keep semaphore permit as long as generate lives
-        let (_permit, _input_length, stream) = self.generate_stream(request).await?;
+        let (_permit, _input_length, stream) = self.generate_stream(request, served_model_name).await?;
 
         // Return values
         let mut result_prefill = Vec::new();
@@ -322,13 +324,14 @@ impl Infer {
         &self,
         request: GenerateRequest,
         best_of: usize,
+        served_model_name: String,
     ) -> Result<(InferResponse, Vec<InferResponse>), InferError> {
         // validate  best_of parameter separately
         let best_of = self.validation.validate_best_of(best_of)?;
 
         // create multiple generate requests
         let mut infer_responses: Vec<InferResponse> =
-            try_join_all((0..best_of).map(|_| self.generate(request.clone()))).await?;
+            try_join_all((0..best_of).map(|_| self.generate(request.clone(), served_model_name.clone()))).await?;
 
         // get the sequence with the highest log probability per token
         let mut max_index = 0;
