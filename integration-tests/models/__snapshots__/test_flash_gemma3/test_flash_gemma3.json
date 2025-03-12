@@ -1,0 +1,613 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 100,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 1331,
+        "logprob": -0.32421875,
+        "special": false,
+        "text": " people"
+      },
+      {
+        "id": 8390,
+        "logprob": -0.15332031,
+        "special": false,
+        "text": " died"
+      },
+      {
+        "id": 528,
+        "logprob": -1.140625,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 506,
+        "logprob": -0.42578125,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 3640,
+        "logprob": -0.64453125,
+        "special": false,
+        "text": " United"
+      },
+      {
+        "id": 4184,
+        "logprob": -0.0027770996,
+        "special": false,
+        "text": " States"
+      },
+      {
+        "id": 236761,
+        "logprob": -0.37890625,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 108,
+        "logprob": -0.08300781,
+        "special": false,
+        "text": "\n\n"
+      },
+      {
+        "id": 818,
+        "logprob": -1.1796875,
+        "special": false,
+        "text": "The"
+      },
+      {
+        "id": 6816,
+        "logprob": -1.765625,
+        "special": false,
+        "text": " generally"
+      },
+      {
+        "id": 10951,
+        "logprob": -0.14550781,
+        "special": false,
+        "text": " accepted"
+      },
+      {
+        "id": 10967,
+        "logprob": -0.90625,
+        "special": false,
+        "text": " estimate"
+      },
+      {
+        "id": 563,
+        "logprob": -0.49414062,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 600,
+        "logprob": -0.65625,
+        "special": false,
+        "text": " that"
+      },
+      {
+        "id": 236743,
+        "logprob": -1.1796875,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 236825,
+        "logprob": -0.0009918213,
+        "special": false,
+        "text": "6"
+      },
+      {
+        "id": 236832,
+        "logprob": -6.532669e-05,
+        "special": false,
+        "text": "7"
+      },
+      {
+        "id": 236810,
+        "logprob": -4.863739e-05,
+        "special": false,
+        "text": "5"
+      },
+      {
+        "id": 236764,
+        "logprob": -0.00017929077,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 236771,
+        "logprob": -1.2397766e-05,
+        "special": false,
+        "text": "0"
+      },
+      {
+        "id": 236771,
+        "logprob": -2.1457672e-06,
+        "special": false,
+        "text": "0"
+      },
+      {
+        "id": 236771,
+        "logprob": 0.0,
+        "special": false,
+        "text": "0"
+      },
+      {
+        "id": 1331,
+        "logprob": -0.50390625,
+        "special": false,
+        "text": " people"
+      },
+      {
+        "id": 8390,
+        "logprob": -0.011474609,
+        "special": false,
+        "text": " died"
+      },
+      {
+        "id": 528,
+        "logprob": -0.08496094,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 506,
+        "logprob": -0.0003299713,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 3640,
+        "logprob": -0.028442383,
+        "special": false,
+        "text": " United"
+      },
+      {
+        "id": 4184,
+        "logprob": -0.00011014938,
+        "special": false,
+        "text": " States"
+      },
+      {
+        "id": 236761,
+        "logprob": -1.1796875,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 3153,
+        "logprob": -0.104003906,
+        "special": false,
+        "text": " However"
+      },
+      {
+        "id": 236764,
+        "logprob": -0.009094238,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 1070,
+        "logprob": -0.88671875,
+        "special": false,
+        "text": " some"
+      },
+      {
+        "id": 61806,
+        "logprob": -0.84765625,
+        "special": false,
+        "text": " historians"
+      },
+      {
+        "id": 4646,
+        "logprob": -1.34375,
+        "special": false,
+        "text": " believe"
+      },
+      {
+        "id": 506,
+        "logprob": -0.59375,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 5396,
+        "logprob": -0.8046875,
+        "special": false,
+        "text": " actual"
+      },
+      {
+        "id": 1548,
+        "logprob": -0.04321289,
+        "special": false,
+        "text": " number"
+      },
+      {
+        "id": 1451,
+        "logprob": -0.60546875,
+        "special": false,
+        "text": " could"
+      },
+      {
+        "id": 577,
+        "logprob": -0.091308594,
+        "special": false,
+        "text": " be"
+      },
+      {
+        "id": 618,
+        "logprob": -0.61328125,
+        "special": false,
+        "text": " as"
+      },
+      {
+        "id": 1494,
+        "logprob": -0.00033569336,
+        "special": false,
+        "text": " high"
+      },
+      {
+        "id": 618,
+        "logprob": -0.0001411438,
+        "special": false,
+        "text": " as"
+      },
+      {
+        "id": 236743,
+        "logprob": -0.001045227,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 236770,
+        "logprob": -0.21289062,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 236771,
+        "logprob": -0.13378906,
+        "special": false,
+        "text": "0"
+      },
+      {
+        "id": 3625,
+        "logprob": -0.0087890625,
+        "special": false,
+        "text": " million"
+      },
+      {
+        "id": 236761,
+        "logprob": -0.2109375,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 108,
+        "logprob": -0.39453125,
+        "special": false,
+        "text": "\n\n"
+      },
+      {
+        "id": 236777,
+        "logprob": -1.1328125,
+        "special": false,
+        "text": "I"
+      },
+      {
+        "id": 1006,
+        "logprob": -1.4140625,
+        "special": false,
+        "text": " am"
+      },
+      {
+        "id": 3182,
+        "logprob": -1.15625,
+        "special": false,
+        "text": " looking"
+      },
+      {
+        "id": 573,
+        "logprob": -0.035888672,
+        "special": false,
+        "text": " for"
+      },
+      {
+        "id": 919,
+        "logprob": -1.2734375,
+        "special": false,
+        "text": " more"
+      },
+      {
+        "id": 1938,
+        "logprob": -1.2265625,
+        "special": false,
+        "text": " information"
+      },
+      {
+        "id": 580,
+        "logprob": -0.7734375,
+        "special": false,
+        "text": " on"
+      },
+      {
+        "id": 672,
+        "logprob": -0.77734375,
+        "special": false,
+        "text": " this"
+      },
+      {
+        "id": 59725,
+        "logprob": -0.70703125,
+        "special": false,
+        "text": " discrepancy"
+      },
+      {
+        "id": 532,
+        "logprob": -0.8515625,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 506,
+        "logprob": -0.65625,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 5872,
+        "logprob": -1.15625,
+        "special": false,
+        "text": " factors"
+      },
+      {
+        "id": 600,
+        "logprob": -0.2265625,
+        "special": false,
+        "text": " that"
+      },
+      {
+        "id": 19263,
+        "logprob": -1.125,
+        "special": false,
+        "text": " contributed"
+      },
+      {
+        "id": 531,
+        "logprob": -0.001083374,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 506,
+        "logprob": -0.2109375,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 5777,
+        "logprob": -1.21875,
+        "special": false,
+        "text": " wide"
+      },
+      {
+        "id": 2644,
+        "logprob": -0.018310547,
+        "special": false,
+        "text": " range"
+      },
+      {
+        "id": 529,
+        "logprob": -0.12988281,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 14287,
+        "logprob": -0.03564453,
+        "special": false,
+        "text": " estimates"
+      },
+      {
+        "id": 236761,
+        "logprob": -0.010314941,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 108,
+        "logprob": -0.060546875,
+        "special": false,
+        "text": "\n\n"
+      },
+      {
+        "id": 8291,
+        "logprob": -0.734375,
+        "special": false,
+        "text": "Here"
+      },
+      {
+        "id": 236789,
+        "logprob": -0.26367188,
+        "special": false,
+        "text": "'"
+      },
+      {
+        "id": 236751,
+        "logprob": -1.1920929e-06,
+        "special": false,
+        "text": "s"
+      },
+      {
+        "id": 496,
+        "logprob": -0.15527344,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 25890,
+        "logprob": -0.08886719,
+        "special": false,
+        "text": " breakdown"
+      },
+      {
+        "id": 529,
+        "logprob": -0.0020446777,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 506,
+        "logprob": -0.17871094,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 5872,
+        "logprob": -0.90234375,
+        "special": false,
+        "text": " factors"
+      },
+      {
+        "id": 20894,
+        "logprob": -0.25976562,
+        "special": false,
+        "text": " contributing"
+      },
+      {
+        "id": 531,
+        "logprob": -8.34465e-05,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 506,
+        "logprob": -0.008544922,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 5777,
+        "logprob": -0.62109375,
+        "special": false,
+        "text": " wide"
+      },
+      {
+        "id": 2644,
+        "logprob": -0.0023345947,
+        "special": false,
+        "text": " range"
+      },
+      {
+        "id": 529,
+        "logprob": -0.016723633,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 14287,
+        "logprob": -0.011291504,
+        "special": false,
+        "text": " estimates"
+      },
+      {
+        "id": 573,
+        "logprob": -0.29101562,
+        "special": false,
+        "text": " for"
+      },
+      {
+        "id": 506,
+        "logprob": -0.21484375,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 236743,
+        "logprob": -0.2890625,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 236770,
+        "logprob": -3.5762787e-07,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 236819,
+        "logprob": 0.0,
+        "special": false,
+        "text": "9"
+      },
+      {
+        "id": 236770,
+        "logprob": 0.0,
+        "special": false,
+        "text": "1"
+      },
+      {
+        "id": 236828,
+        "logprob": 0.0,
+        "special": false,
+        "text": "8"
+      },
+      {
+        "id": 7745,
+        "logprob": -0.70703125,
+        "special": false,
+        "text": " flu"
+      },
+      {
+        "id": 10248,
+        "logprob": -0.01953125,
+        "special": false,
+        "text": " pandemic"
+      },
+      {
+        "id": 4355,
+        "logprob": -0.78515625,
+        "special": false,
+        "text": " death"
+      },
+      {
+        "id": 25363,
+        "logprob": -6.771088e-05,
+        "special": false,
+        "text": " toll"
+      },
+      {
+        "id": 528,
+        "logprob": -0.08496094,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 506,
+        "logprob": -7.033348e-06,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 3640,
+        "logprob": -0.0067443848,
+        "special": false,
+        "text": " United"
+      },
+      {
+        "id": 4184,
+        "logprob": 0.0,
+        "special": false,
+        "text": " States"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": " people died in the United States.\n\nThe generally accepted estimate is that 675,000 people died in the United States. However, some historians believe the actual number could be as high as 10 million.\n\nI am looking for more information on this discrepancy and the factors that contributed to the wide range of estimates.\n\nHere's a breakdown of the factors contributing to the wide range of estimates for the 1918 flu pandemic death toll in the United States"
+}

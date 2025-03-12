@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "Based on the image, the animal is a cow, not a dog! \n\nIt appears to be a **Brazilian cattle breed** known as a **Gir Cow**. They are recognized for their reddish-brown color and distinctive markings.",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1741703753,
+  "id": "",
+  "model": "gg-hf-g/gemma-3-4b-it",
+  "object": "chat.completion",
+  "system_fingerprint": "3.1.2-dev0-native",
+  "usage": {
+    "completion_tokens": 48,
+    "prompt_tokens": 281,
+    "total_tokens": 329
+  }
+}

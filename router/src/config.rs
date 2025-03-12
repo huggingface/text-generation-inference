@@ -217,6 +217,19 @@ impl Qwen2_5Vl {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Gemma3VisionConfig {
+    pub(crate) image_size: usize,
+    pub(crate) patch_size: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Gemma3 {
+    vision_config: Gemma3VisionConfig,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
 pub enum Config {
@@ -249,6 +262,7 @@ pub enum Config {
     Paligemma(Paligemma),
     Gemma,
     Gemma2,
+    Gemma3(Gemma3),
     Cohere,
     Drbx,
     Falcon,

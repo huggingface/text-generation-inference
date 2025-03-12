@@ -1,0 +1,133 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 20,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 236764,
+        "logprob": -0.44726562,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 236743,
+        "logprob": -0.011413574,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 236812,
+        "logprob": -0.09814453,
+        "special": false,
+        "text": "4"
+      },
+      {
+        "id": 236764,
+        "logprob": -0.044189453,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 236743,
+        "logprob": -0.15625,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 236810,
+        "logprob": -0.010864258,
+        "special": false,
+        "text": "5"
+      },
+      {
+        "id": 236764,
+        "logprob": -0.040039062,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 236743,
+        "logprob": -0.26757812,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 236825,
+        "logprob": -0.0047302246,
+        "special": false,
+        "text": "6"
+      },
+      {
+        "id": 236764,
+        "logprob": -0.026123047,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 236743,
+        "logprob": -0.265625,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 236832,
+        "logprob": -0.014160156,
+        "special": false,
+        "text": "7"
+      },
+      {
+        "id": 236764,
+        "logprob": -0.013977051,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 236743,
+        "logprob": -0.103515625,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 236828,
+        "logprob": -0.008178711,
+        "special": false,
+        "text": "8"
+      },
+      {
+        "id": 236764,
+        "logprob": -0.030151367,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 236743,
+        "logprob": -0.39453125,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 236819,
+        "logprob": -0.008728027,
+        "special": false,
+        "text": "9"
+      },
+      {
+        "id": 236764,
+        "logprob": -0.020629883,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 236743,
+        "logprob": -0.08154297,
+        "special": false,
+        "text": " "
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": ", 4, 5, 6, 7, 8, 9, "
+}

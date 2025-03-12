@@ -152,6 +152,11 @@ impl HubTokenizerConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChatTemplateStandalone {
+    pub chat_template: ChatTemplateVersions,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(untagged)]
 pub enum TokenizerConfigToken {
@@ -173,6 +178,7 @@ impl TokenizerConfigToken {
 pub enum HubPreprocessorConfig {
     Idefics2Processor(Idefics2Preprocessor),
     Idefics3Processor(Idefics2Preprocessor),
+    Gemma3Processor(Gemma3Processor),
 }
 
 impl HubPreprocessorConfig {
@@ -184,6 +190,12 @@ impl HubPreprocessorConfig {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Idefics2Preprocessor {
+    #[serde(default)]
+    do_image_splitting: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Gemma3Processor {
     #[serde(default)]
     do_image_splitting: bool,
 }

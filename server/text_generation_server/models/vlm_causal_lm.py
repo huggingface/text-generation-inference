@@ -128,6 +128,12 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         num_pads = grid_t * grid_h * grid_w // 4
         padding = "<|image_pad|>" * num_pads
         return f"<|vision_start|>{padding}<|vision_end|>"
+    elif config.model_type == "gemma3":
+        # TODO: get correct number of features via reviewing the Gemma3 architecture
+        # and calculating the number of image tokens
+        num_pads = 256
+        padding = "<image_soft_token>" * num_pads
+        return f"\n\n<start_of_image>{padding}<end_of_image>\n\n"
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -243,6 +249,8 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                             image = image.resize((w, h))
 
                     if config.model_type == "llava_next":
+                        images.append(image)
+                    elif config.model_type == "gemma3":
                         images.append(image)
                     else:
                         images.append([image])
