@@ -3,6 +3,26 @@
     "choices": [
       {
         "delta": {
+          "content": "",
+          "role": "assistant",
+          "tool_calls": null
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741364571,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
           "content": "I",
           "role": "assistant",
           "tool_calls": null
@@ -12,7 +32,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263687,
+    "created": 1741364571,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -32,7 +52,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263687,
+    "created": 1741364571,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -52,7 +72,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263687,
+    "created": 1741364571,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -72,7 +92,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263687,
+    "created": 1741364571,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -92,7 +112,27 @@
         "logprobs": null
       }
     ],
-    "created": 1741263687,
+    "created": 1741364571,
+    "id": "",
+    "model": "meta-llama/Llama-3.1-8B-Instruct",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.1.2-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "!",
+          "role": "assistant",
+          "tool_calls": null
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741364571,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",

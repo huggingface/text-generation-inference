@@ -2148,9 +2148,6 @@
       },
       "StreamOptions": {
         "type": "object",
-        "required": [
-          "include_usage"
-        ],
         "properties": {
           "include_usage": {
             "type": "boolean",
