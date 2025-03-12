@@ -49,17 +49,11 @@ async def test_model_single_request(tgi_service):
         max_new_tokens=128,
         seed=42,
     )
-    sample_expectations = {
-        "gpt2": "Deep Learning",
-        "llama": "Deep Learning",
-        "mistral": "Deep learning",
-        "qwen2": "Deep Learning",
-        "granite": "Deep learning",
-    }
-    assert sample_expectations[service_name] in response
+    # The response must be different
+    assert not response.startswith(greedy_expectations[service_name])
 
-    # Sampling with stop sequence
-    stop_sequence = sample_expectations[service_name][-5:]
+    # Sampling with stop sequence (using one of the words returned from the previous test)
+    stop_sequence = response.split(" ")[-5]
     response = await tgi_service.client.text_generation(
         "What is Deep Learning?",
         do_sample=True,
