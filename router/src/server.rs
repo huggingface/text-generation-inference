@@ -1781,6 +1781,7 @@ pub async fn run(
         tokenizer_config_filename,
         preprocessor_config_filename,
         processor_config_filename,
+        chat_template_filename,
         model_info,
     ) = match api {
         Type::None => (
@@ -1788,6 +1789,7 @@ pub async fn run(
             Some(local_path.join("tokenizer_config.json")),
             Some(local_path.join("preprocessor_config.json")),
             Some(local_path.join("processor_config.json")),
+            Some(local_path.join("chat_template.json")),
             None,
         ),
         Type::Api(api) => {
@@ -1801,6 +1803,7 @@ pub async fn run(
             let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
             let preprocessor_config_filename = api_repo.get("preprocessor_config.json").await.ok();
             let processor_config_filename = api_repo.get("processor_config.json").await.ok();
+            let chat_template_filename = api_repo.get("chat_template.json").await.ok();
 
             let model_info = if let Some(model_info) = get_hub_model_info(&api_repo).await {
                 Some(model_info)
@@ -1813,6 +1816,7 @@ pub async fn run(
                 tokenizer_config_filename,
                 preprocessor_config_filename,
                 processor_config_filename,
+                chat_template_filename,
                 model_info,
             )
         }
@@ -1827,10 +1831,22 @@ pub async fn run(
                 repo.get("tokenizer_config.json"),
                 repo.get("preprocessor_config.json"),
                 repo.get("processor_config.json"),
+                repo.get("chat_template.json"),
                 None,
             )
         }
     };
+
+    // if chat_template_filename is present, load the chat template
+    let chat_template: Option<crate::ChatTemplateVersions> = chat_template_filename
+        .and_then(|f| std::fs::read_to_string(f).ok())
+        .and_then(|c| {
+            let res = serde_json::from_str::<crate::ChatTemplateStandalone>(&c);
+            if let Err(e) = &res {
+                tracing::warn!("Could not parse chat template {e:?}");
+            }
+            res.ok().map(|t| t.chat_template)
+        });
 
     // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
     let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
@@ -1839,10 +1855,15 @@ pub async fn run(
     } else {
         tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
     };
-    let tokenizer_config = tokenizer_config.unwrap_or_else(|| {
+    let mut tokenizer_config = tokenizer_config.unwrap_or_else(|| {
         tracing::warn!("Could not find tokenizer config locally and no API specified");
         HubTokenizerConfig::default()
     });
+
+    if chat_template.is_some() {
+        tracing::info!("Using chat template from chat_template.json");
+        tokenizer_config.chat_template = chat_template;
+    }
 
     let tokenizer: Result<Tokenizer, WebServerError> = {
         use pyo3::prelude::*;
