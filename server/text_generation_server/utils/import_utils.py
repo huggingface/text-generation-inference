@@ -19,7 +19,7 @@ def get_cuda_free_memory(device, memory_fraction):
 
 def get_xpu_free_memory(device, memory_fraction):
     total_free_memory, total_xpu_memory = torch.xpu.mem_get_info(device)
-    memory_fraction = float(os.getenv("XPU_MEMORY_FRACTION", "1.0"))
+    memory_fraction = float(os.getenv("XPU_MEMORY_FRACTION", "0.9"))
     free_memory = max(
         0, int(total_free_memory - (1 - memory_fraction) * total_xpu_memory)
     )
