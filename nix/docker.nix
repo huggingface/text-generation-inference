@@ -1,4 +1,5 @@
 {
+  stdenv,
   dockerTools,
   cacert,
   text-generation-inference,
@@ -19,5 +20,8 @@ build {
     ];
 
   };
-  contents = [ cacert ];
+  contents = [
+    cacert
+    stdenv.cc
+  ];
 }
