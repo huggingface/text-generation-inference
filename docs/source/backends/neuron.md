@@ -31,7 +31,7 @@ deployment instructions in the model card:
 The service is launched simply by running the text-generation-inference container with two sets of parameters:
 
 ```
-docker run <system_parameters> ghcr.io/huggingface/text-generation-inference:3.1.1-neuron <service_parameters>
+docker run <system_parameters> ghcr.io/huggingface/text-generation-inference:3.2.0-neuron <service_parameters>
 ```
 
 - system parameters are used to map ports, volumes and devices between the host and the service,
