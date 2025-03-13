@@ -10,10 +10,6 @@
 let
   build = if stream then dockerTools.streamLayeredImage else dockerTools.buildLayeredImage;
 in
-# tmp = runCommand "tmp" { } ''
-#   mkdir $out
-#   mkdir -m 1777 $out/tmp
-# '';
 build {
   name = "tgi-docker";
   tag = "latest";
