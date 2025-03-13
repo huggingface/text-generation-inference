@@ -53,3 +53,6 @@ run-falcon-7b-instruct-quantize:
 
 clean:
 	rm -rf target aml
+
+preview_doc:
+	doc-builder preview text-generation-inference docs/source --not_python_module

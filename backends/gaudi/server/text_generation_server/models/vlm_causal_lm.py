@@ -68,10 +68,14 @@ IDEFICS2_IMAGE_TOKEN = "<image>"
 IMAGES = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
 BASE_IMAGE_TOKENS = int(os.environ.get("BASE_IMAGE_TOKENS", 2048))
 MAX_TOTAL_TOKENS = int(os.environ.get("MAX_TOTAL_TOKENS", 8192))
-MAX_BATCH_TOTAL_TOKENS = int(os.environ.get("MAX_BATCH_TOTAL_TOKENS", 131072))
 PAD_SEQUENCE_TO_MULTIPLE_OF = int(os.environ.get("PAD_SEQUENCE_TO_MULTIPLE_OF", 256))
 CHUNK_SIZES = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
 LAZY_MODE = int(os.environ.get("PT_HPU_LAZY_MODE", 1))
+MAX_BATCH_SIZE = (
+    int(os.environ.get("MAX_BATCH_SIZE"))
+    if os.environ.get("MAX_BATCH_SIZE") is not None
+    else None
+)
 
 PREFILL_WARMUP_BATCH_SIZE_LIST = []
 PREFILL_WARMUP_SEQLEN_LIST = []
@@ -1197,7 +1201,9 @@ class VlmCausalLM(Model):
 
         return self.batch_from_pb(batch, is_warmup)
 
-    def warmup(self, request) -> None:
+    def warmup(
+        self, request: generate_pb2.WarmupRequest
+    ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
         is_warmup = True
         batch = self.batch_from_pb(request.batch, is_warmup)
 
@@ -1210,7 +1216,8 @@ class VlmCausalLM(Model):
                 f"You need to decrease `--max-batch-prefill-tokens`"
             )
 
-        global BASE_IMAGE_TOKENS, MAX_TOTAL_TOKENS, MAX_BATCH_TOTAL_TOKENS, PREFILL_WARMUP_BATCH_SIZE_LIST, PREFILL_WARMUP_SEQLEN_LIST, DECODE_WARMUP_BATCH_SIZE_LIST
+        global BASE_IMAGE_TOKENS, MAX_TOTAL_TOKENS, PREFILL_WARMUP_BATCH_SIZE_LIST, PREFILL_WARMUP_SEQLEN_LIST, DECODE_WARMUP_BATCH_SIZE_LIST
+        MAX_TOTAL_TOKENS = request.max_total_tokens
         max_input_length = batch.input_ids.shape[1]
         max_prefill_batch_size = batch.input_ids.shape[0]
         PREFILL_WARMUP_BATCH_SIZE_LIST = []
@@ -1264,7 +1271,7 @@ class VlmCausalLM(Model):
             f"Memory stats: {mem_stats} "
         )
 
-        max_decode_batch_size = math.floor(MAX_BATCH_TOTAL_TOKENS / MAX_TOTAL_TOKENS)
+        max_decode_batch_size = MAX_BATCH_SIZE
         batch_size = max_prefill_batch_size * 2
         # Decode warmup with bigger batch_size
         try:
@@ -1310,14 +1317,12 @@ class VlmCausalLM(Model):
                         batches.append(prefill_batch)
                     _, decode_batch, _ = self.generate_token(batches, is_warmup)
                     DECODE_WARMUP_BATCH_SIZE_LIST.append(max_decode_batch_size)
-                max_batch_total_tokens = max_decode_batch_size * MAX_TOTAL_TOKENS
-                MAX_BATCH_TOTAL_TOKENS = max_batch_total_tokens
         except Exception:
             raise RuntimeError(
                 f"Not enough memory to handle batch_size({batch_size}) decode warmup."
                 f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}"
                 f"max_decode_batch_size is {max_decode_batch_size}"
-                f"You need to decrease env `MAX_BATCH_TOTAL_TOKENS` or '--max_batch_total_tokens'"
+                f"You need to decrease env `MAX_BATCH_SIZE` or '--max_batch_size'"
             )
 
         mem_stats = get_hpu_memory_stats(self.device)
@@ -1327,4 +1332,8 @@ class VlmCausalLM(Model):
             f"Memory stats: {mem_stats}"
         )
 
-        return MAX_BATCH_TOTAL_TOKENS
+        max_supported_total_tokens = MAX_BATCH_SIZE * MAX_TOTAL_TOKENS
+        max_input_tokens = max_input_length
+        max_total_tokens = MAX_TOTAL_TOKENS
+
+        return max_supported_total_tokens, max_input_tokens, max_total_tokens
