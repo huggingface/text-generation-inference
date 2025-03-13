@@ -16,8 +16,8 @@
   grpcio-reflection,
   grpcio-status,
   grpcio-tools,
-  hf-kernels,
   hf-transfer,
+  kernels,
   loguru,
   mamba-ssm,
   moe,
@@ -91,8 +91,8 @@ buildPythonPackage {
     grpcio-reflection
     grpcio-status
     grpcio-tools
-    hf-kernels
     hf-transfer
+    kernels
     loguru
     mamba-ssm
     moe
