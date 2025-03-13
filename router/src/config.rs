@@ -263,6 +263,7 @@ pub enum Config {
     Gemma,
     Gemma2,
     Gemma3(Gemma3),
+    Gemma3Text,
     Cohere,
     Drbx,
     Falcon,
