@@ -82,7 +82,7 @@ class Gemma3Processor(ProcessorMixin):
             do_rescale=False,
             resample=PILImageResampling.BILINEAR,
         )
-        # import ipdb; ipdb.set_trace()
+
         self.image_token_id = tokenizer.image_token_id
         image_tokens_expanded = "".join(
             [tokenizer.image_token] * num_mm_soft_tokens_per_image
@@ -90,8 +90,6 @@ class Gemma3Processor(ProcessorMixin):
         self.full_image_sequence = (
             f"\n\n{tokenizer.boi_token}{image_tokens_expanded}{tokenizer.eoi_token}\n\n"
         )
-
-        # import ipdb; ipdb.set_trace()
 
         self.image_processor = image_processor
         self.tokenizer = tokenizer

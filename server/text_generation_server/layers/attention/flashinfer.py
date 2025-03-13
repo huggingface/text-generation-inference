@@ -52,7 +52,6 @@ def use_prefill_with_paged_kv_state(
     page_size: int,
     kv_dtype: torch.dtype,
     q_dtype: torch.dtype,
-    window_left: int,
 ):
     """
     Context manager to set the active flashinfer prefill state to the given
@@ -95,7 +94,6 @@ def use_prefill_with_paged_kv_state(
             kv_data_type=kv_dtype,
             q_data_type=q_dtype,
             page_size=page_size,
-            window_left=-1 if window_left is None else window_left,
         )
         yield
     finally:
@@ -172,7 +170,6 @@ def use_decode_state(
     page_size: int,
     kv_cache_dtype: torch.dtype,
     q_dtype: torch.dtype,
-    window_left: int,
 ):
     """
     Context manager to set the active flashinfer decoding state to the given
@@ -209,7 +206,6 @@ def use_decode_state(
             page_size=page_size,
             data_type=kv_cache_dtype,
             q_data_type=q_dtype,
-            window_left=-1 if window_left is None else window_left,
         )
         yield
     finally:

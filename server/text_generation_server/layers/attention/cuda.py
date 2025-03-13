@@ -38,6 +38,7 @@ def paged_attention(
     *,
     kv_scales: KVScales,
     softcap: Optional[float] = None,
+    window_size_left: Optional[int] = -1,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
@@ -79,11 +80,14 @@ def paged_attention(
             sm_scale=softmax_scale,
             k_scale=kv_scales.key_scale_cpu if can_scale else 1.0,
             v_scale=kv_scales.value_scale_cpu if can_scale else 1.0,
+            window_size_left=window_size_left,
         )
     elif ATTENTION == "flashdecoding":
         max_q = 1
         max_k = max_s
         import flash_attn_2_cuda
+
+        window_size_right = -1 if window_size_left == -1 else 0
 
         # TODO fixme when flash contains the fix.
         # Number of splits is not correctly handled
@@ -109,8 +113,8 @@ def paged_attention(
             softmax_scale,
             False,  # zero_tensors
             True,  # causal
-            -1,  # Window_left
-            -1,  # Window right
+            window_size_left,  # Window_left
+            window_size_right,  # Window right
             softcap,
             False,  # return softmax
             None,  # generator
@@ -253,6 +257,7 @@ def attention(
             sm_scale=softmax_scale,
             k_scale=kv_scales.key_scale_cpu if can_scale else 1.0,
             v_scale=kv_scales.value_scale_cpu if can_scale else 1.0,
+            window_size_left=window_size_left,
         )
 
     # If we are using flashdecoding or paged, we always use flash-attn for
