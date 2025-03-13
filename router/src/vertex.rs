@@ -104,8 +104,7 @@ pub(crate) async fn vertex_compatibility(
                 },
             },
             VertexInstance::Chat(instance) => {
-                let (generate_request, _using_tools): (GenerateRequest, bool) =
-                    instance.try_into_generate(&infer)?;
+                let (generate_request, _using_tools) = instance.try_into_generate(&infer)?;
                 generate_request
             }
         };
