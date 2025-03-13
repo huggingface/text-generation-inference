@@ -18,6 +18,10 @@ build {
     Env = [
       "HF_HOME=/data"
       "PORT=80"
+      # The CUDA container toolkit will mount the driver shim into the
+      # container. We just have to ensure that the dynamic loader finds
+      # the libraries.
+      "LD_LIBRARY_PATH=/usr/lib64"
     ];
 
   };
