@@ -9,10 +9,6 @@
 
 let
   build = if stream then dockerTools.streamLayeredImage else dockerTools.buildLayeredImage;
-  tmp = runCommand "tmp" { } ''
-    mkdir $out
-    mkdir -m 1777 $out/tmp
-  '';
 in
 build {
   name = "tgi-docker";
@@ -25,9 +21,12 @@ build {
     ];
 
   };
+  extraCommands = ''
+    mkdir -p tmp
+    chmod -R 1777 tmp
+  '';
   contents = [
     cacert
     stdenv.cc
-    tmp
   ];
 }
