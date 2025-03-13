@@ -176,11 +176,15 @@
             '';
           };
 
-          dockerImage = pkgs.callPackage nix/docker.nix {
+          # Use plain nixpkgs without overlays for dockerTools. dockerTools
+          # uses a Python package for computing the layers from the transitive
+          # closure. However, this needs a lot of rebuilds due to our overlay.
+
+          dockerImage = nixpkgs.legacyPackages.${system}.callPackage nix/docker.nix {
             text-generation-inference = default;
           };
 
-          dockerImageStreamed = pkgs.callPackage nix/docker.nix {
+          dockerImageStreamed = nixpkgs.legacyPackages.${system}.callPackage nix/docker.nix {
             text-generation-inference = default;
             stream = true;
           };
