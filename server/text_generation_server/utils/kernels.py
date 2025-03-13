@@ -1,7 +1,7 @@
 import importlib
 
 from loguru import logger
-from hf_kernels import load_kernel as hf_load_kernel
+from kernels import load_kernel as hf_load_kernel
 
 from text_generation_server.utils.log import log_once
 
@@ -16,7 +16,7 @@ def load_kernel(*, module: str, repo_id: str):
         log_once(logger.info, f"Using local module for `{module}`")
         return m
     except ModuleNotFoundError:
-        return hf_load_kernel(repo_id=repo_id)
+        return hf_load_kernel(repo_id=repo_id, module=module)
 
 
 __all__ = ["load_kernel"]
