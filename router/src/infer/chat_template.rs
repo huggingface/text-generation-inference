@@ -96,15 +96,21 @@ impl ChatTemplate {
 
         let messages: Vec<TextMessage> = messages.into_iter().map(|c| c.into()).collect();
         let final_message = messages.last().cloned();
+        let template_inputs = ChatTemplateInputs {
+            messages,
+            bos_token: self.bos_token.as_deref(),
+            eos_token: self.eos_token.as_deref(),
+            add_generation_prompt: true,
+            tools,
+        };
+
+        // NOTE: initalizing `template_inputs` is helpful when JSON dumping the
+        // `ChatTemplateInputs` struct for debugging
+        // let template_inputs_as_json = serde_json::to_string(&template_inputs).unwrap();
+
         let mut rendered_template = self
             .template
-            .render(ChatTemplateInputs {
-                messages,
-                bos_token: self.bos_token.as_deref(),
-                eos_token: self.eos_token.as_deref(),
-                add_generation_prompt: true,
-                tools,
-            })
+            .render(template_inputs)
             .map_err(InferError::TemplateError)?;
 
         // if the last message is from the assistant, continue the generation prompt

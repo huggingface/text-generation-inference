@@ -18,6 +18,7 @@ use crate::infer::{Infer, InferError};
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tokenizers::Encoding;
 use tracing::warn;
 use utoipa::ToSchema;
@@ -912,7 +913,10 @@ pub(crate) struct ChatRequest {
 }
 
 impl ChatRequest {
-    fn try_into_generate(self, infer: &Infer) -> Result<(GenerateRequest, bool), InferError> {
+    fn try_into_generate(
+        self,
+        infer: &Infer,
+    ) -> Result<(GenerateRequest, Option<HashMap<String, String>>), InferError> {
         let ChatRequest {
             model,
             max_tokens,
@@ -952,7 +956,7 @@ impl ChatRequest {
         let (inputs, grammar, using_tools) = match response_format {
             Some(format) => {
                 let inputs = infer.apply_chat_template(messages, None)?;
-                (inputs, Some(format), false)
+                (inputs, Some(format), None)
             }
             None => {
                 if let Some(tools) = tools {
@@ -961,20 +965,31 @@ impl ChatRequest {
                             let grammar = GrammarType::Json(serde_json::json!(tool_schema));
                             let inputs: String = infer.apply_chat_template(
                                 messages,
-                                Some((updated_tools, tool_prompt)),
+                                Some((updated_tools.clone(), tool_prompt)),
                             )?;
-                            (inputs, Some(grammar), true)
+                            let tool_name_to_id: HashMap<String, String> = updated_tools
+                                .into_iter()
+                                .map(|tool| {
+                                    (
+                                        tool.function.name,
+                                        tool.function
+                                            .id
+                                            .map_or_else(|| "0".to_string(), |id| id.to_string()),
+                                    )
+                                })
+                                .collect();
+                            (inputs, Some(grammar), Some(tool_name_to_id))
                         }
                         None => {
                             // same as if no response_format or tools are set
                             let inputs = infer.apply_chat_template(messages, None)?;
-                            (inputs, None, false)
+                            (inputs, None, None)
                         }
                     }
                 } else {
                     // if no response_format or tools are set simply apply the chat template to generate inputs
                     let inputs = infer.apply_chat_template(messages, None)?;
-                    (inputs, None, false)
+                    (inputs, None, None)
                 }
             }
         };
@@ -1154,6 +1169,8 @@ pub struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     #[serde(alias = "parameters", serialize_with = "serialize_as_string")]
     pub arguments: serde_json::Value,
 }
@@ -1175,7 +1192,7 @@ pub(crate) struct Tool {
     pub function: FunctionDefinition,
 }
 
-#[derive(Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub(crate) struct ChatTemplateInputs<'a> {
     messages: Vec<TextMessage>,
     bos_token: Option<&'a str>,
@@ -1208,6 +1225,9 @@ pub enum MessageChunk {
 pub struct Message {
     #[schema(example = "user")]
     pub role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(example = "10")]
+    pub tool_call_id: Option<String>,
     #[serde(flatten)]
     #[schema(example = "My name is David and I")]
     pub body: MessageBody,
@@ -1287,7 +1307,7 @@ impl From<Message> for TextMessage {
                     .collect::<Vec<_>>()
                     .join(""),
             },
-            ..Default::default()
+            tool_call_id: value.tool_call_id,
         }
     }
 }
@@ -1758,6 +1778,7 @@ mod tests {
                 id: "0".to_string(),
                 r#type: "function".to_string(),
                 function: FunctionDefinition {
+                    id: None,
                     description: None,
                     name: "myfn".to_string(),
                     arguments: json!({
