@@ -45,7 +45,7 @@ RUN cargo build --profile release-opt --frozen
 
 # Text Generation Inference base image for Intel
 
-FROM intel/oneapi-basekit:2024.2.1-0-devel-ubuntu22.04 AS xpu
+FROM intel/oneapi-basekit:2025.0.1-0-devel-ubuntu22.04 AS xpu
 
 USER root
 
@@ -87,7 +87,7 @@ RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https:/
 
 RUN mv /tmp/intel-for-pytorch-gpu-dev.list /etc/apt/sources.list.d
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt install -y xpu-smi cmake ninja-build pciutils intel-pti-dev-0.9
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt install -y xpu-smi cmake ninja-build pciutils intel-ocloc
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \
@@ -96,13 +96,11 @@ ENV HF_HOME=/data \
 
 
 
-WORKDIR /usr/src
-RUN pip install https://intel-optimized-pytorch.s3.cn-north-1.amazonaws.com.cn/ipex_dev/xpu/torch-2.5.0a0%2Bgite84e33f-cp311-cp311-linux_x86_64.whl --no-cache-dir
-RUN pip install https://intel-optimized-pytorch.s3.cn-north-1.amazonaws.com.cn/ipex_dev/xpu/torchaudio-2.5.0a0%2B56bc006-cp311-cp311-linux_x86_64.whl --no-cache-dir
-RUN pip install https://intel-optimized-pytorch.s3.cn-north-1.amazonaws.com.cn/ipex_dev/xpu/torchvision-0.20.0a0%2B8e8a208-cp311-cp311-linux_x86_64.whl --no-cache-dir
-RUN pip install https://intel-optimized-pytorch.s3.cn-north-1.amazonaws.com.cn/ipex_dev/xpu/oneccl_bind_pt-2.5.0%2Bxpu-cp311-cp311-linux_x86_64.whl --no-cache-dir
 
-RUN pip install triton-xpu==3.0.0b2 --no-cache-dir
+WORKDIR /usr/src
+RUN pip install torch==2.6.0 torchvision torchaudio  --index-url https://download.pytorch.org/whl/test/xpu
+
+RUN pip install triton-xpu==3.2.0b1 --no-cache-dir
 
 # Install server
 COPY proto proto
@@ -114,15 +112,14 @@ RUN cd server && \
     pip install -U pip uv && \
     uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
 
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/oneapi/pti/0.9/lib:/opt/conda/lib
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/conda/lib
 ENV CCL_ZE_IPC_EXCHANGE=sockets
-#ENV TORCH_LLM_ALLREDUCE=1
-#ENV CCL_TOPO_FABRIC_VERTEX_CONNECTION_CHECK=0
+ENV TORCH_LLM_ALLREDUCE=1
+ENV CCL_TOPO_FABRIC_VERTEX_CONNECTION_CHECK=0
 ENV TORCH_DEVICE_BACKEND_AUTOLOAD=0
 
-RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout 1ccf72b2d11cd00b47aef6d6cd054c088aa6f083
-RUN cd intel-extension-for-pytorch && git submodule update --init --recursive && USE_AOT_DEVLIST='pvc,ats-m150' BUILD_SEPARATE_OPS=OFF BUILD_WITH_CPU=OFF USE_XETLA=ON python setup.py install && rm -rf /usr/src/intel-extension-for-pytorch
-
+RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/xpu/oneccl_bind_pt-2.6.0%2Bxpu-cp311-cp311-linux_x86_64.whl
+RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/xpu/intel_extension_for_pytorch-2.6.10%2Bxpu-cp311-cp311-linux_x86_64.whl
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router

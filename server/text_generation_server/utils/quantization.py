@@ -79,6 +79,8 @@ def _get_quantizer_config(model_id, revision):
         modules_to_not_convert = data["quantization_config"].get(
             "modules_to_not_convert", []
         )
+        if modules_to_not_convert is None:
+            modules_to_not_convert = []
     except Exception:
         filename = "quantize_config.json"
         try:
