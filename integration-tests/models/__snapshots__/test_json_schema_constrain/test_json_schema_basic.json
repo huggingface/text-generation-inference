@@ -1,0 +1,23 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{\"firstName\":\"David\",\"lastName\":\"(Not provided)\",\"hobby\":\": Trees and nature\",\"numCats\":2}",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1741975610,
+  "id": "",
+  "model": "google/gemma-3-4b-it",
+  "object": "chat.completion",
+  "system_fingerprint": "3.2.1-dev0-native",
+  "usage": {
+    "completion_tokens": 37,
+    "prompt_tokens": 32,
+    "total_tokens": 69
+  }
+}
