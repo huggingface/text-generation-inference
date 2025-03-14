@@ -1644,6 +1644,7 @@ mod tests {
                 body: MessageBody::Content {
                     content: MessageContent::SingleText("What is Deep Learning?".to_string())
                 },
+                tool_call_id: None,
             }
         );
     }
@@ -1703,6 +1704,7 @@ mod tests {
                         MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
                     ]),
                 },
+                tool_call_id: None,
             }
         );
     }
@@ -1717,7 +1719,8 @@ mod tests {
                         MessageChunk::Text { text: "Whats in this image?".to_string() },
                         MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
                     ]),
-                }
+                },
+                tool_call_id: None
             };
         let textmsg: TextMessage = message.into();
         assert_eq!(textmsg.content, "Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)");

@@ -175,6 +175,7 @@ mod tests {
                                 "What's Deep Learning?".to_string()
                             )
                         },
+                        tool_call_id: None,
                     },],
                     max_tokens: Some(128),
                     top_p: Some(0.95),
