@@ -1,0 +1,743 @@
+[
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "{",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\"",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "f",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "irs",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "t",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "Name",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\":",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\"",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "David",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\",",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\"",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "l",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "ast",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "Name",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\":",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\"",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "Unknown",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975615,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\",",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\"",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "h",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "obb",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "y",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\":",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\",",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": " \\\"",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "riding",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": " bicycles",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\\\",",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": " \\\"",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "having",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": " cats",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\\\"\",",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\"",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "num",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "Cats",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "\":",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "2",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "}",
+          "role": "assistant"
+        },
+        "finish_reason": null,
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  },
+  {
+    "choices": [
+      {
+        "delta": {
+          "content": "",
+          "role": "assistant"
+        },
+        "finish_reason": "stop",
+        "index": 0,
+        "logprobs": null
+      }
+    ],
+    "created": 1741975616,
+    "id": "",
+    "model": "google/gemma-3-4b-it",
+    "object": "chat.completion.chunk",
+    "system_fingerprint": "3.2.1-dev0-native",
+    "usage": null
+  }
+]
