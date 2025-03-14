@@ -272,12 +272,12 @@ class ModelType(enum.Enum):
     GEMMA3 = {
         "type": "gemma3",
         "name": "Gemma3",
-        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d-release-67c6c6f89c4f76621268bb6d",
+        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d",
     }
     GEMMA3_TEXT = {
         "type": "gemma3_text",
         "name": "Gemma3 Text",
-        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d-release-67c6c6f89c4f76621268bb6d",
+        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d",
     }
     COHERE = {
         "type": "cohere",
