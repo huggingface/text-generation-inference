@@ -1181,6 +1181,7 @@ TOOL CALL ID: 0
                         "I'd like to show off how chat templating works!".to_string(),
                     ),
                 },
+                tool_call_id: None,
             },
             Message {
                 name: None,
@@ -1190,6 +1191,7 @@ TOOL CALL ID: 0
                         "Great! How can I help you today?".to_string(),
                     ),
                 },
+                tool_call_id: None,
             },
             Message {
                 name: None,
@@ -1197,6 +1199,7 @@ TOOL CALL ID: 0
                 body: MessageBody::Content {
                     content: MessageContent::SingleText("Just testing".to_string()),
                 },
+                tool_call_id: None,
             },
         ];
         let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
@@ -1226,6 +1229,7 @@ TOOL CALL ID: 0
                             .to_string(),
                     ),
                 },
+                tool_call_id: None,
             },
             Message {
                 name: None,
@@ -1235,6 +1239,7 @@ TOOL CALL ID: 0
                         "What is the weather like in Brooklyn, New York?".to_string(),
                     ),
                 },
+                tool_call_id: None,
             },
         ];
         let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
@@ -1305,6 +1310,7 @@ TOOL CALL ID: 0
                         text: "You are a helpful assistant.".to_string(),
                     }]),
                 },
+                tool_call_id: None,
             },
             Message {
                 name: None,
@@ -1332,6 +1338,7 @@ TOOL CALL ID: 0
                         },
                     ]),
                 },
+                tool_call_id: None,
             },
         ];
 
