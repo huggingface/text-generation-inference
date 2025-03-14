@@ -59,6 +59,7 @@ def paged_attention(
     *,
     kv_scales: KVScales,
     softcap: Optional[float] = None,
+    window_size_left: Optional[int] = -1,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
