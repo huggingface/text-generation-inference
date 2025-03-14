@@ -49,9 +49,9 @@ async def test_flash_gemma3_image_cow_dog(flash_gemma3, response_snapshot):
 
     assert (
         response.choices[0].message.content
-        == "Based on the image, the animal is a cow, not a dog! \n\nIt appears to be a **Brazilian cattle breed** known as a **Gir Cow**. They are recognized for their reddish-brown color and distinctive markings."
+        == "That's a fantastic question! However, the image doesn't show a dog. It shows a **Brown Swiss cow** standing on a beach. \n\nBrown Swiss cows are known for their reddish-brown color and distinctive white markings. \n\nIf you'd like, you can send me another image and I’ll do my best to identify it!"
     )
-    assert response.usage["completion_tokens"] == 48
+    assert response.usage["completion_tokens"] == 75
     assert response == response_snapshot
 
 
@@ -72,19 +72,22 @@ async def test_flash_gemma3_image_cow(flash_gemma3, response_snapshot):
     )
     assert (
         response.choices[0].message.content
-        == "Here's a description of what's shown in the image:\n\nThe image depicts a brown cow standing on a sandy beach. The beach has turquoise water and a distant island visible in the background. The sky is bright blue with some white clouds. \n\nIt's a humorous and unexpected sight of a cow enjoying a tropical beach!"
+        == "Here's a description of what's shown in the image:\n\nThe image depicts a brown cow standing on a sandy beach. The beach has turquoise water and a distant island visible in the background. The sky is bright blue with some white clouds. \n\nIt's a quite a humorous and unusual scene – a cow enjoying a day at the beach!"
     )
-    assert response.usage["completion_tokens"] == 70
+    assert response.usage["completion_tokens"] == 74
     assert response == response_snapshot
 
 
 async def test_exceed_window(flash_gemma3, response_snapshot):
     response = await flash_gemma3.generate(
-        "This is a nice place. " * 800 + "Now count: 1, 2, 3",
+        "This is a nice place. " * 800 + "I really enjoy the scenery,",
         seed=42,
         max_new_tokens=20,
     )
 
-    assert response.generated_text == ", 4, 5, 6, 7, 8, 9, "
-    assert response.details.generated_tokens == 20
+    assert (
+        response.generated_text
+        == " the people, and the food.\n\nThis is a nice place.\n"
+    )
+    assert response.details.generated_tokens == 16
     assert response == response_snapshot
