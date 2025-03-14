@@ -74,7 +74,7 @@ class Qwen2Attention(torch.nn.Module):
         weights,
     ):
         super().__init__()
-        self.max_past = (
+        self.window_size = (
             config.sliding_window if config.sliding_window is not None else -1
         )
         self.num_heads = config.num_attention_heads
@@ -172,7 +172,7 @@ class Qwen2Attention(torch.nn.Module):
                 seqlen=seqlen,
                 block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
-                window_size_left=self.max_past,
+                window_size_left=self.window_size,
             )
         # Decode
         else:
@@ -185,7 +185,7 @@ class Qwen2Attention(torch.nn.Module):
                 seqlen,
                 max_s,
                 kv_scales=self.kv_scales,
-                window_size_left=self.max_past,
+                window_size_left=self.window_size,
             )
 
         return self.o_proj(
@@ -406,8 +406,8 @@ class Qwen2ForCausalLM(torch.nn.Module):
             weights=weights,
         )
 
-        self.max_past = config.sliding_window
-        self.max_past_tensor = (
+        self.window_size = config.sliding_window
+        self.window_size_tensor = (
             torch.tensor(config.sliding_window, device=weights.device)
             if self.max_past is not None
             else None
@@ -434,7 +434,7 @@ class Qwen2ForCausalLM(torch.nn.Module):
         elif self.max_past is not None:
             # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
             # kernel requires the true values
-            seqlen = seqlen.clamp(max=self.max_past_tensor)
+            seqlen = seqlen.clamp(max=self.window_size_tensor)
 
         inputs_embeds = self.embed_tokens(input_ids)
 

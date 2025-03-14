@@ -1522,7 +1522,7 @@ pub async fn run(
 
     // Shared API builder initialization
     let api_builder = || {
-        let mut builder = ApiBuilder::new().with_progress(false);
+        let mut builder = ApiBuilder::from_env().with_progress(false);
         if let Some(token) = authorization_token {
             builder = builder.with_token(Some(token));
         }
