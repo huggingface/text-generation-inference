@@ -281,22 +281,12 @@ class FlashGemma3Attention(torch.nn.Module):
                 padded_query = padded_query.transpose(1, 2).contiguous()
                 padded_key = padded_key.transpose(1, 2).contiguous()
                 padded_value = padded_value.transpose(1, 2).contiguous()
-                zeros_to_add = torch.zeros(
-                    padded_key.size(0),
-                    self.num_key_value_heads,
-                    1,
-                    self.head_size,
-                    dtype=padded_key.dtype,
-                    device=padded_key.device,
-                )
-                key_states = torch.cat([padded_key, zeros_to_add], dim=2)
-                value_states = torch.cat([padded_value, zeros_to_add], dim=2)
 
                 # Compute attention
                 attn_output = F.scaled_dot_product_attention(
                     padded_query,
-                    key_states,
-                    value_states,
+                    padded_key,
+                    padded_value,
                     attn_mask=attention_mask,
                     scale=self.softmax_scale,
                     enable_gqa=self.enable_gqa,
@@ -327,6 +317,7 @@ class FlashGemma3Attention(torch.nn.Module):
                 max_s,
                 softcap=self.softcap,
                 kv_scales=self.kv_scales,
+                window_size_left=self.window_size,
             )
 
         return self.o_proj(
@@ -513,6 +504,7 @@ class FlashGemma3Model(torch.nn.Module):
         max_s: int,
         adapter_data: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
+        attention_mask_local: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
@@ -524,25 +516,6 @@ class FlashGemma3Model(torch.nn.Module):
             cos, sin = self.layers[i].self_attn.rotary_emb.get_cos_sin(
                 position_ids, max_s, hidden_states.dtype
             )
-
-            # apply sliding window mask if needed
-            if layer.self_attn.window_size > 0 and attention_mask is not None:
-                min_dtype = torch.finfo(hidden_states.dtype).min
-                # prefill may be larger than sliding window
-                effective_seq_len = max(
-                    position_ids.shape[0], self.layers[i].self_attn.window_size
-                )
-                sliding_window_mask = torch.tril(
-                    torch.ones_like(attention_mask, dtype=torch.bool),
-                    diagonal=-self.layers[i].self_attn.window_size,
-                )
-                attention_mask = torch.where(
-                    sliding_window_mask, min_dtype, attention_mask
-                )
-                offset = max(0, position_ids.shape[0] - effective_seq_len)
-                attention_mask = attention_mask[
-                    :, :, offset : offset + effective_seq_len
-                ]
 
             hidden_states, residual = layer(
                 hidden_states,
@@ -556,7 +529,11 @@ class FlashGemma3Model(torch.nn.Module):
                 seqlen,
                 max_s,
                 adapter_data,
-                attention_mask,
+                (
+                    attention_mask
+                    if self.layers[i].self_attn.window_size == -1
+                    else attention_mask_local
+                ),
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -723,24 +700,6 @@ class Gemma3ForConditionalGeneration(nn.Module):
             config.pad_token_id if config.pad_token_id is not None else -1
         )
 
-    def get_image_token_mask(self, input_ids):
-        device = input_ids.device
-
-        start_token_id = self.config.boi_token_index
-        K = self.config.mm_tokens_per_image
-
-        mask = torch.zeros_like(input_ids, dtype=torch.bool, device=device)
-        start_positions = (input_ids == start_token_id).nonzero(as_tuple=True)[0]
-        mask_indices = start_positions.unsqueeze(1) + torch.arange(
-            1, K + 1, device=device
-        ).unsqueeze(0)
-
-        valid_mask = mask_indices < input_ids.size(0)
-        mask_indices = mask_indices[valid_mask]
-        mask[mask_indices] = True
-
-        return mask
-
     def get_attention_mask(
         self, input_ids, max_s, cu_seqlen_prefill, dtype, image_token_mask
     ):
@@ -751,7 +710,7 @@ class Gemma3ForConditionalGeneration(nn.Module):
         batch_size = len(lengths)
 
         sequence_length = max(lengths)
-        target_length = max_s
+        target_length = sequence_length
         # Create the padding mask from the computed lengths.
         # pad_mask: [batch, sequence_length] where True indicates valid tokens.
         seq_range = torch.arange(sequence_length, device=device).unsqueeze(0)
@@ -847,7 +806,7 @@ class Gemma3ForConditionalGeneration(nn.Module):
 
         #         # Determine the maximum sequence length (after padding) from query.
         #         sequence_length = max(lengths)
-        #         target_length = max_s
+        #         target_length = sequence_length
 
         #         # Create the padding mask from the computed lengths.
         #         # pad_mask: [batch, sequence_length] where True indicates valid tokens.
@@ -885,6 +844,26 @@ class Gemma3ForConditionalGeneration(nn.Module):
         #             input_ids.device
         #         )
 
+        if attention_mask is not None:
+            min_dtype = torch.finfo(inputs_embeds.dtype).min
+            # prefill may be larger than sliding window
+            effective_seq_len = max(
+                position_ids.shape[0], self.config.text_config.sliding_window
+            )
+            sliding_window_mask = torch.tril(
+                torch.ones_like(attention_mask, dtype=torch.bool),
+                diagonal=-self.config.text_config.sliding_window,
+            )
+            attention_mask_local = torch.where(
+                sliding_window_mask, min_dtype, attention_mask
+            )
+            offset = max(0, position_ids.shape[0] - effective_seq_len)
+            attention_mask_local = attention_mask_local[
+                :, :, :, offset : offset + effective_seq_len
+            ]
+        else:
+            attention_mask_local = None
+
         hidden_states = self.text_model.model(
             inputs_embeds=inputs_embeds,
             position_ids=position_ids,
@@ -895,6 +874,7 @@ class Gemma3ForConditionalGeneration(nn.Module):
             seqlen=seqlen,
             max_s=max_s,
             attention_mask=attention_mask,
+            attention_mask_local=attention_mask_local,
         )
 
         if lm_head_indices is not None:

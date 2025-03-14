@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "Okay, let's analyze the image.\n\nThe image is a solid, bright white color. There is nothing else visible within it. \n\nIt's essentially a blank white canvas or a completely white square. \n\nIs there anything specific you'd like me to do with this image, such as describe it further or imagine what it might represent?",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1741965894,
+  "id": "",
+  "model": "google/gemma-3-4b-it",
+  "object": "chat.completion",
+  "system_fingerprint": "3.2.1-dev0-native",
+  "usage": {
+    "completion_tokens": 74,
+    "prompt_tokens": 277,
+    "total_tokens": 351
+  }
+}

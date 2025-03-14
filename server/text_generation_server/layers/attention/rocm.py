@@ -59,6 +59,7 @@ def paged_attention(
     *,
     kv_scales: KVScales,
     softcap: Optional[float] = None,
+    window_size_left: Optional[int] = -1,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
@@ -82,6 +83,8 @@ def paged_attention(
         max_k = max_s
         import flash_attn_2_cuda
 
+        window_size_right = -1 if window_size_left == -1 else 0
+
         if softcap is None:
             softcap = 0.0
         out = flash_attn_2_cuda.varlen_fwd(
@@ -101,8 +104,8 @@ def paged_attention(
             softmax_scale,
             False,  # zero_tensors
             True,  # causal
-            -1,  # Window_left
-            -1,  # Window right
+            window_size_left,  # Window_left
+            window_size_right,  # Window right
             softcap,
             False,  # return softmax
             None,  # generator

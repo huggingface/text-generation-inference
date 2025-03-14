@@ -97,11 +97,10 @@ fn get_config(
     let filename = if !path.exists() {
         // Assume it's a hub id
 
-        let mut builder = if let Ok(token) = std::env::var("HF_TOKEN") {
+        let mut builder = ApiBuilder::from_env();
+        if let Ok(token) = std::env::var("HF_TOKEN") {
             // env variable has precedence over on file token.
-            ApiBuilder::new().with_token(Some(token))
-        } else {
-            ApiBuilder::new()
+            builder = builder.with_token(Some(token))
         };
         if let Ok(origin) = env::var("HF_HUB_USER_AGENT_ORIGIN") {
             builder = builder.with_user_agent("origin", origin.as_str());
