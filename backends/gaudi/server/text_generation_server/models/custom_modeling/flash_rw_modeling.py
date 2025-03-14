@@ -12,13 +12,12 @@ from text_generation_server.layers import (
     TensorParallelRowLinear,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import FastLayerNorm
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.attention import (
     attention,
     paged_attention,
-    reshape_and_cache,
     Seqlen,
 )
 
@@ -79,6 +78,7 @@ class RWConfig(PretrainedConfig):
         self.alibi = False
         self.rotary = True
         self.rope_theta = rope_theta
+        self.max_position_embeddings = 2048
 
         self.vocab_size = vocab_size
         # Backward compatibility with n_embed kwarg
@@ -160,6 +160,7 @@ class FlashRWAttention(torch.nn.Module):
             weights=weights,
             bias=config.bias,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
@@ -200,30 +201,37 @@ class FlashRWAttention(torch.nn.Module):
         # Inplace rotary
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(
+            key=kv[:, 0],
+            value=kv[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, 0],
+                value=kv[:, 1],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
@@ -278,6 +286,7 @@ class FlashRWLargeAttention(torch.nn.Module):
             weights=weights,
             bias=config.bias,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
@@ -312,36 +321,37 @@ class FlashRWLargeAttention(torch.nn.Module):
         # Inplace rotary
         self.rotary_emb(query, torch.select(kv, dim=2, index=0), cos, sin)
 
-        reshape_and_cache(
-            kv[:, :, 0].contiguous(),
-            kv[:, :, 1].contiguous(),
-            kv_cache[0],
-            kv_cache[1],
-            slots,
+        kv_cache.store(
+            key=kv[:, :, 0].contiguous(),
+            value=kv[:, :, 1].contiguous(),
+            slots=slots,
+            kv_scales=self.kv_scales,
         )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, :, 0].contiguous(),
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, :, 1].contiguous(),
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, :, 0],
+                value=kv[:, :, 1],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.dense(

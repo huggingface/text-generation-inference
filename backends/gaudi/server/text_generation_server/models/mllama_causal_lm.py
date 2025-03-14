@@ -11,10 +11,6 @@ from transformers import (
 )
 from text_generation_server.models.vlm_causal_lm import VlmCausalLMBatch, VlmCausalLM
 from text_generation_server.pb import generate_pb2
-from text_generation_server.models.flash_causal_lm import (
-    block_tables_to_ragged,
-)
-from text_generation_server.models.globals import PREFIX_CACHING, ATTENTION
 from text_generation_server.layers.attention import Seqlen
 
 
@@ -254,104 +250,43 @@ class MllamaCausalLM(VlmCausalLM):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
 
-        bs = input_ids.shape[0]
-        # Try to find an associated cuda graph
-        bs = input_ids.shape[0]
-        sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
-        if sorted_padded_bs:
-            # Get associated cuda graph
-            cuda_graph = self.cuda_graphs[sorted_padded_bs[0]]
-        else:
-            cuda_graph = None
-        if (
-            cu_seqlen_prefill is not None
-            or cuda_graph is None
-            # Only run cuda graphs when there's no images.
-            or batch.cross_attention_states is not None
-        ):
-            input_lengths = input_lengths + prefix_lens_tensor
-            if PREFIX_CACHING:
-                block_tables = block_tables_to_ragged(
-                    block_tables=block_tables,
-                    input_lengths=batch.input_lengths,
-                    prefix_lens=batch.prefix_lens,
-                )
-            with self._forward_context(
-                block_tables=block_tables,
-                cu_seqlen_prefill=cu_seqlen_prefill,
-                input_lengths_tensor=input_lengths,
-                prefix_lens_tensor=prefix_lens_tensor,
-            ):
-                max_k = (input_lengths + prefix_lens_tensor).max().item()
-                seqlen = Seqlen(
-                    input_lengths=input_lengths,
-                    prefix_lengths=prefix_lens_tensor,
-                    cu_seqlen_q=cu_seqlen_prefill,
-                    max_q=max_s,
-                    max_k=max_k,
-                )
+        input_lengths = input_lengths + prefix_lens_tensor
+        max_k = (input_lengths + prefix_lens_tensor).max().item()
+        seqlen = Seqlen(
+            input_lengths=input_lengths,
+            prefix_lengths=prefix_lens_tensor,
+            cu_seqlen_q=cu_seqlen_prefill,
+            max_q=max_s,
+            max_k=max_k,
+        )
 
-                if batch.pixel_values is not None:
-                    cross_attention_states = self.model.vision_forward(
-                        pixel_values=batch.pixel_values,
-                        aspect_ratio_ids=batch.aspect_ratio_ids,
-                        aspect_ratio_mask=batch.aspect_ratio_mask,
-                    )
-                    batch.cross_attention_states = cross_attention_states
-
-                cross_attention_states = batch.cross_attention_states
-
-                logits, speculative_logits = self.model.forward(
-                    input_ids=input_ids,
-                    position_ids=position_ids,
-                    cu_seqlen_prefill=cu_seqlen_prefill,
-                    kv_cache=kv_cache,
-                    block_tables=block_tables,
-                    slots=slots,
-                    seqlen=seqlen,
-                    max_s=max_s,
-                    prefill_cache_indices=batch.prefill_cache_indices,
-                    lm_head_indices=lm_head_indices,
-                    cross_attention_states=cross_attention_states,
-                    adapter_data=adapter_data,
-                    image_indices=batch.image_indices[:],
-                )
-                if batch.prefill_cache_indices is not None:
-                    batch.prefill_cache_indices = None
-                if batch.pixel_values is not None:
-                    batch.pixel_values = None
-                return logits, speculative_logits
-
-        # Copy inputs to the static inputs of the cuda graph
-        # Static inputs are potentially padded
-        cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
-        cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
-        if ATTENTION == "flashinfer":
-            block_tables = block_tables_to_ragged(
-                block_tables=block_tables,
-                input_lengths=batch.input_lengths,
-                prefix_lens=batch.prefix_lens,
+        if batch.pixel_values is not None:
+            cross_attention_states = self.model.vision_forward(
+                pixel_values=batch.pixel_values,
+                aspect_ratio_ids=batch.aspect_ratio_ids,
+                aspect_ratio_mask=batch.aspect_ratio_mask,
             )
-            cuda_graph["block_tables"][: block_tables.shape[0]] = block_tables
-        else:
-            cuda_graph["block_tables"][
-                : block_tables.shape[0], : block_tables.shape[1]
-            ] = block_tables
-        cuda_graph["slots"].fill_(0)
-        cuda_graph["slots"][: slots.shape[0]] = slots
-        cuda_graph["input_lengths"].zero_()
-        cuda_graph["input_lengths"][: input_lengths.shape[0]] = (
-            input_lengths + prefix_lens_tensor
-        )
+            batch.cross_attention_states = cross_attention_states
 
-        # Replay the graph
-        cuda_graph["graph"].replay()
+        cross_attention_states = batch.cross_attention_states
 
-        # Slice output to the correct shape
-        speculative_logits = (
-            cuda_graph["speculative_logits"][:bs]
-            if cuda_graph["speculative_logits"] is not None
-            else None
+        logits, speculative_logits = self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=cu_seqlen_prefill,
+            kv_cache=kv_cache,
+            block_tables=block_tables,
+            slots=slots,
+            seqlen=seqlen,
+            max_s=max_s,
+            prefill_cache_indices=batch.prefill_cache_indices,
+            lm_head_indices=lm_head_indices,
+            cross_attention_states=cross_attention_states,
+            adapter_data=adapter_data,
+            image_indices=batch.image_indices[:],
         )
-        logits = cuda_graph["logits"][:bs]
+        if batch.prefill_cache_indices is not None:
+            batch.prefill_cache_indices = None
+        if batch.pixel_values is not None:
+            batch.pixel_values = None
         return logits, speculative_logits

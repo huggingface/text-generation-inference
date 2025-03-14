@@ -2,14 +2,10 @@ import os
 import math
 import torch
 from torch import nn
-from text_generation_server.utils.import_utils import SYSTEM
-
-if SYSTEM == "cuda":
-    import rotary_emb
-elif SYSTEM == "rocm":
-    from vllm._C import ops
-elif SYSTEM == "ipex":
-    import intel_extension_for_pytorch as ipex
+from habana_frameworks.torch.hpex.kernels import (
+    RotaryPosEmbeddingMode,
+    apply_rotary_pos_emb,
+)
 
 
 def _create_inv_freq(dim, base, device):
@@ -30,7 +26,7 @@ def _get_rope_config(config):
 
 
 class PositionRotaryEmbedding(nn.Module):
-    def __init__(self, inv_freq, scaling_factor):
+    def __init__(self, inv_freq, scaling_factor, max_position_embeddings):
         super().__init__()
         self.inv_freq = inv_freq
         self._seq_len_cached = 0
@@ -40,6 +36,9 @@ class PositionRotaryEmbedding(nn.Module):
         self._sin_k_cached = None
         self.scaling_factor = scaling_factor
         self.dynamic_args = None
+        self._update_cos_sin_cache(
+            torch.float32, inv_freq.device, max_position_embeddings
+        )
 
     def forward(
         self,
@@ -48,34 +47,30 @@ class PositionRotaryEmbedding(nn.Module):
         cos: torch.Tensor,
         sin: torch.Tensor,
     ):
-        # Such controlflows may add some overhead.
-        if SYSTEM == "cuda":
-            rotary_dim = cos.shape[-1]
-            q1 = query[..., :rotary_dim]
-            q2 = query[..., rotary_dim : 2 * rotary_dim]
+        num_tokens = query.shape[0]
+        head_size = query.shape[-1]
+        # HPU RoPE kernel requires hidden dimension for cos and sin to be equal
+        # to query hidden dimension, so the original tensors need to be
+        # expanded
+        # GPT-NeoX kernel requires position_ids = None, offset, mode = BLOCKWISE
+        # and expansion of cos/sin tensors via concatenation
+        rope_mode = RotaryPosEmbeddingMode.BLOCKWISE
+        cos = torch.cat((cos, cos), dim=-1)
+        sin = torch.cat((sin, sin), dim=-1)
+        rotary_dim = cos.shape[-1]
+        query_shape = query.shape
+        query = query.view(num_tokens, -1, head_size)
+        query_rot = query[..., :rotary_dim]
+        query_pass = query[..., rotary_dim:]
+        query_rot = apply_rotary_pos_emb(query_rot, cos, sin, None, 0, rope_mode)
+        query.copy_(torch.cat((query_rot, query_pass), dim=-1).reshape(query_shape))
 
-            rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, False)
-
-            k1 = key[..., :rotary_dim]
-            k2 = key[..., rotary_dim : 2 * rotary_dim]
-
-            rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
-        elif SYSTEM == "rocm":
-            # NOTE: On RoCm systems, we use a ROPE implementatation adapted from VLLM which launches a single kernel for both query/key, contrary to flash-attn implementation used on NVIDIA systems.
-            # Compiling flash-attn rotary on RoCm, it appears hipcc is unable to unroll loops, resulting in an even slower inference compared to eager: https://github.com/pytorch/pytorch/issues/113773
-
-            head_size = query.shape[-1]
-
-            # Inplace operation, updating query and key.
-            ops.rotary_embedding(query, key, head_size, cos, sin, True)
-        elif SYSTEM == "ipex":
-            ipex.llm.functional.rotary_embedding(
-                query, key, sin, cos, query.size(-1), True
-            )
-        else:
-            raise ValueError(
-                "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
-            )
+        key_shape = key.shape
+        key = key.view(num_tokens, -1, head_size)
+        key_rot = key[..., :rotary_dim]
+        key_pass = key[..., rotary_dim:]
+        key_rot = apply_rotary_pos_emb(key_rot, cos, sin, None, 0, rope_mode)
+        key.copy_(torch.cat((key_rot, key_pass), dim=-1).reshape(key_shape))
 
     @classmethod
     def static(cls, config, dim, base, device):
@@ -89,6 +84,14 @@ class PositionRotaryEmbedding(nn.Module):
 
             if rope_type == "linear":
                 pass
+            elif rope_type == "default":
+                pass
+            elif rope_type == "mrope":
+                mrope_section = rope_scaling["mrope_section"]
+                if mrope_section is not None:
+                    return RotaryPositionEmbeddingMultimodalSections(
+                        inv_freq, scaling_factor, mrope_section
+                    )
             elif rope_type == "dynamic":
                 scaling_factor = rope_scaling["factor"]
                 return DynamicPositionRotaryEmbedding(
@@ -109,7 +112,7 @@ class PositionRotaryEmbedding(nn.Module):
                     ],
                 )
 
-                return cls(inv_freq, scaling_factor)
+                return cls(inv_freq, scaling_factor, config.max_position_embeddings)
 
             elif rope_type == "yarn":
                 scaling_factor = rope_scaling["factor"]
@@ -190,7 +193,7 @@ class PositionRotaryEmbedding(nn.Module):
                 raise NotImplementedError(
                     f"rope scaling type {rope_scaling['type']} is not implemented or invalid"
                 )
-        return cls(inv_freq, scaling_factor)
+        return cls(inv_freq, scaling_factor, config.max_position_embeddings)
 
     @classmethod
     def load(cls, config, prefix, weights):
@@ -236,7 +239,7 @@ class PositionRotaryEmbedding(nn.Module):
                 raise NotImplementedError(
                     f"rope scaling type {rope_scaling['type']} is not implemented or invalid"
                 )
-        return cls(inv_freq, scaling_factor)
+        return cls(inv_freq, scaling_factor, config.max_position_embeddings)
 
     def _update_cos_sin_cache(self, dtype, device, seqlen):
         # Reset the tables if the sequence length has changed,
@@ -257,17 +260,7 @@ class PositionRotaryEmbedding(nn.Module):
             self._cos_cached = torch.cos(freqs).to(dtype)
             self._sin_cached = torch.sin(freqs).to(dtype)
 
-    def get_cos_sin(self, position_ids: torch.Tensor, max_s: int, dtype: torch.dtype):
-        """
-        Return cos and sin for the asked position ids
-        """
-        if SYSTEM == "rocm":
-            # For RoCm, we always use float cos/sin to avoid a cast.
-            # For NVIDIA, for some reason, the flash-attn rotary kernel requires cos/sin and query/key to be of same dtype: https://github.com/Dao-AILab/flash-attention/blob/017716451d446e464dde9aca3a3c1ed2209caaa9/csrc/rotary/rotary.cpp#L26
-            # But later on goes and cast cos/sin to float anyway: https://github.com/Dao-AILab/flash-attention/blob/017716451d446e464dde9aca3a3c1ed2209caaa9/csrc/rotary/rotary_cuda.cu#L29, which looks suboptimal.
-            dtype = torch.float32
-
-        self._update_cos_sin_cache(dtype, position_ids.device, max_s)
+    def get_cos_sin(self, position_ids: torch.Tensor):
 
         cos = torch.index_select(self._cos_cached, 0, position_ids)
         sin = torch.index_select(self._sin_cached, 0, position_ids)
@@ -383,7 +376,7 @@ class Phi3LongRoPEScaledRotaryEmbedding(PositionRotaryEmbedding):
 class DynamicPositionRotaryEmbedding(PositionRotaryEmbedding):
     def __init__(self, dim, max_position_embeddings, base, device, scaling_factor):
         inv_freq = _create_inv_freq(dim, base, device)
-        super().__init__(inv_freq, scaling_factor)
+        super().__init__(inv_freq, scaling_factor, max_position_embeddings)
         self.dim = dim
         self.max_position_embeddings = max_position_embeddings
         self.base = base
@@ -461,7 +454,9 @@ class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
         mscale_all_dim: float,
     ):
         inv_freq = _create_inv_freq(dim, base, device)
-        super().__init__(inv_freq, scaling_factor)
+        super().__init__(
+            inv_freq, scaling_factor, max_position_embeddings * self.scaling_factor
+        )
         self.dim = dim
         self.max_position_embeddings = max_position_embeddings
         self.base = base
@@ -546,3 +541,44 @@ def apply_llama3_scaling(
             new_freqs.append((1 - smooth) * freq / scaling_factor + smooth * freq)
 
     return torch.tensor(new_freqs, dtype=freqs.dtype, device=freqs.device)
+
+
+class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
+    def __init__(self, inv_freq: torch.Tensor, scaling_factor: float, sections: list):
+        super().__init__(inv_freq, scaling_factor)
+        self.sections = sections
+        self._cos_cached = None
+        self._sin_cached = None
+        self.section_indices = (
+            torch.arange(len(self.sections))
+            .repeat_interleave(torch.tensor(self.sections))
+            .view(1, 1, -1)
+            .to(inv_freq.device)
+        )
+
+    def _update_cos_sin_cache(
+        self, dtype: torch.dtype, device: torch.device, seqlen: int
+    ):
+        # always cache the cos/sin for the full sequence length to avoid
+        # recomputing if the sequence length is smaller than the cached one
+        if (
+            seqlen > self._seq_len_cached
+            or self._cos_cached.device != device
+            or self._cos_cached.dtype != dtype
+        ):
+            self._seq_len_cached = seqlen
+            t = torch.arange(seqlen, device=device, dtype=self.inv_freq.dtype)
+            freqs = torch.outer(t, self.inv_freq.to(device=t.device))
+            self._cos_cached = torch.cos(freqs).to(dtype)
+            self._sin_cached = torch.sin(freqs).to(dtype)
+            self._sections = self.section_indices.expand(seqlen, -1, -1)
+
+    def get_cos_sin(
+        self,
+        position_ids: torch.Tensor,
+    ):
+        slen = position_ids.shape[0]
+
+        cos = self._cos_cached[position_ids].gather(1, self._sections[:slen])
+        sin = self._sin_cached[position_ids].gather(1, self._sections[:slen])
+        return cos, sin

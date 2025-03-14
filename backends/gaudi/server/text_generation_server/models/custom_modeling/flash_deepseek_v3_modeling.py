@@ -41,7 +41,7 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_ms
 from text_generation_server.utils.weights import Weights
 
 
-class DeepseekV2Config(PretrainedConfig):
+class DeepseekV3Config(PretrainedConfig):
     def __init__(
         self,
         vocab_size=102400,
@@ -147,7 +147,7 @@ class DeepseekV2Config(PretrainedConfig):
         )
 
 
-class DeepseekV2Attention(torch.nn.Module):
+class DeepseekV3Attention(torch.nn.Module):
     def __init__(
         self,
         prefix: str,
@@ -356,7 +356,7 @@ class DeepseekV2Attention(torch.nn.Module):
         )
 
 
-class DeepseekV2MLP(nn.Module):
+class DeepseekV3MLP(nn.Module):
     def __init__(self, prefix: str, config, weights, intermediate_size: int):
         super().__init__()
         self.hidden_act = config.hidden_act
@@ -395,11 +395,11 @@ class DeepseekV2MLP(nn.Module):
         )
 
 
-class DeepseekV2MoE(nn.Module):
+class DeepseekV3MoE(nn.Module):
     def __init__(
         self,
         prefix,
-        config: DeepseekV2Config,
+        config: DeepseekV3Config,
         moe_layer_cls: Type[MoELayer],
         weights,
     ):
@@ -414,6 +414,13 @@ class DeepseekV2MoE(nn.Module):
         # Gating
         self.gate = FastLinear.load(config, f"{prefix}.gate", weights, bias=False)
 
+        if config.topk_method == "noaux_tc":
+            self.gate.e_score_correction_bias = torch.zeros(
+                config.n_routed_experts, device=weights.device
+            )
+        else:
+            self.gate.e_score_correction_bias = None
+
         self.moe_layer = moe_layer_cls(
             prefix=f"{prefix}.experts",
             n_experts=config.n_routed_experts,
@@ -422,11 +429,13 @@ class DeepseekV2MoE(nn.Module):
             topk=config.num_experts_per_tok,
             topk_group=config.topk_group,
             weights=weights,
+            scoring_func=config.scoring_func,
+            e_score_correction_bias=self.gate.e_score_correction_bias,
         )
         assert isinstance(self.moe_layer, MoELayer)
 
         if config.n_shared_experts is not None:
-            self.shared_experts = DeepseekV2MLP(
+            self.shared_experts = DeepseekV3MLP(
                 prefix=f"{prefix}.shared_experts",
                 config=config,
                 weights=weights,
@@ -458,12 +467,12 @@ class DeepseekV2MoE(nn.Module):
         return out.view(*x.shape)
 
 
-class DeepseekV2Layer(nn.Module):
+class DeepseekV3Layer(nn.Module):
     def __init__(self, prefix, layer_id, config, weights):
         super().__init__()
         prefix = f"{prefix}.layers.{layer_id}"
 
-        self.self_attn = DeepseekV2Attention(
+        self.self_attn = DeepseekV3Attention(
             prefix=f"{prefix}.self_attn",
             config=config,
             weights=weights,
@@ -479,9 +488,9 @@ class DeepseekV2Layer(nn.Module):
                 if SparseMoELayer.is_supported(weights)
                 else DenseMoELayer
             )
-            self.mlp = DeepseekV2MoE(f"{prefix}.mlp", config, moe_layer_cls, weights)
+            self.mlp = DeepseekV3MoE(f"{prefix}.mlp", config, moe_layer_cls, weights)
         else:
-            self.mlp = DeepseekV2MLP(
+            self.mlp = DeepseekV3MLP(
                 prefix=f"{prefix}.mlp",
                 config=config,
                 weights=weights,
@@ -535,7 +544,7 @@ class DeepseekV2Layer(nn.Module):
         return output, residual
 
 
-class DeepseekV2Model(torch.nn.Module):
+class DeepseekV3Model(torch.nn.Module):
     def __init__(self, prefix: str, config, weights: Weights):
         super().__init__()
 
@@ -545,7 +554,7 @@ class DeepseekV2Model(torch.nn.Module):
 
         self.layers = nn.ModuleList(
             [
-                DeepseekV2Layer(
+                DeepseekV3Layer(
                     prefix,
                     layer_id,
                     config,
@@ -601,11 +610,11 @@ class DeepseekV2Model(torch.nn.Module):
         return hidden_states
 
 
-class FlashDeepseekV2ForCausalLM(torch.nn.Module):
+class FlashDeepseekV3ForCausalLM(torch.nn.Module):
     def __init__(self, prefix: str, config, weights: Weights):
         super().__init__()
 
-        self.model = DeepseekV2Model(
+        self.model = DeepseekV3Model(
             "model" if not prefix else f"{prefix}.model", config, weights
         )
         self.lm_head = SpeculativeHead.load(

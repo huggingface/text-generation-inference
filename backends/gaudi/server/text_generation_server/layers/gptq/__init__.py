@@ -1,12 +1,13 @@
-import os
 from dataclasses import dataclass
 from typing import List, Optional, Union
 
 import torch
 from loguru import logger
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
+
+
+QuantLinear = None
 
 
 @dataclass
@@ -30,13 +31,8 @@ class GPTQWeight(Weight):
 
     def get_linear(self, bias: torch.Tensor):
         if self.use_awq_kernel:
-            if SYSTEM == "rocm":
-                raise NotImplementedError(
-                    "AWQ GEMM kernel can't be used on ROCm systems, please use `--quantize gptq` instead "
-                    "to use Exllama/GPTQ kernels for AWQ inference."
-                )
             try:
-                from text_generation_server.layers.awq.quantize.qmodule import WQLinear
+                from text_generation_server.layers.awq.quantize import WQLinear
 
                 return WQLinear(
                     w_bit=self.bits,
@@ -50,18 +46,7 @@ class GPTQWeight(Weight):
                 raise NotImplementedError(
                     "You do not seem to have awq installed, either install it (cd server &&  make install-awq), or try using GPTQ `---quantize gptq` a conversion AWQ->GPTQ will happen on the fly"
                 )
-        elif self.use_exllama:
-            try:
-                from text_generation_server.layers.gptq import ExllamaQuantLinear
-            except ImportError:
-                raise NotImplementedError(
-                    "Exllama gptq kernels are not installed. Install them `cd server/exllama_kernels && python setup.py install && cd ../exllamav2_kernels && python setup.py install`"
-                )
-
-            return ExllamaQuantLinear(self, bias)
         else:
-            from text_generation_server.layers.gptq.quant_linear import QuantLinear
-
             return QuantLinear(
                 self.qweight,
                 self.qzeros,
@@ -117,23 +102,6 @@ class GPTQWeightsLoader(WeightsLoader):
             g_idx = weights.get_tensor(f"{prefix}.g_idx")
         else:
             g_idx = None
-
-        from text_generation_server.layers.gptq import (
-            HAS_EXLLAMA,
-            CAN_EXLLAMA,
-            GPTQWeight,
-        )
-
-        if use_exllama:
-            if not HAS_EXLLAMA:
-                if CAN_EXLLAMA:
-                    log_once(
-                        logger.warning,
-                        "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True",
-                    )
-                use_exllama = False
-            else:
-                log_once(logger.info, f"Using exllama kernels v{HAS_EXLLAMA}")
 
         qzeros = weights.get_tensor(f"{prefix}.qzeros")
         scales = weights.get_tensor(f"{prefix}.scales")
@@ -298,6 +266,7 @@ class GPTQWeightsLoader(WeightsLoader):
         self._get_gptq_params(weights)
 
         use_exllama = True
+        desc_act = self.desc_act
         if self.bits != 4:
             use_exllama = False
 
@@ -321,7 +290,8 @@ class GPTQWeightsLoader(WeightsLoader):
             if g_idx is not None:
                 if (
                     not torch.equal(
-                        g_idx.cpu(),
+                        # Remove g_idx[0] to adapt the check with TP>1.
+                        (g_idx - g_idx[0]).cpu(),
                         torch.tensor(
                             [i // self.groupsize for i in range(g_idx.shape[0])],
                             dtype=torch.int32,
@@ -332,33 +302,21 @@ class GPTQWeightsLoader(WeightsLoader):
                     # Exllama implementation does not support row tensor parallelism with act-order, as
                     # it would require to reorder input activations that are split unto several GPUs
                     use_exllama = False
+                    desc_act = True
 
         from text_generation_server.layers.gptq import (
-            CAN_EXLLAMA,
-            HAS_EXLLAMA,
             GPTQWeight,
         )
 
-        if use_exllama:
-            if not HAS_EXLLAMA:
-                if CAN_EXLLAMA:
-                    log_once(
-                        logger.warning,
-                        "Exllama GPTQ cuda kernels (which are faster) could have been used, but are not currently installed, try using BUILD_EXTENSIONS=True",
-                    )
-                use_exllama = False
-            else:
-                log_once(logger.info, f"Using exllama kernels v{HAS_EXLLAMA}")
-
-        if use_exllama and self.groupsize != -1:
+        if not desc_act and self.groupsize != -1:
             qzeros = weights.get_sharded(f"{prefix}.qzeros", dim=0)
             scales = weights.get_sharded(f"{prefix}.scales", dim=0)
+            if g_idx is not None:
+                # qzeros, scales sharded, and g_idx must be adjusted accordingly
+                g_idx = g_idx - g_idx[0]
         else:
             qzeros = weights.get_tensor(f"{prefix}.qzeros")
             scales = weights.get_tensor(f"{prefix}.scales")
-
-        if use_exllama and g_idx is not None:
-            g_idx = g_idx - g_idx[0]
 
         if self.quantize == "gptq" and self.quant_method == "awq":
             log_once(
@@ -392,7 +350,7 @@ class GPTQWeightsLoader(WeightsLoader):
         )
 
     def _get_gptq_params(self, weights: Weights):
-        if weights._has_tensor("gptq_bits") and weights._has_tensor("gptq_groupsize"):
+        if weights.has_tensor("gptq_bits") and weights.has_tensor("gptq_groupsize"):
             self.bits = weights.get_tensor("gptq_bits").item()
             self.groupsize = weights.get_tensor("gptq_groupsize").item()
             self.desc_act = False
@@ -400,41 +358,10 @@ class GPTQWeightsLoader(WeightsLoader):
             # before the `gptq_sym` setting tensor was added.
             self.sym = (
                 weights.get_tensor("gptq_sym").item()
-                if weights._has_tensor("gptq_sym")
+                if weights.has_tensor("gptq_sym")
                 else False
             )
             self.quant_method = "gptq"
 
 
-# Needs to be at the end because circular import.
-try:
-    major, _minor = torch.cuda.get_device_capability()
-except Exception:
-    major = 1
-
 HAS_EXLLAMA = False
-CAN_EXLLAMA = major >= 8 or SYSTEM == "rocm"
-V2 = os.getenv("EXLLAMA_VERSION", "2") == "2"
-if os.getenv("DISABLE_EXLLAMA") == "True":
-    HAS_EXLLAMA = False
-elif CAN_EXLLAMA:
-    try:
-        if V2:
-            from text_generation_server.layers.gptq.exllamav2 import (
-                QuantLinear as ExllamaQuantLinear,  # noqa: F401
-                create_exllama_buffers,  # noqa: F401
-                set_device,  # noqa: F401
-            )
-
-            HAS_EXLLAMA = "2"
-        else:
-            from text_generation_server.layers.gptq.exllama import (
-                Ex4bitLinear as ExllamaQuantLinear,  # noqa: F401
-                create_exllama_buffers,  # noqa: F401
-                set_device,  # noqa: F401
-            )
-
-            HAS_EXLLAMA = "1"
-
-    except ImportError:
-        pass

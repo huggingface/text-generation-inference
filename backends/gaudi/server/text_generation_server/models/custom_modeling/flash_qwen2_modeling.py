@@ -8,7 +8,6 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
 )
 from text_generation_server.layers import (
@@ -17,7 +16,7 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     SpeculativeHead,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -86,6 +85,8 @@ class Qwen2Attention(torch.nn.Module):
 
         self.query_key_value = load_attention(config, prefix, weights)
 
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
+
         self.o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
@@ -128,33 +129,38 @@ class Qwen2Attention(torch.nn.Module):
         else:
             kv_to_cache = kv
 
-        reshape_and_cache(
-            kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
+        kv_cache.store(
+            key=kv_to_cache[:, 0],
+            value=kv_to_cache[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
         )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv_to_cache[:, 0],
+                value=kv_to_cache[:, 1],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
                 window_size_left=self.max_past,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -229,7 +235,7 @@ class Qwen2Layer(nn.Module):
         max_s,
         prefill_cache_indices,
     ):
-        normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
+        normed_hidden_states, residual = self.input_layernorm(hidden_states)
 
         # Self Attention
         attn_output = self.self_attn(
@@ -244,15 +250,13 @@ class Qwen2Layer(nn.Module):
             max_s,
             prefill_cache_indices,
         )
+        hidden_states = attn_output + residual
 
         # faster post attention rms norm
-        normed_attn_res_output, attn_res = self.post_attention_layernorm(
-            attn_output, res
-        )
-
-        mlp_output = self.mlp(normed_attn_res_output)
-
-        return mlp_output, attn_res
+        hidden_states, residual = self.post_attention_layernorm(hidden_states)
+        mlp_output = self.mlp(hidden_states)
+        hidden_states = mlp_output + residual
+        return hidden_states
 
 
 class Qwen2Model(torch.nn.Module):
@@ -264,9 +268,6 @@ class Qwen2Model(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
-        self.embed_tokens = TensorParallelEmbedding(
-            prefix=f"{prefix}.embed_tokens", weights=weights
-        )
         self.layers = nn.ModuleList(
             [
                 Qwen2Layer(
@@ -290,7 +291,7 @@ class Qwen2Model(torch.nn.Module):
 
     def forward(
         self,
-        input_ids: torch.Tensor,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -301,17 +302,17 @@ class Qwen2Model(torch.nn.Module):
         true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
     ) -> torch.Tensor:
-        hidden_states = self.embed_tokens(input_ids)
+        hidden_states = inputs_embeds
 
-        # Get rotary cos and sin for this forward
-        # Avoid to index in each layer
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, true_max_s, hidden_states.dtype
+            position_ids,
+            true_max_s,
+            hidden_states.dtype,
         )
 
         residual = None
         for i, layer in enumerate(self.layers):
-            hidden_states, residual = layer(
+            hidden_states = layer(
                 hidden_states,
                 residual,
                 cos,
@@ -325,7 +326,7 @@ class Qwen2Model(torch.nn.Module):
                 prefill_cache_indices,
             )
 
-        hidden_states, _ = self.norm(hidden_states, residual)
+        hidden_states, _ = self.norm(hidden_states)
 
         return hidden_states
 
@@ -346,6 +347,12 @@ class Qwen2ForCausalLM(torch.nn.Module):
             prefix=f"{prefix}.{suffix}" if prefix else suffix,
             weights=weights,
         )
+
+        self.embed_tokens = TensorParallelEmbedding(
+            prefix=f"{prefix}.embed_tokens" if prefix else "model.embed_tokens",
+            weights=weights,
+        )
+
         self.max_past = config.sliding_window
         self.max_past_tensor = (
             torch.tensor(config.sliding_window, device=weights.device)
@@ -376,8 +383,10 @@ class Qwen2ForCausalLM(torch.nn.Module):
             # kernel requires the true values
             seqlen = seqlen.clamp(max=self.max_past_tensor)
 
+        inputs_embeds = self.embed_tokens(input_ids)
+
         hidden_states = self.model(
-            input_ids,
+            inputs_embeds,
             position_ids,
             cu_seqlen_prefill,
             kv_cache,

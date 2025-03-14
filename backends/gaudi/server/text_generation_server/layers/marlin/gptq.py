@@ -11,14 +11,12 @@ from text_generation_server.layers.marlin.util import (
     permute_scales,
     unpack_cols,
 )
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
-try:
-    import marlin_kernels
-except ImportError:
-    marlin_kernels = None
+
+quantization = None
+
 
 try:
     major, _minor = torch.cuda.get_device_capability()
@@ -35,17 +33,7 @@ MARLIN_TILE_SIZE = 16
 def can_use_gptq_marlin(
     *, bits: int, groupsize: int, quant_method: str, quantize: str, sym: bool
 ) -> bool:
-    return (
-        SYSTEM == "cuda"
-        and marlin_kernels is not None
-        and has_sm_8_0
-        and quantize in {"awq", "gptq"}
-        and quant_method in {"awq", "gptq"}
-        and bits in GPTQ_MARLIN_BITS
-        and groupsize in GPTQ_MARLIN_GROUP_SIZES
-        # We only suppord asymmetric quantization for AWQ.
-        and (sym or quant_method == "awq")
-    )
+    return False
 
 
 class GPTQMarlinWeightsLoader(WeightsLoader):
@@ -231,7 +219,7 @@ class GPTQMarlinWeightsLoader(WeightsLoader):
         )
 
     def _get_gptq_params(self, weights: Weights):
-        if weights._has_tensor("gptq_bits") and weights._has_tensor("gptq_groupsize"):
+        if weights.has_tensor("gptq_bits") and weights.has_tensor("gptq_groupsize"):
             self.bits = weights.get_tensor("gptq_bits").item()
             self.groupsize = weights.get_tensor("gptq_groupsize").item()
             self.desc_act = False
@@ -239,7 +227,7 @@ class GPTQMarlinWeightsLoader(WeightsLoader):
             # before the `gptq_sym` setting tensor was added.
             self.sym = (
                 weights.get_tensor("gptq_sym").item()
-                if weights._has_tensor("gptq_sym")
+                if weights.has_tensor("gptq_sym")
                 else False
             )
             self.quant_method = "gptq"
@@ -261,7 +249,7 @@ class GPTQMarlinWeight(Weight):
 
     def __post_init__(self):
         assert self.qweight.dtype == torch.int32
-        assert self.scales.dtype == torch.float16
+        assert self.scales.dtype in (torch.float16, torch.bfloat16)
         assert self.g_idx.dtype == torch.int32
         assert self.perm.dtype == torch.int32
 
@@ -287,7 +275,7 @@ def repack_gptq_for_marlin(
 ) -> GPTQMarlinWeight:
     """Convert GPTQ weights to a layout that's compatible with GPTQ-Marlin kernels."""
     _check_marlin_kernels()
-    assert marlin_kernels is not None
+    assert quantization is not None
 
     if bits not in GPTQ_MARLIN_BITS:
         supported_bits = ", ".join(str(b) for b in GPTQ_MARLIN_BITS)
@@ -300,7 +288,7 @@ def repack_gptq_for_marlin(
         raise RuntimeError(
             f"Repacking GPTQ weights with group size {groupsize} as Marlin is not supported, must be one of: {supported_sizes}"
         )
-    if not (sym or quant_method == "awq"):
+    if not (sym or quant_method == "awq" or quant_method == "compressed-tensors"):
         raise RuntimeError(
             "Repacking GPTQ weights with asymmetric quantization as Marlin is not supported."
         )
@@ -330,7 +318,7 @@ def repack_gptq_for_marlin(
         g_idx = torch.empty(0, dtype=torch.int, device=qweight.device)
 
     if quant_method == "awq":
-        repacked = marlin_kernels.awq_marlin_repack(
+        repacked = quantization.awq_marlin_repack(
             qweight, in_features, out_features, bits
         )
         if qzeros is not None:
@@ -342,7 +330,7 @@ def repack_gptq_for_marlin(
             )
 
     else:
-        repacked = marlin_kernels.gptq_marlin_repack(
+        repacked = quantization.gptq_marlin_repack(
             qweight, perm, in_features, out_features, bits
         )
 
@@ -379,13 +367,26 @@ class GPTQMarlinLinear(nn.Module):
         super().__init__()
 
         _check_marlin_kernels()
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         in_features = weight.qweight.shape[0] * MARLIN_TILE_SIZE
         out_features = weight.scales.shape[1]
         _check_valid_shape(in_features=in_features, out_features=out_features)
 
-        self.bits = weight.bits
+        if weight.bits not in (4, 8):
+            raise ValueError("GPTQMarlinLinear only supports 4 and 8-bit quantization")
+
+        if weight.qzeros.numel() > 0:
+            if weight.bits == 4:
+                self.quant_type = quantization.scalar_types.uint4
+            else:
+                self.quant_type = quantization.scalar_types.uint8
+        else:
+            if weight.bits == 4:
+                self.quant_type = quantization.scalar_types.uint4b8
+            else:
+                self.quant_type = quantization.scalar_types.uint8b128
+
         self.is_full_k = weight.is_full_k
 
         self.qweight = weight.qweight
@@ -403,10 +404,10 @@ class GPTQMarlinLinear(nn.Module):
         )
 
     def forward(self, A: torch.Tensor) -> torch.Tensor:
-        assert marlin_kernels is not None
+        assert quantization is not None
 
         A_flat = A.view(-1, A.shape[-1])
-        C = marlin_kernels.gptq_marlin_gemm(
+        C = quantization.gptq_marlin_gemm(
             A_flat,
             self.qweight,
             self.scales,
@@ -414,7 +415,7 @@ class GPTQMarlinLinear(nn.Module):
             self.g_idx,
             self.perm,
             self.workspace,
-            self.bits,
+            self.quant_type,
             A_flat.shape[0],
             self.scales.shape[1],
             A_flat.shape[1],
