@@ -19,7 +19,10 @@ from typing import Optional, Tuple, List
 import torch
 import torch.utils.checkpoint
 from torch import nn
-import flash_attn_2_cuda
+
+from habana_frameworks.torch.hpex.kernels import FusedSDPA
+from vllm_hpu_extension.utils import ModuleFusedSDPA
+
 
 from transformers.activations import ACT2FN
 import torch.nn.functional as F
@@ -488,9 +491,14 @@ class MllamaVisionModel(nn.Module):
         aspect_ratio_ids: torch.Tensor,
         attention_mask: torch.Tensor,
     ) -> torch.Tensor:
-        batch_size, num_concurrent_media, num_tiles, num_channels, height, width = (
-            pixel_values.shape
-        )
+        (
+            batch_size,
+            num_concurrent_media,
+            num_tiles,
+            num_channels,
+            height,
+            width,
+        ) = pixel_values.shape
 
         pixel_values = pixel_values.reshape(
             batch_size * num_concurrent_media * num_tiles, num_channels, height, width
@@ -698,29 +706,24 @@ class MllamaTextCrossAttention(nn.Module):
         # logger.info(
         #     f"Q: {query_states.shape} -K {key_states.shape} - V{value_states.shape}"
         # )
-        attn_output = flash_attn_2_cuda.varlen_fwd(
+        query_states = query_states.unsqueeze(0).transpose(1, 2)
+        key_states = key_states.unsqueeze(0).transpose(1, 2)
+        value_states = value_states.unsqueeze(0).transpose(1, 2)
+        fsdpa_op = ModuleFusedSDPA(FusedSDPA)
+        attn_output = fsdpa_op(
             query_states,
             key_states,
             value_states,
-            None,
-            cu_seqlen_q,
-            cu_seqlen_k,
-            None,
-            None,
-            None,  # block_tables
-            None,
-            max_q,
-            max_k,
-            0.0,
-            self.softmax_scale,
-            False,
-            causal,  # Causal
-            -1,  # window_size_left,
-            -1,
-            0.0,  # softcap
-            False,
-            None,
-        )[0]
+            attn_mask=None,
+            dropout_p=0.0,
+            is_causal=causal,
+            scale=None,
+            softmax_mode="None",
+            recompute_mode=None,
+            valid_sequence_lengths=None,
+        )
+        attn_output = attn_output.transpose(1, 2).squeeze(0).contiguous()
+
         attn_output = self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
 
         return attn_output

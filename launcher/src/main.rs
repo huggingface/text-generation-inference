@@ -1532,7 +1532,10 @@ fn spawn_shards(
 ) -> Result<(), LauncherError> {
     // Start shard processes
     for rank in 0..num_shard {
-        if rank != 0 && env_runtime::Env::new().is_hpu_device() {
+        if rank != 0
+            && env_runtime::Env::new().is_hpu_device()
+            && std::env::var("ATTENTION").as_deref() != Ok("paged")
+        {
             tracing::info!("Running on HPU, the launcher will not do any sharding as actual sharding is done in the server");
             break;
         }

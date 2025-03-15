@@ -8,7 +8,6 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
 )
 from text_generation_server.layers import (
@@ -18,7 +17,7 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.gptq import GPTQWeightsLoader
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
@@ -259,6 +258,7 @@ class FlashMQAttention(torch.nn.Module):
         self.c_proj = load_row(
             config, prefix=f"{prefix}.c_proj", weights=weights, bias=True
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
         self.kv_head_mapping = torch.zeros(
             self.num_heads, dtype=torch.int32, device=weights.device
         )
@@ -284,32 +284,37 @@ class FlashMQAttention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         key_value = key_value.view(-1, 2, 1, self.head_size)
 
-        reshape_and_cache(
-            key_value[:, 0], key_value[:, 1], kv_cache[0], kv_cache[1], slots
+        kv_cache.store(
+            key=key_value[:, 0],
+            value=key_value[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
         )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else key_value[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else key_value[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=key_value[:, 0],
+                value=key_value[:, 1],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.c_proj(attn_output.view(-1, self.num_heads * self.head_size))

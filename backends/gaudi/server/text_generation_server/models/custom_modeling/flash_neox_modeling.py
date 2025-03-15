@@ -29,7 +29,6 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
 )
 from text_generation_server.layers import (
@@ -39,7 +38,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -132,6 +131,7 @@ class FlashNeoxAttention(torch.nn.Module):
             head_size=self.head_size,
             hidden_size=self.hidden_size,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=True
         )
@@ -165,30 +165,37 @@ class FlashNeoxAttention(torch.nn.Module):
         qkv[:, 0] = torch.cat((query_rot, query_pass), dim=-1)
         qkv[:, 1] = torch.cat((key_rot, key_pass), dim=-1)
 
-        reshape_and_cache(qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(
+            key=qkv[:, 1],
+            value=qkv[:, 2],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                qkv[:, 0],
-                kv_cache[0] if PREFILL_IN_KV_CACHE else qkv[:, 1],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else qkv[:, 2],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=qkv[:, 0],
+                key=qkv[:, 1],
+                value=qkv[:, 2],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 qkv[:, 0],
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
                 max_s,
+                kv_scales=self.kv_scales,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))

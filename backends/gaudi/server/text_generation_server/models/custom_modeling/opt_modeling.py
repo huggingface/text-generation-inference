@@ -12,7 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" PyTorch OPT model."""
+"""PyTorch OPT model."""
+
 import random
 from typing import List, Optional, Tuple, Union
 
@@ -99,7 +100,7 @@ class OPTLearnedPositionalEmbedding(nn.Module):
         self.offset = 2
         self.weight = nn.Parameter(
             weights.get_tensor(
-                f"{prefix + '.' if prefix else ''}decoder.embed_positions.weight"
+                f"{prefix if prefix else ''}decoder.embed_positions.weight"
             )
         )
 
@@ -317,7 +318,6 @@ class OPTDecoderLayer(nn.Module):
         super().__init__()
         self.process_group = weights.process_group
         self.hidden_size = config.hidden_size
-        prefix = f"{prefix + '.' if prefix else ''}decoder.layers.{layer_id}"
         self.self_attn = OPTAttention(
             config,
             prefix=f"{prefix}.self_attn",
@@ -478,7 +478,12 @@ class OPTDecoder(OPTPreTrainedModel):
 
         self.layers = nn.ModuleList(
             [
-                OPTDecoderLayer(layer_id, prefix, config, weights)
+                OPTDecoderLayer(
+                    layer_id,
+                    prefix=f"{prefix}decoder.layers.{layer_id}",
+                    config=config,
+                    weights=weights,
+                )
                 for layer_id in range(config.num_hidden_layers)
             ]
         )
@@ -755,6 +760,8 @@ class OPTModel(OPTPreTrainedModel):
 class OPTForCausalLM(OPTPreTrainedModel):
     def __init__(self, prefix, config, weights):
         super().__init__(config)
+        if not prefix and any(s.startswith("model") for s in weights.routing.keys()):
+            prefix = "model"
 
         self.model = OPTModel(prefix, config, weights)
 

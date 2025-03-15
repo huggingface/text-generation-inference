@@ -27,14 +27,16 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention import (
+    KVCache,
+    get_kv_scales,
+)
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -56,15 +58,6 @@ from text_generation_server.utils.weights import (
     Weights,
 )
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
-
-if SYSTEM != "ipex":
-    pass
-
-if SYSTEM == "rocm":
-    try:
-        from vllm import _custom_C
-    except Exception as e:
-        raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
 
 
 def load_attention(config, prefix: str, weights, layer_id):
@@ -157,7 +150,10 @@ class FlashLlamaAttention(torch.nn.Module):
             device=weights.device,
         )
 
-        self.softmax_scale = self.head_size**-0.5
+        # `config.attention_multiplier` is used in Granite
+        self.softmax_scale = getattr(
+            config, "attention_multiplier", self.head_size**-0.5
+        )
 
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
@@ -177,11 +173,13 @@ class FlashLlamaAttention(torch.nn.Module):
         self.query_key_value = load_attention(config, prefix, weights, index)
         self.index = index
 
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
+
         o_proj = TensorParallelRowLinear.load(
             config,
             prefix=f"{prefix}.o_proj",
             weights=weights,
-            bias=False,
+            bias=getattr(config, "attention_bias", False),
         )
 
         self.o_proj = TensorParallelAdapterRowLinear.load(
@@ -202,12 +200,13 @@ class FlashLlamaAttention(torch.nn.Module):
         cos,
         sin,
         cu_seqlen_prefill,
-        kv_cache,
+        kv_cache: KVCache,
         block_tables,
         slots,
         seqlen,
-        max_s,
         adapter_data,
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata] = None,
     ):
         qkv = self.query_key_value(hidden_states, adapter_data)
         query, kv = qkv.split(
@@ -222,30 +221,42 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
+        if prefill_cache_indices is not None:
+            kv_to_cache = kv[prefill_cache_indices]
+        else:
+            kv_to_cache = kv
+
+        kv_cache.store(
+            key=kv_to_cache[:, 0],
+            value=kv_to_cache[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, 0],
+                value=kv[:, 1],
+                kv_scales=self.kv_scales,
+                kv_cache=kv_cache,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.o_proj(
@@ -363,31 +374,11 @@ class LlamaMLP(nn.Module):
         self.hidden_size = config.hidden_size
 
     def forward(self, hidden_states, adapter_data):
-        if (
-            SYSTEM == "rocm"
-            and self.hidden_act == "silu"
-            and hidden_states.dtype == torch.float16
-            and hidden_states.shape[0] == 1
-            and not self.quantize
-            and self.hidden_size
-            != 16384  # TODO: Temporary workaround for `LLMM_Silu` kernel not working with LLama3.1 405B; needs refactoring once fixed.
-        ):
-            out = torch.empty(
-                hidden_states.shape[0],
-                self.intermediate_size,
-                dtype=hidden_states.dtype,
-                device="cuda",
-            )
-            _custom_C.LLMM_Silu(
-                self.gate_up_proj.base_layer.linear.weight, hidden_states, out, 8
-            )
-            return self.down_proj(out, adapter_data)
-        else:
-            gate_up_states = self.gate_up_proj(hidden_states, adapter_data)
-            gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-            return self.down_proj(
-                self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], adapter_data
-            )
+        gate_up_states = self.gate_up_proj(hidden_states, adapter_data)
+        gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
+        return self.down_proj(
+            self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], adapter_data
+        )
 
 
 class FlashLlamaLayer(nn.Module):
@@ -408,7 +399,7 @@ class FlashLlamaLayer(nn.Module):
                 if SparseMoELayer.is_supported(weights)
                 else DenseMoELayer
             )
-            self.dense = Phi3MoE(
+            self.mlp = Phi3MoE(
                 f"{prefix}.block_sparse_moe", config, moe_layer_cls, weights
             )
             # with moe the layernorms are are not rmsnorms and they have bias
@@ -423,7 +414,7 @@ class FlashLlamaLayer(nn.Module):
                 eps=config.rms_norm_eps,
             )
         else:
-            self.dense = LlamaMLP(
+            self.mlp = LlamaMLP(
                 prefix=f"{prefix}.mlp", config=config, weights=weights, index=index
             )
             self.input_layernorm = FastRMSNorm.load(
@@ -437,6 +428,11 @@ class FlashLlamaLayer(nn.Module):
                 eps=config.rms_norm_eps,
             )
 
+        # Used in Granite
+        # This could eventually be baked into the weights like we do for the embeddings/lm_head
+        # but this would mean modifying the lora code
+        self.residual_multiplier = getattr(config, "residual_multiplier", None)
+
     def forward(
         self,
         hidden_states,
@@ -448,9 +444,10 @@ class FlashLlamaLayer(nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
         adapter_data,
         cross_attention_states,
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata] = None,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -464,16 +461,20 @@ class FlashLlamaLayer(nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
             adapter_data,
+            prefill_cache_indices,
+            hpu_attention_meta=hpu_attention_meta,
         )
+        if self.residual_multiplier is not None:
+            attn_output *= self.residual_multiplier
 
-        # faster post attention rms norm
         normed_attn_res_output, attn_res = self.post_attention_layernorm(
             attn_output, res
         )
 
-        mlp_output = self.dense(normed_attn_res_output, adapter_data)
+        mlp_output = self.mlp(normed_attn_res_output, adapter_data)
+        if self.residual_multiplier is not None:
+            mlp_output *= self.residual_multiplier
 
         return mlp_output, attn_res
 
@@ -493,9 +494,7 @@ class FlashLlamaModel(torch.nn.Module):
             self.layers.append(
                 FlashLlamaLayer(
                     index=0,
-                    prefix=(
-                        "model.layers.0" if not prefix else f"{prefix}.model.layers.0"
-                    ),
+                    prefix=f"{prefix}.layers.0",
                     config=config,
                     weights=weights,
                 )
@@ -511,11 +510,7 @@ class FlashLlamaModel(torch.nn.Module):
                 self.layers.append(
                     FlashLlamaCrossLayer(
                         index=layer_id,
-                        prefix=(
-                            f"model.layers.{layer_id}"
-                            if not prefix
-                            else f"{prefix}.model.layers.{layer_id}"
-                        ),
+                        prefix=(f"{prefix}.layers.{layer_id}"),
                         config=config,
                         weights=weights,
                     )
@@ -524,11 +519,7 @@ class FlashLlamaModel(torch.nn.Module):
                 self.layers.append(
                     FlashLlamaLayer(
                         index=layer_id,
-                        prefix=(
-                            f"model.layers.{layer_id}"
-                            if not prefix
-                            else f"{prefix}.model.layers.{layer_id}"
-                        ),
+                        prefix=(f"{prefix}.layers.{layer_id}"),
                         config=config,
                         weights=weights,
                     )
@@ -539,18 +530,14 @@ class FlashLlamaModel(torch.nn.Module):
             self.layers.append(
                 FlashLlamaLayer(
                     index=last_layer_id,
-                    prefix=(
-                        f"model.layers.{last_layer_id}"
-                        if not prefix
-                        else f"{prefix}.model.layers.{last_layer_id}"
-                    ),
+                    prefix=(f"{prefix}.layers.{last_layer_id}"),
                     config=config,
                     weights=weights,
                 )
             )
 
         self.norm = FastRMSNorm.load(
-            prefix="model.norm" if not prefix else f"{prefix}.model.norm",
+            prefix=f"{prefix}.norm",
             weights=weights,
             eps=config.rms_norm_eps,
         )
@@ -570,19 +557,16 @@ class FlashLlamaModel(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         adapter_data,
         cross_attention_states=None,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata] = None,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -596,9 +580,10 @@ class FlashLlamaModel(torch.nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
                 adapter_data,
                 cross_attention_states,
+                prefill_cache_indices,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -607,30 +592,50 @@ class FlashLlamaModel(torch.nn.Module):
 
 
 class FlashLlamaForCausalLM(torch.nn.Module):
-    def __init__(self, prefix: str, config, weights):
+    def __init__(self, prefix: str, config, weights, name=None):
+        if name is None:
+            name = "model"
         super().__init__()
-
         with no_fp8(weights):
             self.embed_tokens = TensorParallelEmbedding(
                 prefix=(
-                    "model.embed_tokens"
+                    f"{name}.embed_tokens"
                     if not prefix
-                    else f"{prefix}.model.embed_tokens"
+                    else f"{prefix}.{name}.embed_tokens"
                 ),
                 weights=weights,
             )
-        self.model = FlashLlamaModel(prefix, config, weights)
+        self.model = FlashLlamaModel(
+            prefix=name if not prefix else f"{prefix}.{name}",
+            config=config,
+            weights=weights,
+        )
         if config.tie_word_embeddings:
             suffix = "model.embed_tokens"
         else:
             suffix = "lm_head"
 
+        # Used in Granite
+        embedding_multiplier = getattr(config, "embedding_multiplier", None)
+        if embedding_multiplier is not None:
+            self.embed_tokens.weight.data *= embedding_multiplier
+        prefix = suffix if not prefix or name != "model" else f"{prefix}.{suffix}"
         with no_fp8(weights):
             self.lm_head = SpeculativeHead.load(
                 config,
-                prefix=suffix if not prefix else f"{prefix}.{suffix}",
-                weights=weights,
+                prefix,
+                weights,
             )
+
+        # Used in Granite
+        self.logits_scaling = getattr(config, "logits_scaling", None)
+        if self.logits_scaling is not None and self.lm_head.head is not None:
+            try:
+                # Scale the weights directly
+                self.lm_head.head.linear.weight.data /= self.logits_scaling
+                self.logits_scaled = True
+            except Exception:
+                self.logits_scaled = False
 
     def forward(
         self,
@@ -641,11 +646,11 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         cross_attention_states=None,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
@@ -656,13 +661,19 @@ class FlashLlamaForCausalLM(torch.nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
-            true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,
             adapter_data=adapter_data,
             cross_attention_states=cross_attention_states,
+            hpu_attention_meta=hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
         logits, speculative_logits = self.lm_head(hidden_states)
+
+        # Used in Granite
+        if self.logits_scaling is not None and not self.logits_scaled:
+            logits /= self.logits_scaling
+            if speculative_logits is not None:
+                speculative_logits /= self.logits_scaling
+
         return logits, speculative_logits
