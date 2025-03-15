@@ -112,7 +112,7 @@ def serve(
 
     logger.info("CLI SHARDED = {} DTYPE = {}".format(sharded, dtype))
 
-    if sharded:
+    if sharded and os.getenv("ATTENTION", "default") not in {"paged"}:
         tgi_file = Path(__file__).resolve().parent / "tgi_service.py"
         num_shard = int(os.getenv("WORLD_SIZE", "1"))
         logger.info("CLI SHARDED = {}".format(num_shard))
