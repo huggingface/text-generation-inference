@@ -396,10 +396,6 @@ impl Validation {
                                 "Grammar must have a 'properties' field".to_string(),
                             ))?;
 
-                        // TODO:
-                        // Apply strictness if specified
-                        let _strict = schema_config.strict.unwrap_or(false);
-
                         // Do compilation in the router for performance
                         let grammar_regex = json_schema_to_regex(json, None, json)
                             .map_err(ValidationError::RegexFromSchema)?;
