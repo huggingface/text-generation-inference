@@ -17,16 +17,14 @@ from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.bloom import BLOOM
 from text_generation_server.models.starcoder import StarCoder
 from text_generation_server.models.vlm_causal_lm import VlmCausalLM
-
-# from text_generation_server.models.mllama_causal_lm import MllamaCausalLM
+from text_generation_server.models.custom_modeling.mllama import (
+    MllamaForConditionalGeneration,
+)
 from text_generation_server.models.custom_modeling.llava_next import (
     LlavaNextForConditionalGeneration,
 )
 
 # from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
-# from text_generation_server.models.custom_modeling.mllama import (
-#     MllamaForConditionalGeneration,
-# )
 from text_generation_server.utils.adapter import (
     AdapterParameters,
     build_layer_weight_lookup,
@@ -39,6 +37,7 @@ from text_generation_server.adapters.lora import LoraWeights
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 
 
+SDP_ON_BF16 = int(os.environ.get("SDP_ON_BF16", 0))
 # Disable gradients
 torch.set_grad_enabled(False)
 
@@ -55,6 +54,8 @@ def get_model(
     max_input_tokens: int,
 ) -> Model:
     adapt_transformers_to_gaudi()
+    if SDP_ON_BF16 == 1:
+        torch._C._set_math_sdp_allow_fp16_bf16_reduction(True)
 
     if speculate is not None:
         set_speculate(speculate)
@@ -191,6 +192,17 @@ def get_model(
     if model_type == "llava_next":
         return VlmCausalLM(
             model_class=LlavaNextForConditionalGeneration,
+            model_id=model_id,
+            revision=revision,
+            quantize=None,
+            speculator=speculator,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
+
+    if model_type == "mllama":
+        return VlmCausalLM(
+            model_class=MllamaForConditionalGeneration,
             model_id=model_id,
             revision=revision,
             quantize=None,

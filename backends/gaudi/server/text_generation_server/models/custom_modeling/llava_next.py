@@ -14,10 +14,11 @@
 # limitations under the License.
 """ PyTorch Llava-NeXT model."""
 
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import torch
 import torch.utils.checkpoint
+import numpy as np
 
 from transformers.models.llava_next.modeling_llava_next import (
     unpad_image,
@@ -47,6 +48,46 @@ def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
 
     height, width = select_best_resolution(image_size, grid_pinpoints)
     return height // patch_size, width // patch_size
+
+
+# Copied from https://github.com/huggingface/transformers/blob/6966fa190172b48b2fb46fe4552a13b943e692cf/src/transformers/models/llava_next/modeling_llava_next.py#L79
+def image_size_to_num_patches(image_size, grid_pinpoints, patch_size: int):
+    """
+    Calculate the number of patches after the preprocessing for images of any resolution.
+
+    Args:
+        image_size (`torch.LongTensor` or `np.ndarray` or `Tuple[int, int]`):
+            The size of the input image in the format (height, width). ?
+        grid_pinpoints (`List`):
+            A list containing possible resolutions. Each item in the list should be a tuple or list
+            of the form `(height, width)`.
+        patch_size (`int`):
+            The size of each image patch.
+
+    Returns:
+        int: the number of patches
+    """
+    if not isinstance(grid_pinpoints, list):
+        raise TypeError("grid_pinpoints should be a list of tuples or lists")
+
+    # ! VERY IMPORTANT if image_size is tensor, must convert to into tuple, otherwise it will cause wrong calculate
+    if not isinstance(image_size, (list, tuple)):
+        if not isinstance(image_size, (torch.Tensor, np.ndarray)):
+            raise TypeError(
+                f"image_size invalid type {type(image_size)} with value {image_size}"
+            )
+        image_size = image_size.tolist()
+
+    best_resolution = select_best_resolution(image_size, grid_pinpoints)
+    height, width = best_resolution
+    num_patches = 0
+    # consider change to ceil(height/patch_size)*ceil(width/patch_size) + 1
+    for i in range(0, height, patch_size):
+        for j in range(0, width, patch_size):
+            num_patches += 1
+    # add the base patch
+    num_patches += 1
+    return num_patches
 
 
 class LlavaNextForConditionalGeneration(GaudiLlavaNextForConditionalGeneration):
@@ -128,6 +169,76 @@ class LlavaNextForConditionalGeneration(GaudiLlavaNextForConditionalGeneration):
 
         return outputs
 
+    # Copied from https://github.com/huggingface/transformers/blob/6966fa190172b48b2fb46fe4552a13b943e692cf/src/transformers/models/llava_next/modeling_llava_next.py#L479
+    def get_image_features(
+        self,
+        pixel_values: torch.FloatTensor,
+        image_sizes: torch.Tensor,
+        vision_feature_layer: Union[int, List[int]],
+        vision_feature_select_strategy: str,
+    ):
+        """
+        Obtains image last hidden states from the vision tower and apply multimodal projection.
+
+        Args:
+            pixel_values (`torch.FloatTensor]` of shape `(batch_size, num_patches, channels, height, width)`)
+               The tensors corresponding to the input images.
+            image_sizes (`torch.Tensor` of shape `(num_images, 2)`)
+                Actual image size of each images (H, W).
+            vision_feature_layer (`Union[int, List[int]]`):
+                The index of the layer to select the vision feature. If multiple indices are provided,
+                the vision feature of the corresponding indices will be concatenated to form the
+                vision features.
+            vision_feature_select_strategy (`str`):
+                The feature selection strategy used to select the vision feature from the vision backbone.
+                Can be one of `"default"` or `"full"`
+        Returns:
+            image_features (List[`torch.Tensor`]): List of image feature tensor, each contains all the visual feature of all patches
+            and are of shape `(num_patches, image_length, embed_dim)`).
+        """
+        # ! infer image_num_patches from image_sizes
+        image_num_patches = [
+            image_size_to_num_patches(
+                image_size=imsize,
+                grid_pinpoints=self.config.image_grid_pinpoints,
+                patch_size=self.config.vision_config.image_size,
+            )
+            for imsize in image_sizes
+        ]
+        if pixel_values.dim() == 5:
+            # stacked if input is (batch_size, num_patches, num_channels, height, width)
+            _pixel_values_list = [
+                pix_val[:num_patch]
+                for pix_val, num_patch in zip(pixel_values, image_num_patches)
+            ]
+            pixel_values = torch.cat(_pixel_values_list, dim=0)
+        elif pixel_values.dim() != 4:
+            # otherwise has to be stacked from list of (num_patches, num_channels, height, width)
+            raise ValueError(
+                f"pixel_values of shape {pixel_values.shape}, expect to be of 4 or 5 dimensions"
+            )
+
+        image_features = self.vision_tower(pixel_values, output_hidden_states=True)
+        # If we have one vision feature layer, return the corresponding hidden states,
+        # otherwise, select the hidden states of each feature layer and concatenate them
+        if isinstance(vision_feature_layer, int):
+            selected_image_feature = image_features.hidden_states[vision_feature_layer]
+        else:
+            hs_pool = [
+                image_features.hidden_states[layer_idx]
+                for layer_idx in vision_feature_layer
+            ]
+            selected_image_feature = torch.cat(hs_pool, dim=-1)
+
+        if vision_feature_select_strategy == "default":
+            selected_image_feature = selected_image_feature[:, 1:]
+        elif vision_feature_select_strategy == "full":
+            selected_image_feature = selected_image_feature
+
+        image_features = self.multi_modal_projector(selected_image_feature)
+        image_features = torch.split(image_features, image_num_patches, dim=0)
+        return image_features
+
     def prepare_inputs_for_generation(
         self,
         input_ids,
@@ -184,35 +295,12 @@ class LlavaNextForConditionalGeneration(GaudiLlavaNextForConditionalGeneration):
                 # 1. Extract the input embeddings
                 inputs_embeds = self.get_input_embeddings()(input_ids)
                 # 2. Merge text and images
-                batch_size, num_patches, num_channels, height, width = (
-                    pixel_values.shape
+                image_features = self.get_image_features(
+                    pixel_values,
+                    image_sizes,
+                    vision_feature_layer=vision_feature_layer,
+                    vision_feature_select_strategy=vision_feature_select_strategy,
                 )
-                reshaped_pixel_values = pixel_values.view(
-                    batch_size * num_patches, num_channels, height, width
-                )
-                image_features = self.vision_tower(
-                    reshaped_pixel_values,
-                    output_hidden_states=True,
-                    use_flash_attention=use_flash_attention,
-                    flash_attention_recompute=flash_attention_recompute,
-                )
-
-                selected_image_feature = image_features.hidden_states[
-                    vision_feature_layer
-                ]
-
-                if vision_feature_select_strategy == "default":
-                    selected_image_feature = selected_image_feature[:, 1:]
-                elif vision_feature_select_strategy == "full":
-                    selected_image_feature = selected_image_feature
-
-                image_features = self.multi_modal_projector(selected_image_feature)
-
-                # split up image_features for each of the individual images
-                # hence we get a list of image_features, each of shape (5, num_patches, hidden_size)
-                # if we assume each image has 5 image features (base image + 4 patches)
-                split_sizes = [image.shape[0] for image in pixel_values]
-                image_features = torch.split(image_features, split_sizes, dim=0)
 
                 # NOTE we only support multimodal_patch_merge_type == "spatial_unpad"
                 height = width = (
@@ -266,13 +354,10 @@ class LlavaNextForConditionalGeneration(GaudiLlavaNextForConditionalGeneration):
                             (image_feature, self.image_newline[None]), dim=0
                         )
                     new_image_features.append(image_feature)
-                image_features = torch.stack(new_image_features, dim=0)
+                image_features = torch.cat(new_image_features, dim=0)
                 inputs_embeds = self._merge_input_ids_with_image_features(
                     inputs_embeds, image_features, input_ids
                 )
-                self.image_offset = (
-                    image_features.shape[1] - 1
-                )  # image_token has occupied 1 token position.
             # In case input_ids.shape[1] == 1 & pixel_values==None & past_key_values != None, we are in the case of
             # generation with cache
             elif past_key_values is not None:
@@ -282,12 +367,10 @@ class LlavaNextForConditionalGeneration(GaudiLlavaNextForConditionalGeneration):
                 # Retrieve the first layer to inspect the logits and mask out the hidden states
                 # that are set to 0
                 first_layer_past_key_value = past_key_values[0][0][:, :, :, 0]
-
                 # Sum all dimensions of head_dim (-2) to avoid random errors such as: https://github.com/huggingface/transformers/pull/28032#issuecomment-1863691941
                 batch_index, non_attended_tokens = torch.where(
                     first_layer_past_key_value.float().sum(-2) == 0
                 )
-
                 # Get the target length
                 past_length = first_layer_past_key_value.shape[-1]
                 extended_attention_mask = torch.ones(
