@@ -9,6 +9,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -271,7 +272,8 @@ class FlashMQAttention(torch.nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         qkv = self.c_attn(hidden_states)
 
@@ -284,9 +286,14 @@ class FlashMQAttention(torch.nn.Module):
         query = query.view(-1, self.num_heads, self.head_size)
         key_value = key_value.view(-1, 2, 1, self.head_size)
 
+        if prefill_cache_indices is not None:
+            key_value_to_cache = key_value[prefill_cache_indices]
+        else:
+            key_value_to_cache = key_value
+
         kv_cache.store(
-            key=key_value[:, 0],
-            value=key_value[:, 1],
+            key=key_value_to_cache[:, 0],
+            value=key_value_to_cache[:, 1],
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -313,8 +320,8 @@ class FlashMQAttention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 seqlen,
-                max_s,
                 kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.c_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -379,7 +386,8 @@ class Block(nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         hidden_states, residual = self.ln_1(hidden_states, residual)
         hidden_states = self.self_attn(
@@ -389,7 +397,8 @@ class Block(nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
+            prefill_cache_indices,
+            hpu_attention_meta,
         )
 
         hidden_states, residual = self.ln_2(hidden_states, residual)
@@ -443,7 +452,8 @@ class FlashSantacoderModel(nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.wte(input_ids) + self.wpe(position_ids)
 
@@ -460,7 +470,8 @@ class FlashSantacoderModel(nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
+                prefill_cache_indices,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
@@ -492,7 +503,7 @@ class FlashSantacoderForCausalLM(nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
@@ -505,7 +516,8 @@ class FlashSantacoderForCausalLM(nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
+            prefill_cache_indices,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

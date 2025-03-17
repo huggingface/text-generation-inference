@@ -1009,24 +1009,22 @@ class FlashCausalLMBatch(Batch):
         # padding to left to work with sliding window
         # use prefill_cache_indices to indicate the valid kv slot, update prefill_next_token_indices to indicate
         # the right logit position
-
-        if device.type == "hpu":
-            input_ids_padded = None
-            input_ids_padded_length = None
-            if isinstance(self.input_ids, list) and len(self) > 1:
-                input_ids_padded = []
-                input_ids_padded_length = []
-                for input_id in self.input_ids:
-                    padded = self.max_input_length - len(input_id)
-                    input_id_padded = input_id
-                    if padded > 0:
-                        input_id_padded = [0] * padded + input_id_padded
-                    input_ids_padded.append(input_id_padded)
-                    input_ids_padded_length.append(padded)
-                input_ids_padded = np.concatenate(input_ids_padded, dtype=np.int64)
-                input_ids_padded = torch.tensor(
-                    input_ids_padded, dtype=torch.int64, device=device
-                )
+        input_ids_padded = None
+        input_ids_padded_length = None
+        if isinstance(self.input_ids, list) and len(self) > 1:
+            input_ids_padded = []
+            input_ids_padded_length = []
+            for input_id in self.input_ids:
+                padded = self.max_input_length - len(input_id)
+                input_id_padded = input_id
+                if padded > 0:
+                    input_id_padded = [0] * padded + input_id_padded
+                input_ids_padded.append(input_id_padded)
+                input_ids_padded_length.append(padded)
+            input_ids_padded = np.concatenate(input_ids_padded, dtype=np.int64)
+            input_ids_padded = torch.tensor(
+                input_ids_padded, dtype=torch.int64, device=device
+            )
 
         if isinstance(self.input_ids, list):
             if len(self) > 1:
@@ -1084,7 +1082,7 @@ class FlashCausalLMBatch(Batch):
             request_position_ids = torch.arange(
                 cache_length, cache_length + input_length, dtype=torch.int32
             )
-            if device.type == "hpu" and input_ids_padded is not None:
+            if input_ids_padded is not None:
                 position_ids.append(
                     torch.ones(input_ids_padded_length[i], dtype=torch.int32)
                 )
@@ -1111,7 +1109,7 @@ class FlashCausalLMBatch(Batch):
             cumulative_slot_tokens += len(request_slots)
 
             # Create tensor to slice into the kv tensor in prefill
-            if device.type == "hpu" and input_ids_padded is not None:
+            if input_ids_padded is not None:
                 # hpu need request_prefill_cache_indices to skip padding in kv cache
                 sliding_window = get_sliding_windows()
                 if sliding_window is None:
@@ -1235,7 +1233,7 @@ class FlashCausalLMBatch(Batch):
 
         self.prefill_head_indices = prefill_head_indices
         self.prefill_next_token_indices = prefill_next_token_indices
-        if device.type == "hpu" and input_ids_padded is not None:
+        if input_ids_padded is not None:
             self.input_ids = input_ids_padded
             input_ids_padded_length_tensor = torch.cumsum(
                 torch.tensor(input_ids_padded_length, dtype=torch.int64, device=device),

@@ -30,6 +30,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -149,7 +150,8 @@ class FlashNeoxAttention(torch.nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
@@ -164,10 +166,14 @@ class FlashNeoxAttention(torch.nn.Module):
         self.rotary_emb(query_rot, key_rot, cos, sin)
         qkv[:, 0] = torch.cat((query_rot, query_pass), dim=-1)
         qkv[:, 1] = torch.cat((key_rot, key_pass), dim=-1)
+        if prefill_cache_indices is not None:
+            qkv_to_cache = qkv[prefill_cache_indices]
+        else:
+            qkv_to_cache = qkv
 
         kv_cache.store(
-            key=qkv[:, 1],
-            value=qkv[:, 2],
+            key=qkv_to_cache[:, 1],
+            value=qkv_to_cache[:, 2],
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -194,8 +200,8 @@ class FlashNeoxAttention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 seqlen,
-                max_s,
                 kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
@@ -265,7 +271,8 @@ class FlashNeoXLayer(nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         if self.use_parallel_residual:
             ln1_hidden_states, _ = self.input_layernorm(hidden_states)
@@ -279,7 +286,8 @@ class FlashNeoXLayer(nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
+                prefill_cache_indices,
+                hpu_attention_meta,
             )
 
             ln2_hidden_states, _ = self.post_attention_layernorm(hidden_states)
@@ -303,7 +311,8 @@ class FlashNeoXLayer(nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
+                prefill_cache_indices,
+                hpu_attention_meta,
             )
 
             hidden_states, residual = self.post_attention_layernorm(
@@ -357,15 +366,14 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_in(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].attention.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].attention.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -379,7 +387,8 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
+                prefill_cache_indices,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.final_layer_norm(hidden_states, residual)
@@ -411,7 +420,7 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
@@ -424,7 +433,8 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
             block_tables,
             slots,
             seqlen,
-            max_s,
+            prefill_cache_indices,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

@@ -33,6 +33,7 @@ from text_generation_server.layers.attention import (
     Seqlen,
     attention,
     paged_attention,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers.attention.kv_cache import KVCache, get_kv_scales
 from text_generation_server.layers.layernorm import FastRMSNorm
@@ -258,7 +259,8 @@ class DeepseekV3Attention(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         if self.q_lora_rank is None:
             query = self.q_proj(hidden_states)
@@ -315,9 +317,15 @@ class DeepseekV3Attention(torch.nn.Module):
             value, (0, self.head_pad_size - self.value_head_size), value=0
         )
 
+        if prefill_cache_indices is not None:
+            key_to_cache = key[prefill_cache_indices]
+            value_to_cache = value[prefill_cache_indices]
+        else:
+            key_to_cache = key
+            value_to_cache = value
         kv_cache.store(
-            key=key,
-            value=value,
+            key=key_to_cache,
+            value=value_to_cache,
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -344,8 +352,8 @@ class DeepseekV3Attention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 seqlen,
-                max_s,
                 kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         # Remove padding.
@@ -517,7 +525,8 @@ class DeepseekV3Layer(nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         normed_hidden_states, residual = self.input_layernorm(hidden_states, residual)
 
@@ -531,7 +540,8 @@ class DeepseekV3Layer(nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
+            prefill_cache_indices,
+            hpu_attention_meta,
         )
 
         # faster post attention rms norm
@@ -580,15 +590,14 @@ class DeepseekV3Model(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -602,7 +611,8 @@ class DeepseekV3Model(torch.nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
+                prefill_cache_indices,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -632,8 +642,8 @@ class FlashDeepseekV3ForCausalLM(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -645,7 +655,8 @@ class FlashDeepseekV3ForCausalLM(torch.nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
+            prefill_cache_indices,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

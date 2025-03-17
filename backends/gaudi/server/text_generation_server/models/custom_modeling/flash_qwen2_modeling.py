@@ -9,6 +9,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -108,8 +109,8 @@ class Qwen2Attention(torch.nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
         prefill_cache_indices,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
         query, kv = qkv.split(
@@ -159,8 +160,8 @@ class Qwen2Attention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 seqlen,
-                max_s,
                 kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -232,8 +233,8 @@ class Qwen2Layer(nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
         prefill_cache_indices,
+        hpu_attention_meta,
     ):
         normed_hidden_states, residual = self.input_layernorm(hidden_states)
 
@@ -247,8 +248,8 @@ class Qwen2Layer(nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
             prefill_cache_indices,
+            hpu_attention_meta,
         )
         hidden_states = attn_output + residual
 
@@ -298,16 +299,13 @@ class Qwen2Model(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
             position_ids,
-            true_max_s,
-            hidden_states.dtype,
         )
 
         residual = None
@@ -322,8 +320,8 @@ class Qwen2Model(torch.nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
                 prefill_cache_indices,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states)
@@ -369,13 +367,15 @@ class Qwen2ForCausalLM(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor] = None,
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        true_max_s = max_s
-        if prefill_cache_indices is not None:
+
+        if prefill_cache_indices is not None and prefill_cache_indices.size(
+            0
+        ) != slots.size(0):
             # Slots also need to be sliced as it has the same size as the whole kv tensor
             slots = slots[prefill_cache_indices]
         elif self.max_past is not None:
@@ -393,9 +393,8 @@ class Qwen2ForCausalLM(torch.nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
-            true_max_s,
             prefill_cache_indices,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

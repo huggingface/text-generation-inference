@@ -206,7 +206,7 @@ class FlashLlamaAttention(torch.nn.Module):
         seqlen,
         adapter_data,
         prefill_cache_indices: Optional[torch.Tensor],
-        hpu_attention_meta: Optional[HPUPagedAttentionMetadata] = None,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         qkv = self.query_key_value(hidden_states, adapter_data)
         query, kv = qkv.split(
@@ -447,7 +447,7 @@ class FlashLlamaLayer(nn.Module):
         adapter_data,
         cross_attention_states,
         prefill_cache_indices: Optional[torch.Tensor],
-        hpu_attention_meta: Optional[HPUPagedAttentionMetadata] = None,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -559,8 +559,8 @@ class FlashLlamaModel(torch.nn.Module):
         seqlen: Seqlen,
         prefill_cache_indices: Optional[torch.Tensor],
         adapter_data,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         cross_attention_states=None,
-        hpu_attention_meta: Optional[HPUPagedAttentionMetadata] = None,
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
@@ -646,11 +646,11 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         cross_attention_states=None,
-        hpu_attention_meta: Optional[HPUPagedAttentionMetadata] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(

@@ -29,6 +29,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -158,7 +159,8 @@ class FlashGPTJAttention(torch.nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         query, key, value = self.query_key_value(hidden_states).split(
             self.head_size * self.num_heads, dim=1
@@ -175,9 +177,16 @@ class FlashGPTJAttention(torch.nn.Module):
         else:
             self.rotary_emb(query, key, cos, sin)
 
+        if prefill_cache_indices is not None:
+            key_to_cache = key[prefill_cache_indices]
+            value_to_cache = value[prefill_cache_indices]
+        else:
+            key_to_cache = key
+            value_to_cache = value
+
         kv_cache.store(
-            key=key,
-            value=value,
+            key=key_to_cache,
+            value=value_to_cache,
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -204,8 +213,8 @@ class FlashGPTJAttention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 seqlen,
-                max_s,
                 kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -266,7 +275,8 @@ class FlashGPTJLayer(nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         hidden_states, residual = self.input_layernorm(hidden_states, residual)
         # Self Attention
@@ -279,7 +289,8 @@ class FlashGPTJLayer(nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
+            prefill_cache_indices,
+            hpu_attention_meta,
         )
 
         feed_forward_hidden_states = self.mlp(hidden_states)
@@ -326,16 +337,14 @@ class FlashGPTJModel(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.wte(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -349,7 +358,8 @@ class FlashGPTJModel(torch.nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
+                prefill_cache_indices,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
@@ -380,8 +390,8 @@ class FlashGPTJForCausalLM(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor] = None,
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -393,8 +403,8 @@ class FlashGPTJForCausalLM(torch.nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
             prefill_cache_indices=prefill_cache_indices,
+            hpu_attention_meta=hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

@@ -37,6 +37,7 @@ from text_generation_server.layers.attention import (
     Seqlen,
     attention,
     paged_attention,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import FastRMSNorm
@@ -237,8 +238,8 @@ class MixtralAttention(torch.nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
         prefill_cache_indices,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
         query, kv = qkv.split(
@@ -288,8 +289,8 @@ class MixtralAttention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 seqlen,
-                max_s,
                 kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -386,8 +387,8 @@ class MixtralLayer(nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
         prefill_cache_indices,
+        hpu_attention_meta,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -401,8 +402,8 @@ class MixtralLayer(nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
             prefill_cache_indices,
+            hpu_attention_meta,
         )
 
         # faster post attention rms norm
@@ -456,17 +457,14 @@ class MixtralModel(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, true_max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -480,8 +478,8 @@ class MixtralModel(torch.nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
                 prefill_cache_indices,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -515,13 +513,14 @@ class FlashMixtralForCausalLM(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        true_max_s = max_s
-        if prefill_cache_indices is not None:
+        if prefill_cache_indices is not None and slots.size(
+            0
+        ) != prefill_cache_indices.size(0):
             # Slots also need to be sliced as it has the same size as the whole kv tensor
             slots = slots[prefill_cache_indices]
         elif self.max_past is not None:
@@ -537,9 +536,8 @@ class FlashMixtralForCausalLM(torch.nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
-            true_max_s,
             prefill_cache_indices,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

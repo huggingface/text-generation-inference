@@ -29,6 +29,7 @@ from text_generation_server.layers.attention import (
     paged_attention,
     attention,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -237,8 +238,9 @@ class FlashGemma2Attention(torch.nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
         adapter_data,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states, adapter_data)
         query, kv = qkv.split(
@@ -252,10 +254,14 @@ class FlashGemma2Attention(torch.nn.Module):
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
+        if prefill_cache_indices is not None:
+            kv_to_cache = kv[prefill_cache_indices]
+        else:
+            kv_to_cache = kv
 
         kv_cache.store(
-            key=kv[:, 0],
-            value=kv[:, 1],
+            key=kv_to_cache[:, 0],
+            value=kv_to_cache[:, 1],
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -284,9 +290,9 @@ class FlashGemma2Attention(torch.nn.Module):
                 self.softmax_scale,
                 block_tables,
                 seqlen,
-                max_s,
                 softcap=self.softcap,
                 kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.o_proj(
@@ -399,8 +405,9 @@ class FlashGemma2Layer(nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
         adapter_data,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -414,8 +421,9 @@ class FlashGemma2Layer(nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
             adapter_data,
+            prefill_cache_indices,
+            hpu_attention_meta,
         )
 
         # faster post attention rms norm
@@ -467,16 +475,15 @@ class FlashGemma2Model(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        adapter_data: Optional[torch.Tensor] = None,
+        adapter_data: Optional[torch.Tensor],
+        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -490,8 +497,9 @@ class FlashGemma2Model(torch.nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
                 adapter_data,
+                prefill_cache_indices,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -538,8 +546,8 @@ class FlashGemma2ForCausalLM(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -552,8 +560,9 @@ class FlashGemma2ForCausalLM(torch.nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
             adapter_data,
+            prefill_cache_indices,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
