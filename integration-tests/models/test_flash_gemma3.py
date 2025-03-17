@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_gemma3_handle(launcher):
-    with launcher("gg-hf-g/gemma-3-4b-it", num_shard=2) as handle:
+    with launcher("google/gemma-3-4b-it", num_shard=2) as handle:
         yield handle
 
 
