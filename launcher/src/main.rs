@@ -1189,7 +1189,7 @@ fn shard_manager(
 
         // We received a shutdown signal
         if shutdown.load(Ordering::SeqCst) {
-            terminate("shard", p, Duration::from_secs(90)).unwrap();
+            terminate("shard", p, Duration::from_secs(3600)).unwrap();
             return;
         }
 
@@ -2290,7 +2290,7 @@ fn main() -> Result<(), LauncherError> {
     }
 
     // Graceful termination
-    terminate("webserver", webserver, Duration::from_secs(90)).unwrap();
+    terminate("webserver", webserver, Duration::from_secs(3600)).unwrap();
     shutdown_shards(shutdown, &shutdown_receiver);
 
     exit_code
