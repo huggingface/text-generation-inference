@@ -229,10 +229,6 @@ struct JsonSchemaConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     name: Option<String>,
 
-    /// Whether to enforce strict validation (optional)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    strict: Option<bool>,
-
     /// The actual JSON schema definition
     schema: serde_json::Value,
 }

@@ -14,7 +14,6 @@ use crate::sagemaker::{
 };
 use crate::validation::ValidationError;
 use crate::vertex::vertex_compatibility;
-use crate::ChatTokenizeResponse;
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -29,6 +28,7 @@ use crate::{
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
+use crate::{ChatTokenizeResponse, JsonSchemaConfig};
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
 use crate::{MessageBody, ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
@@ -1362,6 +1362,7 @@ CompatGenerateRequest,
 SagemakerRequest,
 GenerateRequest,
 GrammarType,
+JsonSchemaConfig,
 ChatRequest,
 Message,
 MessageContent,

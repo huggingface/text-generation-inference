@@ -1771,6 +1771,24 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "json_schema"
+                ]
+              },
+              "value": {
+                "$ref": "#/components/schemas/JsonSchemaConfig"
+              }
+            }
           }
         ],
         "discriminator": {
@@ -1861,6 +1879,22 @@
           "version": {
             "type": "string",
             "example": "0.5.0"
+          }
+        }
+      },
+      "JsonSchemaConfig": {
+        "type": "object",
+        "required": [
+          "schema"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Optional name identifier for the schema",
+            "nullable": true
+          },
+          "schema": {
+            "description": "The actual JSON schema definition"
           }
         }
       },
