@@ -48,3 +48,4 @@ jobs:
       run: |
         docker load < ./result
         docker tag tgi-docker registry.internal.huggingface.tech/api-inference/community/text-generation-inference:nix-test
+        docker push registry.internal.huggingface.tech/api-inference/community/text-generation-inference:nix-test
