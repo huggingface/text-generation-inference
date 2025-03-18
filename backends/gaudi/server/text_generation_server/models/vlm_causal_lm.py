@@ -8,7 +8,6 @@ from io import BytesIO
 from opentelemetry import trace
 from loguru import logger
 from typing import Iterable, Optional, Tuple, List, Type, Dict
-import itertools
 import tempfile
 import copy
 from text_generation_server.models import Model
@@ -19,7 +18,6 @@ from text_generation_server.models.causal_lm import (
     CausalLMBatch,
     CausalLMRequest,
     remove_kv_cache_from_output,
-    biggest_single_chunk,
 )
 
 from transformers.models.llava_next.modeling_llava_next import (
@@ -68,18 +66,19 @@ IDEFICS2_IMAGE_TOKEN = "<image>"
 IMAGES = re.compile(r"!\[[^\]]*\]\((.*?)\s*(\"(?:.*[^\"])\")?\s*\)")
 BASE_IMAGE_TOKENS = int(os.environ.get("BASE_IMAGE_TOKENS", 2048))
 MAX_TOTAL_TOKENS = int(os.environ.get("MAX_TOTAL_TOKENS", 8192))
-PAD_SEQUENCE_TO_MULTIPLE_OF = int(os.environ.get("PAD_SEQUENCE_TO_MULTIPLE_OF", 256))
+PAD_SEQUENCE_TO_MULTIPLE_OF = int(os.environ.get("PAD_SEQUENCE_TO_MULTIPLE_OF", 128))
 CHUNK_SIZES = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
 LAZY_MODE = int(os.environ.get("PT_HPU_LAZY_MODE", 1))
-MAX_BATCH_SIZE = (
-    int(os.environ.get("MAX_BATCH_SIZE"))
-    if os.environ.get("MAX_BATCH_SIZE") is not None
-    else None
-)
+max_batch_size_str = os.environ.get("MAX_BATCH_SIZE")
+if max_batch_size_str is not None:
+    MAX_BATCH_SIZE = int(max_batch_size_str)
+else:
+    raise ValueError("MAX_BATCH_SIZE is not set")
 
 PREFILL_WARMUP_BATCH_SIZE_LIST = []
 PREFILL_WARMUP_SEQLEN_LIST = []
 DECODE_WARMUP_BATCH_SIZE_LIST = []
+CROSS_ATTENTION_LAYERS = []
 
 
 def round_up(warmup_list: list, num):
@@ -87,7 +86,7 @@ def round_up(warmup_list: list, num):
     for i in warmup_list:
         if num <= i:
             break
-    return i
+    return i if i > 0 else num
 
 
 def split(string) -> List[Dict[str, str]]:
@@ -107,20 +106,17 @@ def split(string) -> List[Dict[str, str]]:
     return parts
 
 
-def image_text_replacement(processor, image_input, config, image_id: int) -> str:
+def image_text_replacement(config) -> str:
     if config.model_type == "idefics2":
         image_seq_len = 64
         image_str = f"{IDEFICS2_FAKE_TOKEN}{IDEFICS2_IMAGE_TOKEN * image_seq_len}{IDEFICS2_FAKE_TOKEN}"
-        if processor.image_processor.do_image_splitting:
-            image_str *= 5
         return image_str
     elif config.model_type == "llava_next":
-        height, width = image_input["image_sizes"][image_id]
-        num_features = get_number_of_features(height, width, config)
-        return "<image>" * num_features
-
+        return "<image>"
     elif config.model_type == "paligemma":
-        return "<image>" * config.text_config.num_image_tokens
+        return "<image>"
+    elif config.model_type == "mllama":
+        return "<|image|>"
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -192,6 +188,100 @@ class VlmCausalLMBatch(CausalLMBatch):
     pixel_values: Optional[List[torch.Tensor]]
     pixel_attention_mask: Optional[List[torch.Tensor]]
     image_sizes: Optional[List[Tuple[int, int]]]
+    aspect_ratio_ids: Optional[torch.Tensor] = None
+    aspect_ratio_mask: Optional[torch.Tensor] = None
+    cross_attention_mask: Optional[torch.Tensor] = None
+    prefilling: bool = True
+    token_idx: torch.Tensor = None
+
+    def __init__(
+        self,
+        batch_id,
+        requests,
+        input_ids,
+        attention_mask,
+        position_ids,
+        past_key_values,
+        merged_kv_cache,
+        next_token_chooser,
+        top_n_tokens,
+        top_n_tokens_tensor,
+        input_length,
+        pixel_values: Optional[List[torch.Tensor]] = None,
+        pixel_attention_mask: Optional[List[torch.Tensor]] = None,
+        image_sizes: Optional[List[Tuple[int, int]]] = None,
+        aspect_ratio_ids: Optional[torch.Tensor] = None,
+        aspect_ratio_mask: Optional[torch.Tensor] = None,
+        cross_attention_mask: Optional[torch.Tensor] = None,
+        prefilling: Optional[bool] = True,
+    ):
+        super().__init__(
+            batch_id=batch_id,
+            requests=requests,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            merged_kv_cache=merged_kv_cache,
+            next_token_chooser=next_token_chooser,
+            top_n_tokens=top_n_tokens,
+            top_n_tokens_tensor=top_n_tokens_tensor,
+            input_length=input_length,
+        )
+
+        self.pixel_values = pixel_values
+        self.pixel_attention_mask = pixel_attention_mask
+        self.image_sizes = image_sizes
+        self.aspect_ratio_ids = aspect_ratio_ids
+        self.aspect_ratio_mask = aspect_ratio_mask
+        self.cross_attention_mask = cross_attention_mask
+        self.prefilling = prefilling
+
+    @property
+    def token_idx(self):
+        if self.prefilling:
+            # no right padding for prefill
+            token_idx_scalar = self.attention_mask.shape[-1] - 1
+            return torch.tensor(token_idx_scalar).to(self.attention_mask.device)
+        else:
+            token_idx_scalar = self.attention_mask.shape[-1] - self.right_padding
+            return torch.tensor(token_idx_scalar).to(self.attention_mask.device)
+
+    def padding_process(self, pad_id: int):
+        # self.input_ids = torch.index_select(self.input_ids, 1, self.token_idx - 1)
+        right_padding = MAX_TOTAL_TOKENS - self.attention_mask.shape[1]
+        self.input_ids = torch.nn.functional.pad(
+            self.input_ids, (0, right_padding), value=pad_id
+        )
+        self.attention_mask = torch.nn.functional.pad(
+            self.attention_mask, (0, right_padding), value=0
+        )
+        # if self.position_ids is not None:
+        #     self.position_ids = torch.index_select(self.position_ids, 1, self.token_idx - 1) + 1
+        if self.cross_attention_mask is not None:
+            self.cross_attention_mask = torch.nn.functional.pad(
+                self.cross_attention_mask, (0, 0, 0, 0, 0, right_padding), value=0
+            )
+        if self.past is not None:
+            past_key_values_list = list(self.past_key_values)
+            for layer_id in range(len(self.past)):
+                past_key_value_list = list(self.past_key_values[layer_id])
+                if layer_id not in CROSS_ATTENTION_LAYERS:
+                    past_key_value_list[0] = torch.nn.functional.pad(
+                        self.past_key_values[layer_id][0],
+                        (0, 0, 0, right_padding),
+                        value=0,
+                    )
+                    past_key_value_list[1] = torch.nn.functional.pad(
+                        self.past_key_values[layer_id][1],
+                        (0, 0, 0, right_padding),
+                        value=0,
+                    )
+                past_key_values_list[layer_id] = tuple(past_key_value_list)
+            self.past_key_values = tuple(past_key_values_list)
+
+        self.prefilling = False
+        self.input_length = self.input_length
 
     @classmethod
     def from_tokenized(
@@ -239,23 +329,23 @@ class VlmCausalLMBatch(CausalLMBatch):
         bucket_size = max_input_length
         left_padding = max_input_length - input_len
         if is_warmup is False:
-            if input_len < max_input_length:
-                rounded_seq_len = round_up(PREFILL_WARMUP_SEQLEN_LIST, input_len + 1)
-                if rounded_seq_len <= max_input_length:
-                    bucket_size = rounded_seq_len - 1
-                else:
-                    bucket_size = max_input_length - 1
-                left_padding = bucket_size - input_len
+            rounded_seq_len = round_up(PREFILL_WARMUP_SEQLEN_LIST, input_len + 1)
+            bucket_size = rounded_seq_len - 1
+            left_padding = bucket_size - input_len
 
         input_ids = tokenized_inputs["input_ids"]
         attention_mask = tokenized_inputs["attention_mask"]
+        cross_attention_mask = tokenized_inputs.get("cross_attention_mask", None)
         # Allocate space for first token
-        if left_padding > 0:
-            input_ids = torch.nn.functional.pad(
-                input_ids, (left_padding, 1), value=tokenizer.pad_token_id
-            )
-            attention_mask = torch.nn.functional.pad(
-                attention_mask, (left_padding, 1), value=0
+        input_ids = torch.nn.functional.pad(
+            input_ids, (left_padding, 1), value=tokenizer.pad_token_id
+        )
+        attention_mask = torch.nn.functional.pad(
+            attention_mask, (left_padding, 1), value=0
+        )
+        if cross_attention_mask is not None:
+            cross_attention_mask = torch.nn.functional.pad(
+                cross_attention_mask, (0, 0, 0, 0, left_padding, 1), value=0
             )
         all_input_ids = torch.nn.functional.pad(
             input_ids, (0, max_new_tokens), value=tokenizer.pad_token_id
@@ -270,9 +360,13 @@ class VlmCausalLMBatch(CausalLMBatch):
             r.all_input_ids = all_input_ids[r.idx]
         input_ids = input_ids.to(device)
         attention_mask = attention_mask.to(device)
+        cross_attention_mask = (
+            cross_attention_mask.to(device)
+            if cross_attention_mask is not None
+            else None
+        )
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
-
         htorch.core.mark_step()
 
         return cls(
@@ -287,6 +381,7 @@ class VlmCausalLMBatch(CausalLMBatch):
             top_n_tokens=top_n_tokens,
             top_n_tokens_tensor=top_n_tokens_tensor,
             input_length=input_len,
+            cross_attention_mask=cross_attention_mask,
         )
 
     @classmethod
@@ -298,46 +393,40 @@ class VlmCausalLMBatch(CausalLMBatch):
         config,
         is_warmup,
     ):
-        # Process images first. We need all of them so that the processor
-        # can make the image splits the same size. And we need the final
-        # sizes to insert correct number of image tokens.
+        image_inputs = {}
+        texts = []
         images = []
-        for r in requests:
+        batch_tokenized_inputs = {}
+
+        for i, r in enumerate(requests):
+            # Each input is encoded into a list, where each element of this input list is either a string or a URL
+            curr_text = ""
+            curr_image = None
             for chunk in r.input_chunks.chunks:
                 chunk_type = chunk.WhichOneof("chunk")
                 if chunk_type == "text":
-                    pass
+                    curr_text += chunk.text
                 elif chunk_type == "image":
                     image = Image.open(BytesIO(chunk.image.data))
-                    if config.model_type == "llava_next":
-                        images.append(image)
-                    else:
-                        images.append([image])
+                    # TODO unsure about BOS
+                    curr_image = image
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
-        image_inputs = None
-        if images:
-            image_inputs = processor.image_processor(images, return_tensors="pt")
-
-        batch_inputs = []
-        max_truncation = 0
-        image_id = 0
-        for r in requests:
-            full_text = ""
-            for chunk in r.input_chunks.chunks:
-                chunk_type = chunk.WhichOneof("chunk")
-                if chunk_type == "text":
-                    full_text += chunk.text
-                elif chunk_type == "image":
-                    full_text += image_text_replacement(
-                        processor, image_inputs, config, image_id
+            if image_text_replacement(config) not in curr_text:
+                if "<image>" in curr_text:
+                    curr_text = curr_text.replace(
+                        "<image>", image_text_replacement(config)
                     )
-                    image_id += 1
-            full_text = image_text_replacement_fixup(config, full_text)
+                else:
+                    curr_text = image_text_replacement(config) + curr_text
 
-            batch_inputs.append(full_text)
-            max_truncation = max(max_truncation, r.truncate)
+            texts.append(curr_text)
+            if curr_image is not None:
+                if config.model_type == "mllama":
+                    images.append([curr_image])
+                else:
+                    images.append(curr_image)
 
         missing_inputs = 0
         dummy_images = None
@@ -346,45 +435,48 @@ class VlmCausalLMBatch(CausalLMBatch):
             missing_inputs = new_bs - len(requests)
             if missing_inputs > 0:
                 dummy_inputs = []
-                if len(batch_inputs) > 0:
-                    dummy_inputs = [batch_inputs[0]] * missing_inputs
+                if len(texts) > 0:
+                    dummy_inputs = [texts[0]] * missing_inputs
+                    dummy_images = [images[0]] * missing_inputs
+                texts += dummy_inputs
+                images += dummy_images
 
-                batch_inputs += dummy_inputs
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs,
+        processor_output = processor(
+            images,
+            texts,
             truncation=True,
-            max_length=max_truncation,
-            add_special_tokens=not config.model_type == "paligemma",
+            max_length=r.truncate,
+            add_special_tokens=r.add_special_tokens,
             return_tensors="pt",
+            padding_side="left",
             padding="longest",
-            return_token_type_ids=False,
         )
-
-        if missing_inputs > 0 and image_inputs is not None:
-            dummy_shape = list(image_inputs["pixel_values"].shape)
-            dummy_shape[0] = missing_inputs
-            dummy_images = torch.rand(dummy_shape)
-            new_image_inputs = {
-                "pixel_values": torch.cat(
-                    (image_inputs["pixel_values"], dummy_images), dim=0
-                ),
-            }
-            if "pixel_attention_mask" in image_inputs:
-                dummy_shape = list(image_inputs["pixel_attention_mask"].shape)
-                dummy_shape[0] = missing_inputs
-                dummy_attention = torch.zeros(dummy_shape)
-                new_image_inputs["pixel_attention_mask"] = torch.cat(
-                    (image_inputs["pixel_attention_mask"], dummy_attention), dim=0
-                )
-            if "image_sizes" in image_inputs:
-                dummy_shape = list(list(image_inputs["image_sizes"])[0])
-                dummy_shape = missing_inputs * [dummy_shape]
-                dummy_sizes = torch.IntTensor(dummy_shape)
-                new_image_inputs["image_sizes"] = torch.cat(
-                    (image_inputs["image_sizes"], dummy_sizes), dim=0
-                )
-            image_inputs = new_image_inputs
+        if "input_ids" in processor_output:
+            batch_tokenized_inputs.update({"input_ids": processor_output["input_ids"]})
+        if "attention_mask" in processor_output:
+            batch_tokenized_inputs.update(
+                {"attention_mask": processor_output["attention_mask"]}
+            )
+        if "cross_attention_mask" in processor_output:
+            batch_tokenized_inputs.update(
+                {"cross_attention_mask": processor_output["cross_attention_mask"]}
+            )
+        if "pixel_values" in processor_output:
+            image_inputs.update({"pixel_values": processor_output["pixel_values"]})
+        if "pixel_attention_mask" in processor_output:
+            image_inputs.update(
+                {"pixel_attention_mask": processor_output["pixel_attention_mask"]}
+            )
+        if "aspect_ratio_ids" in processor_output:
+            image_inputs.update(
+                {"aspect_ratio_ids": processor_output["aspect_ratio_ids"]}
+            )
+        if "aspect_ratio_mask" in processor_output:
+            image_inputs.update(
+                {"aspect_ratio_mask": processor_output["aspect_ratio_mask"]}
+            )
+        if "image_sizes" in processor_output:
+            image_inputs.update({"image_sizes": processor_output["image_sizes"]})
 
         return batch_tokenized_inputs, image_inputs
 
@@ -402,7 +494,9 @@ class VlmCausalLMBatch(CausalLMBatch):
         batch_tokenized_inputs, image_inputs = cls.batch_tokenized_inputs(
             pb.requests, tokenizer, processor, config, is_warmup
         )
-        batch = cls.from_tokenized(pb, tokenizer, batch_tokenized_inputs, dtype, device)
+        batch = cls.from_tokenized(
+            pb, tokenizer, batch_tokenized_inputs, dtype, device, is_warmup=is_warmup
+        )
         if image_inputs is not None:
             batch.pixel_values = image_inputs["pixel_values"].to(device=device)
             if "pixel_attention_mask" in image_inputs:
@@ -415,10 +509,26 @@ class VlmCausalLMBatch(CausalLMBatch):
                 batch.image_sizes = image_inputs["image_sizes"].to(device=device)
             else:
                 batch.image_sizes = None
+            if "aspect_ratio_ids" in image_inputs:
+                batch.aspect_ratio_ids = image_inputs["aspect_ratio_ids"].to(
+                    device=device
+                )
+            else:
+                batch.aspect_ratio_ids = None
+            if "aspect_ratio_mask" in image_inputs:
+                batch.aspect_ratio_mask = image_inputs["aspect_ratio_mask"].to(
+                    device=device
+                )
+            else:
+                batch.aspect_ratio_mask = None
         else:
             batch.pixel_values = None
             batch.pixel_attention_mask = None
             batch.image_sizes = None
+            batch.aspect_ratio_ids = None
+            batch.aspect_ratio_mask = None
+            batch.cross_attention_mask = None
+
         return batch
 
     @classmethod
@@ -440,107 +550,231 @@ class VlmCausalLMBatch(CausalLMBatch):
     ) -> "VlmCausalLMBatch":
         if not all(b.past_key_values is not None for b in batches):
             raise ValueError("KV cache not allocated! Cannot recombine before prefill!")
+            # Used for padding
 
         total_requests = sum(len(b) for b in batches)
         new_bs = total_requests
-        if is_warmup is False:
+        if not is_warmup:
             new_bs = round_up(DECODE_WARMUP_BATCH_SIZE_LIST, total_requests)
-        batch_id = batches[0].batch_id
-        device = batches[0].input_ids.device
 
-        input_lengths = [b.input_length for b in batches]
-        max_input_length = max(input_lengths)
-        offsets = [max_input_length - b.input_length for b in batches]
-
-        cur_padding = [b.right_padding for b in batches]
-        # For prefill there is a space allocated only for first token
-        # Need to add padding to the max total tokens before first decode
-
-        moves_needed = [
-            total_requests - len(b) if b.batch_size == new_bs else total_requests
-            for b in batches
-        ]
-        dst_batch_idx = min(enumerate(moves_needed), key=lambda idx_val: idx_val[1])[0]
-        reshape = batches[dst_batch_idx].batch_size < new_bs
-
-        # TODO: Add support for changing max seq len, i.e. due to output length bucketing
-        # FIXME: max_seq_len for non optimized code
         if len(batches) > 1:
             scenario = "CONCAT"
-        elif reshape:
-            scenario = "RESHAPE"
-        elif cur_padding[dst_batch_idx] <= 0:
+        elif batches[0].prefilling:
             scenario = "SHIFT"
-            offsets = [
-                biggest_single_chunk(b.max_input_length - max_input_length)
-                for b in batches
-            ]
-            max_input_length = max_input_length + offsets[dst_batch_idx]
         else:
-            # Nothing to do
             return batches[0]
 
         dbg_trace(
             scenario,
             f"bs:{[b.batch_size for b in batches]}->{new_bs}"
-            f" reqs:{[len(b) for b in batches]}"
-            f" offsets:{offsets}"
-            f" input_lengths:{input_lengths}"
-            f" cur_padding:{cur_padding}"
-            f" dst_batch:{dst_batch_idx}",
+            f" reqs:{[len(b) for b in batches]}",
         )
 
-        grouped_requests = [[req for req in batch.requests] for batch in batches]
-        flat_requests = list(itertools.chain(*grouped_requests))
+        if scenario == "SHIFT":
+            batch = batches[0]
+            batch.padding_process(pad_token_id)
+            return batch
 
-        for i in range(len(batches)):
-            target_bs = new_bs if i == dst_batch_idx else batches[i].batch_size
-            batches[i].merge_kv_cache_if_needed(target_bs, offsets[i])
-            batches[i].realign(target_bs, offsets[i], pad_token_id)
-            batches[i].split_kv_cache_if_needed(i == dst_batch_idx)
-        batches[dst_batch_idx].expand_bs(new_bs)
-        batches[dst_batch_idx].move_data(
-            [batches[i] for i in range(len(batches)) if i != dst_batch_idx]
-        )
+        total_batch_size = 0
+        max_input_length = 0
+        for i, batch in enumerate(batches):
+            total_batch_size += len(batch)
+            max_input_length = max(max_input_length, batch.input_length)
+        # Batch attributes
+        requests = []
+        input_lengths = []
+        top_n_tokens = []
+        parameters = []
+        fsm_grammar_states = []
 
-        top_n_tokens = [r.data.top_n_tokens for r in flat_requests]
-        top_n_tokens_tensor = torch.tensor(
-            top_n_tokens, device=device, dtype=torch.int64
-        )
+        # Batch tensors
+        input_ids = None
+        attention_mask = None
+        position_ids = None
+        past_key_values = []
+        top_n_tokens_tensor = None
+        cross_attention_mask = None
+        # Used for slicing correctly inside the tensors
+        # Equivalent to a cumsum on batch sizes
+        start_index = 0
+        for i, batch in enumerate(batches):
+            keep_indices = []
+            for req in batch.requests:
+                keep_indices.append(req.idx)
 
-        parameters = [r.data.parameters for r in flat_requests]
-        # append the dummy parameters for dummy requests
-        batch_size = batches[dst_batch_idx].batch_size
-        parameters = pad_next_token_chooser_parameters(parameters, batch_size)
+            requests.extend(batch.requests)
+            parameters.extend([r.data.parameters for r in batch.requests])
+            fsm_grammar_states.extend(
+                [batch.next_token_chooser.fsm_grammar_states[i] for i in keep_indices]
+            )
+            input_lengths.extend([batch.input_length])
+            top_n_tokens.extend([batch.top_n_tokens[i] for i in keep_indices])
 
-        # update past grammar states
-        fsm_grammar_states = [0] * batch_size
-        for batch in batches:
-            for i, req in enumerate(batch.requests):
-                fsm_grammar_states[req.idx] = (
-                    batch.next_token_chooser.fsm_grammar_states[i]
+            # Slicing end index for this batch
+            end_index = start_index + len(batch)
+
+            # We only concatenate batches that did at least one step
+            if batch.past_key_values is None:
+                raise ValueError("only concatenate prefilled batches")
+
+            # Create empty tensor
+            # input_ids is always of shape [batch_size, 1]
+            # We do not need to pad it
+            if input_ids is None:
+                input_ids = batch.input_ids.new_empty((new_bs, MAX_TOTAL_TOKENS))
+            # # Copy to correct indices
+
+            left_offset = max_input_length - batch.input_length
+            right_padding = MAX_TOTAL_TOKENS - max_input_length
+            input_ids[start_index:end_index, left_offset:-right_padding] = (
+                batch.input_ids[keep_indices, : batch.input_length]
+            )
+
+            # Create padded tensor
+            if top_n_tokens_tensor is None:
+                top_n_tokens_tensor = batches[0].top_n_tokens_tensor.new_zeros(
+                    new_bs,
+                )
+            top_n_tokens_tensor[start_index:end_index] = batch.top_n_tokens_tensor[
+                keep_indices
+            ]
+
+            if attention_mask is None:
+                attention_mask = batch.attention_mask.new_zeros(
+                    (new_bs, MAX_TOTAL_TOKENS),
                 )
 
+            attention_mask[
+                start_index:end_index,
+                left_offset:-right_padding,
+            ] = batch.attention_mask[
+                keep_indices,
+                : batch.input_length,
+            ]
+
+            if batch.cross_attention_mask is not None:
+                cross_attention_mask_shape = list(batch.cross_attention_mask.shape)
+                cross_attention_mask_shape[1] = MAX_TOTAL_TOKENS
+                cross_attention_mask_shape[0] = new_bs
+                cross_attention_mask_shape = torch.Size(cross_attention_mask_shape)
+                if cross_attention_mask is None:
+                    cross_attention_mask = batch.cross_attention_mask.new_zeros(
+                        cross_attention_mask_shape,
+                    )
+                cross_attention_mask[
+                    start_index:end_index,
+                    left_offset:-right_padding,
+                ] = batch.cross_attention_mask[
+                    keep_indices,
+                    : batch.input_length,
+                ]
+
+            # Create empty tensor
+            # position_ids is always of shape [batch_size, 1]
+            if position_ids is None:
+                position_ids = batch.position_ids.new_empty((new_bs, 1))
+            position_ids[start_index:end_index] = batch.position_ids[keep_indices, :]
+
+            # Shenanigans to get dimensions because BLOOM outputs a past with a different shape
+            # BLOOM Keys:   [batch_size * num_heads, head_dim, seq_length]
+            # BLOOM Values: [batch_size * num_heads, seq_length, head_dim]
+            # And ensure that we can update tensors in-place
+            if isinstance(batch.past_key_values, tuple):
+                batch.past_key_values = [
+                    [t.view(batch.batch_size, -1, *t.shape[-2:]) for t in layer]
+                    for layer in batch.past_key_values
+                ]
+            elif len(batch.past_key_values[0][0].shape) == 3:
+                for layer in batch.past_key_values:
+                    for k, t in enumerate(layer):
+                        layer[k] = t.view(batch.batch_size, -1, *t.shape[-2:])
+
+            start_index = end_index
+
+        first_past_kvs = batches[0].past_key_values
+        _, num_heads, padded_sequence_length, head_dim = first_past_kvs[0][1].shape
+        past_key_values = []
+        for layer_id in range(len(batches[0].past_key_values)):
+            if layer_id in CROSS_ATTENTION_LAYERS:
+                padded_past_keys_shape = list(
+                    batches[0].past_key_values[layer_id][0].shape
+                )
+                padded_past_keys_shape[0] = new_bs
+                padded_past_keys_shape = torch.Size(padded_past_keys_shape)
+            else:
+                padded_past_keys_shape = (
+                    new_bs,
+                    num_heads,
+                    MAX_TOTAL_TOKENS,
+                    head_dim,
+                )
+
+            padded_past_keys = first_past_kvs[layer_id][0].new_zeros(
+                padded_past_keys_shape
+            )
+            padded_past_values = first_past_kvs[layer_id][1].new_zeros(
+                padded_past_keys_shape
+            )
+            start_index = 0
+            for batch in batches:
+                keep_indices = []
+                for req in batch.requests:
+                    keep_indices.append(req.idx)
+
+                left_offset = max_input_length - batch.input_length
+                right_padding = MAX_TOTAL_TOKENS - max_input_length
+                past_keys = batch.past_key_values[layer_id][0]
+                past_values = batch.past_key_values[layer_id][1]
+                # Clear reference to the original tensor
+                batch.past_key_values[layer_id] = None
+
+                # Slicing end index for this batch
+                end_index = start_index + len(batch)
+                # We slice the keys to remove the padding from previous batches
+                if layer_id in CROSS_ATTENTION_LAYERS:
+                    padded_past_keys[start_index:end_index, :, :, :] = past_keys[
+                        keep_indices, :, :, :
+                    ]
+                    padded_past_values[start_index:end_index, :, :, :] = past_values[
+                        keep_indices, :, :, :
+                    ]
+
+                else:
+                    padded_past_keys[
+                        start_index:end_index, :, left_offset:-right_padding, :
+                    ] = past_keys[keep_indices, :, : batch.input_length, :]
+                    padded_past_values[
+                        start_index:end_index, :, left_offset:-right_padding, :
+                    ] = past_values[keep_indices, :, : batch.input_length, :]
+
+                start_index = end_index
+
+            past_key_values.append(tuple([padded_past_keys, padded_past_values]))
+        past_key_values = tuple(past_key_values)
+
+        batch_id = batches[0].batch_id
+        top_n_tokens.extend([-1] * (new_bs - total_batch_size))
+        fsm_grammar_states.extend([-1] * (new_bs - total_batch_size))
+
+        for idx, req in enumerate(requests):
+            req.idx = idx
+
+        parameters = pad_next_token_chooser_parameters(parameters, new_bs)
         next_token_chooser = HeterogeneousNextTokenChooser.from_pb(
             parameters,
-            batches[dst_batch_idx].next_token_chooser.dtype,
-            batches[dst_batch_idx].next_token_chooser.device,
-            batches[dst_batch_idx].next_token_chooser.tokenizer,
+            batches[0].next_token_chooser.dtype,
+            batches[0].next_token_chooser.device,
+            batches[0].next_token_chooser.tokenizer,
             fsm_grammar_states,
             quantization_enabled=hq_env.is_quantization_enabled,
         )
-
-        input_ids = batches[dst_batch_idx].input_ids
-        attention_mask = batches[dst_batch_idx].attention_mask
-        position_ids = batches[dst_batch_idx].position_ids
-        past_key_values = batches[dst_batch_idx].past_key_values
         input_length = max_input_length
 
         htorch.core.mark_step()
 
         return cls(
             batch_id=batch_id,
-            requests=flat_requests,
+            requests=requests,
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
@@ -550,6 +784,13 @@ class VlmCausalLMBatch(CausalLMBatch):
             top_n_tokens=top_n_tokens,
             top_n_tokens_tensor=top_n_tokens_tensor,
             input_length=input_length,
+            pixel_values=None,
+            pixel_attention_mask=None,
+            image_sizes=None,
+            aspect_ratio_ids=None,
+            aspect_ratio_mask=None,
+            cross_attention_mask=cross_attention_mask,
+            prefilling=False,
         )
 
 
@@ -601,6 +842,9 @@ class VlmCausalLM(Model):
             htorch.core.hpu_set_env()
 
         if world_size > 1:
+            os.environ.setdefault(
+                "DEEPSPEED_USE_HABANA_FRAMEWORKS_DETERMINISTIC_API", "1"
+            )
             model = self.get_deepspeed_model(model_class, model_id, dtype, revision)
             model = hq_env.prepare_model_for_quantization(model)
         else:
@@ -678,6 +922,11 @@ class VlmCausalLM(Model):
                 self.kwargs["flash_attention_recompute"] = True
 
         self.speculate = get_speculate()
+        if model.config.model_type == "mllama":
+            global CROSS_ATTENTION_LAYERS, BASE_IMAGE_TOKENS
+            CROSS_ATTENTION_LAYERS = model.config.text_config.cross_attention_layers
+            BASE_IMAGE_TOKENS = 0
+
         super(VlmCausalLM, self).__init__(
             model_id=model_id,
             model=model,
@@ -806,24 +1055,24 @@ class VlmCausalLM(Model):
 
     def forward(
         self,
-        input_ids,
-        attention_mask,
-        position_ids,
-        token_idx,
-        past_key_values: Optional[List[Tuple]] = None,
-        pixel_values: Optional[List[torch.Tensor]] = None,
-        image_sizes: Optional[List[Tuple[int, int]]] = None,
+        batch: VlmCausalLMBatch,
         bypass_hpu_graph: Optional[bool] = None,
     ) -> Tuple[torch.Tensor, List[Tuple[torch.Tensor, torch.Tensor]]]:
         # Model Forward
         kwargs = {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-            "past_key_values": past_key_values,
-            "token_idx": token_idx,
-            "pixel_values": pixel_values,
-            "image_sizes": image_sizes,
+            "input_ids": batch.input_ids,
+            "attention_mask": batch.attention_mask,
+            "past_key_values": batch.past_key_values,
+            "token_idx": batch.token_idx,
+            "pixel_values": batch.pixel_values,
         }
+
+        if self.model.config.model_type == "mllama":
+            kwargs["aspect_ratio_ids"] = batch.aspect_ratio_ids
+            kwargs["aspect_ratio_mask"] = batch.aspect_ratio_mask
+            kwargs["cross_attention_mask"] = batch.cross_attention_mask
+        else:
+            kwargs["image_sizes"] = batch.image_sizes
 
         hpu_kwargs = {}
         # Optimum Habana got "lazy_mode" key-val only supported for llama type of models
@@ -831,14 +1080,14 @@ class VlmCausalLM(Model):
             hpu_kwargs["lazy_mode"] = LAZY_MODE == 1
 
         if self.has_position_ids:
-            kwargs["position_ids"] = position_ids
-
+            kwargs["position_ids"] = batch.position_ids
         if bypass_hpu_graph is not None:
             hpu_kwargs["bypass_hpu_graphs"] = bypass_hpu_graph
 
         kwargs.update(self.kwargs)
         model_inputs = self.model.prepare_inputs_for_generation(**kwargs)
-        if past_key_values is not None:
+
+        if batch.past_key_values is not None:
             return self.model.forward(**model_inputs, **hpu_kwargs)
         else:
             outputs = self.model.forward(**model_inputs, **hpu_kwargs)
@@ -846,8 +1095,9 @@ class VlmCausalLM(Model):
 
     @tracer.start_as_current_span("generate_token")
     def generate_token(
-        self, batches: List[VlmCausalLMBatch], is_warmup: bool = False
-    ) -> Tuple[List[Generation], Optional[CausalLMBatch], Tuple[int, int]]:
+        self, batches: list[VlmCausalLMBatch], is_warmup: bool = False
+    ) -> Tuple[List[Generation], Optional[VlmCausalLMBatch], Tuple[int, int]]:
+
         start = time.time_ns()
         # Results
         generations: List[Generation] = []
@@ -927,9 +1177,18 @@ class VlmCausalLM(Model):
                 # Update attention_mask as we added a new token to input_ids
                 batch.attention_mask.index_fill_(1, token_idx, 1)
 
+                # add cross-attn mask for new token
+                if batch.cross_attention_mask is not None:
+                    cross_attention_mask_prev = batch.cross_attention_mask
+                    if token_idx is not None:
+                        mask = cross_attention_mask_prev[
+                            :, token_idx - 2 : token_idx - 1, ...
+                        ]
+                        cross_attention_mask_prev.index_copy_(1, token_idx - 1, mask)
+                        batch.cross_attention_mask = cross_attention_mask_prev
+
                 # Adjust lengths
                 batch.input_length += 1
-
                 # Update position_ids
                 if prefill:
                     batch.position_ids = (
@@ -955,7 +1214,7 @@ class VlmCausalLM(Model):
 
         # Check if we need to do any bookkeeping first
         if not prefill:
-            batch = batch.__class__.recombine(
+            batch = self.batch_type.recombine(
                 [batch], self.tokenizer.pad_token_id, is_warmup
             )
 
@@ -977,37 +1236,33 @@ class VlmCausalLM(Model):
         # Execute batch
         if prefill:
             # no right padding for prefill
-            token_idx = torch.tensor(batch.attention_mask.shape[-1] - 1).to(self.device)
+            # token_idx = torch.tensor(batch.attention_mask.shape[-1] - 1).to(self.device)
             batch.logits, batch.past = self.forward(
-                batch.input_ids,
-                batch.attention_mask,
-                batch.position_ids,
-                token_idx,
-                batch.past_key_values,
-                batch.pixel_values,
-                batch.image_sizes,
+                batch,
                 bypass_hpu_graph=(
                     prefill and self.limit_hpu_graph if self.enable_hpu_graph else None
                 ),
             )
+
         elif all([req.stopping_criteria.max_new_tokens == 1 for req in batch.requests]):
             # Don't schedule next forward if max_new_tokens for all requests equals 1
             # - we've already generated the first and only needed token in the prefill phase
             pass
         else:
-            token_idx = torch.tensor(
-                batch.attention_mask.shape[-1] - batch.right_padding
-            ).to(self.device)
+            # token_idx = torch.tensor(batch.attention_mask.shape[-1] - batch.right_padding).to(self.device)
             batch.logits = self.forward(
-                batch.input_ids,
-                batch.attention_mask,
-                batch.position_ids,
-                token_idx,
-                batch.past_key_values,
+                batch,
                 bypass_hpu_graph=(
                     prefill and self.limit_hpu_graph if self.enable_hpu_graph else None
                 ),
             )
+
+        if batch.pixel_values is not None:
+            batch.pixel_values = None
+        if batch.aspect_ratio_ids is not None:
+            batch.aspect_ratio_ids = None
+        if batch.aspect_ratio_mask is not None:
+            batch.aspect_ratio_mask = None
 
         htorch.core.mark_step()
 
@@ -1181,7 +1436,7 @@ class VlmCausalLM(Model):
         return generations, batch if not stopped else None, (forward_ns, decode_ns)
 
     def batch_from_pb(self, batch, is_warmup):
-        return VlmCausalLMBatch.from_pb_processor(
+        return self.batch_type.from_pb_processor(
             batch,
             self.tokenizer,
             self.processor,
@@ -1204,22 +1459,22 @@ class VlmCausalLM(Model):
     def warmup(
         self, request: generate_pb2.WarmupRequest
     ) -> Tuple[Optional[int], Optional[int], Optional[int]]:
-        is_warmup = True
-        batch = self.batch_from_pb(request.batch, is_warmup)
+        global MAX_TOTAL_TOKENS
+        MAX_TOTAL_TOKENS = request.max_total_tokens
+        batch = self.batch_from_pb(request.batch, is_warmup=True)
+        max_input_tokens = request.max_input_tokens
+        max_prefill_batch_size = batch.input_ids.shape[0]
 
         try:
             # max prefill batch size warmup
-            _, prefill_batch, _ = self.generate_token([batch], is_warmup)
+            _, prefill_batch, _ = self.generate_token([batch], is_warmup=True)
         except Exception:
             raise RuntimeError(
                 f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
                 f"You need to decrease `--max-batch-prefill-tokens`"
             )
 
-        global BASE_IMAGE_TOKENS, MAX_TOTAL_TOKENS, PREFILL_WARMUP_BATCH_SIZE_LIST, PREFILL_WARMUP_SEQLEN_LIST, DECODE_WARMUP_BATCH_SIZE_LIST
-        MAX_TOTAL_TOKENS = request.max_total_tokens
-        max_input_length = batch.input_ids.shape[1]
-        max_prefill_batch_size = batch.input_ids.shape[0]
+        global BASE_IMAGE_TOKENS, PREFILL_WARMUP_BATCH_SIZE_LIST, PREFILL_WARMUP_SEQLEN_LIST, DECODE_WARMUP_BATCH_SIZE_LIST
         PREFILL_WARMUP_BATCH_SIZE_LIST = []
         batch_size = 1
         while batch_size <= max_prefill_batch_size:
@@ -1228,15 +1483,19 @@ class VlmCausalLM(Model):
         if PREFILL_WARMUP_BATCH_SIZE_LIST[-1] < max_prefill_batch_size:
             PREFILL_WARMUP_BATCH_SIZE_LIST.append(max_prefill_batch_size)
 
-        seq_len = BASE_IMAGE_TOKENS
+        if self.model.config.model_type == "mllama":
+            seq_len = PAD_SEQUENCE_TO_MULTIPLE_OF
+        else:
+            seq_len = BASE_IMAGE_TOKENS
+
         PREFILL_WARMUP_SEQLEN_LIST = []
         i = 0
-        while seq_len <= max_input_length:
+        while seq_len <= max_input_tokens:
             PREFILL_WARMUP_SEQLEN_LIST.append(seq_len)
             seq_len += PAD_SEQUENCE_TO_MULTIPLE_OF * (2**i)
             i += 1
-        if PREFILL_WARMUP_SEQLEN_LIST[-1] < max_input_length:
-            PREFILL_WARMUP_SEQLEN_LIST.append(max_input_length)
+        if PREFILL_WARMUP_SEQLEN_LIST[-1] < max_input_tokens:
+            PREFILL_WARMUP_SEQLEN_LIST.append(max_input_tokens)
 
         # Prefill and decode warmup
         DECODE_WARMUP_BATCH_SIZE_LIST = []
@@ -1246,10 +1505,13 @@ class VlmCausalLM(Model):
             for batch_size in PREFILL_WARMUP_BATCH_SIZE_LIST:
                 for seq_len in PREFILL_WARMUP_SEQLEN_LIST:
                     batch = self.generate_warmup_batch(
-                        request, seq_len, batch_size, is_warmup
+                        request, seq_len, batch_size, is_warmup=True
                     )
-                    _, prefill_batch, _ = self.generate_token([batch], is_warmup)
-                    _, decode_batch, _ = self.generate_token([prefill_batch], is_warmup)
+                    _, prefill_batch, _ = self.generate_token([batch], is_warmup=True)
+                    assert prefill_batch is not None
+                    _, decode_batch, _ = self.generate_token(
+                        [prefill_batch], is_warmup=True
+                    )
 
                 DECODE_WARMUP_BATCH_SIZE_LIST.append(batch_size)
 
@@ -1280,43 +1542,41 @@ class VlmCausalLM(Model):
                 and batch_size <= max_decode_batch_size
             ):
                 batches = []
-                for i in range(int(batch_size / max_prefill_batch_size)):
-                    batch = self.generate_warmup_batch(
-                        request,
-                        PREFILL_WARMUP_SEQLEN_LIST[0],
-                        DECODE_WARMUP_BATCH_SIZE_LIST[-1],
-                        is_warmup,
-                    )
-                    _, prefill_batch, _ = self.generate_token([batch], is_warmup)
-                    batches.append(prefill_batch)
                 while batch_size <= max_decode_batch_size:
-                    _, decode_batch, _ = self.generate_token(batches, is_warmup)
+                    for i in range(int(batch_size / max_prefill_batch_size)):
+                        batch = self.generate_warmup_batch(
+                            request,
+                            PREFILL_WARMUP_SEQLEN_LIST[0] - 1,
+                            max_prefill_batch_size,
+                            is_warmup=False,
+                        )
+                        _, prefill_batch, _ = self.generate_token(
+                            [batch], is_warmup=True
+                        )
+                        batches.append(prefill_batch)
+
+                    _, decode_batch, _ = self.generate_token(batches, is_warmup=True)
                     DECODE_WARMUP_BATCH_SIZE_LIST.append(batch_size)
                     batch_size = batch_size * 2
                     batches.clear()
 
-                    for i in range(int(batch_size / max_prefill_batch_size)):
-                        batch = self.generate_warmup_batch(
-                            request,
-                            PREFILL_WARMUP_SEQLEN_LIST[0],
-                            DECODE_WARMUP_BATCH_SIZE_LIST[-1],
-                            is_warmup,
-                        )
-                        _, prefill_batch, _ = self.generate_token([batch], is_warmup)
-                        batches.append(prefill_batch)
-
-                batches.clear()
                 if DECODE_WARMUP_BATCH_SIZE_LIST[-1] < max_decode_batch_size:
                     max_decode_batch_size = math.floor(max_decode_batch_size / 2) * 2
                     batch_size = max_decode_batch_size
                     for i in range(int(max_decode_batch_size / 2)):
                         batch = self.generate_warmup_batch(
-                            request, PREFILL_WARMUP_SEQLEN_LIST[0], 2, is_warmup
+                            request,
+                            PREFILL_WARMUP_SEQLEN_LIST[0] - 1,
+                            2,
+                            is_warmup=False,
                         )
-                        _, prefill_batch, _ = self.generate_token([batch], is_warmup)
+                        _, prefill_batch, _ = self.generate_token(
+                            [batch], is_warmup=True
+                        )
                         batches.append(prefill_batch)
-                    _, decode_batch, _ = self.generate_token(batches, is_warmup)
+                    _, decode_batch, _ = self.generate_token(batches, is_warmup=True)
                     DECODE_WARMUP_BATCH_SIZE_LIST.append(max_decode_batch_size)
+
         except Exception:
             raise RuntimeError(
                 f"Not enough memory to handle batch_size({batch_size}) decode warmup."
@@ -1333,7 +1593,7 @@ class VlmCausalLM(Model):
         )
 
         max_supported_total_tokens = MAX_BATCH_SIZE * MAX_TOTAL_TOKENS
-        max_input_tokens = max_input_length
+        max_input_tokens = max_input_tokens
         max_total_tokens = MAX_TOTAL_TOKENS
 
         return max_supported_total_tokens, max_input_tokens, max_total_tokens
