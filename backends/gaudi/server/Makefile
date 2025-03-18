@@ -5,7 +5,7 @@ include Makefile-awq
 include Makefile-eetq
 include Makefile-selective-scan
 
-PROTO_PATH ?= ../proto/v3
+PROTO_PATH ?= ../../../proto/v3
 
 unit-tests:
 	pytest -s -vv -m "not private" tests
