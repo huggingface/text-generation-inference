@@ -44,6 +44,10 @@ jobs:
         registry: registry.internal.huggingface.tech
     - name: Push to docker
       run: |
-        export TAG=nix-sha-${{ env.GITHUB_SHA_SHORT }}
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          export TAG=nix-sha-${{ env.GITHUB_SHA_SHORT }}
+        else
+          export TAG=nix-{{ version }}
+        fi
         export IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:$TAG
-        nix-shell -p skopeo --command "skopeo --insecure-policy copy   docker-archive:$(readlink -f ./result)   docker://registry.internal.huggingface.tech/api-inference/community/text-generation-inference:nix-docker-test6   --dest-compress-format zstd"
+        nix-shell -p skopeo --command "skopeo --insecure-policy copy docker-archive:$(readlink -f ./result) docker://$IMAGE --dest-compress-format zstd"
