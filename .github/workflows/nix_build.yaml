@@ -46,5 +46,4 @@ jobs:
       run: |
         export TAG=nix-sha-${{ env.GITHUB_SHA_SHORT }}
         export IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:$TAG
-        nix-shell -p skopeo
-        skopeo --insecure-policy copy   docker-archive:$(readlink -f ./result)   docker://registry.internal.huggingface.tech/api-inference/community/text-generation-inference:nix-docker-test6   --dest-compress-format zstd
+        nix-shell -p skopeo --command "skopeo --insecure-policy copy   docker-archive:$(readlink -f ./result)   docker://registry.internal.huggingface.tech/api-inference/community/text-generation-inference:nix-docker-test6   --dest-compress-format zstd"
