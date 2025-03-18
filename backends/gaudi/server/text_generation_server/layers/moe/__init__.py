@@ -19,7 +19,7 @@ from text_generation_server.utils.weights import (
     UnquantizedWeight,
 )
 
-from .fused_moe_ipex import fused_topk, grouped_topk
+from .fused_moe import fused_topk, grouped_topk
 
 # NOTE: we are using a protocol here, because multiple inherance is not nice.
 #       We need `Module`, and `Module` -> some abstract class -> some concrete

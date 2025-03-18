@@ -235,7 +235,7 @@ class FlashLlamaAttention(torch.nn.Module):
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # flash attention
+            # sdpa
             attn_output = attention(
                 query=query,
                 key=kv[:, 0],
@@ -652,6 +652,11 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         adapter_data: Optional[torch.Tensor] = None,
         cross_attention_states=None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        if prefill_cache_indices is not None and slots.size(
+            0
+        ) != prefill_cache_indices.size(0):
+            # Slots also need to be sliced as it has the same size as the whole kv tensor
+            slots = slots[prefill_cache_indices]
         inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
             inputs_embeds,

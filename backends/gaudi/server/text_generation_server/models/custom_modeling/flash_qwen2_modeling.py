@@ -139,11 +139,11 @@ class Qwen2Attention(torch.nn.Module):
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # flash attention
+            # sdpa
             attn_output = attention(
                 query=query,
-                key=kv_to_cache[:, 0],
-                value=kv_to_cache[:, 1],
+                key=kv[:, 0],
+                value=kv[:, 1],
                 kv_cache=kv_cache,
                 kv_scales=self.kv_scales,
                 seqlen=seqlen,
@@ -378,10 +378,6 @@ class Qwen2ForCausalLM(torch.nn.Module):
         ) != slots.size(0):
             # Slots also need to be sliced as it has the same size as the whole kv tensor
             slots = slots[prefill_cache_indices]
-        elif self.max_past is not None:
-            # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
-            # kernel requires the true values
-            seqlen = seqlen.clamp(max=self.max_past_tensor)
 
         inputs_embeds = self.embed_tokens(input_ids)
 

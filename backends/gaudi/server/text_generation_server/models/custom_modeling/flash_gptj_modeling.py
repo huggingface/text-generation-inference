@@ -193,7 +193,7 @@ class FlashGPTJAttention(torch.nn.Module):
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # flash attention
+            # sdpa
             attn_output = attention(
                 query=query,
                 key=key,
