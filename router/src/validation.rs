@@ -699,7 +699,7 @@ fn image_tokens(
             // TODO: prefer using the config to determine the number of features
             let num_mm_soft_tokens_per_image = 256;
             format!(
-                "\n\n<start_of_image>{:?}<end_of_image>\n\n",
+                "\n\n<start_of_image>{}<end_of_image>\n\n",
                 "<image_soft_token>".repeat(num_mm_soft_tokens_per_image)
             )
         }

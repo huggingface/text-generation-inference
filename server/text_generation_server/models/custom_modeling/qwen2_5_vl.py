@@ -633,7 +633,7 @@ class Qwen2_5VisionModel(nn.Module):
             config=config,
             weights=weights,
         )
-        # import ipdb; ipdb.set_trace()
+
         self.temporal_patch_size = config.temporal_patch_size
         self.spatial_patch_size = config.spatial_patch_size
         self.in_channels = config.in_channels

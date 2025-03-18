@@ -263,7 +263,7 @@ class Gemma3ImageProcessor(BaseImageProcessor):
         return_tensors: Optional[Union[str, TensorType]] = None,
         data_format: Optional[ChannelDimension] = ChannelDimension.FIRST,
         input_data_format: Optional[Union[str, ChannelDimension]] = None,
-        do_convert_rgb: bool = None,
+        do_convert_rgb: bool = True,
         do_pan_and_scan: bool = None,
         pan_and_scan_min_crop_size: int = None,
         pan_and_scan_max_num_crops: int = None,

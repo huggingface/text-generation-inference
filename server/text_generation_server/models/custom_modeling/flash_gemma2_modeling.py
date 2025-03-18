@@ -287,6 +287,7 @@ class FlashGemma2Attention(torch.nn.Module):
                 max_s,
                 softcap=self.softcap,
                 kv_scales=self.kv_scales,
+                window_size_left=self.window_size,
             )
 
         return self.o_proj(

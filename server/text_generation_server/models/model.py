@@ -110,7 +110,7 @@ class Model(ABC):
             requires_padding=self.requires_padding,
             dtype=str(self.dtype),
             device_type=self.device.type,
-            window_size=self.sliding_window,
+            window_size=None,  # Setting this parameter to None disabled the block logic with sliding window.
             speculate=self.speculate,
             support_chunking=self.support_chunking,
             use_prefix_caching=PREFIX_CACHING,

@@ -1,3 +1,7 @@
+import base64
+from io import BytesIO
+from PIL import Image
+
 import pytest
 
 
@@ -49,9 +53,9 @@ async def test_flash_gemma3_image_cow_dog(flash_gemma3, response_snapshot):
 
     assert (
         response.choices[0].message.content
-        == "Based on the image, the animal is a cow, not a dog! \n\nIt appears to be a **Brazilian cattle breed** known as a **Gir Cow**. They are recognized for their reddish-brown color and distinctive markings."
+        == "That's a fantastic question! However, the image doesn't show a dog. It shows a **Brown Swiss cow** standing on a beach. \n\nBrown Swiss cows are known for their reddish-brown color and distinctive white markings. \n\nIf you'd like, you can send me another image and I’ll do my best to identify it!"
     )
-    assert response.usage["completion_tokens"] == 48
+    assert response.usage["completion_tokens"] == 75
     assert response == response_snapshot
 
 
@@ -72,19 +76,95 @@ async def test_flash_gemma3_image_cow(flash_gemma3, response_snapshot):
     )
     assert (
         response.choices[0].message.content
-        == "Here's a description of what's shown in the image:\n\nThe image depicts a brown cow standing on a sandy beach. The beach has turquoise water and a distant island visible in the background. The sky is bright blue with some white clouds. \n\nIt's a humorous and unexpected sight of a cow enjoying a tropical beach!"
+        == "Here's a description of what's shown in the image:\n\nThe image depicts a brown cow standing on a sandy beach. The beach has turquoise water and a distant island visible in the background. The sky is bright blue with some white clouds. \n\nIt's a quite a humorous and unusual scene – a cow enjoying a day at the beach!"
     )
-    assert response.usage["completion_tokens"] == 70
+    assert response.usage["completion_tokens"] == 74
     assert response == response_snapshot
 
 
 async def test_exceed_window(flash_gemma3, response_snapshot):
     response = await flash_gemma3.generate(
-        "This is a nice place. " * 800 + "Now count: 1, 2, 3",
+        "This is a nice place. " * 800 + "I really enjoy the scenery,",
         seed=42,
         max_new_tokens=20,
     )
 
-    assert response.generated_text == ", 4, 5, 6, 7, 8, 9, "
-    assert response.details.generated_tokens == 20
+    assert (
+        response.generated_text
+        == " the people, and the food.\n\nThis is a nice place.\n"
+    )
+    assert response.details.generated_tokens == 16
+    assert response == response_snapshot
+
+
+# Helper function to convert a Pillow image to a base64 data URL
+def image_to_data_url(img: Image.Image, fmt: str) -> str:
+    buffer = BytesIO()
+    img.save(buffer, format=fmt)
+    img_data = buffer.getvalue()
+    b64_str = base64.b64encode(img_data).decode("utf-8")
+    mime_type = "image/png" if fmt.upper() == "PNG" else "image/jpeg"
+    return f"data:{mime_type};base64,{b64_str}"
+
+
+async def test_flash_gemma3_image_base64_rgba(flash_gemma3, response_snapshot):
+    # Create an empty 100x100 PNG image with alpha (transparent background)
+    img = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
+    data_url = image_to_data_url(img, "PNG")
+    response = await flash_gemma3.chat(
+        seed=42,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                    {
+                        "type": "text",
+                        "text": "What do you see in this transparent image?",
+                    },
+                ],
+            },
+        ],
+        max_tokens=100,
+    )
+    assert response == response_snapshot
+
+
+async def test_flash_gemma3_image_base64_rgb_png(flash_gemma3, response_snapshot):
+    # Create an empty 100x100 PNG image without alpha (white background)
+    img = Image.new("RGB", (100, 100), (255, 255, 255))
+    data_url = image_to_data_url(img, "PNG")
+    response = await flash_gemma3.chat(
+        seed=42,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                    {"type": "text", "text": "What do you see in this plain image?"},
+                ],
+            },
+        ],
+        max_tokens=100,
+    )
+    assert response == response_snapshot
+
+
+async def test_flash_gemma3_image_base64_rgb_jpg(flash_gemma3, response_snapshot):
+    # Create an empty 100x100 JPEG image (white background)
+    img = Image.new("RGB", (100, 100), (255, 255, 255))
+    data_url = image_to_data_url(img, "JPEG")
+    response = await flash_gemma3.chat(
+        seed=42,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                    {"type": "text", "text": "What do you see in this JPEG image?"},
+                ],
+            },
+        ],
+        max_tokens=100,
+    )
     assert response == response_snapshot

@@ -1,133 +1,109 @@
 {
   "details": {
     "best_of_sequences": null,
-    "finish_reason": "length",
-    "generated_tokens": 20,
+    "finish_reason": "eos_token",
+    "generated_tokens": 16,
     "prefill": [],
     "seed": null,
     "tokens": [
       {
+        "id": 506,
+        "logprob": -1.3984375,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 1331,
+        "logprob": -1.6953125,
+        "special": false,
+        "text": " people"
+      },
+      {
         "id": 236764,
-        "logprob": -0.44726562,
+        "logprob": -0.23535156,
         "special": false,
         "text": ","
       },
       {
-        "id": 236743,
-        "logprob": -0.011413574,
+        "id": 532,
+        "logprob": -0.24316406,
         "special": false,
-        "text": " "
+        "text": " and"
       },
       {
-        "id": 236812,
-        "logprob": -0.09814453,
+        "id": 506,
+        "logprob": -0.12109375,
         "special": false,
-        "text": "4"
+        "text": " the"
       },
       {
-        "id": 236764,
-        "logprob": -0.044189453,
+        "id": 2780,
+        "logprob": -1.1640625,
         "special": false,
-        "text": ","
+        "text": " food"
       },
       {
-        "id": 236743,
-        "logprob": -0.15625,
+        "id": 236761,
+        "logprob": -0.21386719,
         "special": false,
-        "text": " "
+        "text": "."
       },
       {
-        "id": 236810,
-        "logprob": -0.010864258,
+        "id": 108,
+        "logprob": -0.64453125,
         "special": false,
-        "text": "5"
+        "text": "\n\n"
       },
       {
-        "id": 236764,
-        "logprob": -0.040039062,
+        "id": 2094,
+        "logprob": -0.77734375,
         "special": false,
-        "text": ","
+        "text": "This"
       },
       {
-        "id": 236743,
-        "logprob": -0.26757812,
+        "id": 563,
+        "logprob": -0.040283203,
         "special": false,
-        "text": " "
+        "text": " is"
       },
       {
-        "id": 236825,
-        "logprob": -0.0047302246,
+        "id": 496,
+        "logprob": -0.03125,
         "special": false,
-        "text": "6"
+        "text": " a"
       },
       {
-        "id": 236764,
-        "logprob": -0.026123047,
+        "id": 6290,
+        "logprob": -0.03515625,
         "special": false,
-        "text": ","
+        "text": " nice"
       },
       {
-        "id": 236743,
-        "logprob": -0.265625,
+        "id": 1977,
+        "logprob": -0.0020751953,
         "special": false,
-        "text": " "
+        "text": " place"
       },
       {
-        "id": 236832,
-        "logprob": -0.014160156,
+        "id": 236761,
+        "logprob": -0.0079956055,
         "special": false,
-        "text": "7"
+        "text": "."
       },
       {
-        "id": 236764,
-        "logprob": -0.013977051,
+        "id": 107,
+        "logprob": -0.9921875,
         "special": false,
-        "text": ","
+        "text": "\n"
       },
       {
-        "id": 236743,
-        "logprob": -0.103515625,
-        "special": false,
-        "text": " "
-      },
-      {
-        "id": 236828,
-        "logprob": -0.008178711,
-        "special": false,
-        "text": "8"
-      },
-      {
-        "id": 236764,
-        "logprob": -0.030151367,
-        "special": false,
-        "text": ","
-      },
-      {
-        "id": 236743,
-        "logprob": -0.39453125,
-        "special": false,
-        "text": " "
-      },
-      {
-        "id": 236819,
-        "logprob": -0.008728027,
-        "special": false,
-        "text": "9"
-      },
-      {
-        "id": 236764,
-        "logprob": -0.020629883,
-        "special": false,
-        "text": ","
-      },
-      {
-        "id": 236743,
-        "logprob": -0.08154297,
-        "special": false,
-        "text": " "
+        "id": 106,
+        "logprob": -0.45507812,
+        "special": true,
+        "text": "<end_of_turn>"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": ", 4, 5, 6, 7, 8, 9, "
+  "generated_text": " the people, and the food.\n\nThis is a nice place.\n"
 }

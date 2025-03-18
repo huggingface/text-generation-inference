@@ -31,7 +31,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         super().__init__()
         config.vision_config.quantize = config.quantize
         self.vision_tower = load_vision_model(
-            prefix="vision_model" if not prefix else f"{prefix}.vision_model",
+            prefix="vision_tower" if not prefix else f"{prefix}.vision_tower",
             config=config.vision_config,
             weights=weights,
         )
