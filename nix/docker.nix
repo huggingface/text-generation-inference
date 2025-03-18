@@ -3,7 +3,6 @@
   dockerTools,
   cacert,
   text-generation-inference,
-  runCommand,
   stream ? false,
 }:
 
@@ -13,6 +12,7 @@ in
 build {
   name = "tgi-docker";
   tag = "latest";
+  compressor = "zstd";
   config = {
     EntryPoint = [ "${text-generation-inference}/bin/text-generation-inference" ];
     Env = [
