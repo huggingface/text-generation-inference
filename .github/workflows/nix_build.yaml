@@ -1,15 +1,15 @@
 name: "Nix Tests"
 on:
   pull_request:
-    paths:
-      - ".github/workflows/nix_build.yaml"
-      - "server/**"
-      - "proto/**"
-      - "router/**"
-      - "launcher/**"
-      - "nix/**"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
+    # paths:
+    #   - ".github/workflows/nix_build.yaml"
+    #   - "server/**"
+    #   - "proto/**"
+    #   - "router/**"
+    #   - "launcher/**"
+    #   - "nix/**"
+    #   - "Cargo.lock"
+    #   - "rust-toolchain.toml"
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
