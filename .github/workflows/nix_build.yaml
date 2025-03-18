@@ -47,7 +47,7 @@ jobs:
         if [ "${{ github.event_name }}" = "pull_request" ]; then
           export TAG=nix-sha-${{ env.GITHUB_SHA_SHORT }}
         else
-          export TAG=nix-{{ version }}
+          export TAG=nix-${{ github.ref_name }}
         fi
         export IMAGE=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:$TAG
         nix-shell -p skopeo --command "skopeo --insecure-policy copy docker-archive:$(readlink -f ./result) docker://$IMAGE --dest-compress-format zstd"
