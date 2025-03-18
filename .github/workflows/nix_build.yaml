@@ -1,4 +1,4 @@
-name: "Nix Tests"
+name: "Nix Build Docker image"
 on:
   pull_request:
     # paths:
@@ -11,11 +11,11 @@ on:
     #   - "Cargo.lock"
     #   - "rust-toolchain.toml"
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: nix-image-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  tests:
+  build_nix_image:
     runs-on:
       group: aws-highmemory-32-plus-priv
     steps:
