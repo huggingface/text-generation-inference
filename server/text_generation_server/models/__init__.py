@@ -206,6 +206,9 @@ try:
     from text_generation_server.models.transformers_flash_causal_lm import (
         TransformersFlashCausalLM,
     )
+    from text_generation_server.models.transformers_flash_causal_vlm import (
+        TransformersFlashCausalVLM,
+    )
 except ImportError:
     FLASH_TRANSFORMERS_BACKEND = False
 
@@ -1483,17 +1486,32 @@ def get_model(
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == QWEN2_VL:
-        return VlmCausalLM(
-            model_id=model_id,
-            model_class=Qwen2VLForConditionalGeneration,
-            revision=revision,
+        # return VlmCausalLM(
+        #     model_id=model_id,
+        #     model_class=Qwen2VLForConditionalGeneration,
+        #     revision=revision,
+        #     quantize=quantize,
+        #     speculator=speculator,
+        #     dtype=dtype,
+        #     default_dtype=torch.bfloat16,
+        #     kv_cache_dtype=kv_cache_dtype,
+        #     trust_remote_code=trust_remote_code,
+        #     lora_adapter_ids=lora_adapter_ids,
+        # )
+        from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
+
+        # CUDA_LAUNCH_BLOCKING=1 ATTENTION=flashinfer PREFIX_CACHING=False MASTER_ADDR=127.0.0.1 MASTER_PORT=5555 python text_generation_server/cli.py serve Qwen/Qwen2-VL-2B-Instruct
+        # cargo run --bin text-generation-router --release -- --tokenizer-name Qwen/Qwen2-VL-2B-Instruct --max-batch-prefill-tokens 256
+        return TransformersFlashCausalVLM.fallback(
+            model_id,
+            revision,
             quantize=quantize,
             speculator=speculator,
             dtype=dtype,
-            default_dtype=torch.bfloat16,
-            kv_cache_dtype=kv_cache_dtype,
             trust_remote_code=trust_remote_code,
-            lora_adapter_ids=lora_adapter_ids,
+            processor_kwargs={"size": {"longest_edge": 448, "shortest_edge": 378}},
+            processor_class=AutoProcessor,
+            model_class=Qwen2VLForConditionalGeneration,
         )
     if model_type == QWEN2_5_VL:
         return VlmCausalLM(
