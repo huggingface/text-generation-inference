@@ -188,6 +188,7 @@ class PositionRotaryEmbedding(nn.Module):
                     long_inv_freq=long_inv_freq,
                     scaling_factor=scaling_factor,
                     original_max_position_embeddings=original_max_position_embeddings,
+                    max_position_embeddings=config.max_position_embeddings,
                 )
             else:
                 raise NotImplementedError(
@@ -276,6 +277,7 @@ class SuRotaryEmbedding(PositionRotaryEmbedding):
         long_inv_freq,
         scaling_factor,
         original_max_position_embeddings,
+        max_position_embeddings,
     ):
         super(PositionRotaryEmbedding, self).__init__()
         self.short_inv_freq = short_inv_freq
@@ -288,6 +290,9 @@ class SuRotaryEmbedding(PositionRotaryEmbedding):
         self._cos_k_cached = None
         self._sin_k_cached = None
         self.dynamic_args = None
+        self._update_cos_sin_cache(
+            torch.float32, short_inv_freq.device, max_position_embeddings
+        )
 
     def _update_cos_sin_cache(self, dtype, device, seqlen):
         # Reset the tables if the sequence length has changed,
@@ -341,6 +346,9 @@ class Phi3LongRoPEScaledRotaryEmbedding(PositionRotaryEmbedding):
         self._cos_k_cached = None
         self._sin_k_cached = None
         self.dynamic_args = None
+        self._update_cos_sin_cache(
+            torch.float32, short_inv_freq.device, max_position_embeddings
+        )
 
     def _update_cos_sin_cache(self, dtype, device, seqlen):
         if (

@@ -25,6 +25,9 @@ from text_generation_server.models.vlm_causal_lm import VlmCausalLM
 from text_generation_server.models.custom_modeling.llava_next import (
     LlavaNextForConditionalGeneration,
 )
+from text_generation_server.models.custom_modeling.flash_phi_moe_modeling import (
+    PhiMoEConfig,
+)
 
 # from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
 # from text_generation_server.models.custom_modeling.mllama import (
