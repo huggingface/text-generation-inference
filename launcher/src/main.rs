@@ -1211,7 +1211,12 @@ fn shard_manager(
 
         // We received a shutdown signal
         if shutdown.load(Ordering::SeqCst) {
-            terminate("shard", p, Duration::from_secs(graceful_termination_timeout)).unwrap();
+            terminate(
+                "shard",
+                p,
+                Duration::from_secs(graceful_termination_timeout),
+            )
+            .unwrap();
             return;
         }
 
@@ -1550,7 +1555,7 @@ fn spawn_shards(
     status_receiver: &mpsc::Receiver<ShardStatus>,
     status_sender: mpsc::Sender<ShardStatus>,
     running: Arc<AtomicBool>,
-    graceful_termination_timeout: u64
+    graceful_termination_timeout: u64,
 ) -> Result<(), LauncherError> {
     // Start shard processes
     for rank in 0..num_shard {
@@ -2317,7 +2322,12 @@ fn main() -> Result<(), LauncherError> {
     }
 
     // Graceful termination
-    terminate("webserver", webserver, Duration::from_secs(graceful_termination_timeout)).unwrap();
+    terminate(
+        "webserver",
+        webserver,
+        Duration::from_secs(graceful_termination_timeout),
+    )
+    .unwrap();
     shutdown_shards(shutdown, &shutdown_receiver);
 
     exit_code
