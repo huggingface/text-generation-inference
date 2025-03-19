@@ -77,6 +77,11 @@ class PositionRotaryEmbedding(nn.Module):
         inv_freq = _create_inv_freq(dim, base, device)
         scaling_factor = None
         rope_scaling = _get_rope_config(config)
+        if not hasattr(config, "max_position_embeddings") and hasattr(
+            config, "max_seq_len"
+        ):
+            # handling for dbrx
+            config.max_position_embeddings = config.max_seq_len
         if rope_scaling is not None:
             # `rope_type` is now standard in transformers, but some existing models
             # have `type` instead.

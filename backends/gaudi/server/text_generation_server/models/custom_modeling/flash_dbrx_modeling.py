@@ -43,9 +43,7 @@ from text_generation_server.layers.rotary import (
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
-
-
-moe_kernels = None
+from vllm_hpu_extension.ops import DynamicFusedMOE
 
 
 class DbrxAttentionConfig(PretrainedConfig):
@@ -497,19 +495,15 @@ class BlockSparseMoE(nn.Module):
 
         self.process_group = weights.process_group
 
+        self.hpu_fused_moe = DynamicFusedMOE(self.num_experts)
+        for i in range(self.num_experts):
+            self.hpu_fused_moe.MoeOp.w13_list[i].set_weight(self.wv1[i])
+            self.hpu_fused_moe.MoeOp.w2_list[i].set_weight(self.w2[i])
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # router_logits: (num_tokens, n_experts)
         router_logits = self.gate(x)
-
-        out = moe_kernels.fused_moe(
-            x,
-            self.wv1,
-            self.w2,
-            router_logits,
-            self.top_k,
-            renormalize=self.moe_normalize_expert_weights,
-            inplace=True,
-        )
+        out = self.hpu_fused_moe(x, router_logits, self.top_k)
 
         # Reduce sum
         if self.process_group.size() > 1:

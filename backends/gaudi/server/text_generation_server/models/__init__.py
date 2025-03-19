@@ -286,16 +286,6 @@ class ModelType(enum.Enum):
         "name": "Qwen 2.5 VL",
         "url": "https://huggingface.co/collections/Qwen/qwen25-66e81a666513e518adb90d9e",
     }
-    OPT = {
-        "type": "opt",
-        "name": "Opt",
-        "url": "https://huggingface.co/facebook/opt-6.7b",
-    }
-    T5 = {
-        "type": "t5",
-        "name": "T5",
-        "url": "https://huggingface.co/google/flan-t5-xxl",
-    }
     GALACTICA = {
         "type": "galactica",
         "name": "Galactica",
@@ -305,16 +295,6 @@ class ModelType(enum.Enum):
         "type": "santacoder",
         "name": "SantaCoder",
         "url": "https://huggingface.co/bigcode/santacoder",
-    }
-    BLOOM = {
-        "type": "bloom",
-        "name": "Bloom",
-        "url": "https://huggingface.co/bigscience/bloom-560m",
-    }
-    MPT = {
-        "type": "mpt",
-        "name": "Mpt",
-        "url": "https://huggingface.co/mosaicml/mpt-7b-instruct",
     }
     GPT2 = {
         "type": "gpt2",
