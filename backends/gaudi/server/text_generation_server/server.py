@@ -18,10 +18,11 @@ from text_generation_server.interceptor import ExceptionInterceptor
 from text_generation_server.models import Model, get_model_with_lora_adapters
 from text_generation_server.pb import generate_pb2_grpc, generate_pb2
 from text_generation_server.tracing import UDSOpenTelemetryAioServerInterceptor
-from text_generation_server.models.globals import set_model_id
+from text_generation_server.models.globals import set_model_id, ATTENTION
 from text_generation_server.models.globals import set_adapter_to_index
 from text_generation_server.utils.adapter import AdapterInfo
 from text_generation_server.utils.tokens import make_tokenizer_optional
+from text_generation_server.utils.prefill_chunking import set_max_prefill_tokens
 
 try:
     from text_generation_server.models.pali_gemma import PaliGemmaBatch
@@ -109,14 +110,50 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
         return generate_pb2.FilterBatchResponse(batch=filtered_batch.to_pb())
 
     async def Warmup(self, request, context):
-        max_supported_total_tokens, max_input_tokens, max_total_tokens = (
-            self.model.warmup(request)
-        )
+        if ATTENTION == "paged":
+            set_max_prefill_tokens(request.max_prefill_tokens)
+            if (
+                self.model.batch_type in VLM_BATCH_TYPES
+            ):  # Hack, i would rather use kwargs in the `from_pb` call
+                batch = self.model.batch_type.from_pb_processor(
+                    request.batch,
+                    self.model.tokenizer,
+                    self.model.processor,
+                    self.model.model.config,
+                    self.model.dtype,
+                    self.model.device,
+                )
+            else:
+                batch = self.model.batch_type.from_pb(
+                    request.batch,
+                    self.model.tokenizer,
+                    self.model.dtype,
+                    self.model.device,
+                )
 
-        # W/A for the skip tokenizer path
-        # We need to call make_tokenizer_optional after the warmup,
-        # because router is not aware of that feature
-        make_tokenizer_optional(self.model.tokenizer)
+            # Override default values with None for clearer semantics.
+            max_input_tokens = (
+                request.max_input_tokens
+                if request.HasField("max_input_tokens")
+                else None
+            )
+            max_total_tokens = (
+                request.max_total_tokens
+                if request.HasField("max_total_tokens")
+                else None
+            )
+            max_supported_total_tokens, max_input_tokens, max_total_tokens = (
+                self.model.warmup(batch, max_input_tokens, max_total_tokens)
+            )
+        else:
+            max_supported_total_tokens, max_input_tokens, max_total_tokens = (
+                self.model.warmup(request)
+            )
+
+            # W/A for the skip tokenizer path
+            # We need to call make_tokenizer_optional after the warmup,
+            # because router is not aware of that feature
+            make_tokenizer_optional(self.model.tokenizer)
 
         return generate_pb2.WarmupResponse(
             max_supported_total_tokens=max_supported_total_tokens,

@@ -16,7 +16,8 @@ from text_generation_server.models.globals import PREFIX_CACHING
 from loguru import logger
 from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
-from text_generation_server.layers.attention import Seqlen
+from text_generation_server.layers.attention import Seqlen, trim_seqlen_metadata
+import habana_frameworks.torch as htorch
 
 tracer = trace.get_tracer(__name__)
 
@@ -447,6 +448,10 @@ class FlashVlmCausalLM(FlashCausalLM):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
 
+        kwargs = {}
+        if htorch.utils.internal.is_lazy():
+            kwargs["bypass_hpu_graphs"] = False
+
         seqlen = Seqlen(
             input_lengths=input_lengths,
             cache_lengths=cache_lengths_tensor,
@@ -459,13 +464,15 @@ class FlashVlmCausalLM(FlashCausalLM):
             kv_cache=kv_cache,
             block_tables=block_tables,
             slots=slots,
-            seqlen=seqlen,
+            seqlen=trim_seqlen_metadata(seqlen),
+            hpu_attention_meta=batch.hpu_attn_meta,
             prefill_cache_indices=batch.prefill_cache_indices,
             lm_head_indices=lm_head_indices,
             pixel_values=batch.pixel_values,
             pixel_attention_mask=batch.pixel_attention_mask,
             image_sizes=batch.image_sizes,
             image_grid_thw=batch.image_grid_thw,
+            **kwargs,
         )
         if batch.prefill_cache_indices is not None:
             batch.prefill_cache_indices = None

@@ -31,6 +31,7 @@ from text_generation_server.layers import (
 )
 from text_generation_server.layers.attention import (
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.models.custom_modeling.flash_llama_modeling import (
     FlashLlamaForCausalLM,
@@ -678,23 +679,23 @@ class MllamaTextCrossAttention(nn.Module):
         """Input shape: Batch x Time x Channel"""
         # hidden_states = hidden_states.unsqueeze(0)
         # bsz, q_len, _ = hidden_states.size()
-        query_states = self.q_proj(hidden_states)
-        query_states = query_states.view(-1, self.num_heads, self.head_size)
-        query_states = self.q_norm(query_states)
-
         (
             cross_attention_states,
             cu_seqlen_q,
             cu_seqlen_k,
-            max_q,
-            max_k,
             indices,
         ) = cross_attention_states
+        bs = cu_seqlen_q.size(0) - 1
+        query_states = self.q_proj(hidden_states)
+        query_states = query_states.view(bs, -1, self.num_heads, self.head_size)
+        query_states = self.q_norm(query_states)
 
         key_states = self.k_proj(cross_attention_states)
         value_states = self.v_proj(cross_attention_states)
-        key_states = key_states.view(-1, self.num_key_value_heads, self.head_size)
-        value_states = value_states.view(-1, self.num_key_value_heads, self.head_size)
+        key_states = key_states.view(bs, -1, self.num_key_value_heads, self.head_size)
+        value_states = value_states.view(
+            bs, -1, self.num_key_value_heads, self.head_size
+        )
         key_states = self.k_norm(key_states)
 
         # key_states = key_states.repeat(1, self.num_key_value_groups, 1)
@@ -705,9 +706,9 @@ class MllamaTextCrossAttention(nn.Module):
         #     f"Q: {query_states.shape} -K {key_states.shape} - V{value_states.shape}"
         # )
         # execute sdpa
-        query_states = query_states.unsqueeze(0).transpose(1, 2)
-        key_states = key_states.unsqueeze(0).transpose(1, 2)
-        value_states = value_states.unsqueeze(0).transpose(1, 2)
+        query_states = query_states.transpose(1, 2)
+        key_states = key_states.transpose(1, 2)
+        value_states = value_states.transpose(1, 2)
         fsdpa_op = ModuleFusedSDPA(FusedSDPA)
         attn_output = fsdpa_op(
             query_states,
@@ -803,9 +804,10 @@ class FlashLlamaCrossLayer(torch.nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
         adapter_data,
         cross_attention_states,  # [ IB, ...]
+        prefill_cache_indices,
+        hpu_attention_meta,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if cross_attention_states is None:
             return hidden_states, residual
@@ -912,7 +914,7 @@ class FlashMllamaForConditionalGeneration(nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor],
         adapter_data: Optional[torch.Tensor] = None,
@@ -949,8 +951,6 @@ class FlashMllamaForConditionalGeneration(nn.Module):
                     )
                     * seqlen_k
                 )
-                max_q = cu_seqlen_q[-1].item()
-                max_k = seqlen_k
             else:
                 cu_seqlen_q = torch.arange(
                     seqlen_q + 1, device=device, dtype=torch.int32
@@ -965,16 +965,12 @@ class FlashMllamaForConditionalGeneration(nn.Module):
                     )
                     * seqlen_k
                 )
-                max_q = seqlen_q
-                max_k = seqlen_k
                 indices = image_indices[:]
 
             cross_attention_states = (
                 cross_attention_states,
                 cu_seqlen_q,
                 cu_seqlen_k,
-                max_q,
-                max_k,
                 indices,
             )
 
@@ -986,7 +982,7 @@ class FlashMllamaForConditionalGeneration(nn.Module):
             block_tables=block_tables,
             slots=slots,
             seqlen=seqlen,
-            max_s=max_s,
+            hpu_attention_meta=hpu_attention_meta,
             prefill_cache_indices=prefill_cache_indices,
             lm_head_indices=lm_head_indices,
             adapter_data=adapter_data,

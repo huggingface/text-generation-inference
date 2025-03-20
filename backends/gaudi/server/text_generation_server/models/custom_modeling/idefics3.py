@@ -24,7 +24,7 @@ from transformers.activations import ACT2FN
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
 )
-from text_generation_server.layers.attention import Seqlen
+from text_generation_server.layers.attention import Seqlen, HPUPagedAttentionMetadata
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 
 from text_generation_server.layers import (
@@ -485,7 +485,7 @@ class Idefics3ForConditionalGeneration(nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
         pixel_values: torch.FloatTensor = None,
@@ -573,8 +573,7 @@ class Idefics3ForConditionalGeneration(nn.Module):
             block_tables=block_tables,
             slots=slots,
             seqlen=seqlen,
-            max_s=max_s,
-            true_max_s=max_s,
+            hpu_attention_meta=hpu_attention_meta,
             prefill_cache_indices=None,
             adapter_data=adapter_data,
         )

@@ -39,6 +39,7 @@ from text_generation_server.layers import (
 )
 from text_generation_server.layers.attention import (
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
     Qwen2Model,
@@ -482,7 +483,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor],
         pixel_values: torch.FloatTensor = None,
@@ -512,8 +513,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
             block_tables=block_tables,
             slots=slots,
             seqlen=seqlen,
-            max_s=max_s,
-            true_max_s=max_s,
+            hpu_attention_meta=hpu_attention_meta,
             prefill_cache_indices=prefill_cache_indices,
         )
         if lm_head_indices is not None:

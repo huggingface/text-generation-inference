@@ -17,8 +17,8 @@ from text_generation_server.models.flash_vlm_causal_lm import (
     FlashVlmCausalLM,
 )
 from text_generation_server.pb import generate_pb2
-from text_generation_server.layers.attention import Seqlen
-
+from text_generation_server.layers.attention import Seqlen, trim_seqlen_metadata
+import habana_frameworks.torch as htorch
 
 tracer = trace.get_tracer(__name__)
 
@@ -279,6 +279,10 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
 
         cross_attention_states = batch.cross_attention_states
 
+        kwargs = {}
+        if htorch.utils.internal.is_lazy():
+            kwargs["bypass_hpu_graphs"] = False
+
         logits, speculative_logits = self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,
@@ -286,13 +290,15 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             kv_cache=kv_cache,
             block_tables=block_tables,
             slots=slots,
-            seqlen=seqlen,
-            max_s=max_s,
+            seqlen=trim_seqlen_metadata(seqlen),
+            hpu_attention_meta=batch.hpu_attn_meta,
             prefill_cache_indices=batch.prefill_cache_indices,
             lm_head_indices=lm_head_indices,
             cross_attention_states=cross_attention_states,
-            adapter_data=adapter_data,
+            # TODO list
+            adapter_data=None,
             image_indices=batch.image_indices[:],
+            **kwargs,
         )
         if batch.prefill_cache_indices is not None:
             batch.prefill_cache_indices = None

@@ -61,7 +61,6 @@ from text_generation_server.utils import StoppingCriteria, HeterogeneousNextToke
 from text_generation_server.utils.dist import MEMORY_FRACTION
 from text_generation_server.utils.quantization import get_loader
 from text_generation_server.utils.segments import SegmentConcatBuilder, find_segments
-
 from text_generation_server.utils.import_utils import (
     empty_cache,
     synchronize,
@@ -77,10 +76,6 @@ tracer = trace.get_tracer(__name__)
 SLIDING_WINDOW: Optional[int] = None
 
 
-def small_power_of_2(n: int):
-    return 1 << ((n - 1).bit_length() - 1)
-
-
 def set_sliding_window(sliding_window: int):
     global SLIDING_WINDOW
     SLIDING_WINDOW = sliding_window
@@ -89,40 +84,6 @@ def set_sliding_window(sliding_window: int):
 def get_sliding_windows() -> int:
     global SLIDING_WINDOW
     return SLIDING_WINDOW
-
-
-def init_cpu_threads_env(rank_id: int, world_size: int):
-    import importlib.util
-
-    if importlib.util.find_spec("numa") is not None:
-        import numa
-        import psutil
-
-        nodes = numa.info.get_max_node() + 1
-        rank_per_node = math.ceil(world_size / nodes)
-        num_cpus_per_nodes = int(psutil.cpu_count(logical=False) / nodes)
-        node_id = int(rank_id / rank_per_node)
-        rank_offset_per_node = rank_id % rank_per_node
-        if os.getenv("OMP_NUM_THREADS") is None:
-            num_cpus_per_rank = max(int(num_cpus_per_nodes / rank_per_node), 1)
-        else:
-            num_cpus_per_rank = int(os.getenv("OMP_NUM_THREADS"))
-        if len(numa.memory.get_membind_nodes()) == nodes:
-            numa.memory.set_membind_nodes((node_id))
-        torch.set_num_threads(num_cpus_per_rank)
-        if len(numa.schedule.get_affinitive_cpus(0)) == psutil.cpu_count(logical=True):
-            cpu_start = num_cpus_per_rank * rank_offset_per_node
-            numa.schedule.run_on_cpus(
-                0,
-                *(
-                    numa.info.node_to_cpus(node_id)[
-                        cpu_start : cpu_start + num_cpus_per_rank
-                    ]
-                ),
-            )
-        logger.info(
-            f"affinity={numa.schedule.get_affinitive_cpus(0)}, membind = {numa.memory.get_membind_nodes()}"
-        )
 
 
 @dataclass
@@ -1447,16 +1408,13 @@ class FlashCausalLM(Model):
 
     def warmup(
         self,
-        request: generate_pb2.WarmupRequest,
+        batch: FlashCausalLMBatch,
+        max_input_tokens: Optional[int],
+        max_total_tokens: Optional[int],
     ):
         # The warmup batch is the biggest batch we could ever receive
         self.kv_cache = []
         empty_cache()
-        max_input_tokens = request.max_input_tokens
-        max_total_tokens = request.max_total_tokens
-        batch = self.batch_type.from_pb(
-            request.batch, self.tokenizer, self.dtype, self.device
-        )
 
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
@@ -1505,10 +1463,10 @@ class FlashCausalLM(Model):
         )
 
         log_master(logger.info, f"KV-cache blocks: {num_blocks}, size: {BLOCK_SIZE}")
-        if max_total_tokens is None or max_total_tokens == 0:
+        if max_total_tokens is None:
             max_total_tokens = sum(batch.cache_lengths)
 
-        if max_input_tokens is None or max_input_tokens == 0:
+        if max_input_tokens is None:
             max_input_tokens = max_total_tokens - 1
 
         del _batch, batch
