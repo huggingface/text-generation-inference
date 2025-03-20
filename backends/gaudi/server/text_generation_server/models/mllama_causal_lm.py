@@ -1,15 +1,21 @@
-from io import BytesIO
-from PIL import Image
 import torch
+
+import numpy as np
+
 from typing import Iterable, Optional, Tuple, List, Dict
 from text_generation_server.pb.generate_pb2 import Request
-
+from io import BytesIO
+from PIL import Image
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import (
     PreTrainedTokenizerBase,
 )
-from text_generation_server.models.vlm_causal_lm import VlmCausalLMBatch, VlmCausalLM
+
+from text_generation_server.models.flash_vlm_causal_lm import (
+    FlashVlmCausalLMBatch,
+    FlashVlmCausalLM,
+)
 from text_generation_server.pb import generate_pb2
 from text_generation_server.layers.attention import Seqlen
 
@@ -18,7 +24,7 @@ tracer = trace.get_tracer(__name__)
 
 
 @dataclass
-class MllamaCausalLMBatch(VlmCausalLMBatch):
+class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
     image_indices: List[int] = 42
     aspect_ratio_ids: Optional[torch.Tensor] = None
     aspect_ratio_mask: Optional[torch.Tensor] = None
@@ -154,7 +160,7 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         config,
         dtype: torch.dtype,
         device: torch.device,
-    ) -> "VlmCausalLMBatch":
+    ) -> "FlashVlmCausalLMBatch":
         batch_tokenized_inputs, image_inputs = cls.batch_tokenized_inputs(
             pb.requests, tokenizer, processor, config
         )
@@ -163,6 +169,13 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         batch.all_input_ids_tensor = batch.all_input_ids_tensor.clamp(
             max=config.text_config.vocab_size - 1
         )
+        if isinstance(batch.input_ids, list):
+            if len(batch) > 1:
+                input_ids = np.concatenate(batch.input_ids, dtype=np.int64)
+            else:
+                input_ids = batch.input_ids[0]
+            batch.input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
+
         batch.input_ids = batch.input_ids.clamp(max=config.text_config.vocab_size - 1)
 
         if image_inputs is not None:
@@ -183,10 +196,10 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         return batch
 
 
-class MllamaCausalLM(VlmCausalLM):
+class FlashMllamaCausalLM(FlashVlmCausalLM):
     def forward(
         self,
-        batch: VlmCausalLMBatch,
+        batch: FlashMllamaCausalLMBatch,
         adapter_data: Optional[Dict[str, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # Model Forward
@@ -198,7 +211,7 @@ class MllamaCausalLM(VlmCausalLM):
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
-            max_s = batch.max_seqlen
+            max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
             speculative_ids = batch.speculative_ids
@@ -217,8 +230,8 @@ class MllamaCausalLM(VlmCausalLM):
             input_lengths = (
                 input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int
             ).view(-1)
-            prefix_lens_tensor = (
-                batch.prefix_lens_tensor.unsqueeze(-1).expand(B, new_length)
+            cache_lengths_tensor = (
+                batch.cache_lengths_tensor.unsqueeze(-1).expand(B, new_length)
             ).reshape(-1)
 
             # Add Copy the block tables for all members
@@ -240,8 +253,8 @@ class MllamaCausalLM(VlmCausalLM):
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
-            prefix_lens_tensor = batch.prefix_lens_tensor
-            max_s = batch.max_seqlen
+            cache_lengths_tensor = batch.cache_lengths_tensor
+            max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
         if cu_seqlen_prefill is None and self.max_past() is not None:
@@ -250,14 +263,10 @@ class MllamaCausalLM(VlmCausalLM):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
 
-        input_lengths = input_lengths + prefix_lens_tensor
-        max_k = (input_lengths + prefix_lens_tensor).max().item()
         seqlen = Seqlen(
             input_lengths=input_lengths,
-            prefix_lengths=prefix_lens_tensor,
+            cache_lengths=cache_lengths_tensor,
             cu_seqlen_q=cu_seqlen_prefill,
-            max_q=max_s,
-            max_k=max_k,
         )
 
         if batch.pixel_values is not None:

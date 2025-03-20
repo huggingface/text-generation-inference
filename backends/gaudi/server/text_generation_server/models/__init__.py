@@ -19,18 +19,10 @@ from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.bloom import BLOOM
 from text_generation_server.models.starcoder import StarCoder
-from text_generation_server.models.vlm_causal_lm import VlmCausalLM
-from text_generation_server.models.custom_modeling.mllama import (
-    MllamaForConditionalGeneration,
-)
-from text_generation_server.models.custom_modeling.llava_next import (
-    LlavaNextForConditionalGeneration,
-)
 from text_generation_server.models.custom_modeling.flash_phi_moe_modeling import (
     PhiMoEConfig,
 )
 
-# from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
 from text_generation_server.utils.adapter import (
     AdapterParameters,
     build_layer_weight_lookup,
@@ -58,8 +50,8 @@ if ATTENTION == "paged":
 
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
-    from text_generation_server.models.vlm_causal_lm import VlmCausalLM
-    from text_generation_server.models.mllama_causal_lm import MllamaCausalLM
+    from text_generation_server.models.flash_vlm_causal_lm import FlashVlmCausalLM
+    from text_generation_server.models.mllama_causal_lm import FlashMllamaCausalLM
     from text_generation_server.models.custom_modeling.flash_deepseek_v2_modeling import (
         FlashDeepseekV2ForCausalLM,
         DeepseekV2Config,
@@ -101,12 +93,12 @@ try:
         FlashPhiForCausalLM,
     )
     from text_generation_server.models.idefics_causal_lm import IdeficsCausalLM
-    from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
-    from text_generation_server.models.custom_modeling.mllama import (
-        MllamaForConditionalGeneration,
+    from text_generation_server.models.mllama_causal_lm import FlashMllamaCausalLMBatch
+    from text_generation_server.models.custom_modeling.flash_mllama import (
+        FlashMllamaForConditionalGeneration,
     )
-    from text_generation_server.models.custom_modeling.llava_next import (
-        LlavaNextForConditionalGeneration,
+    from text_generation_server.models.custom_modeling.flash_llava_next import (
+        FlashLlavaNextForConditionalGeneration,
     )
 
     from text_generation_server.models.custom_modeling.flash_santacoder_modeling import (
@@ -751,7 +743,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
         elif model_type == QWEN2_VL:
-            return VlmCausalLM(
+            return FlashVlmCausalLM(
                 model_id=model_id,
                 model_class=Qwen2VLForConditionalGeneration,
                 revision=revision,
@@ -764,7 +756,7 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
             )
         elif model_type == QWEN2_5_VL:
-            return VlmCausalLM(
+            return FlashVlmCausalLM(
                 model_id=model_id,
                 model_class=Qwen2_5VLForConditionalGeneration,
                 revision=revision,
@@ -779,10 +771,10 @@ def get_model(
                 processor_class=Qwen2_5_VLProcessor,
             )
         elif model_type == MLLAMA:
-            return MllamaCausalLM(
+            return FlashMllamaCausalLM(
                 model_id=model_id,
-                model_class=MllamaForConditionalGeneration,
-                batch_class=MllamaCausalLMBatch,
+                model_class=FlashMllamaForConditionalGeneration,
+                batch_class=FlashMllamaCausalLMBatch,
                 revision=revision,
                 quantize=quantize,
                 speculator=speculator,
@@ -792,7 +784,7 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
             )
         elif model_type == IDEFICS2:
-            return VlmCausalLM(
+            return FlashVlmCausalLM(
                 model_id=model_id,
                 model_class=Idefics2ForConditionalGeneration,
                 revision=revision,
@@ -807,7 +799,7 @@ def get_model(
                 processor_kwargs={"size": {"longest_edge": 448, "shortest_edge": 378}},
             )
         elif model_type == IDEFICS3:
-            return VlmCausalLM(
+            return FlashVlmCausalLM(
                 model_id=model_id,
                 model_class=Idefics3ForConditionalGeneration,
                 revision=revision,
@@ -822,7 +814,7 @@ def get_model(
                 processor_kwargs={"size": {"longest_edge": 1456}},
             )
         elif model_type == PALIGEMMA:
-            return VlmCausalLM(
+            return FlashVlmCausalLM(
                 model_id=model_id,
                 model_class=PaliGemmaForConditionalGeneration,
                 revision=revision,
@@ -837,8 +829,8 @@ def get_model(
                 batch_class=PaliGemmaBatch,
             )
         elif model_type == LLAVA_NEXT:
-            return VlmCausalLM(
-                model_class=LlavaNextForConditionalGeneration,
+            return FlashVlmCausalLM(
+                model_class=FlashLlavaNextForConditionalGeneration,
                 model_id=model_id,
                 revision=revision,
                 quantize=quantize,
@@ -847,6 +839,15 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
             )
+
+    from text_generation_server.models.vlm_causal_lm import VlmCausalLM
+    from text_generation_server.models.custom_modeling.mllama import (
+        MllamaForConditionalGeneration,
+    )
+    from text_generation_server.models.custom_modeling.llava_next import (
+        LlavaNextForConditionalGeneration,
+    )
+
     adapt_transformers_to_gaudi()
     if SDP_ON_BF16 == 1:
         torch._C._set_math_sdp_allow_fp16_bf16_reduction(True)

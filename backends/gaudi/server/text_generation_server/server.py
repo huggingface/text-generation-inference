@@ -25,15 +25,21 @@ from text_generation_server.utils.tokens import make_tokenizer_optional
 
 try:
     from text_generation_server.models.pali_gemma import PaliGemmaBatch
+    from text_generation_server.models.mllama_causal_lm import FlashMllamaCausalLMBatch
     from text_generation_server.models.vlm_causal_lm import (
         VlmCausalLMBatch,
+    )
+    from text_generation_server.models.flash_vlm_causal_lm import (
+        FlashVlmCausalLMBatch,
     )
     from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
 
     VLM_BATCH_TYPES = {
         PaliGemmaBatch,
         VlmCausalLMBatch,
+        FlashVlmCausalLMBatch,
         IdeficsCausalLMBatch,
+        FlashMllamaCausalLMBatch,
     }
 except (ImportError, NotImplementedError):
     # These imports can fail on CPU/Non flash.

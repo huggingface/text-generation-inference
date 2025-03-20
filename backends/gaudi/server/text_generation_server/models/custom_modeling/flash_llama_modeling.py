@@ -503,7 +503,7 @@ class FlashLlamaModel(torch.nn.Module):
         # Skip first and last layers
         for layer_id in range(1, config.num_hidden_layers - 1):
             if layer_id in self.cross_attention_layers:
-                from text_generation_server.models.custom_modeling.mllama import (
+                from text_generation_server.models.custom_modeling.flash_mllama import (
                     FlashLlamaCrossLayer,
                 )
 
