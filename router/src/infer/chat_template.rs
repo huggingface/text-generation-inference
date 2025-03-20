@@ -16,7 +16,7 @@ pub(crate) fn strftime_now(format_str: String) -> Result<String, minijinja::Erro
     Ok(Local::now().format(&format_str).to_string())
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct ChatTemplate {
     template: Template<'static, 'static>,
     bos_token: Option<String>,
@@ -33,7 +33,16 @@ impl ChatTemplate {
         let mut env = Box::new(Environment::new());
         // enable things like .strip() or .capitalize()
         env.set_unknown_method_callback(pycompat::unknown_method_callback);
-        let template_str = template.into_boxed_str();
+
+        // TODO: replace with better solution
+        // hack to adjust gemma3 template for debug
+        // replace 'messages[0]['content'][0]['text']' with 'messages[0]['content']'
+        let mutated_template = template.replace(
+            "messages[0]['content'][0]['text']",
+            "messages[0]['content']",
+        );
+
+        let template_str = mutated_template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
         env.add_function("strftime_now", strftime_now);
         tracing::debug!("Loading template: {}", template_str);
@@ -123,8 +132,8 @@ mod tests {
     use crate::infer::chat_template::{raise_exception, strftime_now};
     use crate::infer::ChatTemplate;
     use crate::{
-        ChatTemplateInputs, Message, MessageBody, MessageContent, TextMessage,
-        TokenizerConfigToken, Tool,
+        ChatTemplateInputs, Message, MessageBody, MessageChunk, MessageContent, TextMessage,
+        TokenizerConfigToken, Tool, Url,
     };
     use chrono::Local;
     use minijinja::Environment;
@@ -1228,6 +1237,100 @@ TOOL CALL ID: 0
         let tools_and_prompt = Some((tools, tool_prompt));
         let result = ct.apply(msgs, tools_and_prompt);
         let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n    \"function\": {\n        \"arguments\": \"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"location\\\":{\\\"type\\\":\\\"string\\\",\\\"description\\\":\\\"The city and state, e.g. San Francisco, CA\\\"},\\\"format\\\":{\\\"type\\\":\\\"string\\\",\\\"enum\\\":[\\\"celsius\\\",\\\"fahrenheit\\\"],\\\"description\\\":\\\"The temperature unit to use. Infer this from the users location.\\\"}},\\\"required\\\":[\\\"location\\\",\\\"format\\\"]}\",\n        \"description\": \"Get the current weather\",\n        \"name\": \"get_current_weather\"\n    },\n    \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
+        assert_eq!(result.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_chat_template_with_special_system_prompt() {
+        // chat template from gemma3
+        let ct = ChatTemplate::new(
+            r#"{{ bos_token }}
+{%- if messages[0]['role'] == 'system' -%}
+    {%- set first_user_prefix = messages[0]['content'][0]['text'] + '
+
+' -%}
+    {%- set loop_messages = messages[1:] -%}
+{%- else -%}
+    {%- set first_user_prefix = "" -%}
+    {%- set loop_messages = messages -%}
+{%- endif -%}
+{%- for message in loop_messages -%}
+    {%- if (message['role'] == 'user') != (loop.index0 % 2 == 0) -%}
+        {{ raise_exception("Conversation roles must alternate user/assistant/user/assistant/...") }}
+    {%- endif -%}
+    {%- if (message['role'] == 'assistant') -%}
+        {%- set role = "model" -%}
+    {%- else -%}
+        {%- set role = message['role'] -%}
+    {%- endif -%}
+    {{ '<start_of_turn>' + role + '
+' + (first_user_prefix if loop.first else "") }}
+    {%- if message['content'] is string -%}
+        {{ message['content'] | trim }}
+    {%- elif message['content'] is iterable -%}
+        {%- for item in message['content'] -%}
+            {%- if item['type'] == 'image' -%}
+                {{ '<start_of_image>' }}
+            {%- elif item['type'] == 'text' -%}
+                {{ item['text'] | trim }}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- else -%}
+        {{ raise_exception("Invalid content type") }}
+    {%- endif -%}
+    {{ '<end_of_turn>
+' }}
+{%- endfor -%}
+{%- if add_generation_prompt -%}
+    {{'<start_of_turn>model
+'}}
+{%- endif -%}
+"#
+            .to_string(),
+            Some(TokenizerConfigToken::String("<bos>".to_string())),
+            Some(TokenizerConfigToken::String("</eos>".to_string())),
+        );
+        let msgs: Vec<Message> = vec![
+            Message {
+                name: None,
+                role: "system".to_string(),
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![MessageChunk::Text {
+                        text: "You are a helpful assistant.".to_string(),
+                    }]),
+                },
+            },
+            Message {
+                name: None,
+                role: "user".to_string(),
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![
+                        MessageChunk::Text {
+                            text: "I'm already using this supplement ".to_string(),
+                        },
+                        MessageChunk::ImageUrl {
+                            image_url: Url {
+                                url:  "https://huggingface.co/datasets/merve/vlm_test_images/resolve/main/IMG_3018.JPG".to_string()
+                            },
+                        },
+                        MessageChunk::Text {
+                            text: "and I want to use this one too ".to_string()
+                        },
+                        MessageChunk::ImageUrl {
+                            image_url: Url {
+                                url: "https://huggingface.co/datasets/merve/vlm_test_images/resolve/main/IMG_3015.jpg".to_string()
+                            },
+                        },
+                        MessageChunk::Text {
+                            text: " what are cautions?".to_string()
+                        },
+                    ]),
+                },
+            },
+        ];
+
+        let result = ct.apply(msgs, None);
+        let expected = "<bos><start_of_turn>user\nYou are a helpful assistant.\n\nI'm already using this supplement ![](https://huggingface.co/datasets/merve/vlm_test_images/resolve/main/IMG_3018.JPG)and I want to use this one too ![](https://huggingface.co/datasets/merve/vlm_test_images/resolve/main/IMG_3015.jpg) what are cautions?<end_of_turn>\n<start_of_turn>model\n".to_string();
         assert_eq!(result.unwrap(), expected);
     }
 }

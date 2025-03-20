@@ -1,6 +1,6 @@
 # Those arguments are required to build the image
-ARG HABANA_VERSION
-ARG PYTORCH_VERSION
+ARG HABANA_VERSION=1.20.0
+ARG PYTORCH_VERSION=2.6.0
 
 # Rust builder
 FROM lukemathwalker/cargo-chef:latest-rust-1.85.0 AS chef
@@ -92,7 +92,6 @@ RUN cd server && \
     make gen-server && \
     pip install --no-deps -r requirements.txt && \
     bash ./dill-0.3.8-patch.sh && \
-    pip install outlines~=0.0.34 && \
     pip install "git+https://github.com/HabanaAI/DeepSpeed.git@${HABANA_VERSION}" && \
     BUILD_CUDA_EXT=0 pip install git+https://github.com/AutoGPTQ/AutoGPTQ.git@097dd04e --no-build-isolation && \
     pip install . --no-cache-dir

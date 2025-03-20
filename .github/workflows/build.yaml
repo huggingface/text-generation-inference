@@ -124,6 +124,15 @@ jobs:
                 export extra_pytest="--neuron"
                 export target=""
                 ;;
+            gaudi)
+                export dockerfile="Dockerfile_gaudi"
+                export label_extension="-gaudi"
+                export docker_volume="/mnt/cache"
+                export docker_devices=""
+                export runs_on="ubuntu-latest"
+                export platform=""
+                export extra_pytest=""
+                export target=""
           esac
           echo $dockerfile
           echo "Dockerfile=${dockerfile}"
@@ -224,7 +233,12 @@ jobs:
       - name: Final
         id: final
         run: |
-          echo "docker_image=docker.io/huggingface/text-generation-inference-ci:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL_EXTENSION }}" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "docker_image=docker.io/huggingface/text-generation-inference-ci:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL_EXTENSION }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "docker_image=ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL_EXTENSION }}" >> "$GITHUB_OUTPUT"
+          fi
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "docker_volume=${{ env.DOCKER_VOLUME }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"

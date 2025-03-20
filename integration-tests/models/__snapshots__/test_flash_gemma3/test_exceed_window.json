@@ -1,0 +1,109 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "eos_token",
+    "generated_tokens": 16,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 506,
+        "logprob": -1.3984375,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 1331,
+        "logprob": -1.6953125,
+        "special": false,
+        "text": " people"
+      },
+      {
+        "id": 236764,
+        "logprob": -0.23535156,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 532,
+        "logprob": -0.24316406,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 506,
+        "logprob": -0.12109375,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 2780,
+        "logprob": -1.1640625,
+        "special": false,
+        "text": " food"
+      },
+      {
+        "id": 236761,
+        "logprob": -0.21386719,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 108,
+        "logprob": -0.64453125,
+        "special": false,
+        "text": "\n\n"
+      },
+      {
+        "id": 2094,
+        "logprob": -0.77734375,
+        "special": false,
+        "text": "This"
+      },
+      {
+        "id": 563,
+        "logprob": -0.040283203,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 496,
+        "logprob": -0.03125,
+        "special": false,
+        "text": " a"
+      },
+      {
+        "id": 6290,
+        "logprob": -0.03515625,
+        "special": false,
+        "text": " nice"
+      },
+      {
+        "id": 1977,
+        "logprob": -0.0020751953,
+        "special": false,
+        "text": " place"
+      },
+      {
+        "id": 236761,
+        "logprob": -0.0079956055,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 107,
+        "logprob": -0.9921875,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 106,
+        "logprob": -0.45507812,
+        "special": true,
+        "text": "<end_of_turn>"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": " the people, and the food.\n\nThis is a nice place.\n"
+}

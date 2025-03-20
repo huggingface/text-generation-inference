@@ -18,6 +18,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+use tracing::warn;
 use tracing::{instrument, Span};
 use {once_cell::sync::Lazy, regex::Regex};
 
@@ -694,6 +695,14 @@ fn image_tokens(
             "<|vision_start|>{:?}<|vision_end|>",
             "<|image_pad|>".repeat(config.get_number_of_features(height, width))
         ),
+        Gemma3(_config) => {
+            // TODO: prefer using the config to determine the number of features
+            let num_mm_soft_tokens_per_image = 256;
+            format!(
+                "\n\n<start_of_image>{}<end_of_image>\n\n",
+                "<image_soft_token>".repeat(num_mm_soft_tokens_per_image)
+            )
+        }
         _ => unimplemented!("Images tokens are not supported for this model configuration"),
     }
 }
@@ -721,8 +730,8 @@ fn prepare_input<T: TokenizerTrait>(
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     let (tokenizer_query, input_chunks) = match config {
         Some(
-            config @ (Idefics | Mllama | Idefics2(_) | Idefics3(_) | Paligemma(_) | LlavaNext(_)
-            | Qwen2Vl(_) | Qwen2_5Vl(_)),
+            config @ (Idefics | Mllama | Idefics2(_) | Idefics3(_) | Gemma3(_) | Paligemma(_)
+            | LlavaNext(_) | Qwen2Vl(_) | Qwen2_5Vl(_)),
         ) => {
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());

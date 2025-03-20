@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "Here's a description of what's shown in the image:\n\nThe image depicts a brown cow standing on a sandy beach. The beach has turquoise water and a distant island visible in the background. The sky is bright blue with some white clouds. \n\nIt's a quite a humorous and unusual scene – a cow enjoying a day at the beach!",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1741964480,
+  "id": "",
+  "model": "google/gemma-3-4b-it",
+  "object": "chat.completion",
+  "system_fingerprint": "3.2.1-dev0-native",
+  "usage": {
+    "completion_tokens": 74,
+    "prompt_tokens": 275,
+    "total_tokens": 349
+  }
+}

@@ -3,7 +3,7 @@
     "choices": [
       {
         "delta": {
-          "content": "There",
+          "content": "Once",
           "role": "assistant",
           "tool_calls": null
         },
@@ -12,7 +12,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -23,7 +23,7 @@
     "choices": [
       {
         "delta": {
-          "content": " was",
+          "content": " upon",
           "role": "assistant",
           "tool_calls": null
         },
@@ -32,7 +32,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -52,7 +52,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -63,7 +63,7 @@
     "choices": [
       {
         "delta": {
-          "content": " wise",
+          "content": " time",
           "role": "assistant",
           "tool_calls": null
         },
@@ -72,7 +72,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -83,7 +83,7 @@
     "choices": [
       {
         "delta": {
-          "content": " old",
+          "content": ",",
           "role": "assistant",
           "tool_calls": null
         },
@@ -92,147 +92,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " oct",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": "opus",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " named",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " Oracle",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": ".",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " He",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " lived",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -252,7 +112,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -272,7 +132,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -283,7 +143,7 @@
     "choices": [
       {
         "delta": {
-          "content": " cozy",
+          "content": " vibrant",
           "role": "assistant",
           "tool_calls": null
         },
@@ -292,887 +152,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " little",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " cave",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " beneath",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " the",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " waves",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " with",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " his",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " best",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " friend",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": ",",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263688,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " a",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " curious",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " se",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": "ah",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": "orse",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " named",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " Fin",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": "ley",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": ".",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " One",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " day",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": ",",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " Fin",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": "ley",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " met",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " a",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " playful",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " dolphin",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " named",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " Daisy",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": ",",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " and",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " the",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " three",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " became",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " inse",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": "parable",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": ".",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " They",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263689,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " spent",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " their",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " days",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " exploring",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " the",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1192,7 +172,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1203,7 +183,7 @@
     "choices": [
       {
         "delta": {
-          "content": ",",
+          "content": " filled",
           "role": "assistant",
           "tool_calls": null
         },
@@ -1212,7 +192,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1223,7 +203,7 @@
     "choices": [
       {
         "delta": {
-          "content": " playing",
+          "content": " with",
           "role": "assistant",
           "tool_calls": null
         },
@@ -1232,7 +212,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1243,7 +223,7 @@
     "choices": [
       {
         "delta": {
-          "content": " hide",
+          "content": " coral",
           "role": "assistant",
           "tool_calls": null
         },
@@ -1252,7 +232,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1263,7 +243,7 @@
     "choices": [
       {
         "delta": {
-          "content": "-and",
+          "content": " reefs",
           "role": "assistant",
           "tool_calls": null
         },
@@ -1272,67 +252,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": "-se",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": "ek",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": ",",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1352,7 +272,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1363,7 +283,7 @@
     "choices": [
       {
         "delta": {
-          "content": " learning",
+          "content": " schools",
           "role": "assistant",
           "tool_calls": null
         },
@@ -1372,67 +292,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " about",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " the",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
-    "id": "",
-    "model": "meta-llama/Llama-3.1-8B-Instruct",
-    "object": "chat.completion.chunk",
-    "system_fingerprint": "3.1.2-dev0-native",
-    "usage": null
-  },
-  {
-    "choices": [
-      {
-        "delta": {
-          "content": " wonders",
-          "role": "assistant",
-          "tool_calls": null
-        },
-        "finish_reason": null,
-        "index": 0,
-        "logprobs": null
-      }
-    ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1452,7 +312,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1463,7 +323,7 @@
     "choices": [
       {
         "delta": {
-          "content": " the",
+          "content": " shimmer",
           "role": "assistant",
           "tool_calls": null
         },
@@ -1472,7 +332,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1483,7 +343,7 @@
     "choices": [
       {
         "delta": {
-          "content": " sea",
+          "content": "ing",
           "role": "assistant",
           "tool_calls": null
         },
@@ -1492,7 +352,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1503,7 +363,7 @@
     "choices": [
       {
         "delta": {
-          "content": " from",
+          "content": " fish",
           "role": "assistant",
           "tool_calls": null
         },
@@ -1512,7 +372,7 @@
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",
@@ -1523,16 +383,16 @@
     "choices": [
       {
         "delta": {
-          "content": " Oracle",
+          "content": ",",
           "role": "assistant",
           "tool_calls": null
         },
-        "finish_reason": null,
+        "finish_reason": "length",
         "index": 0,
         "logprobs": null
       }
     ],
-    "created": 1741263690,
+    "created": 1741695408,
     "id": "",
     "model": "meta-llama/Llama-3.1-8B-Instruct",
     "object": "chat.completion.chunk",

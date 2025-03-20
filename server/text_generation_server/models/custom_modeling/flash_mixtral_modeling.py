@@ -290,6 +290,7 @@ class MixtralAttention(torch.nn.Module):
                 seqlen,
                 max_s,
                 kv_scales=self.kv_scales,
+                window_size_left=self.max_past,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))

@@ -20,8 +20,9 @@ from text_generation_server.models.causal_lm import CausalLM
 from text_generation_server.models.bloom import BLOOM
 from text_generation_server.models.starcoder import StarCoder
 from text_generation_server.models.vlm_causal_lm import VlmCausalLM
-
-# from text_generation_server.models.mllama_causal_lm import MllamaCausalLM
+from text_generation_server.models.custom_modeling.mllama import (
+    MllamaForConditionalGeneration,
+)
 from text_generation_server.models.custom_modeling.llava_next import (
     LlavaNextForConditionalGeneration,
 )
@@ -30,9 +31,6 @@ from text_generation_server.models.custom_modeling.flash_phi_moe_modeling import
 )
 
 # from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
-# from text_generation_server.models.custom_modeling.mllama import (
-#     MllamaForConditionalGeneration,
-# )
 from text_generation_server.utils.adapter import (
     AdapterParameters,
     build_layer_weight_lookup,
@@ -329,6 +327,7 @@ __GLOBALS = locals()
 for data in ModelType:
     __GLOBALS[data.name] = data.value["type"]
 
+SDP_ON_BF16 = int(os.environ.get("SDP_ON_BF16", 0))
 # Disable gradients
 torch.set_grad_enabled(False)
 
@@ -849,6 +848,8 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
     adapt_transformers_to_gaudi()
+    if SDP_ON_BF16 == 1:
+        torch._C._set_math_sdp_allow_fp16_bf16_reduction(True)
     if model_type == "gpt_bigcode":
         return StarCoder(model_id=model_id, revision=revision, dtype=dtype)
     if model_type == "bloom":
@@ -863,6 +864,17 @@ def get_model(
     if model_type == "llava_next":
         return VlmCausalLM(
             model_class=LlavaNextForConditionalGeneration,
+            model_id=model_id,
+            revision=revision,
+            quantize=None,
+            speculator=speculator,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
+
+    if model_type == "mllama":
+        return VlmCausalLM(
+            model_class=MllamaForConditionalGeneration,
             model_id=model_id,
             revision=revision,
             quantize=None,

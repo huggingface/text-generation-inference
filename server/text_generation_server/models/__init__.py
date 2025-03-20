@@ -106,6 +106,17 @@ try:
     from text_generation_server.models.custom_modeling.flash_gemma2_modeling import (
         FlashGemma2ForCausalLM,
     )
+    from text_generation_server.models.custom_modeling.flash_gemma3_modeling import (
+        FlashGemma3ForCausalLM,
+        Gemma3ForConditionalGeneration,
+    )
+    from text_generation_server.models.custom_modeling.gemma3.processing_gemma3 import (
+        Gemma3Processor,
+    )
+    from text_generation_server.models.custom_modeling.gemma3.configuration_gemma3 import (
+        Gemma3Config,
+        Gemma3TextConfig,
+    )
     from text_generation_server.models.custom_modeling.flash_dbrx_modeling import (
         FlashDbrxForCausalLM,
         DbrxConfig,
@@ -257,6 +268,16 @@ class ModelType(enum.Enum):
         "type": "gemma2",
         "name": "Gemma2",
         "url": "https://huggingface.co/collections/google/gemma-2-release-667d6600fd5220e7b967f315",
+    }
+    GEMMA3 = {
+        "type": "gemma3",
+        "name": "Gemma3",
+        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d",
+    }
+    GEMMA3_TEXT = {
+        "type": "gemma3_text",
+        "name": "Gemma3 Text",
+        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d",
     }
     COHERE = {
         "type": "cohere",
@@ -1085,6 +1106,83 @@ def get_model(
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma2"))
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == GEMMA3_TEXT:
+        if FLASH_ATTENTION:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashGemma3ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                # TODO: once implemented in transformers, use the config class
+                # and processor class from there.
+                config_class=Gemma3TextConfig,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma3"))
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == GEMMA3:
+        if FLASH_ATTENTION:
+            # TODO: Use VlmCausalLM when image support is added.
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Gemma3ForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                # TODO: once implemented in transformers, use the config class
+                # and processor class from there.
+                config_class=Gemma3Config,
+                processor_class=Gemma3Processor,
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma3"))
         else:
             return CausalLM.fallback(
                 model_id,

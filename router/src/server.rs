@@ -1,3 +1,4 @@
+use crate::chat::{ChatChoice, ChatEvent, ChatState};
 /// HTTP Server logic
 use crate::config::Config;
 use crate::infer::{Backend, Infer, InferError, InferResponse, InferStreamResponse};
@@ -47,8 +48,6 @@ use http::header::AUTHORIZATION;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
-use regex::Regex;
-use serde_json::Value;
 use std::convert::Infallible;
 use std::fs::File;
 use std::io::BufReader;
@@ -1114,62 +1113,6 @@ pub(crate) async fn completions(
     }
 }
 
-enum StreamState {
-    Buffering,
-    BufferTrailing,
-    Content { skip_close_quote: bool },
-}
-
-/// Convert a StreamResponse into an Event to be sent over SSE
-fn create_event_from_stream_token(
-    stream_token: &StreamResponse,
-    logprobs: bool,
-    inner_using_tools: bool,
-    system_fingerprint: String,
-    model_id: String,
-) -> Event {
-    let event = Event::default();
-    let current_time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-        .as_secs();
-
-    let logprobs = logprobs.then(|| {
-        ChatCompletionLogprobs::from((stream_token.token.clone(), stream_token.top_tokens.clone()))
-    });
-
-    // replace the content with the tool calls if grammar is present
-    let (content, tool_calls) = if inner_using_tools {
-        (None, Some(vec![stream_token.token.text.clone()]))
-    } else {
-        let content = if !stream_token.token.special {
-            Some(stream_token.token.text.clone())
-        } else {
-            None
-        };
-
-        (content, None)
-    };
-    let finish_reason = stream_token
-        .details
-        .as_ref()
-        .map(|details| details.finish_reason.format(true));
-    let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
-        model_id.clone(),
-        system_fingerprint.clone(),
-        content,
-        tool_calls,
-        current_time,
-        logprobs,
-        finish_reason,
-    ));
-
-    event.json_data(chat_complete).unwrap_or_else(|e| {
-        println!("Failed to serialize ChatCompletionChunk: {:?}", e);
-        Event::default()
-    })
-}
-
 /// Generate tokens
 #[utoipa::path(
 post,
@@ -1208,7 +1151,7 @@ pub(crate) async fn chat_completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
-    Json(chat): Json<ChatRequest>,
+    Json(mut chat): Json<ChatRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
     metrics::counter!("tgi_request_count").increment(1);
@@ -1219,8 +1162,11 @@ pub(crate) async fn chat_completions(
         logprobs,
         ..
     } = chat.clone();
+
+    tracing::debug!("Got chat_template {:?}", infer.chat_template);
+    let id = chat.next_tool_call_id();
     let (generate_request, using_tools): (GenerateRequest, bool) =
-        chat.try_into_generate(&infer)?;
+        chat.clone().try_into_generate(&infer)?;
     span.record("parameters", format!("{:?}", generate_request.parameters));
     let logprobs = logprobs.unwrap_or_default();
 
@@ -1232,167 +1178,41 @@ pub(crate) async fn chat_completions(
     let system_fingerprint = format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
     // switch on stream
     if stream {
-        let (headers, response_stream) =
-            generate_stream_internal(infer, compute_type, Json(generate_request), span).await;
-
-        // regex to match any function name
-        let function_regex = match Regex::new(r#"\{"function":\{"_name":"([^"]+)""#) {
-            Ok(regex) => regex,
-            Err(e) => {
-                return Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: format!("Failed to compile regex: {}", e),
-                        error_type: "regex".to_string(),
-                    }),
-                ))
-            }
-        };
+        let (headers, response_stream) = generate_stream_internal(
+            infer.clone(),
+            compute_type.clone(),
+            Json(generate_request),
+            span.clone(),
+        )
+        .await;
 
         let response_stream = async_stream::stream! {
             let mut response_stream = Box::pin(response_stream);
-            let mut buffer = Vec::new();
-            let mut json_buffer = String::new();
-            let mut state = if using_tools {
-                StreamState::Buffering
-            } else {
-                StreamState::Content {
-                    skip_close_quote: false,
-                }
-            };
-            let mut response_as_tool = using_tools;
+            let mut state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
             while let Some(result) = response_stream.next().await {
                 match result{
                 Ok(stream_token) => {
-                    let token_text = &stream_token.token.text.clone();
-                    let usage = stream_token.details.as_ref().map(|details| {
-                        let completion_tokens = details.generated_tokens;
-                        let prompt_tokens = details.input_length;
-                        let total_tokens = prompt_tokens + completion_tokens;
-
-                        Usage {
-                            completion_tokens,
-                            prompt_tokens,
-                            total_tokens,
+                    let events = state.push(stream_token);
+                    match events{
+                        ChatEvent::NoTool => {
+                            chat.tools = None;
+                            chat.response_format = None;
+                            let (generate_request, using_tools): (GenerateRequest, bool) =
+                                chat.clone().try_into_generate(&infer).unwrap();
+                            assert!(!using_tools);
+                            let (_headers, response_stream2) =
+                                generate_stream_internal(infer.clone(), compute_type.clone(), Json(generate_request), span.clone()).await;
+                            state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
+                            response_stream = Box::pin(response_stream2);
                         }
-                    });
-                    match state {
-                        StreamState::Buffering => {
-                            json_buffer.push_str(&token_text.replace(" ", ""));
-                            buffer.push(stream_token);
-                            if let Some(captures) = function_regex.captures(&json_buffer) {
-                                let function_name = captures[1].to_string();
-                                if function_name == "no_tool" {
-                                    state = StreamState::BufferTrailing;
-                                    response_as_tool = false;
-                                    buffer.clear();
-                                    json_buffer.clear();
-                                } else {
-                                    state = StreamState::Content {
-                                        skip_close_quote: false,
-                                    };
-                                    // send all the buffered messages
-                                    for stream_token in &buffer {
-                                        let event = create_event_from_stream_token(
-                                            stream_token,
-                                            logprobs,
-                                            response_as_tool,
-                                            system_fingerprint.clone(),
-                                            model_id.clone(),
-                                        );
-                                        yield Ok::<Event, Infallible>(event);
-                                    }
-                                }
-                            }
-                        }
-                        // if we skipped sending the buffer we need to avoid sending the following json key and quotes
-                        StreamState::BufferTrailing => {
-                            let infix_text = "\"content\":\"";
-                            json_buffer.push_str(&token_text.replace(" ", ""));
-                            // keep capturing until we find the infix text
-                            match json_buffer.find(infix_text) {
-                                Some(content_key_index) => {
-                                    json_buffer =
-                                        json_buffer[content_key_index + infix_text.len()..].to_string();
-                                }
-                                None => {
-                                    continue;
-                                }
-                            }
-                            // if there is leftover text after removing the infix text, we need to send it
-                            if !json_buffer.is_empty() {
-                                let event = Event::default();
-                                let current_time = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-                                    .as_secs();
-                                let chat_complete =
-                                    CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
-                                        model_id.clone(),
-                                        system_fingerprint.clone(),
-                                        Some(json_buffer.clone()),
-                                        None,
-                                        current_time,
-                                        None,
-                                        None,
-                                    ));
-                                yield Ok(event.json_data(chat_complete).unwrap_or_else(|e| {
-                                    InferError::StreamSerializationError(e.to_string()).into()
+                        ChatEvent::Events(events) => {
+                            for chat_complete in events{
+                                yield Ok(Event::default().json_data(chat_complete).unwrap_or_else(|e| {
+                                    tracing::error!("Failed to serialize ChatCompletionChunk: {:?}", e);
+                                    Event::default()
                                 }));
                             }
-                            // cleanup the buffers
-                            buffer.clear();
-                            json_buffer.clear();
-                            state = StreamState::Content {
-                                skip_close_quote: true,
-                            };
                         }
-                        StreamState::Content { skip_close_quote } => {
-                            if skip_close_quote && token_text.contains('"') {
-                                break;
-                            }
-
-                            // send the content
-                            let event = create_event_from_stream_token(
-                                &stream_token,
-                                logprobs,
-                                response_as_tool,
-                                system_fingerprint.clone(),
-                                model_id.clone(),
-                            );
-
-                            yield Ok::<Event, Infallible>(event);
-                        }
-                    }
-
-                    let should_send_usage = usage.is_some()
-                        && stream_options
-                            .as_ref()
-                            .is_some_and(|opts| opts.include_usage);
-
-                    if should_send_usage {
-                        let usage_data = usage.unwrap();
-                        let current_time = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-                            .as_secs();
-
-                        let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk {
-                            id: String::new(),
-                            created: current_time,
-                            model: model_id.clone(),
-                            system_fingerprint: system_fingerprint.clone(),
-                            choices: vec![],
-                            usage: Some(Usage {
-                                prompt_tokens: usage_data.prompt_tokens,
-                                completion_tokens: usage_data.completion_tokens,
-                                total_tokens: usage_data.total_tokens,
-                            }),
-                        });
-
-                        yield Ok(Event::default()
-                            .json_data(chat_complete)
-                            .unwrap_or_else(|e| InferError::StreamSerializationError(e.to_string()).into()));
                     }
                 }
                 Err(err) => yield Ok(err.into_openai_event())
@@ -1404,8 +1224,13 @@ pub(crate) async fn chat_completions(
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
-        let (headers, input_length, Json(generation)) =
-            generate_internal(Extension(infer), compute_type, Json(generate_request), span).await?;
+        let (mut headers, mut input_length, Json(generation)) = generate_internal(
+            Extension(infer.clone()),
+            compute_type.clone(),
+            Json(generate_request),
+            span.clone(),
+        )
+        .await?;
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1413,55 +1238,25 @@ pub(crate) async fn chat_completions(
             .as_secs();
 
         let (tool_calls, output) = if using_tools {
-            let gen_text_value: Value =
-                serde_json::from_str(&generation.generated_text).map_err(|e| {
-                    InferError::ToolError(format!(
-                        "Failed to parse generated text: {} {:?}",
-                        e, generation.generated_text
-                    ))
-                })?;
-            let function = gen_text_value.get("function").ok_or(InferError::ToolError(
-                "No function found in generated text".to_string(),
-            ))?;
-
-            let name = function
-                .get("_name")
-                .and_then(Value::as_str)
-                .ok_or(InferError::ToolError(
-                    "No _name found in generated text".to_string(),
-                ))?
-                .to_string();
-
-            let mut arguments = function.clone();
-            if let Value::Object(ref mut props) = arguments {
-                props.remove("_name");
-            }
-            match name.as_str() {
-                "no_tool" => {
-                    // parse the content message
-                    let content_message = arguments
-                        .get("content")
-                        .and_then(Value::as_str)
-                        .ok_or_else(|| {
-                            InferError::ToolError(
-                                "No `content` found in generated text".to_string(),
-                            )
-                        })?
-                        .to_string();
-                    (None, Some(content_message))
+            match crate::chat::parse_output(&generation.generated_text)? {
+                ChatChoice::NoTool => {
+                    chat.tools = None;
+                    chat.response_format = None;
+                    let (generate_request, using_tools): (GenerateRequest, bool) =
+                        chat.clone().try_into_generate(&infer)?;
+                    assert!(!using_tools);
+                    let (headers_final, input_length_final, Json(generation)) = generate_internal(
+                        Extension(infer),
+                        compute_type,
+                        Json(generate_request),
+                        span,
+                    )
+                    .await?;
+                    headers = headers_final;
+                    input_length = input_length_final;
+                    (None, Some(generation.generated_text))
                 }
-                _ => {
-                    let tool_calls = vec![ToolCall {
-                        id: "0".to_string(),
-                        r#type: "function".to_string(),
-                        function: FunctionDefinition {
-                            description: None,
-                            name,
-                            arguments,
-                        },
-                    }];
-                    (Some(tool_calls), None)
-                }
+                ChatChoice::ToolCalls(tool_calls) => (Some(tool_calls), None),
             }
         } else {
             (None, Some(generation.generated_text))
@@ -1727,7 +1522,7 @@ pub async fn run(
 
     // Shared API builder initialization
     let api_builder = || {
-        let mut builder = ApiBuilder::new().with_progress(false);
+        let mut builder = ApiBuilder::from_env().with_progress(false);
         if let Some(token) = authorization_token {
             builder = builder.with_token(Some(token));
         }
@@ -1781,6 +1576,7 @@ pub async fn run(
         tokenizer_config_filename,
         preprocessor_config_filename,
         processor_config_filename,
+        chat_template_filename,
         model_info,
     ) = match api {
         Type::None => (
@@ -1788,6 +1584,7 @@ pub async fn run(
             Some(local_path.join("tokenizer_config.json")),
             Some(local_path.join("preprocessor_config.json")),
             Some(local_path.join("processor_config.json")),
+            Some(local_path.join("chat_template.json")),
             None,
         ),
         Type::Api(api) => {
@@ -1801,6 +1598,7 @@ pub async fn run(
             let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
             let preprocessor_config_filename = api_repo.get("preprocessor_config.json").await.ok();
             let processor_config_filename = api_repo.get("processor_config.json").await.ok();
+            let chat_template_filename = api_repo.get("chat_template.json").await.ok();
 
             let model_info = if let Some(model_info) = get_hub_model_info(&api_repo).await {
                 Some(model_info)
@@ -1813,10 +1611,12 @@ pub async fn run(
                 tokenizer_config_filename,
                 preprocessor_config_filename,
                 processor_config_filename,
+                chat_template_filename,
                 model_info,
             )
         }
         Type::Cache(cache) => {
+            tracing::info!("Cache {cache:?}");
             let repo = cache.repo(Repo::with_revision(
                 tokenizer_name.to_string(),
                 RepoType::Model,
@@ -1827,22 +1627,40 @@ pub async fn run(
                 repo.get("tokenizer_config.json"),
                 repo.get("preprocessor_config.json"),
                 repo.get("processor_config.json"),
+                repo.get("chat_template.json"),
                 None,
             )
         }
     };
 
+    // if chat_template_filename is present, load the chat template
+    let chat_template: Option<crate::ChatTemplateVersions> = chat_template_filename
+        .and_then(|f| std::fs::read_to_string(f).ok())
+        .and_then(|c| {
+            let res = serde_json::from_str::<crate::ChatTemplateStandalone>(&c);
+            if let Err(e) = &res {
+                tracing::warn!("Could not parse chat template {e:?}");
+            }
+            res.ok().map(|t| t.chat_template)
+        });
+
     // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
+    tracing::warn!("Tokenizer_config {tokenizer_config_path:?} - {tokenizer_config_filename:?}");
     let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
     {
         HubTokenizerConfig::from_file(filename)
     } else {
         tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
     };
-    let tokenizer_config = tokenizer_config.unwrap_or_else(|| {
+    let mut tokenizer_config = tokenizer_config.unwrap_or_else(|| {
         tracing::warn!("Could not find tokenizer config locally and no API specified");
         HubTokenizerConfig::default()
     });
+
+    if chat_template.is_some() {
+        tracing::info!("Using chat template from chat_template.json");
+        tokenizer_config.chat_template = chat_template;
+    }
 
     let tokenizer: Result<Tokenizer, WebServerError> = {
         use pyo3::prelude::*;

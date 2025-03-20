@@ -78,6 +78,7 @@ def paged_attention(
     *,
     kv_scales: KVScales,
     softcap: Optional[float] = None,
+    window_size_left: Optional[int] = -1,
 ):
     if softcap is not None:
         raise NotImplementedError("softcap is not available in IPEX")

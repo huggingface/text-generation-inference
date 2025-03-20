@@ -8,6 +8,7 @@ pub mod validation;
 mod kserve;
 pub mod logging;
 
+mod chat;
 mod sagemaker;
 pub mod usage_stats;
 mod vertex;
@@ -20,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use tokenizers::Encoding;
 use tracing::warn;
 use utoipa::ToSchema;
+use uuid::Uuid;
 use validation::Validation;
 
 #[allow(clippy::large_enum_variant)]
@@ -150,6 +152,11 @@ impl HubTokenizerConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChatTemplateStandalone {
+    pub chat_template: ChatTemplateVersions,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(untagged)]
 pub enum TokenizerConfigToken {
@@ -171,6 +178,7 @@ impl TokenizerConfigToken {
 pub enum HubPreprocessorConfig {
     Idefics2Processor(Idefics2Preprocessor),
     Idefics3Processor(Idefics2Preprocessor),
+    Gemma3Processor(Gemma3Processor),
 }
 
 impl HubPreprocessorConfig {
@@ -182,6 +190,12 @@ impl HubPreprocessorConfig {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Idefics2Preprocessor {
+    #[serde(default)]
+    do_image_splitting: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Gemma3Processor {
     #[serde(default)]
     do_image_splitting: bool,
 }
@@ -541,6 +555,7 @@ pub(crate) struct Chunk {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug))]
 pub(crate) struct ChatCompletion {
     pub id: String,
     #[schema(example = "1706270835")]
@@ -553,6 +568,7 @@ pub(crate) struct ChatCompletion {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug))]
 pub(crate) struct ChatCompletionComplete {
     pub index: u32,
     pub message: OutputMessage,
@@ -561,6 +577,7 @@ pub(crate) struct ChatCompletionComplete {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct ChatCompletionLogprobs {
     content: Vec<ChatCompletionLogprob>,
 }
@@ -619,6 +636,7 @@ impl From<(Vec<Token>, Vec<Vec<Token>>)> for ChatCompletionLogprobs {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct ChatCompletionLogprob {
     token: String,
     logprob: f32,
@@ -626,12 +644,14 @@ pub(crate) struct ChatCompletionLogprob {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct ChatCompletionTopLogprob {
     token: String,
     logprob: f32,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct Usage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
@@ -640,6 +660,7 @@ pub(crate) struct Usage {
 
 #[derive(Clone, Serialize, ToSchema)]
 #[serde(tag = "object")]
+#[cfg_attr(test, derive(Debug))]
 enum CompletionType {
     #[serde(rename = "chat.completion.chunk")]
     ChatCompletionChunk(ChatCompletionChunk),
@@ -707,6 +728,7 @@ impl ChatCompletion {
     }
 }
 #[derive(Clone, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug))]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,
     #[schema(example = "1706270978")]
@@ -719,6 +741,7 @@ pub(crate) struct ChatCompletionChunk {
 }
 
 #[derive(Clone, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct ChatCompletionChoice {
     pub index: u32,
     pub delta: ChatCompletionDelta,
@@ -735,6 +758,7 @@ pub struct ToolCallDelta {
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
 #[serde(untagged)]
+#[cfg_attr(test, derive(PartialEq))]
 enum ChatCompletionDelta {
     Chat(TextMessage),
     Tool(ToolCallDelta),
@@ -759,48 +783,17 @@ impl ChatCompletionChunk {
     pub(crate) fn new(
         model: String,
         system_fingerprint: String,
-        delta: Option<String>,
-        tool_calls: Option<Vec<String>>,
         created: u64,
-        logprobs: Option<ChatCompletionLogprobs>,
-        finish_reason: Option<String>,
+        choices: Vec<ChatCompletionChoice>,
+        usage: Option<Usage>,
     ) -> Self {
-        let delta = match (delta, tool_calls) {
-            (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
-                role: "assistant".to_string(),
-                content: delta,
-                ..Default::default()
-            }),
-            (None, Some(tool_calls)) => ChatCompletionDelta::Tool(ToolCallDelta {
-                role: "assistant".to_string(),
-                tool_calls: vec![DeltaToolCall {
-                    index: 0,
-                    id: String::new(),
-                    r#type: "function".to_string(),
-                    function: Function {
-                        name: None,
-                        arguments: tool_calls[0].to_string(),
-                    },
-                }],
-            }),
-            (None, None) => ChatCompletionDelta::Chat(TextMessage {
-                role: "assistant".to_string(),
-                content: "".to_string(),
-                ..Default::default()
-            }),
-        };
         Self {
             id: String::new(),
             created,
             model,
             system_fingerprint,
-            choices: vec![ChatCompletionChoice {
-                index: 0,
-                delta,
-                logprobs,
-                finish_reason,
-            }],
-            usage: None,
+            choices,
+            usage,
         }
     }
 }
@@ -915,7 +908,7 @@ pub(crate) struct ChatRequest {
     /// Options for streaming response. Only set this when you set stream: true.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
-    pub stream_options: Option<StreamOptions>,
+    pub stream_options: StreamOptions,
 }
 
 impl ChatRequest {
@@ -1015,13 +1008,37 @@ impl ChatRequest {
             using_tools,
         ))
     }
+
+    fn next_int_id(&self) -> Result<String, Box<dyn std::error::Error>> {
+        let mut id: usize = 0;
+        for message in &self.messages {
+            if let MessageBody::Tool { tool_calls } = &message.body {
+                for tool_call in tool_calls {
+                    let new_id: usize = tool_call.id.parse()?;
+                    id = std::cmp::max(id, new_id + 1);
+                }
+            }
+        }
+        Ok(id.to_string())
+    }
+
+    /// Try to have linearly increasing id
+    /// or resort to using Uuid if the initial
+    /// scheme is not understood
+    fn next_tool_call_id(&self) -> String {
+        self.next_int_id().unwrap_or_else(|_| {
+            let uid = Uuid::new_v4().to_string();
+            uid.to_string()
+        })
+    }
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
+#[derive(Clone, Deserialize, ToSchema, Serialize, Default)]
 #[cfg_attr(test, derive(Debug, PartialEq))]
 struct StreamOptions {
     /// If set, an additional chunk will be streamed before the data: [DONE] message. The usage field on this chunk shows the token usage statistics for the entire request, and the choices field will always be an empty array. All other chunks will also include a usage field, but with a null value.
     #[schema(example = "true")]
+    #[serde(default)]
     include_usage: bool,
 }
 
@@ -1445,7 +1462,7 @@ pub(crate) struct ChatTokenizeResponse {
 #[serde(transparent)]
 pub(crate) struct TokenizeResponse(Vec<SimpleToken>);
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, Clone)]
 pub(crate) struct StreamDetails {
     #[schema(example = "length")]
     pub finish_reason: FinishReason,
@@ -1457,7 +1474,7 @@ pub(crate) struct StreamDetails {
     pub input_length: u32,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, Clone)]
 pub(crate) struct StreamResponse {
     pub index: u32,
     pub token: Token,
@@ -1700,9 +1717,25 @@ mod tests {
 
         assert!(matches!(
             request.stream_options,
-            Some(StreamOptions {
+            StreamOptions {
                 include_usage: true
-            })
+            }
+        ));
+
+        let json = json!({
+            "model": "",
+            "messages": [{
+                "role": "user",
+                "content": "Hello"
+            }]
+        });
+        let request: ChatRequest = serde_json::from_str(json.to_string().as_str()).unwrap();
+
+        assert!(matches!(
+            request.stream_options,
+            StreamOptions {
+                include_usage: false
+            }
         ));
     }
 
