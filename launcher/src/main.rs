@@ -892,6 +892,10 @@ struct Args {
     /// Using this flag reallows users to ask for them.
     #[clap(long, env)]
     enable_prefill_logprobs: bool,
+
+    /// Change timeout of graceful termination of the TGI server
+    #[clap(default_value = "90", long, short, env)]
+    graceful_termination_timeout: u64,
 }
 
 #[derive(Debug)]
@@ -933,6 +937,7 @@ fn shard_manager(
     log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
+    graceful_termination_timeout: u64,
     _shutdown_sender: mpsc::Sender<()>,
 ) {
     // Enter shard-manager tracing span
@@ -1206,7 +1211,12 @@ fn shard_manager(
 
         // We received a shutdown signal
         if shutdown.load(Ordering::SeqCst) {
-            terminate("shard", p, Duration::from_secs(90)).unwrap();
+            terminate(
+                "shard",
+                p,
+                Duration::from_secs(graceful_termination_timeout),
+            )
+            .unwrap();
             return;
         }
 
@@ -1545,6 +1555,7 @@ fn spawn_shards(
     status_receiver: &mpsc::Receiver<ShardStatus>,
     status_sender: mpsc::Sender<ShardStatus>,
     running: Arc<AtomicBool>,
+    graceful_termination_timeout: u64,
 ) -> Result<(), LauncherError> {
     // Start shard processes
     for rank in 0..num_shard {
@@ -1612,6 +1623,7 @@ fn spawn_shards(
                 max_log_level,
                 status_sender,
                 shutdown,
+                graceful_termination_timeout,
                 shutdown_sender,
             )
         });
@@ -1999,6 +2011,8 @@ fn main() -> Result<(), LauncherError> {
     // Pattern match configuration
     let args: Args = Args::parse();
 
+    let graceful_termination_timeout = args.graceful_termination_timeout;
+
     // Filter events with LOG_LEVEL
     let varname = "LOG_LEVEL";
     let env_filter = if let Ok(log_level) = std::env::var(varname) {
@@ -2263,6 +2277,7 @@ fn main() -> Result<(), LauncherError> {
         &status_receiver,
         status_sender,
         running.clone(),
+        graceful_termination_timeout,
     )?;
 
     // We might have received a termination signal
@@ -2307,7 +2322,12 @@ fn main() -> Result<(), LauncherError> {
     }
 
     // Graceful termination
-    terminate("webserver", webserver, Duration::from_secs(90)).unwrap();
+    terminate(
+        "webserver",
+        webserver,
+        Duration::from_secs(graceful_termination_timeout),
+    )
+    .unwrap();
     shutdown_shards(shutdown, &shutdown_receiver);
 
     exit_code

@@ -478,6 +478,15 @@ Options:
           [env: ENABLE_PREFILL_LOGPROBS=]
 
 ```
+## GRACEFUL_TERMINATION_TIMEOUT
+```shell
+  -g, --graceful-termination-timeout <GRACEFUL_TERMINATION_TIMEOUT>
+          Change timeout of graceful termination of the TGI server
+          
+          [env: GRACEFUL_TERMINATION_TIMEOUT=]
+          [default: 90]
+
+```
 ## HELP
 ```shell
   -h, --help
