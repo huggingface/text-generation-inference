@@ -372,9 +372,6 @@ class VlmCausalLM(FlashCausalLM):
     def batch_type(self) -> Type[VlmCausalLMBatch]:
         return self.batch_class
 
-    def max_past(self) -> Optional[int]:
-        return getattr(self.model.text_model, "max_past", None)
-
     def forward(
         self,
         batch: VlmCausalLMBatch,
@@ -441,12 +438,6 @@ class VlmCausalLM(FlashCausalLM):
                     input_ids, batch.image_grid_thw
                 )
                 batch.position_ids = position_ids
-
-        if cu_seqlen_prefill is None and self.max_past() is not None:
-            # In decode, not prefill, we're actually overwriting the KV-cache
-            # in a circular buffer mode.
-            # This makes sure the max_s for the decode pass is correct.
-            max_s = min(self.max_past(), max_s)
 
         # Try to find an associated cuda graph
         bs = input_ids.shape[0]

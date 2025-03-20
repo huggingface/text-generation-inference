@@ -36,10 +36,12 @@ def tgi_flash_attention_forward(
     softcap: Optional[float] = None,
     **kwargs,  # This is needed to "absorb" other args passed by Transformers modeling
 ):
+    # from pdb import set_trace; set_trace()
     kv_cache = kv_cache[module.layer_idx]
     query_states = query_states.transpose(1, 2).squeeze(dim=0)
     key_states = key_states.transpose(1, 2).squeeze(dim=0)
     value_states = value_states.transpose(1, 2).squeeze(dim=0)
+    # from pdb import set_trace; set_trace()
 
     # Take care of updating the cache in-place
     kv_cache.store(key=key_states, value=value_states, slots=slots, kv_scales=kv_scales)
@@ -47,6 +49,7 @@ def tgi_flash_attention_forward(
     _, num_heads, head_dim = query_states.shape
     softmax_scale = 1 / math.sqrt(head_dim) if softmax_scale is None else softmax_scale
     sliding_window = -1 if sliding_window is None else sliding_window
+    # from pdb import set_trace; set_trace()
 
     if cu_seqlen_prefill is not None:
         attn_output = attention(
@@ -72,6 +75,7 @@ def tgi_flash_attention_forward(
             max_s,
             kv_scales=kv_scales,
             softcap=softcap,
+            window_size_left=sliding_window,
         )
 
     attn_output = attn_output.view(-1, num_heads * head_dim)
@@ -104,6 +108,7 @@ class TransformersFlashCausalLM(FlashCausalLM):
         tokenizer_class=AutoTokenizer,
         kv_cache_dtype: Optional[torch.dtype] = None,
     ):
+        # # from pdb import set_trace; set_trace()
         self.quantize = quantize
         self.process_group, rank, world_size = initialize_torch_distributed()
 
@@ -157,7 +162,14 @@ class TransformersFlashCausalLM(FlashCausalLM):
         self.num_layers = model.config.num_hidden_layers
         self.num_heads = model.config.num_attention_heads
         self.num_kv_heads = model.config.num_key_value_heads
-        self.head_size = model.config.hidden_size // model.config.num_attention_heads
+        # Some models use GQA and different sizes for o_proj
+        # and q_proj, that allows for that.
+        if hasattr(model.config, "head_dim"):
+            self.head_size = model.config.head_dim
+        else:
+            self.head_size = (
+                model.config.hidden_size // model.config.num_attention_heads
+            )
 
         # Skip it for models in the exception list
         if model.config.model_type not in REPLICATED_ATTENTION_MODELS:
@@ -254,6 +266,7 @@ class TransformersFlashCausalLM(FlashCausalLM):
         prefill_cache_indices=None,  # not used, but passed to match original signature
         adapter_data=None,  # not supported, but passed to match original signature
     ):
+        # from pdb import set_trace; set_trace()
         # A value of `None` (i.e. no logit slicing) translates to `0` in Transformers
         logits_to_keep = lm_head_indices if lm_head_indices is not None else 0
 

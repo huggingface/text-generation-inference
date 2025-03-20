@@ -206,8 +206,14 @@ try:
     from text_generation_server.models.transformers_flash_causal_lm import (
         TransformersFlashCausalLM,
     )
-except ImportError:
+    from text_generation_server.models.transformers_flash_vlm import (
+        TransformersFlashVlmCausalLM,
+    )
+except ImportError as e:
+    log_master(logger.warning, f"Could not import Flash Transformers Backend: {e}")
     FLASH_TRANSFORMERS_BACKEND = False
+
+FLASH_ATTENTION = False
 
 
 class ModelType(enum.Enum):
@@ -1173,12 +1179,13 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
             )
         elif FLASH_TRANSFORMERS_BACKEND:
-            return TransformersFlashCausalLM.fallback(
+            return TransformersFlashVlmCausalLM.fallback(
                 model_id,
+                # AutoModelForConditionalGeneration,
                 revision,
                 quantize=quantize,
                 speculator=speculator,
-                dtype=dtype,
+                dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
             )
         elif sharded:
@@ -1483,6 +1490,15 @@ def get_model(
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == QWEN2_VL:
+        return TransformersFlashVlmCausalLM.fallback(
+            model_id,
+            # AutoModelForConditionalGeneration,
+            revision,
+            quantize=quantize,
+            speculator=speculator,
+            dtype=torch.bfloat16,
+            trust_remote_code=trust_remote_code,
+        )
         return VlmCausalLM(
             model_id=model_id,
             model_class=Qwen2VLForConditionalGeneration,
@@ -1563,23 +1579,33 @@ def get_model(
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == PALIGEMMA:
-        if FLASH_ATTENTION:
-            return VlmCausalLM(
-                model_id=model_id,
-                model_class=PaliGemmaForConditionalGeneration,
-                revision=revision,
-                quantize=quantize,
-                speculator=speculator,
-                dtype=dtype,
-                kv_cache_dtype=kv_cache_dtype,
-                # Works better for these models
-                default_dtype=torch.bfloat16,
-                trust_remote_code=trust_remote_code,
-                lora_adapter_ids=lora_adapter_ids,
-                batch_class=PaliGemmaBatch,
-            )
-        else:
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+        # return TransformersFlashVlmCausalLM.fallback(
+        #         model_id,
+        #         # AutoModelForConditionalGeneration,
+        #         revision,
+        #         quantize=quantize,
+        #         speculator=speculator,
+        #         dtype=torch.bfloat16,
+        #         trust_remote_code=trust_remote_code,
+        #         batch_class=PaliGemmaBatch,
+        #     )
+        # if FLASH_ATTENTION:
+        return VlmCausalLM(
+            model_id=model_id,
+            model_class=PaliGemmaForConditionalGeneration,
+            revision=revision,
+            quantize=quantize,
+            speculator=speculator,
+            dtype=dtype,
+            kv_cache_dtype=kv_cache_dtype,
+            # Works better for these models
+            default_dtype=torch.bfloat16,
+            trust_remote_code=trust_remote_code,
+            lora_adapter_ids=lora_adapter_ids,
+            batch_class=PaliGemmaBatch,
+        )
+        # else:
+        #     raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
 
     if model_type == LLAVA_NEXT:
         if FLASH_ATTENTION:
