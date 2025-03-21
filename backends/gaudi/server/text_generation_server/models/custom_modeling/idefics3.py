@@ -471,7 +471,8 @@ class Idefics3ForConditionalGeneration(nn.Module):
     ):
         """In place merges in vision_embeddings with inputs_embeds."""
         # mask = input_ids == self.config.image_token_index
-        mask = input_ids == self.config.image_token_id
+        #  - replace `==` with torch.where to fix the issue in hpu graph
+        mask = torch.where(input_ids == self.config.image_token_id)
         # Let's pray we have enabled enough slots !
         inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
         return inputs_embeds
@@ -539,6 +540,7 @@ class Idefics3ForConditionalGeneration(nn.Module):
                     ].contiguous()
 
                 patch_size = self.config.vision_config.patch_size
+                """
                 patches_subgrid = pixel_attention_mask.unfold(
                     dimension=1, size=patch_size, step=patch_size
                 )
@@ -546,6 +548,21 @@ class Idefics3ForConditionalGeneration(nn.Module):
                     dimension=2, size=patch_size, step=patch_size
                 )
                 patch_attention_mask = (patches_subgrid.sum(dim=(-1, -2)) > 0).bool()
+                """
+                # hpu does none support unfold
+                conv_kernel = torch.ones(
+                    [1, 1, patch_size, patch_size],
+                    dtype=pixel_values.dtype,
+                    device=pixel_values.device,
+                )
+                patches_subgrid = torch.nn.functional.conv2d(
+                    pixel_attention_mask.unsqueeze(1).to(conv_kernel.dtype),
+                    conv_kernel,
+                    stride=patch_size,
+                ).squeeze(1)
+                patch_attention_mask = torch.eq(
+                    patches_subgrid, (patch_size * patch_size)
+                )
 
                 # Get sequence from the vision encoder
                 image_hidden_states = self.vision_model(

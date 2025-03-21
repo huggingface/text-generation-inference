@@ -95,7 +95,10 @@ class PositionRotaryEmbedding(nn.Module):
                 mrope_section = rope_scaling["mrope_section"]
                 if mrope_section is not None:
                     return RotaryPositionEmbeddingMultimodalSections(
-                        inv_freq, scaling_factor, mrope_section
+                        inv_freq,
+                        scaling_factor,
+                        mrope_section,
+                        config.max_position_embeddings,
                     )
             elif rope_type == "dynamic":
                 scaling_factor = rope_scaling["factor"]
@@ -557,8 +560,13 @@ def apply_llama3_scaling(
 
 
 class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
-    def __init__(self, inv_freq: torch.Tensor, scaling_factor: float, sections: list):
-        super().__init__(inv_freq, scaling_factor)
+    def __init__(
+        self,
+        inv_freq: torch.Tensor,
+        scaling_factor: float,
+        sections: list,
+        max_position_embeddings,
+    ):
         self.sections = sections
         self._cos_cached = None
         self._sin_cached = None
@@ -568,6 +576,7 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
             .view(1, 1, -1)
             .to(inv_freq.device)
         )
+        super().__init__(inv_freq, scaling_factor, max_position_embeddings)
 
     def _update_cos_sin_cache(
         self, dtype: torch.dtype, device: torch.device, seqlen: int

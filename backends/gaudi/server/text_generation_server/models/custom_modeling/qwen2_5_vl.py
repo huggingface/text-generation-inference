@@ -739,10 +739,12 @@ class Qwen2_5VisionModel(nn.Module):
 
         cu_window_seqlens = torch.tensor(
             cu_window_seqlens,
-            device=hidden_states.device,
+            device="cpu",
             dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
         )
-        cu_window_seqlens = torch.unique_consecutive(cu_window_seqlens)
+        cu_window_seqlens = torch.unique_consecutive(cu_window_seqlens).to(
+            hidden_states.device
+        )
 
         # create a cu_seqlens tensor to be used in the attention mask
         cu_seqlens = torch.repeat_interleave(
@@ -928,7 +930,8 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
                 image_embeds = self.visual(
                     pixel_values, grid_thw=image_grid_thw
                 ).squeeze(0)
-                inputs_embeds[input_ids == self.image_token_id] = image_embeds
+                mask = torch.where(input_ids == self.image_token_id)
+                inputs_embeds[mask] = image_embeds
 
         hidden_states = self.text_model(
             inputs_embeds=inputs_embeds,
