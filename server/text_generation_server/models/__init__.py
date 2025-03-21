@@ -208,6 +208,8 @@ try:
     )
     from text_generation_server.models.transformers_flash_vlm import (
         TransformersFlashVlmCausalLM,
+        TransformersQwen2VlmCausalLM,
+        TransformersGemma3VlmCausalLM,
     )
 except ImportError as e:
     log_master(logger.warning, f"Could not import Flash Transformers Backend: {e}")
@@ -1161,7 +1163,6 @@ def get_model(
             )
     elif model_type == GEMMA3:
         if FLASH_ATTENTION:
-            # TODO: Use VlmCausalLM when image support is added.
             return VlmCausalLM(
                 model_id=model_id,
                 model_class=Gemma3ForConditionalGeneration,
@@ -1179,9 +1180,11 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
             )
         elif FLASH_TRANSFORMERS_BACKEND:
-            return TransformersFlashVlmCausalLM.fallback(
+            from transformers import Gemma3ForConditionalGeneration as Gemma3Model
+
+            return TransformersGemma3VlmCausalLM.fallback(
                 model_id,
-                # AutoModelForConditionalGeneration,
+                Gemma3Model,
                 revision,
                 quantize=quantize,
                 speculator=speculator,
@@ -1490,42 +1493,60 @@ def get_model(
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == QWEN2_VL:
-        return TransformersFlashVlmCausalLM.fallback(
-            model_id,
-            # AutoModelForConditionalGeneration,
-            revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=torch.bfloat16,
-            trust_remote_code=trust_remote_code,
-        )
-        return VlmCausalLM(
-            model_id=model_id,
-            model_class=Qwen2VLForConditionalGeneration,
-            revision=revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            default_dtype=torch.bfloat16,
-            kv_cache_dtype=kv_cache_dtype,
-            trust_remote_code=trust_remote_code,
-            lora_adapter_ids=lora_adapter_ids,
-        )
+        if FLASH_ATTENTION:
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Qwen2VLForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                default_dtype=torch.bfloat16,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import Qwen2VLForConditionalGeneration as Qwen2VLModel
+
+            return TransformersQwen2VlmCausalLM.fallback(
+                model_id,
+                Qwen2VLModel,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+            )
     if model_type == QWEN2_5_VL:
-        return VlmCausalLM(
-            model_id=model_id,
-            model_class=Qwen2_5VLForConditionalGeneration,
-            revision=revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            default_dtype=torch.bfloat16,
-            kv_cache_dtype=kv_cache_dtype,
-            trust_remote_code=trust_remote_code,
-            lora_adapter_ids=lora_adapter_ids,
-            config_class=Qwen2_5_VLConfig,
-            processor_class=Qwen2_5_VLProcessor,
-        )
+        if FLASH_ATTENTION:
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Qwen2_5VLForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                default_dtype=torch.bfloat16,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                config_class=Qwen2_5_VLConfig,
+                processor_class=Qwen2_5_VLProcessor,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+
+            return TransformersQwen2VlmCausalLM.fallback(
+                model_id,
+                Qwen2VLModel,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                config_class=Qwen2_5_VLConfig,
+                processor_class=Qwen2_5_VLProcessor,
+            )
     if model_type == MLLAMA:
         if FLASH_ATTENTION:
             return MllamaCausalLM(
@@ -1539,6 +1560,19 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import MllamaForConditionalGeneration as MllamaModel
+
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                MllamaModel,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                batch_class=MllamaCausalLMBatch,
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Mllama"))
@@ -1556,6 +1590,19 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 # XXX: Extremely important to cap resolution in order to limit
                 # VRAM usage.
+                processor_kwargs={"size": {"longest_edge": 448, "shortest_edge": 378}},
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import Idefics2ForConditionalGeneration as Idefics2Model
+
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                Idefics2Model,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
                 processor_kwargs={"size": {"longest_edge": 448, "shortest_edge": 378}},
             )
         else:
@@ -1576,37 +1623,52 @@ def get_model(
                 # VRAM usage.
                 processor_kwargs={"size": {"longest_edge": 1456}},
             )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import Idefics3ForConditionalGeneration as Idefics3Model
+
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                Idefics3Model,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                processor_kwargs={"size": {"longest_edge": 1456}},
+            )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == PALIGEMMA:
-        # return TransformersFlashVlmCausalLM.fallback(
-        #         model_id,
-        #         # AutoModelForConditionalGeneration,
-        #         revision,
-        #         quantize=quantize,
-        #         speculator=speculator,
-        #         dtype=torch.bfloat16,
-        #         trust_remote_code=trust_remote_code,
-        #         batch_class=PaliGemmaBatch,
-        #     )
-        # if FLASH_ATTENTION:
-        return VlmCausalLM(
-            model_id=model_id,
-            model_class=PaliGemmaForConditionalGeneration,
-            revision=revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            kv_cache_dtype=kv_cache_dtype,
-            # Works better for these models
-            default_dtype=torch.bfloat16,
-            trust_remote_code=trust_remote_code,
-            lora_adapter_ids=lora_adapter_ids,
-            batch_class=PaliGemmaBatch,
-        )
-        # else:
-        #     raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+        if FLASH_ATTENTION:
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=PaliGemmaForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                batch_class=PaliGemmaBatch,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import PaliGemmaForConditionalGeneration as PaliGemmaModel
 
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                PaliGemmaModel,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                batch_class=PaliGemmaBatch,
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("PaliGemma"))
     if model_type == LLAVA_NEXT:
         if FLASH_ATTENTION:
             return VlmCausalLM(
@@ -1617,6 +1679,18 @@ def get_model(
                 speculator=speculator,
                 dtype=dtype,
                 kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import LlavaNextForConditionalGeneration as LlavaNextModel
+
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                LlavaNextModel,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
         else:
