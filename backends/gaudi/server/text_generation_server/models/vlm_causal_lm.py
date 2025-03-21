@@ -427,10 +427,10 @@ class VlmCausalLMBatch(CausalLMBatch):
                     images.append([curr_image])
                 else:
                     images.append(curr_image)
-        
+
         if is_warmup is True:
             images += [images[0]] * (len(texts) - len(images))
-            
+
         missing_inputs = 0
         dummy_images = None
         if is_warmup is False:
