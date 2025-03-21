@@ -110,8 +110,8 @@ class LlavaNextForConditionalGeneration(GaudiLlavaNextForConditionalGeneration):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         token_idx: Optional[torch.Tensor] = None,
-        use_flash_attention: Optional[bool] = False,
-        flash_attention_recompute: Optional[bool] = False,
+        use_flash_attention: Optional[bool] = True,
+        flash_attention_recompute: Optional[bool] = True,
     ):
 
         if token_idx is not None:
@@ -337,8 +337,8 @@ class LlavaNextForConditionalGeneration(GaudiLlavaNextForConditionalGeneration):
                 **kwargs,
             )
         else:
-            use_flash_attention = kwargs.get("use_flash_attention", False)
-            flash_attention_recompute = kwargs.get("flash_attention_recompute", False)
+            use_flash_attention = kwargs.get("use_flash_attention", True)
+            flash_attention_recompute = kwargs.get("flash_attention_recompute", True)
 
             position_ids = kwargs.get("position_ids", None)
             labels = kwargs.get("labels", None)
