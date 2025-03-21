@@ -122,5 +122,5 @@ ENV OMPI_MCA_btl_vader_single_copy_mechanism NONE
 COPY backends/gaudi/tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
-ENTRYPOINT ["/tgi-entrypoint.sh"]
-CMD ["--json-output"]
+#ENTRYPOINT ["/tgi-entrypoint.sh"]
+#CMD ["--json-output"]
