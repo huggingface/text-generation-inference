@@ -95,7 +95,7 @@ RUN cd server && \
     pip install "git+https://github.com/HabanaAI/DeepSpeed.git@${HABANA_VERSION}" && \
     BUILD_CUDA_EXT=0 pip install git+https://github.com/AutoGPTQ/AutoGPTQ.git@097dd04e --no-build-isolation && \
     pip install . --no-cache-dir
-
+RUN pip install git+https://github.com/sywangyi/vllm-hpu-extension.git
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router

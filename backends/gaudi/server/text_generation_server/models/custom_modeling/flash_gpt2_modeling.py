@@ -24,12 +24,11 @@ import torch.distributed
 from torch import nn
 from transformers.activations import ACT2FN
 from typing import Optional, List, Tuple
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -38,6 +37,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 
 
 def load_qkv(config, prefix: str, weights, head_size, num_heads):
@@ -195,6 +195,7 @@ class FlashGPT2Attention(torch.nn.Module):
             head_size=self.head_size,
             num_heads=self.num_heads,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         self.o_proj = load_row(
             config,
@@ -215,7 +216,8 @@ class FlashGPT2Attention(torch.nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         query, key, value = self.query_key_value(hidden_states).split(
             self.head_size * self.num_heads, dim=1
@@ -224,30 +226,44 @@ class FlashGPT2Attention(torch.nn.Module):
         key = key.view(-1, self.num_heads, self.head_size)
         value = value.view(-1, self.num_heads, self.head_size)
 
-        reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
+        if prefill_cache_indices is not None:
+            key_to_cache = key[prefill_cache_indices]
+            value_to_cache = value[prefill_cache_indices]
+        else:
+            key_to_cache = key
+            value_to_cache = value
+
+        kv_cache.store(
+            key=key_to_cache,
+            value=value_to_cache,
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # flash attention
+            # sdpa
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else key,
-                kv_cache[1] if PREFILL_IN_KV_CACHE else value,
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=key,
+                value=value,
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                block_tables=block_tables,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
                 block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -316,7 +332,8 @@ class FlashGPT2Layer(nn.Module):
         block_tables,
         slots,
         seqlen,
-        max_s,
+        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
@@ -329,7 +346,8 @@ class FlashGPT2Layer(nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
+            prefill_cache_indices,
+            hpu_attention_meta,
         )
 
         hidden_states = attn_output + residual
@@ -382,9 +400,8 @@ class FlashGPT2Model(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        true_max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
 
@@ -398,7 +415,8 @@ class FlashGPT2Model(torch.nn.Module):
                 block_tables,
                 slots,
                 seqlen,
-                max_s,
+                prefill_cache_indices,
+                hpu_attention_meta,
             )
 
         hidden_states = self.norm(hidden_states)
@@ -435,7 +453,7 @@ class FlashGPT2ForCausalLM(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
@@ -451,9 +469,8 @@ class FlashGPT2ForCausalLM(torch.nn.Module):
             block_tables,
             slots,
             seqlen,
-            max_s,
-            true_max_s=max_s,
             prefill_cache_indices=prefill_cache_indices,
+            hpu_attention_meta=hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

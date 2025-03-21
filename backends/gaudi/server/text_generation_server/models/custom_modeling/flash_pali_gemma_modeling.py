@@ -19,7 +19,7 @@ from torch import nn
 from typing import Optional, List, Tuple
 
 from text_generation_server.layers.tensor_parallel import TensorParallelColumnLinear
-from text_generation_server.layers.attention import Seqlen
+from text_generation_server.layers.attention import Seqlen, HPUPagedAttentionMetadata
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
     load_vision_model,
@@ -72,7 +72,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
         pixel_values: torch.FloatTensor = None,
@@ -80,11 +80,11 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         pixel_attention_mask: Optional[torch.BoolTensor] = None,
         image_sizes: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         # TODO This is odd but apparently pali gemma position ids start at 1.
         if cu_seqlen_prefill is not None:
-            max_s += 1
             position_ids += 1
 
         if pixel_values is not None:
@@ -109,7 +109,8 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             block_tables=block_tables,
             slots=slots,
             seqlen=seqlen,
-            max_s=max_s,
+            hpu_attention_meta=hpu_attention_meta,
+            prefill_cache_indices=None,
         )
 
         if lm_head_indices is not None:

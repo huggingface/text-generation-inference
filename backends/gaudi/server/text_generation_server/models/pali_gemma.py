@@ -4,8 +4,8 @@ import torch
 import torch.distributed
 from opentelemetry import trace
 from typing import Iterable
-from text_generation_server.models.vlm_causal_lm import (
-    VlmCausalLMBatch,
+from text_generation_server.models.flash_vlm_causal_lm import (
+    FlashVlmCausalLMBatch,
     image_text_replacement,
 )
 
@@ -14,7 +14,7 @@ from text_generation_server.pb.generate_pb2 import Request
 tracer = trace.get_tracer(__name__)
 
 
-class PaliGemmaBatch(VlmCausalLMBatch):
+class PaliGemmaBatch(FlashVlmCausalLMBatch):
     @classmethod
     def batch_tokenized_inputs(
         cls, requests: Iterable[Request], tokenizer, processor, config
