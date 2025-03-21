@@ -27,6 +27,12 @@ REPLICATED_ATTENTION_MODELS = [
 ]
 
 
+# # Qwen2VL
+# transformers.models.qwen2_vl.modeling_qwen2_vl.QWEN2_VL_VISION_ATTENTION_CLASSES[
+#     "tgi"
+# ] = transformers.models.qwen2_vl.modeling_qwen2_vl.QWEN2_VL_VISION_ATTENTION_CLASSES[
+#     "eager"
+# ]
 def tgi_flash_attention_forward(
     module,
     query_states: torch.Tensor,
