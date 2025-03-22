@@ -7,7 +7,7 @@ from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import Weight, Weights, WeightsLoader
 
 
-QuantLinear = None
+from .hpu import QuantLinear
 
 
 @dataclass
@@ -215,14 +215,7 @@ class GPTQWeightsLoader(WeightsLoader):
             [weights.get_sharded(f"{p}.qzeros", dim=1) for p in prefixes], dim=1
         )
 
-        from text_generation_server.layers.gptq import HAS_EXLLAMA
-
-        use_exllama = (
-            self.bits == 4
-            and HAS_EXLLAMA
-            and self.quantize == "gptq"
-            and not self.desc_act
-        )
+        use_exllama = self.bits == 4 and self.quantize == "gptq" and not self.desc_act
 
         if self.quantize == "gptq" and self.quant_method == "gptq":
             w = [weights.get_tensor(f"{p}.g_idx") for p in prefixes]
@@ -362,6 +355,3 @@ class GPTQWeightsLoader(WeightsLoader):
                 else False
             )
             self.quant_method = "gptq"
-
-
-HAS_EXLLAMA = False

@@ -398,6 +398,7 @@ class FlashGemmaModel(torch.nn.Module):
         block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
+        adapter_data: Optional[torch.Tensor],
         prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
@@ -479,6 +480,7 @@ class FlashGemmaForCausalLM(torch.nn.Module):
             block_tables,
             slots,
             seqlen,
+            adapter_data,
             prefill_cache_indices,
             hpu_attention_meta,
         )

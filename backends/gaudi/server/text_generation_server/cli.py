@@ -16,15 +16,9 @@ app = typer.Typer()
 
 
 class Quantization(str, Enum):
-    bitsandbytes = "bitsandbytes"
-    bitsandbytes_nf4 = "bitsandbytes-nf4"
-    bitsandbytes_fp4 = "bitsandbytes-fp4"
     gptq = "gptq"
     awq = "awq"
-    eetq = "eetq"
-    exl2 = "exl2"
     fp8 = "fp8"
-    marlin = "marlin"
 
 
 class Dtype(str, Enum):

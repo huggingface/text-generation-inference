@@ -588,7 +588,7 @@ class Seq2SeqLM(Model):
             aliases=aliases,
             weights_loader=weights_loader,
         )
-        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
+        if config.quantize in ["awq", "gptq"]:
             weights._set_gptq_params(model_id, revision)
 
         model = model_class(config, weights)

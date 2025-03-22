@@ -111,6 +111,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             seqlen=seqlen,
             hpu_attention_meta=hpu_attention_meta,
             prefill_cache_indices=None,
+            adapter_data=adapter_data,
         )
 
         if lm_head_indices is not None:

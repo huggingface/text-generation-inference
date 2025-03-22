@@ -7,10 +7,6 @@ from text_generation_server.utils.weights import (
 )
 from text_generation_server.layers.gptq import GPTQWeight, GPTQWeightsLoader
 from text_generation_server.layers.exl2 import Exl2Weight, Exl2WeightsLoader
-from text_generation_server.layers.marlin.marlin import (
-    MarlinWeight,
-    MarlinWeightsLoader,
-)
 from types import SimpleNamespace
 from typing import List, Optional, Dict, Union
 from pathlib import Path
@@ -38,11 +34,6 @@ def gptq_weights_loader_awq():
         quantize="awq",
         sym=True,
     )
-
-
-@pytest.fixture
-def marlin_weights_loader():
-    return MarlinWeightsLoader(bits=4, is_marlin_24=False)
 
 
 dummy_file_system = {
@@ -124,10 +115,6 @@ dummy_file_system = {
         ),
         "gptq_bits": torch.tensor([8], dtype=torch.float32),
         "gptq_groupsize": torch.tensor([2], dtype=torch.float32),
-    },
-    "test_get_weights_col_marlin": {
-        "weight.B": torch.tensor([[1, 2], [3, 4]], dtype=torch.int32),
-        "weight.s": torch.tensor([[0.5000], [0.2500]], dtype=torch.float16),
     },
     "test_get_weights_row_gptq": {
         "weight.qweight": torch.tensor(
@@ -272,18 +259,6 @@ dummy_file_system = {
         "weight.q_invperm": torch.tensor([1, 0, 3, 2], dtype=torch.int32),
         "weight.q_scale_max": torch.tensor([100], dtype=torch.float16),
         "weight.q_groups": torch.tensor([4], dtype=torch.int16),
-    },
-    "test_get_weights_row_marlin": {
-        "weight.B": torch.tensor([[1, 2], [3, 4]], dtype=torch.int32),
-        "weight.s": torch.tensor([[0.5], [0.25]], dtype=torch.float16),
-    },
-    "test_get_multi_weights_col_marlin": {
-        "weight.B": torch.tensor([[1, 2], [3, 4]], dtype=torch.int32),
-        "weight.s": torch.tensor([[0.5], [0.25]], dtype=torch.float16),
-    },
-    "test_get_weights_col_packed_marlin": {
-        "weight.B": torch.tensor([[1, 2], [3, 4]], dtype=torch.int32),
-        "weight.s": torch.tensor([[0.5], [0.25]], dtype=torch.float16),
     },
 }
 
@@ -718,33 +693,6 @@ def test_get_weights_col_exl2():
     assert torch.allclose(w.q_groups, expected_weight.q_groups), "q_groups mismatch"
 
 
-def test_get_weights_col_marlin(marlin_weights_loader):
-    weights = MockWeights(
-        [
-            "test_get_weights_col_marlin",
-        ],
-        device="cpu",
-        dtype=torch.float16,
-        process_group=dummy_process_group,
-        dummy_fs=dummy_file_system,
-        weights_loader=marlin_weights_loader,
-    )
-
-    prefix = "weight"
-
-    w = weights.get_weights_col(
-        prefix=prefix,
-    )
-
-    expected_weight = MarlinWeight(
-        B=torch.tensor([[1, 2], [3, 4]], dtype=torch.int32),
-        s=torch.tensor([[0.5000], [0.2500]], dtype=torch.float16),
-    )
-
-    assert torch.allclose(w.B, expected_weight.B), "B mismatch"
-    assert torch.allclose(w.s, expected_weight.s), "s mismatch"
-
-
 # test_get_weights_col_packed
 
 
@@ -868,36 +816,6 @@ def test_get_weights_col_packed_gptq(gptq_weights_loader):
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
 
 
-def test_get_weights_col_packed_marlin(marlin_weights_loader):
-    weights = MockWeights(
-        [
-            "test_get_weights_col_packed_marlin",
-        ],
-        device="cpu",
-        dtype=torch.float16,
-        process_group=dummy_process_group,
-        dummy_fs=dummy_file_system,
-        weights_loader=marlin_weights_loader,
-    )
-
-    prefix = "weight"
-
-    w = weights.get_multi_weights_col(
-        prefixes=[prefix],
-        dim=0,
-    )
-
-    expected_weight = MarlinWeight(
-        B=torch.tensor([[1, 2], [3, 4]], dtype=torch.int32),
-        s=torch.tensor([[0.5000], [0.2500]], dtype=torch.float16),
-    )
-
-    print(expected_weight)
-
-    assert torch.allclose(w.B, expected_weight.B), "B mismatch"
-    assert torch.allclose(w.s, expected_weight.s), "s mismatch"
-
-
 # test_get_multi_weights_col
 
 
@@ -1002,34 +920,6 @@ def test_get_multi_weights_col_gptq(gptq_weights_loader):
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
     assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
-
-
-def test_get_multi_weights_col_marlin(marlin_weights_loader):
-    weights = MockWeights(
-        [
-            "test_get_multi_weights_col_marlin",
-        ],
-        device="cpu",
-        dtype=torch.float16,
-        process_group=dummy_process_group,
-        dummy_fs=dummy_file_system,
-        weights_loader=marlin_weights_loader,
-    )
-
-    prefix = "weight"
-
-    w = weights.get_multi_weights_col(
-        prefixes=[prefix],
-        dim=0,
-    )
-
-    expected_weight = MarlinWeight(
-        B=torch.tensor([[1, 2], [3, 4]], dtype=torch.int32),
-        s=torch.tensor([[0.5000], [0.2500]], dtype=torch.float16),
-    )
-
-    assert torch.allclose(w.B, expected_weight.B), "B mismatch"
-    assert torch.allclose(w.s, expected_weight.s), "s mismatch"
 
 
 # test_get_weights_row
@@ -1148,30 +1038,3 @@ def test_get_weights_row_gptq(gptq_weights_loader):
     assert w.groupsize == expected_weight.groupsize, "groupsize mismatch"
     assert w.use_awq_kernel == expected_weight.use_awq_kernel, "use_awq_kernel mismatch"
     assert w.use_exllama == expected_weight.use_exllama, "use_exllama mismatch"
-
-
-def test_get_weights_row_marlin(marlin_weights_loader):
-    weights = MockWeights(
-        [
-            "test_get_weights_row_marlin",
-        ],
-        device="cpu",
-        dtype=torch.float16,
-        process_group=dummy_process_group,
-        dummy_fs=dummy_file_system,
-        weights_loader=marlin_weights_loader,
-    )
-
-    prefix = "weight"
-
-    w = weights.get_weights_row(
-        prefix=prefix,
-    )
-
-    expected_weight = MarlinWeight(
-        B=torch.tensor([[1, 2], [3, 4]], dtype=torch.int32),
-        s=torch.tensor([[0.5000], [0.2500]], dtype=torch.float16),
-    )
-
-    assert torch.allclose(w.B, expected_weight.B), "B mismatch"
-    assert torch.allclose(w.s, expected_weight.s), "s mismatch"
