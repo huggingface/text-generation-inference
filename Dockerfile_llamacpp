@@ -41,7 +41,7 @@ RUN mkdir -p llama.cpp \
 
 WORKDIR /app
 COPY rust-toolchain.toml rust-toolchain.toml
-RUN curl -sSf https://sh.rustup.rs | sh -s -- --no-modify-path --default-toolchain 1.85.0 --profile minimal -y
+RUN curl -sSf https://sh.rustup.rs | sh -s -- --no-modify-path --default-toolchain 1.85.1 --profile minimal -y
 ENV PATH="/root/.cargo/bin:$PATH"
 RUN cargo install cargo-chef --locked
 
