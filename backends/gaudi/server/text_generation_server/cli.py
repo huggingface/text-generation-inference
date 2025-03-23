@@ -99,6 +99,8 @@ def serve(
         "bitsandbytes",
         "bitsandbytes-nf4",
         "bitsandbytes-fp4",
+        "gptq",
+        "awq",
     }:
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
