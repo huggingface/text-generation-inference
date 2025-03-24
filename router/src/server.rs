@@ -421,7 +421,12 @@ pub(crate) async fn generate_internal(
     }
 
     tracing::debug!("Output: {}", output_text);
-    tracing::info!("Success");
+    tracing::info!(
+        "Success. total_time={}s inference_time={}s tokens={}",
+        total_time.as_secs_f32(),
+        inference_time.as_secs_f32(),
+        response.generated_text.generated_tokens,
+    );
 
     let response = GenerateResponse {
         generated_text: output_text,
