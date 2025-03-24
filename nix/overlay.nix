@@ -18,8 +18,8 @@ final: prev: {
             src = final.fetchFromGitHub {
               owner = "huggingface";
               repo = "transformers";
-              rev = "v4.49.0";
-              hash = "sha256-drq7RWoRaRejiQjCUHIYuzaKa9rA4eQZI2do74scp1c=";
+              rev = "v4.50.0";
+              hash = "sha256-/scrMPUY43n+XAMbwWCtmiJKXscXGLrklyDg9XZTaqw=";
             };
           }
         );
