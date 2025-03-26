@@ -92,7 +92,6 @@ try:
     from text_generation_server.models.custom_modeling.flash_phi_modeling import (
         FlashPhiForCausalLM,
     )
-    from text_generation_server.models.idefics_causal_lm import IdeficsCausalLM
     from text_generation_server.models.mllama_causal_lm import FlashMllamaCausalLMBatch
     from text_generation_server.models.custom_modeling.flash_mllama import (
         FlashMllamaForConditionalGeneration,
@@ -144,7 +143,6 @@ except ImportError as e:
 
 if FLASH_ATTENTION:
     __all__.append(FlashCausalLM)
-    __all__.append(IdeficsCausalLM)
 
 
 class ModelType(enum.Enum):
@@ -300,12 +298,6 @@ class ModelType(enum.Enum):
         "type": "gptj",
         "name": "Gptj",
         "url": "https://huggingface.co/EleutherAI/gpt-j-6b",
-    }
-    IDEFICS = {
-        "type": "idefics",
-        "name": "Idefics",
-        "url": "https://huggingface.co/HuggingFaceM4/idefics-9b",
-        "multimodal": True,
     }
     MLLAMA = {
         "type": "mllama",
@@ -732,15 +724,6 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
-            )
-        elif model_type == IDEFICS:
-            return IdeficsCausalLM(
-                model_id,
-                revision,
-                quantize=quantize,
-                speculator=speculator,
-                dtype=dtype,
-                trust_remote_code=trust_remote_code,
             )
         elif model_type == QWEN2_VL:
             return FlashVlmCausalLM(

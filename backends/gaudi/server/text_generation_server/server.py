@@ -33,13 +33,11 @@ try:
     from text_generation_server.models.flash_vlm_causal_lm import (
         FlashVlmCausalLMBatch,
     )
-    from text_generation_server.models.idefics_causal_lm import IdeficsCausalLMBatch
 
     VLM_BATCH_TYPES = {
         PaliGemmaBatch,
         VlmCausalLMBatch,
         FlashVlmCausalLMBatch,
-        IdeficsCausalLMBatch,
         FlashMllamaCausalLMBatch,
     }
 except (ImportError, NotImplementedError):
