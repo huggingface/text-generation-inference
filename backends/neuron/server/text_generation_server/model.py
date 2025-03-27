@@ -107,10 +107,26 @@ def fetch_model(
     if not is_cached(model_id, neuron_config):
         hub_cache_url = "https://huggingface.co/aws-neuron/optimum-neuron-cache"
         neuron_export_url = "https://huggingface.co/docs/optimum-neuron/main/en/guides/export_model#exporting-neuron-models-using-neuronx-tgi"
+        entries = get_hub_cached_entries(model_id, "inference")
+        available_configs = ""
+        if entries:
+            config_list = []
+            for entry in entries:
+                config = (
+                    f"batch_size={entry['batch_size']}, "
+                    f"sequence_length={entry['sequence_length']}, "
+                    f"num_cores={entry['num_cores']}, "
+                    f"auto_cast_type={entry['auto_cast_type']}"
+                )
+                config_list.append(config)
+            available_configs = "\nAvailable cached configurations for this model:\n- " + "\n- ".join(config_list)
+        else:
+            available_configs = "\nNo cached versions are currently available for that model with any configuration."
         error_msg = (
             f"No cached version found for {model_id} with {neuron_config}."
-            f"You can start a discussion to request it on {hub_cache_url}"
-            f"Alternatively, you can export your own neuron model as explained in {neuron_export_url}"
+            f"{available_configs}"
+            f"\nYou can start a discussion to request it on {hub_cache_url}"
+            f"\nAlternatively, you can export your own neuron model as explained in {neuron_export_url}"
         )
         raise ValueError(error_msg)
     logger.warning(
