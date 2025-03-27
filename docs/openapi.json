@@ -1520,6 +1520,10 @@
             "type": "string",
             "nullable": true
           },
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
           "name": {
             "type": "string"
           }
@@ -1883,6 +1887,11 @@
               "role": {
                 "type": "string",
                 "example": "user"
+              },
+              "tool_call_id": {
+                "type": "string",
+                "example": "10",
+                "nullable": true
               }
             }
           }
