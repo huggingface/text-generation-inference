@@ -41,295 +41,238 @@ COPY backends backends
 COPY launcher launcher
 RUN cargo build --profile release-opt --frozen
 
-# Text Generation Inference base image for RoCm
-FROM rocm/dev-ubuntu-22.04:6.2 AS base
+FROM rocm/dev-ubuntu-22.04:6.3.1-complete AS base
 
+ARG HIPBLASLT_BRANCH="4d40e36"
+ARG HIPBLAS_COMMON_BRANCH="7c1566b"
+ARG LEGACY_HIPBLASLT_OPTION=
+ARG RCCL_BRANCH="648a58d"
+ARG RCCL_REPO="https://github.com/ROCm/rccl"
+ARG TRITON_BRANCH="e5be006"
+ARG TRITON_REPO="https://github.com/triton-lang/triton.git"
+ARG PYTORCH_BRANCH="3a585126"
+ARG PYTORCH_VISION_BRANCH="v0.19.1"
+ARG PYTORCH_REPO="https://github.com/pytorch/pytorch.git"
+ARG PYTORCH_VISION_REPO="https://github.com/pytorch/vision.git"
+ARG FA_BRANCH="b7d29fb"
+ARG FA_REPO="https://github.com/ROCm/flash-attention.git"
+ARG AITER_BRANCH="21d47a9"
+ARG AITER_REPO="https://github.com/ROCm/aiter.git"
+
+ENV PATH=/opt/rocm/llvm/bin:$PATH
+ENV ROCM_PATH=/opt/rocm
+ENV LD_LIBRARY_PATH=/opt/rocm/lib:/usr/local/lib:
+ARG PYTORCH_ROCM_ARCH=gfx90a;gfx942
+ENV PYTORCH_ROCM_ARCH=${PYTORCH_ROCM_ARCH}
+
+ARG PYTHON_VERSION=3.11
+
+RUN mkdir -p /app
+WORKDIR /app
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Python and other dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    build-essential \
-    ca-certificates \
-    ccache \
-    curl \
-    git \
-    make \
-    libmsgpack-dev \
-    libssl-dev \
-    llvm-dev \
-    g++ \
-    # Needed to build VLLM & flash.
-    rocthrust-dev \
-    hipsparse-dev \
-    hipblas-dev \
-    hipcub-dev \
-    rocblas-dev \
-    hiprand-dev \
-    hipfft-dev \
-    rocrand-dev \
-    miopen-hip-dev \
-    hipsolver-dev \
-    rccl-dev \
-    cmake \
-    python3.11-venv && \
-    rm -rf /var/lib/apt/lists/*
+        build-essential \
+        ca-certificates \
+        ccache \
+        curl \
+        git \
+        ninja-build \
+        cmake \
+        software-properties-common \
+        python3.11-dev \
+        python3.11-venv && \
+        rm -rf /var/lib/apt/lists/*
 
-# Keep in sync with `server/pyproject.toml
-ARG MAMBA_VERSION=23.1.0-1
-ARG PYTHON_VERSION='3.11.10'
-# Automatically set by buildx
-ARG TARGETPLATFORM
-ENV PATH=/opt/conda/bin:$PATH
+COPY --from=ghcr.io/astral-sh/uv:0.5.31 /uv /uvx /bin/
+ENV PATH="$PATH:/root/.local/bin"
+RUN uv python install ${PYTHON_VERSION}
+RUN uv venv --python ${PYTHON_VERSION} && uv pip install pip setuptools packaging
+ENV VIRTUAL_ENV=/usr/src/.venv/
+ENV PATH="$PATH:/usr/src/.venv/bin/"
 
-ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
+RUN . .venv/bin/activate && pip install -U packaging cmake ninja wheel setuptools pybind11 Cython
 
-# TGI seem to require libssl.so.1.1 instead of libssl.so.3 so we can't use ubuntu 22.04. Ubuntu 20.04 has python==3.8, and TGI requires python>=3.9, hence the need for miniconda.
-# Install mamba
-# translating Docker's TARGETPLATFORM into mamba arches
-RUN case ${TARGETPLATFORM} in \
-         "linux/arm64")  MAMBA_ARCH=aarch64  ;; \
-         *)              MAMBA_ARCH=x86_64   ;; \
-    esac && \
-    curl -fsSL -v -o ~/mambaforge.sh -O  "https://github.com/conda-forge/miniforge/releases/download/${MAMBA_VERSION}/Mambaforge-${MAMBA_VERSION}-Linux-${MAMBA_ARCH}.sh"
-RUN chmod +x ~/mambaforge.sh && \
-    bash ~/mambaforge.sh -b -p /opt/conda && \
-    mamba init && \
-    rm ~/mambaforge.sh
-
-# RUN conda install intel::mkl-static intel::mkl-include
-# Install pytorch
-# On arm64 we exit with an error code
-RUN case ${TARGETPLATFORM} in \
-         "linux/arm64")  exit 1 ;; \
-         *)              /opt/conda/bin/conda update -y conda &&  \
-                         /opt/conda/bin/conda install -y "python=${PYTHON_VERSION}" ;; \
-    esac && \
-    /opt/conda/bin/conda clean -ya
-
-# Install flash-attention, torch dependencies
-RUN python3 -m pip install --upgrade pip uv && pip install numpy einops ninja joblib msgpack cmake --no-cache-dir && rm -rf /var/lib/apt/lists/*
-
-RUN conda install mkl=2021
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib/:/opt/conda/lib/python3.11/site-packages/torch/lib:/opt/conda/lib/
-
-
-ARG COMMON_WORKDIR=/
-WORKDIR ${COMMON_WORKDIR}
-
-
-# Install HIPBLASLt
 FROM base AS build_hipblaslt
-ARG HIPBLASLT_BRANCH="e6da924"
-RUN git clone https://github.com/ROCm/hipBLASLt.git \
-    && cd hipBLASLt \
+ARG HIPBLASLT_BRANCH
+ARG HIPBLAS_COMMON_BRANCH
+# Set to "--legacy_hipblas_direct" for ROCm<=6.2
+ARG LEGACY_HIPBLASLT_OPTION
+RUN git clone https://github.com/ROCm/hipBLAS-common.git
+RUN . .venv/bin/activate && cd hipBLAS-common \
+    && git checkout ${HIPBLAS_COMMON_BRANCH} \
+    && mkdir build \
+    && cd build \
+    && cmake .. \
+    && make package \
+    && dpkg -i ./*.deb
+RUN git clone https://github.com/ROCm/hipBLASLt
+RUN . .venv/bin/activate && cd hipBLASLt \
     && git checkout ${HIPBLASLT_BRANCH} \
-    && SCCACHE_IDLE_TIMEOUT=1800 ./install.sh --architecture ${PYTORCH_ROCM_ARCH} --legacy_hipblas_direct \
+    && ./install.sh -d --architecture ${PYTORCH_ROCM_ARCH} ${LEGACY_HIPBLASLT_OPTION} \
     && cd build/release \
     && make package
+RUN mkdir -p /app/install && cp /app/hipBLASLt/build/release/*.deb /app/hipBLAS-common/build/*.deb /app/install
 
-FROM scratch AS export_hipblaslt
-ARG COMMON_WORKDIR
-COPY --from=build_hipblaslt ${COMMON_WORKDIR}/hipBLASLt/build/release/*.deb /
-
-# RCCL build stages
 FROM base AS build_rccl
-ARG RCCL_BRANCH="rocm-6.2.0"
-RUN git clone https://github.com/ROCm/rccl \
-    && cd rccl \
+ARG RCCL_BRANCH
+ARG RCCL_REPO
+RUN git clone ${RCCL_REPO}
+RUN . .venv/bin/activate && cd rccl \
     && git checkout ${RCCL_BRANCH} \
     && ./install.sh -p --amdgpu_targets ${PYTORCH_ROCM_ARCH}
-FROM scratch AS export_rccl
-ARG COMMON_WORKDIR
-COPY --from=build_rccl ${COMMON_WORKDIR}/rccl/build/release/*.deb /
+RUN mkdir -p /app/install && cp /app/rccl/build/release/*.deb /app/install
 
-# Triton build stages
 FROM base AS build_triton
-ARG TRITON_BRANCH="e192dba"
-ARG TRITON_REPO="https://github.com/triton-lang/triton.git"
-RUN python3 -m pip install ninja cmake wheel pybind11 && git clone ${TRITON_REPO} \
-    && cd triton \
+ARG TRITON_BRANCH
+ARG TRITON_REPO
+RUN git clone ${TRITON_REPO}
+RUN . .venv/bin/activate && cd triton \
     && git checkout ${TRITON_BRANCH} \
     && cd python \
     && python3 setup.py bdist_wheel --dist-dir=dist
-FROM scratch AS export_triton
-ARG COMMON_WORKDIR
-COPY --from=build_triton ${COMMON_WORKDIR}/triton/python/dist/*.whl /
+RUN mkdir -p /app/install && cp /app/triton/python/dist/*.whl /app/install
 
-# # AMD-SMI build stages
 FROM base AS build_amdsmi
-RUN cd /opt/rocm/share/amd_smi \
+RUN . .venv/bin/activate && cd /opt/rocm/share/amd_smi \
     && pip wheel . --wheel-dir=dist
-FROM scratch AS export_amdsmi
-COPY --from=build_amdsmi /opt/rocm/share/amd_smi/dist/*.whl /
+RUN mkdir -p /app/install && cp /opt/rocm/share/amd_smi/dist/*.whl /app/install
 
+FROM base AS build_pytorch
+ARG PYTORCH_BRANCH
+ARG PYTORCH_VISION_BRANCH
+ARG PYTORCH_REPO
+ARG PYTORCH_VISION_REPO
+ARG FA_BRANCH
+ARG FA_REPO
+RUN git clone ${PYTORCH_REPO} pytorch
+RUN . .venv/bin/activate && cd pytorch && git checkout ${PYTORCH_BRANCH} && \
+    pip install -r requirements.txt && git submodule update --init --recursive \
+    && python3 tools/amd_build/build_amd.py \
+    && CMAKE_PREFIX_PATH=$(python3 -c 'import sys; print(sys.prefix)') python3 setup.py bdist_wheel --dist-dir=dist \
+    && pip install dist/*.whl
+RUN git clone ${PYTORCH_VISION_REPO} vision
+RUN . .venv/bin/activate && cd vision && git checkout ${PYTORCH_VISION_BRANCH} \
+    && python3 setup.py bdist_wheel --dist-dir=dist \
+    && pip install dist/*.whl
+RUN git clone ${FA_REPO}
+RUN . .venv/bin/activate && cd flash-attention \
+    && git checkout ${FA_BRANCH} \
+    && git submodule update --init \
+    && MAX_JOBS=64 GPU_ARCHS=${PYTORCH_ROCM_ARCH} python3 setup.py bdist_wheel --dist-dir=dist
+RUN mkdir -p /app/install && cp /app/pytorch/dist/*.whl /app/install \
+    && cp /app/vision/dist/*.whl /app/install \
+    && cp /app/flash-attention/dist/*.whl /app/install
 
-FROM base as build_pytorch
+FROM base AS final
+RUN --mount=type=bind,from=build_hipblaslt,src=/app/install/,target=/install \
+    dpkg -i /install/*deb \
+    && sed -i 's/, hipblaslt-dev \(.*\), hipcub-dev/, hipcub-dev/g' /var/lib/dpkg/status \
+    && sed -i 's/, hipblaslt \(.*\), hipfft/, hipfft/g' /var/lib/dpkg/status
+RUN --mount=type=bind,from=build_rccl,src=/app/install/,target=/install \
+    dpkg -i /install/*deb \
+    && sed -i 's/, rccl-dev \(.*\), rocalution/, rocalution/g' /var/lib/dpkg/status \
+    && sed -i 's/, rccl \(.*\), rocalution/, rocalution/g' /var/lib/dpkg/status
+RUN --mount=type=bind,from=build_triton,src=/app/install/,target=/install \
+    . .venv/bin/activate && \
+    pip install /install/*.whl
+RUN --mount=type=bind,from=build_amdsmi,src=/app/install/,target=/install \
+    . .venv/bin/activate && \
+    pip install /install/*.whl
+RUN --mount=type=bind,from=build_pytorch,src=/app/install/,target=/install \
+    . .venv/bin/activate && \
+    pip install /install/*.whl
 
-RUN --mount=type=bind,from=export_hipblaslt,src=/,target=/install \
-    if ls /install/*.deb; then \
-        dpkg -i /install/*.deb \
-        && sed -i 's/, hipblaslt-dev \(.*\), hipcub-dev/, hipcub-dev/g' /var/lib/dpkg/status \
-        && sed -i 's/, hipblaslt \(.*\), hipfft/, hipfft/g' /var/lib/dpkg/status; \
-    fi
+ARG AITER_REPO
+ARG AITER_BRANCH
+RUN git clone --recursive ${AITER_REPO}
+RUN . .venv/bin/activate && cd aiter \
+    && git checkout ${AITER_BRANCH} \
+    && git submodule update --init --recursive \
+    && pip install -r requirements.txt \
+    && PREBUILD_KERNELS=1 GPU_ARCHS=gfx942 python3 setup.py develop && pip show aiter 
 
-ARG BUILD_ENVIRONMENT=pytorch-linux-jammy-rocm6.2-py3.11
-ARG PYTORCH_ROCM_ARCH="gfx90a;gfx942"
+RUN rm -rf /var/lib/apt/lists/*
 
-# A commit to fix the output scaling factor issue in _scaled_mm
-# Not yet in 2.5.0-rc1
-ARG PYTORCH_BRANCH="cedc116"
-ARG PYTORCH_VISION_BRANCH="v0.19.1"
-ARG PYTORCH_REPO="https://github.com/ROCm/pytorch.git"
-
-RUN git clone ${PYTORCH_REPO} pytorch \
-    && cd pytorch && git checkout ${PYTORCH_BRANCH} && git submodule update --init --recursive \
-    && pip install -r requirements.txt --no-cache-dir  \
-    && python tools/amd_build/build_amd.py \
-    && CMAKE_PREFIX_PATH=$(python3 -c 'import sys; print(sys.prefix)') python3 setup.py bdist_wheel --dist-dir=dist
-FROM scratch as export_pytorch
-ARG COMMON_WORKDIR
-COPY --from=build_pytorch ${COMMON_WORKDIR}/pytorch/dist/*.whl /
-
-FROM base AS install_deps
-
-ARG COMMON_WORKDIR
-
-# Install hipblaslt
-RUN --mount=type=bind,from=export_hipblaslt,src=/,target=/install \
-    if ls /install/*.deb; then \
-        dpkg -i /install/*.deb \
-        && sed -i 's/, hipblaslt-dev \(.*\), hipcub-dev/, hipcub-dev/g' /var/lib/dpkg/status \
-        && sed -i 's/, hipblaslt \(.*\), hipfft/, hipfft/g' /var/lib/dpkg/status; \
-    fi
-
-RUN --mount=type=bind,from=export_rccl,src=/,target=/install \
-    if ls /install/*.deb; then \
-        dpkg -i /install/*.deb \
-        # RCCL needs to be installed twice
-        && dpkg -i /install/*.deb \
-        && sed -i 's/, rccl-dev \(.*\), rocalution/, rocalution/g' /var/lib/dpkg/status \
-        && sed -i 's/, rccl \(.*\), rocalution/, rocalution/g' /var/lib/dpkg/status; \
-    fi
-
-RUN --mount=type=bind,from=export_triton,src=/,target=/install \
-    if ls /install/*.whl; then \
-        # Preemptively uninstall to prevent pip same-version no-installs
-        pip uninstall -y triton \
-        && pip install /install/*.whl; \
-    fi
-
-RUN --mount=type=bind,from=export_amdsmi,src=/,target=/install \
-    # Preemptively uninstall to prevent pip same-version no-installs
-    pip uninstall -y amdsmi \
-    && pip install /install/*.whl;
-
-RUN --mount=type=bind,from=export_pytorch,src=/,target=/install \
-    if ls /install/*.whl; then \
-        # Preemptively uninstall to prevent pip same-version no-installs
-        pip uninstall -y torch torchvision \
-        && pip install /install/*.whl; \
-    fi
-
-FROM install_deps AS kernel-builder
-
+FROM final AS kernel-builder
 # # Build vllm kernels
 FROM kernel-builder AS vllm-builder
-WORKDIR /usr/src
 
 COPY server/Makefile-vllm Makefile
-RUN pip install setuptools_scm
+RUN . .venv/bin/activate && pip install setuptools_scm
 
 # Build specific version of vllm
-RUN make build-vllm-rocm
-
-# Build Flash Attention v2 kernels
-FROM kernel-builder AS flash-att-v2-builder
-WORKDIR /usr/src
-
-COPY server/Makefile-flash-att-v2 Makefile
-
-# Build specific version of flash attention v2
-RUN make build-flash-attention-v2-rocm
+RUN . .venv/bin/activate && make build-vllm-rocm
 
 # Build Transformers CUDA kernels (gpt-neox and bloom)
 FROM kernel-builder AS custom-kernels-builder
-WORKDIR /usr/src
 COPY server/custom_kernels/ .
-RUN python setup.py build
+RUN . .venv/bin/activate && python3 setup.py bdist_wheel --dist-dir=dist
 
 # Build exllama kernels
 FROM kernel-builder AS exllama-kernels-builder
-WORKDIR /usr/src
 COPY server/exllama_kernels/ .
-
-RUN python setup.py build
+RUN . .venv/bin/activate && python3 setup.py bdist_wheel --dist-dir=dist
 
 # Build exllama v2 kernels
 FROM kernel-builder AS exllamav2-kernels-builder
-WORKDIR /usr/src
 COPY server/exllamav2_kernels/ .
-
-RUN python setup.py build
+RUN . .venv/bin/activate && python3 setup.py bdist_wheel --dist-dir=dist
 
 FROM kernel-builder AS marlin-kernels
-WORKDIR /usr/src
 ENV MARLIN_KERNELS_BRANCH=v0.3.6
 ENV VLLM_TARGET_DEVICE=rocm
-RUN git clone https://github.com/danieldk/marlin-kernels.git && \
+RUN . .venv/bin/activate && git clone https://github.com/danieldk/marlin-kernels.git && \
     cd marlin-kernels && \
     git checkout ${MARLIN_KERNELS_BRANCH} && \
-    python setup.py install
+    python3 setup.py bdist_wheel --dist-dir=dist
 
 FROM kernel-builder AS moe-kernels
-WORKDIR /usr/src
 ENV MOE_KERNELS_BRANCH=v0.8.2
 ENV VLLM_TARGET_DEVICE=rocm
-RUN git clone https://github.com/danieldk/moe-kernels.git && \
+RUN . .venv/bin/activate && git clone https://github.com/danieldk/moe-kernels.git && \
     cd moe-kernels && \
     git checkout ${MOE_KERNELS_BRANCH} && \
-    python setup.py install
+    python3 setup.py bdist_wheel --dist-dir=dist
 
-FROM install_deps AS base-copy
+FROM final AS base-copy
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
     PORT=80
 
-# Copy builds artifacts from vllm builder
-COPY --from=vllm-builder /usr/src/vllm/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
-
-# Copy build artifacts from flash attention v2 builder
-COPY --from=flash-att-v2-builder /usr/src/flash-attention-v2/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
-
-# Copy build artifacts from custom kernels builder
-COPY --from=custom-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
-
-# Copy build artifacts from exllama kernels builder
-COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
-
-# Copy build artifacts from exllamav2 kernels builder
-COPY --from=exllamav2-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
-
-# Copy build artifacts from marlin kernels
-COPY --from=marlin-kernels /usr/src/marlin-kernels/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
-
-# Copy build artifacts from moe kernels
-COPY --from=moe-kernels /usr/src/moe-kernels/build/lib.linux-x86_64-cpython-311 /opt/conda/lib/python3.11/site-packages
+ENV VIRTUAL_ENV=/app/.venv/
+ENV PATH="$PATH:/app/.venv/bin/"
 
 # Install server
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
-ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
-    pip install -U pip uv && \
-	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --no-install-project && \
-    . ./.venv/bin/activate && \
-    make gen-server-raw
-
+    uv pip install grpcio-tools mypy-protobuf && \
+    uv pip install  ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir && \
+    make gen-server-raw 
+RUN cp -r server/text_generation_server/pb /app/.venv/lib/python3.11/site-packages/text_generation_server/pb
 RUN cd server && \
-	uv sync --frozen --extra gen --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines && \
-    . ./.venv/bin/activate && \
     pwd && \
     text-generation-server --help
+
+RUN --mount=type=bind,from=vllm-builder,src=/app/vllm/dist,target=/install \
+    uv pip install /install/*.whl
+RUN --mount=type=bind,from=custom-kernels-builder,src=/app/dist,target=/install \
+    uv pip install /install/*.whl
+RUN --mount=type=bind,from=custom-kernels-builder,src=/app/dist,target=/install \
+    uv pip install /install/*.whl
+RUN --mount=type=bind,from=exllama-kernels-builder,src=/app/dist,target=/install \
+    uv pip install /install/*.whl
+RUN --mount=type=bind,from=exllamav2-kernels-builder,src=/app/dist,target=/install \
+    uv pip install /install/*.whl
+RUN --mount=type=bind,from=marlin-kernels,src=/app/marlin-kernels/dist,target=/install \
+    uv pip install /install/*.whl
+RUN --mount=type=bind,from=moe-kernels,src=/app/moe-kernels/dist,target=/install \
+    uv pip install /install/*.whl
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
@@ -337,7 +280,6 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/l
 COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/local/bin/text-generation-router
 # Install launcher
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
-ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/conda/lib/"
 
 # AWS Sagemaker compatible image
 FROM base AS sagemaker
@@ -368,4 +310,6 @@ COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
 ENTRYPOINT ["/tgi-entrypoint.sh"]
-CMD ["--json-output"]
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/root/.local/share/uv/python/cpython-3.11.11-linux-x86_64-gnu/lib"
+ENV PYTHONPATH=/app/.venv/lib/python3.11/site-packages
+# CMD ["--json-output"]
