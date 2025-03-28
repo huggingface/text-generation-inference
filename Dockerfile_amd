@@ -245,6 +245,7 @@ ENV HF_HOME=/data \
 
 ENV VIRTUAL_ENV=/app/.venv/
 ENV PATH="$PATH:/app/.venv/bin/"
+RUN uv pip install kernels
 
 # Install server
 COPY proto proto
@@ -252,9 +253,10 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     uv pip install grpcio-tools mypy-protobuf && \
-    uv pip install  ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir && \
-    make gen-server-raw 
-RUN cp -r server/text_generation_server/pb /app/.venv/lib/python3.11/site-packages/text_generation_server/pb
+    uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir && \
+    make gen-server-raw && \
+    kernels download .
+
 RUN cd server && \
     pwd && \
     text-generation-server --help
@@ -273,6 +275,7 @@ RUN --mount=type=bind,from=marlin-kernels,src=/app/marlin-kernels/dist,target=/i
     uv pip install /install/*.whl
 RUN --mount=type=bind,from=moe-kernels,src=/app/moe-kernels/dist,target=/install \
     uv pip install /install/*.whl
+
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
@@ -305,7 +308,7 @@ ENV ATTENTION=paged
 ENV PREFIX_CACHING=0
 ENV PREFILL_CHUNKING=0
 ENV ROCM_USE_SKINNY_GEMM=1
-
+ENV PYTORCH_TUNABLEOP_ENABLED=0
 COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 

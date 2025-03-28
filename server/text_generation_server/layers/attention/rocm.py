@@ -9,6 +9,8 @@ from text_generation_server.models.globals import (
     ATTENTION,
     BLOCK_SIZE,
 )
+from text_generation_server.utils.kernels import load_kernel
+from kernels import load_kernel as hf_load_kernel
 from loguru import logger
 import vllm._custom_ops as ops
 
@@ -28,6 +30,15 @@ ENGINE = "triton" if use_triton else "ck"
 
 use_rocm_custom_paged_attn = os.getenv("ROCM_USE_CUSTOM_PAGED_ATTN", "1") != "0"
 
+
+try:
+    paged_attention_kernels = load_kernel(
+        module="aiter_pa", repo_id="mohitsha/aiter_pa"
+    )
+except Exception as e:
+    raise ImportError(
+        f"Could not import attention kernels. Make sure your installation is correct. Complete error: {e}"
+    )
 
 def _use_rocm_custom_paged_attention(
     qtype: torch.dtype,
@@ -208,7 +219,7 @@ def paged_attention(
                 kv_scales.value_scale_cpu,
             )
         else:
-            ops.paged_attention_rocm(
+            paged_attention_kernels.paged_attention_rocm(
                 out,
                 exp_sums,
                 max_logits,
