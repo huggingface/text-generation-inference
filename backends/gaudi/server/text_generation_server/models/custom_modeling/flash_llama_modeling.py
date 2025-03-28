@@ -201,11 +201,9 @@ class FlashLlamaAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache: KVCache,
-        block_tables,
         slots,
         seqlen,
         adapter_data,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         qkv = self.query_key_value(hidden_states, adapter_data)
@@ -221,14 +219,9 @@ class FlashLlamaAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        if prefill_cache_indices is not None:
-            kv_to_cache = kv[prefill_cache_indices]
-        else:
-            kv_to_cache = kv
-
         kv_cache.store(
-            key=kv_to_cache[:, 0],
-            value=kv_to_cache[:, 1],
+            key=kv[:, 0],
+            value=kv[:, 1],
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -243,7 +236,6 @@ class FlashLlamaAttention(torch.nn.Module):
                 kv_scales=self.kv_scales,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
-                block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
             )
         # Decode
@@ -253,7 +245,6 @@ class FlashLlamaAttention(torch.nn.Module):
                 kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
@@ -441,12 +432,10 @@ class FlashLlamaLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
         adapter_data,
         cross_attention_states,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -458,11 +447,9 @@ class FlashLlamaLayer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
             adapter_data,
-            prefill_cache_indices,
             hpu_attention_meta=hpu_attention_meta,
         )
         if self.residual_multiplier is not None:
@@ -554,10 +541,8 @@ class FlashLlamaModel(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         adapter_data,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         cross_attention_states=None,
@@ -577,12 +562,10 @@ class FlashLlamaModel(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
                 adapter_data,
                 cross_attention_states,
-                prefill_cache_indices,
                 hpu_attention_meta=hpu_attention_meta,
             )
 
@@ -643,30 +626,21 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
-        prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         cross_attention_states=None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        if prefill_cache_indices is not None and slots.size(
-            0
-        ) != prefill_cache_indices.size(0):
-            # Slots also need to be sliced as it has the same size as the whole kv tensor
-            slots = slots[prefill_cache_indices]
         inputs_embeds = self.embed_tokens(input_ids)
         hidden_states = self.model(
             inputs_embeds,
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices=prefill_cache_indices,
             adapter_data=adapter_data,
             cross_attention_states=cross_attention_states,
             hpu_attention_meta=hpu_attention_meta,

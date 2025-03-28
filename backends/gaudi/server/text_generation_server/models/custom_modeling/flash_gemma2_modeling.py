@@ -235,11 +235,9 @@ class FlashGemma2Attention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
         adapter_data,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states, adapter_data)
@@ -254,14 +252,10 @@ class FlashGemma2Attention(torch.nn.Module):
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
-        if prefill_cache_indices is not None:
-            kv_to_cache = kv[prefill_cache_indices]
-        else:
-            kv_to_cache = kv
 
         kv_cache.store(
-            key=kv_to_cache[:, 0],
-            value=kv_to_cache[:, 1],
+            key=kv[:, 0],
+            value=kv[:, 1],
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -276,7 +270,6 @@ class FlashGemma2Attention(torch.nn.Module):
                 kv_cache=kv_cache,
                 kv_scales=self.kv_scales,
                 seqlen=seqlen,
-                block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
                 window_size_left=self.window_size,
                 softcap=self.softcap,
@@ -288,7 +281,6 @@ class FlashGemma2Attention(torch.nn.Module):
                 kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
                 softcap=self.softcap,
                 kv_scales=self.kv_scales,
@@ -402,11 +394,9 @@ class FlashGemma2Layer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
         adapter_data,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -418,11 +408,9 @@ class FlashGemma2Layer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
             adapter_data,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
 
@@ -472,11 +460,9 @@ class FlashGemma2Model(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
         adapter_data: Optional[torch.Tensor],
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
@@ -494,11 +480,9 @@ class FlashGemma2Model(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
                 adapter_data,
-                prefill_cache_indices,
                 hpu_attention_meta,
             )
 
@@ -543,10 +527,8 @@ class FlashGemma2ForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
@@ -557,11 +539,9 @@ class FlashGemma2ForCausalLM(torch.nn.Module):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
             adapter_data,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
         if lm_head_indices is not None:

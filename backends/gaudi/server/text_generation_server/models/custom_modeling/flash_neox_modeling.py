@@ -147,10 +147,8 @@ class FlashNeoxAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -166,14 +164,10 @@ class FlashNeoxAttention(torch.nn.Module):
         self.rotary_emb(query_rot, key_rot, cos, sin)
         qkv[:, 0] = torch.cat((query_rot, query_pass), dim=-1)
         qkv[:, 1] = torch.cat((key_rot, key_pass), dim=-1)
-        if prefill_cache_indices is not None:
-            qkv_to_cache = qkv[prefill_cache_indices]
-        else:
-            qkv_to_cache = qkv
 
         kv_cache.store(
-            key=qkv_to_cache[:, 1],
-            value=qkv_to_cache[:, 2],
+            key=qkv[:, 1],
+            value=qkv[:, 2],
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -188,7 +182,6 @@ class FlashNeoxAttention(torch.nn.Module):
                 kv_cache=kv_cache,
                 kv_scales=self.kv_scales,
                 seqlen=seqlen,
-                block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
             )
         # Decode
@@ -198,7 +191,6 @@ class FlashNeoxAttention(torch.nn.Module):
                 kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
@@ -268,10 +260,8 @@ class FlashNeoXLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         if self.use_parallel_residual:
@@ -283,10 +273,8 @@ class FlashNeoXLayer(nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache,
-                block_tables,
                 slots,
                 seqlen,
-                prefill_cache_indices,
                 hpu_attention_meta,
             )
 
@@ -308,10 +296,8 @@ class FlashNeoXLayer(nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache,
-                block_tables,
                 slots,
                 seqlen,
-                prefill_cache_indices,
                 hpu_attention_meta,
             )
 
@@ -363,10 +349,8 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_in(input_ids)
@@ -384,10 +368,8 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                prefill_cache_indices,
                 hpu_attention_meta,
             )
 
@@ -417,11 +399,9 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
-        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
@@ -430,10 +410,8 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
         if lm_head_indices is not None:

@@ -209,10 +209,8 @@ class FlashGPT2Attention(torch.nn.Module):
         hidden_states,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         query, key, value = self.query_key_value(hidden_states).split(
@@ -222,16 +220,9 @@ class FlashGPT2Attention(torch.nn.Module):
         key = key.view(-1, self.num_heads, self.head_size)
         value = value.view(-1, self.num_heads, self.head_size)
 
-        if prefill_cache_indices is not None:
-            key_to_cache = key[prefill_cache_indices]
-            value_to_cache = value[prefill_cache_indices]
-        else:
-            key_to_cache = key
-            value_to_cache = value
-
         kv_cache.store(
-            key=key_to_cache,
-            value=value_to_cache,
+            key=key,
+            value=value,
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -246,7 +237,6 @@ class FlashGPT2Attention(torch.nn.Module):
                 kv_cache=kv_cache,
                 kv_scales=self.kv_scales,
                 seqlen=seqlen,
-                block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
             )
         # Decode
@@ -256,7 +246,6 @@ class FlashGPT2Attention(torch.nn.Module):
                 kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
@@ -325,10 +314,8 @@ class FlashGPT2Layer(nn.Module):
         residual,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         residual = hidden_states
@@ -339,10 +326,8 @@ class FlashGPT2Layer(nn.Module):
             hidden_states,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
 
@@ -393,10 +378,8 @@ class FlashGPT2Model(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = inputs_embeds
@@ -408,10 +391,8 @@ class FlashGPT2Model(torch.nn.Module):
                 residual,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                prefill_cache_indices,
                 hpu_attention_meta,
             )
 
@@ -446,11 +427,9 @@ class FlashGPT2ForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
-        prefill_cache_indices: Optional[torch.Tensor] = None,
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -462,10 +441,8 @@ class FlashGPT2ForCausalLM(torch.nn.Module):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices=prefill_cache_indices,
             hpu_attention_meta=hpu_attention_meta,
         )
         if lm_head_indices is not None:

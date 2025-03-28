@@ -801,12 +801,10 @@ class FlashLlamaCrossLayer(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
         adapter_data,
         cross_attention_states,  # [ IB, ...]
-        prefill_cache_indices,
         hpu_attention_meta,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         if cross_attention_states is None:
@@ -911,11 +909,9 @@ class FlashMllamaForConditionalGeneration(nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
-        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor],
         adapter_data: Optional[torch.Tensor] = None,
         # XXX: Putting these as optional so that the cuda warmup calls can go through.
@@ -979,11 +975,9 @@ class FlashMllamaForConditionalGeneration(nn.Module):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=kv_cache,
-            block_tables=block_tables,
             slots=slots,
             seqlen=seqlen,
             hpu_attention_meta=hpu_attention_meta,
-            prefill_cache_indices=prefill_cache_indices,
             lm_head_indices=lm_head_indices,
             adapter_data=adapter_data,
             cross_attention_states=cross_attention_states,

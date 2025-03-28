@@ -906,11 +906,9 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
-        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor],
         pixel_values: torch.FloatTensor = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
@@ -938,11 +936,9 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=kv_cache,
-            block_tables=block_tables,
             slots=slots,
             seqlen=seqlen,
             hpu_attention_meta=hpu_attention_meta,
-            prefill_cache_indices=prefill_cache_indices,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

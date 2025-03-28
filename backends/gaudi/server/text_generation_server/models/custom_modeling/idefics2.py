@@ -740,11 +740,9 @@ class Idefics2ForConditionalGeneration(nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
-        prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor] = None,
         pixel_values: torch.FloatTensor = None,
         pixel_attention_mask: Optional[torch.BoolTensor] = None,
@@ -843,11 +841,9 @@ class Idefics2ForConditionalGeneration(nn.Module):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=kv_cache,
-            block_tables=block_tables,
             slots=slots,
             seqlen=seqlen,
             hpu_attention_meta=hpu_attention_meta,
-            prefill_cache_indices=None,
             adapter_data=adapter_data,
         )
         if lm_head_indices is not None:

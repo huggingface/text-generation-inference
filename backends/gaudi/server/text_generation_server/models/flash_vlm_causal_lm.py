@@ -462,11 +462,9 @@ class FlashVlmCausalLM(FlashCausalLM):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=kv_cache,
-            block_tables=None,  # block_table is not used in hpu pageattn. remove it to avoid shape change in hpu graph
             slots=slots,
             seqlen=trim_seqlen_metadata(seqlen),
             hpu_attention_meta=batch.hpu_attn_meta,
-            prefill_cache_indices=batch.prefill_cache_indices,
             lm_head_indices=lm_head_indices,
             pixel_values=batch.pixel_values,
             pixel_attention_mask=batch.pixel_attention_mask,

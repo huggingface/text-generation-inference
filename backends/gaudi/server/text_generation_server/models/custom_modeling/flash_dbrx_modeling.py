@@ -308,10 +308,8 @@ class DbrxAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
@@ -329,14 +327,10 @@ class DbrxAttention(torch.nn.Module):
         kv = kv.view(-1, 2, self.num_key_value_heads, self.head_size)
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
-        if prefill_cache_indices is not None:
-            kv_to_cache = kv[prefill_cache_indices]
-        else:
-            kv_to_cache = kv
 
         kv_cache.store(
-            key=kv_to_cache[:, 0],
-            value=kv_to_cache[:, 1],
+            key=kv[:, 0],
+            value=kv[:, 1],
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -351,7 +345,6 @@ class DbrxAttention(torch.nn.Module):
                 kv_cache=kv_cache,
                 kv_scales=self.kv_scales,
                 seqlen=seqlen,
-                block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
             )
         # Decode
@@ -361,7 +354,6 @@ class DbrxAttention(torch.nn.Module):
                 kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
@@ -398,10 +390,8 @@ class DbrxNormAttentionNorm(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         normed_hidden_states, res = self.norm_1(hidden_states, residual)
@@ -413,10 +403,8 @@ class DbrxNormAttentionNorm(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
 
@@ -630,10 +618,8 @@ class DbrxLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         # Self Attention
@@ -644,10 +630,8 @@ class DbrxLayer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
 
@@ -689,10 +673,8 @@ class DbrxModel(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
@@ -710,10 +692,8 @@ class DbrxModel(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                prefill_cache_indices,
                 hpu_attention_meta,
             )
 
@@ -744,10 +724,8 @@ class FlashDbrxForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
@@ -757,10 +735,8 @@ class FlashDbrxForCausalLM(torch.nn.Module):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
         if lm_head_indices is not None:

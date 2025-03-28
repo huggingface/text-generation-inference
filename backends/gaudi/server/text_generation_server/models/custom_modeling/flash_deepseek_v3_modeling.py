@@ -256,10 +256,8 @@ class DeepseekV3Attention(torch.nn.Module):
         sin: torch.Tensor,
         cu_seqlen_prefill: torch.Tensor,
         kv_cache: KVCache,
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         if self.q_lora_rank is None:
@@ -317,15 +315,9 @@ class DeepseekV3Attention(torch.nn.Module):
             value, (0, self.head_pad_size - self.value_head_size), value=0
         )
 
-        if prefill_cache_indices is not None:
-            key_to_cache = key[prefill_cache_indices]
-            value_to_cache = value[prefill_cache_indices]
-        else:
-            key_to_cache = key
-            value_to_cache = value
         kv_cache.store(
-            key=key_to_cache,
-            value=value_to_cache,
+            key=key,
+            value=value,
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -340,7 +332,6 @@ class DeepseekV3Attention(torch.nn.Module):
                 kv_cache=kv_cache,
                 kv_scales=self.kv_scales,
                 seqlen=seqlen,
-                block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
             )
         # Decode
@@ -350,7 +341,6 @@ class DeepseekV3Attention(torch.nn.Module):
                 kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
@@ -522,10 +512,8 @@ class DeepseekV3Layer(nn.Module):
         sin: torch.Tensor,
         cu_seqlen_prefill: torch.Tensor,
         kv_cache,
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         normed_hidden_states, residual = self.input_layernorm(hidden_states, residual)
@@ -537,10 +525,8 @@ class DeepseekV3Layer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
 
@@ -587,10 +573,8 @@ class DeepseekV3Model(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
@@ -608,10 +592,8 @@ class DeepseekV3Model(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                prefill_cache_indices,
                 hpu_attention_meta,
             )
 
@@ -639,10 +621,8 @@ class FlashDeepseekV3ForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
@@ -652,10 +632,8 @@ class FlashDeepseekV3ForCausalLM(torch.nn.Module):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
         if lm_head_indices is not None:

@@ -160,10 +160,8 @@ class FlashPhiAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         # Compute query, key, value and split
@@ -190,13 +188,9 @@ class FlashPhiAttention(torch.nn.Module):
         )
 
         # Reshape key and value and cache
-        if prefill_cache_indices is not None:
-            kv_to_cache = kv[prefill_cache_indices]
-        else:
-            kv_to_cache = kv
         kv_cache.store(
-            key=kv_to_cache[:, 0],
-            value=kv_to_cache[:, 1],
+            key=kv[:, 0],
+            value=kv[:, 1],
             slots=slots,
             kv_scales=self.kv_scales,
         )
@@ -210,7 +204,6 @@ class FlashPhiAttention(torch.nn.Module):
                 kv_scales=self.kv_scales,
                 kv_cache=kv_cache,
                 seqlen=seqlen,
-                block_tables=block_tables,
                 softmax_scale=self.softmax_scale,
             )
         # Decode
@@ -220,7 +213,6 @@ class FlashPhiAttention(torch.nn.Module):
                 kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
@@ -287,10 +279,8 @@ class FlashPhiLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        prefill_cache_indices,
         hpu_attention_meta,
     ):
         hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -301,10 +291,8 @@ class FlashPhiLayer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
 
@@ -354,10 +342,8 @@ class FlashPhiModel(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
@@ -375,10 +361,8 @@ class FlashPhiModel(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                prefill_cache_indices,
                 hpu_attention_meta,
             )
 
@@ -409,10 +393,8 @@ class FlashPhiForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        prefill_cache_indices: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
@@ -422,10 +404,8 @@ class FlashPhiForCausalLM(torch.nn.Module):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            prefill_cache_indices,
             hpu_attention_meta,
         )
         if lm_head_indices is not None:
