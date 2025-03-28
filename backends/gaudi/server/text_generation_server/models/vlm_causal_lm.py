@@ -424,6 +424,9 @@ class VlmCausalLMBatch(CausalLMBatch):
                 else:
                     images.append(curr_image)
 
+        if is_warmup is True:
+            images += [images[0]] * (len(texts) - len(images))
+
         missing_inputs = 0
         dummy_images = None
         if is_warmup is False:
@@ -1549,7 +1552,7 @@ class VlmCausalLM(Model):
                             request,
                             PREFILL_WARMUP_SEQLEN_LIST[0] - 1,
                             max_prefill_batch_size,
-                            is_warmup=False,
+                            is_warmup=True,
                         )
                         _, prefill_batch, _ = self.generate_token(
                             [batch], is_warmup=True
@@ -1569,7 +1572,7 @@ class VlmCausalLM(Model):
                             request,
                             PREFILL_WARMUP_SEQLEN_LIST[0] - 1,
                             2,
-                            is_warmup=False,
+                            is_warmup=True,
                         )
                         _, prefill_batch, _ = self.generate_token(
                             [batch], is_warmup=True
