@@ -1,6 +1,6 @@
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 mkfile_dir := $(dir $(mkfile_path))
-root_dir := "${mkfile_dir}/../.."
+root_dir := ${mkfile_dir}/../..
 
 HABANA_VERSION := 1.20.0
 PYTORCH_VERSION := 2.6.0
@@ -47,3 +47,10 @@ local-dev-install: install-dependencies
 		make install-server && \
 		make install-router && \
 		make install-launcher'
+
+# In order to run the integration tests, you need to first build the image (make -C backends/gaudi image)
+run-integration-tests:
+	uv pip install -r ${root_dir}/backends/gaudi/server/integration-tests/requirements.txt
+	DOCKER_VOLUME=${root_dir}/data \
+	HF_TOKEN=`cat ${HOME}/.cache/huggingface/token` \
+	uv run pytest --durations=0 -sv ${root_dir}/backends/gaudi/server/integration-tests
