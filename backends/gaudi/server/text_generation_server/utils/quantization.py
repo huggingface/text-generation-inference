@@ -4,9 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from huggingface_hub import hf_hub_download
-from text_generation_server.layers.marlin.gptq import can_use_gptq_marlin
 from text_generation_server.utils.weights import (
-    DefaultWeightsLoader,
     WeightsLoader,
 )
 
@@ -129,64 +127,13 @@ def get_loader(
                 f"Quantize is set to `{quantize}` but received a `{quantizer_config.__class__.__name__}` config."
             )
 
-        if can_use_gptq_marlin(
+        return GPTQWeightsLoader(
             bits=quantizer_config.bits,
+            desc_act=quantizer_config.desc_act,
             groupsize=quantizer_config.groupsize,
             quant_method=quantizer_config.quant_method,
             quantize=quantize,
             sym=quantizer_config.sym,
-        ):
-            from text_generation_server.layers.marlin import GPTQMarlinWeightsLoader
-
-            return GPTQMarlinWeightsLoader(
-                bits=quantizer_config.bits,
-                desc_act=quantizer_config.desc_act,
-                groupsize=quantizer_config.groupsize,
-                quant_method=quantizer_config.quant_method,
-                quantize=quantize,
-                sym=quantizer_config.sym,
-            )
-        else:
-            return GPTQWeightsLoader(
-                bits=quantizer_config.bits,
-                desc_act=quantizer_config.desc_act,
-                groupsize=quantizer_config.groupsize,
-                quant_method=quantizer_config.quant_method,
-                quantize=quantize,
-                sym=quantizer_config.sym,
-            )
-    elif quantize == "bitsandbytes":
-        from text_generation_server.layers.bnb import BNBWeight
-
-        return DefaultWeightsLoader(BNBWeight)
-    elif quantize == "bitsandbytes-fp4":
-        from text_generation_server.layers.bnb import BNBFP4Weight
-
-        return DefaultWeightsLoader(BNBFP4Weight)
-    elif quantize == "bitsandbytes-nf4":
-        from text_generation_server.layers.bnb import BNBNF4Weight
-
-        return DefaultWeightsLoader(BNBNF4Weight)
-    elif quantize == "eetq":
-        from text_generation_server.layers.eetq import EETQWeight
-
-        return DefaultWeightsLoader(EETQWeight)
-    elif quantize == "exl2":
-        from text_generation_server.layers.exl2 import Exl2WeightsLoader
-
-        return Exl2WeightsLoader()
-    elif quantize == "marlin":
-        from text_generation_server.layers.marlin import MarlinWeightsLoader
-
-        # TODO: improve check once we have one config type per quantize value
-        if not isinstance(quantizer_config, _QuantizerConfig):
-            raise ValueError(
-                f"Quantize is set to `{quantize}` but received a `{quantizer_config.__class__.__name__}` config."
-            )
-
-        return MarlinWeightsLoader(
-            bits=quantizer_config.bits,
-            is_marlin_24=quantizer_config.checkpoint_format == "marlin_24",
         )
     elif quantize == "fp8" or quantize is None:
         from text_generation_server.layers.fp8 import HybridFP8UnquantLoader

@@ -34,9 +34,6 @@ from text_generation_server.utils import (
 )
 from text_generation_server.utils.quantization import get_loader
 
-from text_generation_server.utils.import_utils import SYSTEM
-
-
 tracer = trace.get_tracer(__name__)
 
 
@@ -596,22 +593,8 @@ class IdeficsCausalLM(Model):
     ):
         self.quantize = quantize
         self.process_group, rank, world_size = initialize_torch_distributed()
-        if torch.cuda.is_available():
-            device = torch.device(f"cuda:{rank}")
-            # 9b seems to work correctly enough in float16, but 80b seems
-            # to be really saturating for f16.
-            dtype = torch.float16 if dtype is None else dtype
-        elif SYSTEM == "ipex":
-            if hasattr(torch, "xpu") and torch.xpu.is_available():
-                device = torch.device(f"xpu:{rank}")
-                dtype = torch.float16 if dtype is None else dtype
-            else:
-                device = torch.device("cpu")
-                # Float16 doesn't exist on target.
-                dtype = torch.bfloat16 if dtype is None else dtype
-        else:
-            device = torch.device("cpu")
-            dtype = torch.float32 if dtype is None else dtype
+        device = torch.device("hpu")
+        dtype = torch.bfloat16 if dtype is None else dtype
         self.device, self.dtype = device, dtype
 
         config = AutoConfig.from_pretrained(

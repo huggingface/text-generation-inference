@@ -16,15 +16,9 @@ app = typer.Typer()
 
 
 class Quantization(str, Enum):
-    bitsandbytes = "bitsandbytes"
-    bitsandbytes_nf4 = "bitsandbytes-nf4"
-    bitsandbytes_fp4 = "bitsandbytes-fp4"
     gptq = "gptq"
     awq = "awq"
-    eetq = "eetq"
-    exl2 = "exl2"
     fp8 = "fp8"
-    marlin = "marlin"
 
 
 class Dtype(str, Enum):
@@ -105,6 +99,9 @@ def serve(
         "bitsandbytes",
         "bitsandbytes-nf4",
         "bitsandbytes-fp4",
+        "gptq",
+        "awq",
+        "fp8",
     }:
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
@@ -112,7 +109,7 @@ def serve(
 
     logger.info("CLI SHARDED = {} DTYPE = {}".format(sharded, dtype))
 
-    if sharded:
+    if sharded and os.getenv("ATTENTION", "default") not in {"paged"}:
         tgi_file = Path(__file__).resolve().parent / "tgi_service.py"
         num_shard = int(os.getenv("WORLD_SIZE", "1"))
         logger.info("CLI SHARDED = {}".format(num_shard))
