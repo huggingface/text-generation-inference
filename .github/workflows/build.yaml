@@ -129,9 +129,9 @@ jobs:
                 export label_extension="-gaudi"
                 export docker_volume="/mnt/cache"
                 export docker_devices=""
-                export runs_on="ubuntu-latest"
+                export runs_on="aws-dl1-24xlarge"
                 export platform=""
-                export extra_pytest=""
+                export extra_pytest="--gaudi"
                 export target=""
           esac
           echo $dockerfile
