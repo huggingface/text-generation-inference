@@ -5,6 +5,7 @@ import torch
 
 from text_generation_server.models.globals import BLOCK_SIZE
 from text_generation_server.utils.weights import Weights
+from vllm_hpu_extension import cache_ops
 
 
 @dataclass
@@ -115,12 +116,12 @@ def paged_reshape_and_cache(
     v_scale: float = 1.0,
 ):
 
-    from vllm_hpu_extension import cache_ops
-
+    mask = torch.where(slots != -1)
+    slots = slots[mask]
     block_idx = slots // BLOCK_SIZE
     block_offset = slots % BLOCK_SIZE
-    cache_ops.insert_or_update_cache(key, key_cache, block_idx, block_offset)
-    cache_ops.insert_or_update_cache(value, value_cache, block_idx, block_offset)
+    cache_ops.insert_or_update_cache(key[mask], key_cache, block_idx, block_offset)
+    cache_ops.insert_or_update_cache(value[mask], value_cache, block_idx, block_offset)
 
 
 def get_kv_scales(weights: Weights, prefix: str) -> KVScales:

@@ -457,6 +457,10 @@ class FlashVlmCausalLM(FlashCausalLM):
             cache_lengths=cache_lengths_tensor,
             cu_seqlen_q=cu_seqlen_prefill,
         )
+        if batch.prefill_cache_indices is not None:
+            slots_pad = torch.ones_like(input_ids, dtype=torch.long) * -1
+            slots_pad[batch.prefill_cache_indices] = slots
+            slots = slots_pad
         logits, speculative_logits = self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,

@@ -998,7 +998,8 @@ class FlashCausalLMBatch(Batch):
             input_ids = [0] * extra_pad + input_ids
             self.input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         else:
-            logger.error("should not be here, prefill self.input_ids is a tensor")
+            self.input_ids = F.pad(self.input_ids, (extra_pad, 0), value=0)
+            input_ids_padded_length.append(extra_pad)
 
         self.input_lengths_tensor = torch.tensor(
             self.input_lengths, dtype=torch.int32, device=device
@@ -1660,7 +1661,7 @@ class FlashCausalLM(Model):
         if htorch.utils.internal.is_lazy():
             kwargs["bypass_hpu_graphs"] = False
         if batch.prefill_cache_indices is not None:
-            slots_pad = torch.zeros_like(input_ids)
+            slots_pad = torch.ones_like(input_ids, dtype=torch.long) * -1
             slots_pad[batch.prefill_cache_indices] = slots
             slots = slots_pad
         logits, speculative_logits = self.model.forward(

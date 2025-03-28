@@ -153,7 +153,7 @@ class FlashLlavaNextForConditionalGeneration(nn.Module):
         image_features: torch.Tensor,
     ):
         """In place merges in vision_embeddings with inputs_embeds."""
-        mask = input_ids == self.config.image_token_index
+        mask = torch.where(input_ids == self.config.image_token_index)
         # Let's pray we have enabled enough slots !
         try:
             inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
