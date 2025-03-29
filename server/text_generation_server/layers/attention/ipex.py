@@ -45,6 +45,8 @@ def attention(
             causal,
             block_tables,
             None,
+            k_scale=kv_scales.key_scale_cpu,
+            v_scale=kv_scales.value_scale_cpu,
         )
     else:
         ipex.llm.functional.varlen_attention(
@@ -99,6 +101,8 @@ def paged_attention(
             True,
             block_tables,
             None,
+            k_scale=kv_scales.key_scale_cpu,
+            v_scale=kv_scales.value_scale_cpu,
         )
     else:
         input_lengths = seqlen.input_lengths + seqlen.cache_lengths
@@ -114,6 +118,8 @@ def paged_attention(
             BLOCK_SIZE,
             max_s,
             None,
+            k_scale=kv_scales.key_scale_cpu,
+            v_scale=kv_scales.value_scale_cpu,
         )
     return out
 
