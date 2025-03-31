@@ -2256,6 +2256,7 @@ dependencies = [
  "hyper-util",
  "log",
  "rand 0.9.0",
+ "serde",
  "slotmap",
  "tokio",
 ]
