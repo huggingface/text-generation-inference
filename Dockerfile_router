@@ -1,0 +1,48 @@
+FROM lukemathwalker/cargo-chef:latest-rust-1.85.1 AS chef
+WORKDIR /usr/src
+
+ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+FROM chef AS planner
+COPY Cargo.lock Cargo.lock
+COPY Cargo.toml Cargo.toml
+# COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY benchmark benchmark
+COPY router router
+COPY kvrouter kvrouter
+COPY backends backends
+COPY launcher launcher
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+
+COPY --from=planner /usr/src/recipe.json recipe.json
+RUN cargo chef cook --profile release-opt --recipe-path recipe.json --bin kvrouter
+
+ARG GIT_SHA
+ARG DOCKER_LABEL
+
+COPY Cargo.lock Cargo.lock
+COPY Cargo.toml Cargo.toml
+# COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY benchmark benchmark
+COPY router router
+COPY kvrouter kvrouter
+COPY backends backends
+COPY launcher launcher
+RUN cargo build --profile release-opt --frozen --bin kvrouter
+
+# Text Generation Inference base image for router
+FROM ubuntu:22.04 AS router
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates
+
+# Install router
+COPY --from=builder /usr/src/target/release-opt/kvrouter /usr/local/bin/kvrouter
+
+ENTRYPOINT ["kvrouter"]
+CMD ["--json-output"]

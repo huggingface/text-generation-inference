@@ -3,13 +3,18 @@ use axum::{
     extract::{Request, State},
     http::uri::Uri,
     response::{IntoResponse, Response},
+    Json,
 };
 use futures_util::stream::StreamExt;
 use hyper::StatusCode;
 use hyper_util::{client::legacy::connect::HttpConnector, rt::TokioExecutor};
 use rand::{rng, Rng};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use tokio::sync::{mpsc, oneshot};
+use serde::Deserialize;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc,
+};
+use tokio::sync::{mpsc, oneshot, RwLock};
 
 mod trie;
 
@@ -85,7 +90,7 @@ impl LoadBalancer for RoundRobin {
 
 pub struct OverloadHandler<T: LoadBalancer> {
     load_balancer: T,
-    backends: Vec<String>,
+    backends: Arc<RwLock<Vec<String>>>,
     inqueue: Vec<AtomicUsize>,
     inflight: Vec<AtomicUsize>,
     factor: f32,
@@ -93,9 +98,19 @@ pub struct OverloadHandler<T: LoadBalancer> {
 }
 
 impl<T: LoadBalancer> OverloadHandler<T> {
-    pub fn new(load_balancer: T, backends: Vec<String>, rx: Rcv) -> Self {
-        let inflight = backends.iter().map(|_| AtomicUsize::new(0)).collect();
-        let inqueue = backends.iter().map(|_| AtomicUsize::new(0)).collect();
+    pub async fn new(load_balancer: T, backends: Arc<RwLock<Vec<String>>>, rx: Rcv) -> Self {
+        let inflight = backends
+            .read()
+            .await
+            .iter()
+            .map(|_| AtomicUsize::new(0))
+            .collect();
+        let inqueue = backends
+            .read()
+            .await
+            .iter()
+            .map(|_| AtomicUsize::new(0))
+            .collect();
         let factor: f32 = std::env::var(FACTOR_KEY)
             .unwrap_or("1.5".to_string())
             .parse()
@@ -110,10 +125,14 @@ impl<T: LoadBalancer> OverloadHandler<T> {
         }
     }
 
-    fn next(&mut self, key: &[u8]) -> String {
+    async fn next(&mut self, key: &[u8]) -> Option<String> {
+        let backends = self.backends.read().await;
+        if backends.is_empty() {
+            return None;
+        }
         // Get the backend URL
-        let index = self.load_balancer.next(key, self.backends.len());
-        let n = self.backends.len();
+        let index = self.load_balancer.next(key, backends.len());
+        let n = backends.len();
         let mut index = index % n;
 
         let mut inflight = self.inflight[index].load(Ordering::Relaxed);
@@ -129,14 +148,14 @@ impl<T: LoadBalancer> OverloadHandler<T> {
                 );
             }
             index += 1;
-            index %= self.backends.len();
+            index %= backends.len();
             inflight = self.inflight[index].load(Ordering::Relaxed);
             inqueue = self.inflight[index].load(Ordering::Relaxed);
         }
-        let backend = &self.backends[index];
+        let backend = &backends[index];
         self.inflight[index].fetch_add(1, Ordering::Relaxed);
         self.inqueue[index].fetch_add(1, Ordering::Relaxed);
-        backend.to_string()
+        Some(backend.to_string())
     }
 
     pub async fn run(&mut self) {
@@ -144,31 +163,49 @@ impl<T: LoadBalancer> OverloadHandler<T> {
             eprintln!("Msg {msg:?}");
             match msg {
                 Msg::Next(key, sx) => {
-                    let backend: String = self.next(&key);
+                    let Some(backend) = self.next(&key).await else {
+                        drop(sx);
+                        return;
+                    };
                     eprintln!("Sending back backend {backend}");
                     if let Err(err) = sx.send(backend) {
                         eprintln!("Cannot send back result: {err}");
                     }
                 }
                 Msg::Dequeue(backend) => {
-                    let index = self.backends.iter().position(|b| b == &backend);
+                    let index = self
+                        .backends
+                        .read()
+                        .await
+                        .iter()
+                        .position(|b| b == &backend);
                     if let Some(index) = index {
                         self.inqueue[index].fetch_sub(1, Ordering::Relaxed);
                     }
                 }
                 Msg::Deflight(backend) => {
-                    let index = self.backends.iter().position(|b| b == &backend);
+                    let index = self
+                        .backends
+                        .read()
+                        .await
+                        .iter()
+                        .position(|b| b == &backend);
                     if let Some(index) = index {
                         self.inflight[index].fetch_sub(1, Ordering::Relaxed);
                     }
                 }
                 Msg::AddBackend(backend) => {
-                    self.backends.push(backend);
-                    self.backends.sort();
+                    let mut backends = self.backends.write().await;
+                    backends.push(backend);
+                    backends.sort();
                 }
                 Msg::RemoveBackend(backend) => {
-                    self.backends.retain(|b| *b == backend);
-                    self.backends.sort();
+                    let mut backends = self.backends.write().await;
+                    backends.retain(|b| *b == backend);
+                    backends.sort();
+                }
+                Msg::SetBackends(backends) => {
+                    *self.backends.write().await = backends;
                 }
             }
         }
@@ -186,6 +223,7 @@ pub enum Msg {
     Deflight(String),
     AddBackend(String),
     RemoveBackend(String),
+    SetBackends(Vec<String>),
 }
 
 type Snd = mpsc::Sender<Msg>;
@@ -215,7 +253,9 @@ impl Communicator {
     async fn next(&self, key: Vec<u8>) -> Result<String, mpsc::error::SendError<Msg>> {
         let (sx, rx) = oneshot::channel();
         self.sender.send(Msg::Next(key, sx)).await?;
-        let backend = rx.await.unwrap();
+        let backend = rx
+            .await
+            .map_err(|_| mpsc::error::SendError(Msg::AddBackend("todo".to_string())))?;
         Ok(backend)
     }
 }
@@ -283,4 +323,17 @@ pub async fn handler(
     let body = Body::from_stream(response_stream);
 
     Ok(Response::from_parts(parts, body))
+}
+
+#[derive(Deserialize)]
+pub struct SetBackends {
+    backends: Vec<String>,
+}
+
+pub async fn set_backends_handler(
+    State(state): State<Communicator>,
+    Json(SetBackends { backends }): Json<SetBackends>,
+) -> impl IntoResponse {
+    let _ = state.sender.send(Msg::SetBackends(backends)).await;
+    StatusCode::OK
 }
