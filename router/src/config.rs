@@ -230,6 +230,19 @@ pub struct Gemma3 {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Llama4VisionConfig {
+    pub(crate) image_size: usize,
+    pub(crate) patch_size: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Llama4 {
+    vision_config: Llama4VisionConfig,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "model_type")]
 #[serde(rename_all = "snake_case")]
 pub enum Config {
@@ -258,6 +271,7 @@ pub enum Config {
     Phi3,
     Phimoe,
     Llama,
+    Llama4(Llama4),
     Baichuan,
     Paligemma(Paligemma),
     Gemma,

@@ -6,7 +6,8 @@ import torch.nn as nn
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.weights import UnquantizedWeight, Weights
-
+from text_generation_server.utils.log import log_master
+from loguru import logger
 if SYSTEM == "ipex":
     from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
 elif SYSTEM == "cuda":
@@ -113,24 +114,36 @@ def _load_expert_multi_weights_col(
     weights: Weights,
 ) -> torch.Tensor:
     all_weight = None
-    for i in range(n_experts):
-        weight = weights.get_multi_weights_col(
-            [f"{prefix}.{i}.{gate_proj_name}", f"{prefix}.{i}.{up_proj_name}"], 0
-        )
+    all_weight = weights.get_multi_weights_col(
+        [f"{prefix}.gate_up_proj"], 0, flag=False
+    ).weight.transpose(2, 1).contiguous()
+    # for i in range(n_experts):
+    #     # weight = weights.get_weights_col(
+    #     #     f"language_model.model.layers.0.feed_forward.experts.gate_up_proj",
+    #     # )
+    #     # weight = weights.get_multi_weights_col(
+    #     #     [f"{prefix}.{gate_proj_name}", f"{prefix}.{up_proj_name}"], 0
+    #     # )
 
-        assert isinstance(weight, UnquantizedWeight)
+    #     weight = weights.get_multi_weights_col(
+    #         [f"{prefix}.gate_up_proj"], 0, flag=False
+    #     )
+        
+    #     from pdb import set_trace; set_trace()
+    #     assert isinstance(weight, UnquantizedWeight)
 
-        if all_weight is None:
-            all_weight = torch.empty(
-                (n_experts,) + weight.weight.shape,
-                dtype=weight.weight.dtype,
-                device=weight.weight.device,
-            )
+    #     if all_weight is None:
+    #         all_weight = torch.empty(
+    #             (n_experts,) + weight.weight.shape,
+    #             dtype=weight.weight.dtype,
+    #             device=weight.weight.device,
+    #         )
 
-        all_weight[i] = weight.weight
+    #     all_weight[i] = weight.weight
 
-    assert all_weight is not None
+    # assert all_weight is not None
 
+    log_master(logger.info, f"w1: {all_weight.shape}")
     return all_weight
 
 
@@ -142,23 +155,27 @@ def _load_expert_weights_row(
     weights: Weights,
 ) -> torch.Tensor:
     all_weight = None
-    for i in range(n_experts):
-        weight = weights.get_weights_row(
-            f"{prefix}.{i}.{name}",
-        )
+    all_weight = weights.get_weights_row(
+            f"{prefix}.{name}", flag=False
+    ).weight.transpose(1,2).contiguous()
+    # for i in range(n_experts):
+    #     weight = weights.get_weights_row(
+    #         f"{prefix}.{name}", flag=False
+    #     )
 
-        assert isinstance(weight, UnquantizedWeight)
+    #     assert isinstance(weight, UnquantizedWeight)
 
-        if all_weight is None:
-            all_weight = torch.empty(
-                (n_experts,) + weight.weight.shape,
-                dtype=weight.weight.dtype,
-                device=weight.weight.device,
-            )
+    #     if all_weight is None:
+    #         all_weight = torch.empty(
+    #             (n_experts,) + weight.weight.shape,
+    #             dtype=weight.weight.dtype,
+    #             device=weight.weight.device,
+    #         )
 
-        all_weight[i] = weight.weight
+    #     all_weight[i] = weight.weight
 
     assert all_weight is not None
+    log_master(logger.info, f"w2: {all_weight.shape}")
 
     return all_weight
 

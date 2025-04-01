@@ -264,8 +264,8 @@ class PositionRotaryEmbedding(nn.Module):
             # freqs = torch.einsum("i,j->ij", t, self.inv_freq)
 
             freqs = torch.outer(t, self.inv_freq.to(device=t.device))
-            self._cos_cached = torch.cos(freqs).to(dtype)
-            self._sin_cached = torch.sin(freqs).to(dtype)
+            self._cos_cached = torch.cos(freqs)
+            self._sin_cached = torch.sin(freqs)
 
     def get_cos_sin(self, position_ids: torch.Tensor, max_s: int, dtype: torch.dtype):
         """

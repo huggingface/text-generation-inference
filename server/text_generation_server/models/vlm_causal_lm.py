@@ -134,6 +134,8 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         num_pads = 256
         padding = "<image_soft_token>" * num_pads
         return f"\n\n<start_of_image>{padding}<end_of_image>\n\n"
+    elif config.model_type == "llama4":
+        return "<image>" * 1
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 

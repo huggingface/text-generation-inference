@@ -97,6 +97,9 @@ try:
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
     )
+    from text_generation_server.models.custom_modeling.flash_llama4_modeling import (
+        Llama4ForConditionalGeneration,
+    )
     from text_generation_server.models.custom_modeling.flash_cohere_modeling import (
         FlashCohereForCausalLM,
     )
@@ -250,6 +253,11 @@ class ModelType(enum.Enum):
     LLAMA = {
         "type": "llama",
         "name": "Llama",
+        "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
+    }
+    LLAMA4 = {
+        "type": "llama4",
+        "name": "Llama4",
         "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
     }
     PHI3 = {
@@ -656,7 +664,6 @@ def get_model(
         raise ValueError(
             f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
         )
-
     if model_type == DEEPSEEK_V2:
         if FLASH_ATTENTION:
             head_size = max(
@@ -1025,7 +1032,34 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
-
+    elif model_type == LLAMA4:
+        return VlmCausalLM(
+                model_id=model_id,
+                model_class=Llama4ForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                # TODO: once implemented in transformers, use the config class
+                # and processor class from there.
+                # config_class=Gemma3Config,
+                # processor_class=Gemma3Processor,
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        if FLASH_TRANSFORMERS_BACKEND:
+            from transformers import Llama4ForConditionalGeneration as Llama4Model
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                Llama4Model,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+            )
     elif model_type == BAICHUAN:
         if FLASH_ATTENTION:
             return FlashCausalLM(
