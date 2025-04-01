@@ -283,7 +283,7 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         if htorch.utils.internal.is_lazy():
             kwargs["bypass_hpu_graphs"] = False
         if batch.prefill_cache_indices is not None:
-            slots_pad = torch.ones_like(input_ids, dtype=torch.long) * -1
+            slots_pad = torch.zeros_like(input_ids)
             slots_pad[batch.prefill_cache_indices] = slots
             slots = slots_pad
         logits, speculative_logits = self.model.forward(
