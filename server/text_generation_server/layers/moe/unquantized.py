@@ -5,9 +5,10 @@ import torch.nn as nn
 
 from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.kernels import load_kernel
-from text_generation_server.utils.weights import UnquantizedWeight, Weights
+from text_generation_server.utils.weights import Weights
 from text_generation_server.utils.log import log_master
 from loguru import logger
+
 if SYSTEM == "ipex":
     from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
 elif SYSTEM == "cuda":
@@ -114,9 +115,11 @@ def _load_expert_multi_weights_col(
     weights: Weights,
 ) -> torch.Tensor:
     all_weight = None
-    all_weight = weights.get_multi_weights_col(
-        [f"{prefix}.gate_up_proj"], 0, flag=False
-    ).weight.transpose(2, 1).contiguous()
+    all_weight = (
+        weights.get_multi_weights_col([f"{prefix}.gate_up_proj"], 0, flag=False)
+        .weight.transpose(2, 1)
+        .contiguous()
+    )
     # for i in range(n_experts):
     #     # weight = weights.get_weights_col(
     #     #     f"language_model.model.layers.0.feed_forward.experts.gate_up_proj",
@@ -128,7 +131,7 @@ def _load_expert_multi_weights_col(
     #     weight = weights.get_multi_weights_col(
     #         [f"{prefix}.gate_up_proj"], 0, flag=False
     #     )
-        
+
     #     from pdb import set_trace; set_trace()
     #     assert isinstance(weight, UnquantizedWeight)
 
@@ -155,9 +158,11 @@ def _load_expert_weights_row(
     weights: Weights,
 ) -> torch.Tensor:
     all_weight = None
-    all_weight = weights.get_weights_row(
-            f"{prefix}.{name}", flag=False
-    ).weight.transpose(1,2).contiguous()
+    all_weight = (
+        weights.get_weights_row(f"{prefix}.{name}", flag=False)
+        .weight.transpose(1, 2)
+        .contiguous()
+    )
     # for i in range(n_experts):
     #     weight = weights.get_weights_row(
     #         f"{prefix}.{name}", flag=False

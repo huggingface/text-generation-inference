@@ -1034,23 +1034,24 @@ def get_model(
             )
     elif model_type == LLAMA4:
         return VlmCausalLM(
-                model_id=model_id,
-                model_class=Llama4ForConditionalGeneration,
-                revision=revision,
-                quantize=quantize,
-                speculator=speculator,
-                dtype=dtype,
-                kv_cache_dtype=kv_cache_dtype,
-                # TODO: once implemented in transformers, use the config class
-                # and processor class from there.
-                # config_class=Gemma3Config,
-                # processor_class=Gemma3Processor,
-                default_dtype=torch.bfloat16,
-                trust_remote_code=trust_remote_code,
-                lora_adapter_ids=lora_adapter_ids,
-            )
+            model_id=model_id,
+            model_class=Llama4ForConditionalGeneration,
+            revision=revision,
+            quantize=quantize,
+            speculator=speculator,
+            dtype=dtype,
+            kv_cache_dtype=kv_cache_dtype,
+            # TODO: once implemented in transformers, use the config class
+            # and processor class from there.
+            # config_class=Gemma3Config,
+            # processor_class=Gemma3Processor,
+            default_dtype=torch.bfloat16,
+            trust_remote_code=trust_remote_code,
+            lora_adapter_ids=lora_adapter_ids,
+        )
         if FLASH_TRANSFORMERS_BACKEND:
             from transformers import Llama4ForConditionalGeneration as Llama4Model
+
             return TransformersFlashVlmCausalLM.fallback(
                 model_id,
                 Llama4Model,

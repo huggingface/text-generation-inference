@@ -406,7 +406,7 @@ class Llama4MoE(nn.Module):
         weights,
     ):
         super().__init__()
-
+        self.config = config
         self.hidden_dim = config.hidden_size
 
         # Gating
@@ -416,7 +416,7 @@ class Llama4MoE(nn.Module):
             prefix=f"{prefix}.experts",
             n_experts=config.num_local_experts,
             n_expert_group=None,
-            renormalize=True,
+            renormalize=False,
             topk=config.num_experts_per_tok,
             topk_group=None,
             scoring_func="sigmoid",
@@ -434,17 +434,14 @@ class Llama4MoE(nn.Module):
         self.process_group = weights.process_group
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        from pdb import set_trace; set_trace()
         if self.shared_experts is not None:
             shared_output = self.shared_experts(x, reduce=False)
         else:
             shared_output = None
 
         router_logits = self.gate(x)
-        from pdb import set_trace; set_trace()
 
         out = self.moe_layer(x, gating_output=router_logits)
-        from pdb import set_trace; set_trace()
 
         if shared_output is not None:
             out = out + shared_output
@@ -452,7 +449,7 @@ class Llama4MoE(nn.Module):
         # Reduce sum
         if self.process_group.size() > 1:
             torch.distributed.all_reduce(out, group=self.process_group)
-        from pdb import set_trace; set_trace()
+        # from pdb import set_trace; set_trace()
 
         return out.view(*x.shape)
 
@@ -526,13 +523,13 @@ class Llama4Layer(nn.Module):
             max_s,
             adapter_data,
         )
-        from pdb import set_trace; set_trace()
+        # from pdb import set_trace; set_trace()
 
         # faster post attention rms norm
         normed_attn_res_output, residual = self.post_attention_layernorm(
             attn_output, residual
         )
-        from pdb import set_trace; set_trace()
+        # from pdb import set_trace; set_trace()
 
         output = self.mlp(normed_attn_res_output)
 
@@ -551,7 +548,7 @@ class Llama4Model(torch.nn.Module):
                     config,
                     weights,
                 )
-                for layer_id in range(1)
+                for layer_id in range(config.num_hidden_layers)
             ]
         )
         self.norm = FastRMSNorm.load(
