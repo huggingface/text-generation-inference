@@ -687,7 +687,46 @@ fn image_tokens(
         }
         Paligemma(config) => "<image>".repeat(config.get_number_of_features(height, width)),
         LlavaNext(config) => "<image>".repeat(config.get_number_of_features(height, width)),
-        Llama4(_config) => "<image>".repeat(1),
+        Llama4(config) => {
+            const IMAGE_START: &str = "<|image_start|>";
+            const IMAGE: &str = "<|image|>";
+            const IMAGE_END: &str = "<|image_end|>";
+            const PATCH: &str = "<|patch|>";
+            const TILE_X_SEP: &str = "<|tile_x_separator|>";
+            const TILE_Y_SEP: &str = "<|tile_y_separator|>";
+
+            let image_height = config.image_size();
+            let patch_size = config.patch_size();
+            let pixel_shuffle_ratio = config.pixel_shuffle_ratio();
+            let downsample_ratio = (1.0 / (pixel_shuffle_ratio * pixel_shuffle_ratio)).round() as usize;
+
+            let (ratio_h, ratio_w) = config.get_aspect_ratios(height, width);
+            let image_width = image_height; // Assuming pixel shape: [H][W][C]
+
+            let num_patches_per_chunk =
+                (image_height / patch_size) * (image_width / patch_size) / downsample_ratio;
+
+            let mut img_string = String::new();
+            img_string.push_str(IMAGE_START);
+
+            if ratio_h * ratio_w > 1 {
+                for yy in 0..ratio_h {
+                    for xx in 0..ratio_w {
+                        img_string.push_str(&PATCH.repeat(num_patches_per_chunk));
+                        if xx < ratio_w - 1 {
+                            img_string.push_str(TILE_X_SEP);
+                        }
+                    }
+                    img_string.push_str(TILE_Y_SEP);
+                }
+            }
+
+            img_string.push_str(IMAGE);
+            img_string.push_str(&PATCH.repeat(num_patches_per_chunk));
+            img_string.push_str(IMAGE_END);
+
+            img_string
+        },
         Qwen2Vl(config) => format!(
             "<|vision_start|>{:?}<|vision_end|>",
             "<|image_pad|>".repeat(config.get_number_of_features(height, width))

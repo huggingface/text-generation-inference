@@ -97,9 +97,6 @@ try:
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
     )
-    from text_generation_server.models.custom_modeling.flash_llama4_modeling import (
-        Llama4ForConditionalGeneration,
-    )
     from text_generation_server.models.custom_modeling.flash_cohere_modeling import (
         FlashCohereForCausalLM,
     )
@@ -216,9 +213,6 @@ try:
 except ImportError as e:
     log_master(logger.warning, f"Could not import Flash Transformers Backend: {e}")
     FLASH_TRANSFORMERS_BACKEND = False
-
-# TODO: remove this, it's a temporary for testing the FLASH_TRANSFORMERS_BACKEND
-FLASH_ATTENTION = False
 
 
 class ModelType(enum.Enum):
@@ -1033,22 +1027,6 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
     elif model_type == LLAMA4:
-        return VlmCausalLM(
-            model_id=model_id,
-            model_class=Llama4ForConditionalGeneration,
-            revision=revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            kv_cache_dtype=kv_cache_dtype,
-            # TODO: once implemented in transformers, use the config class
-            # and processor class from there.
-            # config_class=Gemma3Config,
-            # processor_class=Gemma3Processor,
-            default_dtype=torch.bfloat16,
-            trust_remote_code=trust_remote_code,
-            lora_adapter_ids=lora_adapter_ids,
-        )
         if FLASH_TRANSFORMERS_BACKEND:
             from transformers import Llama4ForConditionalGeneration as Llama4Model
 
@@ -1060,6 +1038,12 @@ def get_model(
                 speculator=speculator,
                 dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
+                # how to load from preprocessor_config.json
+                processor_kwargs={
+                    "use_fast": True,
+                    "max_patches": 15,
+                    "size": {"height": 336, "width": 336},
+                },
             )
     elif model_type == BAICHUAN:
         if FLASH_ATTENTION:

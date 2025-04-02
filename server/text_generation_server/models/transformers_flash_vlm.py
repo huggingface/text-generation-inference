@@ -202,6 +202,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
 
         attn_implementation = {
             "text_config": "tgi",
+            "vision_config": "eager",
         }
 
         model = model_class.from_pretrained(
@@ -372,7 +373,6 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
         )
-
         # This is equivalent to `self.model.forward`, see the monkey patch in __init__
         logits = self.model.original_forward(
             input_ids=inputs["input_ids"],
