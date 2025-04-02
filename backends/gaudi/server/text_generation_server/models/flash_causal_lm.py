@@ -1487,7 +1487,6 @@ class FlashCausalLM(Model):
         if max_input_tokens is None:
             max_input_tokens = max_total_tokens - 1
 
-        del _batch, batch
         self.kv_cache = []
         empty_cache()
 
@@ -1499,6 +1498,7 @@ class FlashCausalLM(Model):
             self.kv_cache_dtype,
             self.device,
         )
+
         self.bucketing_ctx = HPUBucketingContext(
             os.getenv("DECODE_MAX_BS", 128),  # self.max_num_seqs, #TODO
             os.getenv("PREFILL_MAX_BS", 16),  # self.max_num_prefill_seqs, #TODO
@@ -1506,6 +1506,17 @@ class FlashCausalLM(Model):
             num_blocks * BLOCK_SIZE,
         )
         self.bucketing_ctx.num_hpu_blocks = num_blocks
+        if os.getenv("SKIP_WARMUP_GRAPH", "false").lower() == "true":
+            logger.info("skip warmup hpu graph, not recommmended")
+            del _batch, batch
+            return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
+
+        self.warmup_hpu_graph(batch)
+        del _batch, batch
+
+        return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
+
+    def warmup_hpu_graph(self, batch):
         warmup_times = 3
         self.bucketing_ctx.generate_prompt_buckets()
         for i, (batch_size, seq_len) in enumerate(
@@ -1513,14 +1524,13 @@ class FlashCausalLM(Model):
         ):
             for index in range(warmup_times):
                 self.warmup_prefill(seq_len, batch_size)
-        self.bucketing_ctx.generate_decode_buckets(num_blocks)
+        self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
         for i, (batch_size, block_num) in enumerate(
             reversed(self.bucketing_ctx.decode_buckets)
         ):
             for index in range(warmup_times):
                 self.warmup_decode(batch_size, block_num)
         synchronize(self.device)
-        return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
 
     def warmup_prefill(self, prompt_len: int, bs: int):
         logger.info(f"warmup prefill seq {prompt_len} bs {bs}")
