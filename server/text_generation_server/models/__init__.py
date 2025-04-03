@@ -209,6 +209,7 @@ try:
     from text_generation_server.models.transformers_flash_vlm import (
         TransformersFlashVlmCausalLM,
         TransformersGemma3VlmCausalLM,
+        TransformersLlama4VlmCausalLM,
     )
 except ImportError as e:
     log_master(logger.warning, f"Could not import Flash Transformers Backend: {e}")
@@ -1030,7 +1031,7 @@ def get_model(
         if FLASH_TRANSFORMERS_BACKEND:
             from transformers import Llama4ForConditionalGeneration as Llama4Model
 
-            return TransformersFlashVlmCausalLM.fallback(
+            return TransformersLlama4VlmCausalLM.fallback(
                 model_id,
                 Llama4Model,
                 revision,
@@ -1038,10 +1039,8 @@ def get_model(
                 speculator=speculator,
                 dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
-                # how to load from preprocessor_config.json
                 processor_kwargs={
                     "use_fast": True,
-                    "max_patches": 15,
                     "size": {"height": 336, "width": 336},
                 },
             )
