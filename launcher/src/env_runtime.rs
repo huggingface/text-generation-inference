@@ -28,8 +28,8 @@ impl Env {
         }
     }
 
-    pub fn is_hpu_device(&self) -> bool {
-        self.hpu_env != "N/A"
+    pub fn should_start_a_single_hpu_shard(&self) -> bool {
+        self.hpu_env != "N/A" && std::env::var("ATTENTION").as_deref() != Ok("paged")
     }
 }
 

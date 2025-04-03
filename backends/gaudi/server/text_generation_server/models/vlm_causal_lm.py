@@ -69,11 +69,7 @@ MAX_TOTAL_TOKENS = int(os.environ.get("MAX_TOTAL_TOKENS", 8192))
 PAD_SEQUENCE_TO_MULTIPLE_OF = int(os.environ.get("PAD_SEQUENCE_TO_MULTIPLE_OF", 128))
 CHUNK_SIZES = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
 LAZY_MODE = int(os.environ.get("PT_HPU_LAZY_MODE", 1))
-max_batch_size_str = os.environ.get("MAX_BATCH_SIZE")
-if max_batch_size_str is not None:
-    MAX_BATCH_SIZE = int(max_batch_size_str)
-else:
-    raise ValueError("MAX_BATCH_SIZE is not set")
+
 
 PREFILL_WARMUP_BATCH_SIZE_LIST = []
 PREFILL_WARMUP_SEQLEN_LIST = []
@@ -1467,6 +1463,12 @@ class VlmCausalLM(Model):
         batch = self.batch_from_pb(request.batch, is_warmup=True)
         max_input_tokens = request.max_input_tokens
         max_prefill_batch_size = batch.input_ids.shape[0]
+        max_batch_size_str = os.environ.get("MAX_BATCH_SIZE")
+        if max_batch_size_str is not None:
+            MAX_BATCH_SIZE = int(max_batch_size_str)
+        else:
+            raise ValueError("MAX_BATCH_SIZE is not set")
+
         try:
             # max prefill batch size warmup
             _, prefill_batch, _ = self.generate_token([batch], is_warmup=True)

@@ -9,8 +9,8 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -19,7 +19,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -90,7 +90,7 @@ def _load_gqa(config, prefix: str, weights):
         dim=0,
     )
 
-    if config.quantize not in ["gptq", "awq", "marlin"]:
+    if config.quantize not in ["gptq", "awq"]:
         weight = weight.to(dtype=weights.dtype).to(device=weights.device)
 
         head_size = config.hidden_size // config.num_attention_heads
@@ -139,6 +139,7 @@ class FlashPhiAttention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         # in llama the dense layer is called "o_proj" and has bias=False
         self.dense = TensorParallelRowLinear.load(
@@ -159,10 +160,9 @@ class FlashPhiAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         # Compute query, key, value and split
         qkv = self.query_key_value(hidden_states)
@@ -188,29 +188,34 @@ class FlashPhiAttention(torch.nn.Module):
         )
 
         # Reshape key and value and cache
-        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(
+            key=kv[:, 0],
+            value=kv[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, 0],
+                value=kv[:, 1],
+                kv_scales=self.kv_scales,
+                kv_cache=kv_cache,
+                seqlen=seqlen,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
@@ -274,10 +279,9 @@ class FlashPhiLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         hidden_states, res = self.input_layernorm(hidden_states, residual)
         # Self Attention
@@ -287,10 +291,9 @@ class FlashPhiLayer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
 
         hidden_states = self.resid_dropout(attn_output).add(
@@ -339,18 +342,15 @@ class FlashPhiModel(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -361,10 +361,9 @@ class FlashPhiModel(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -394,11 +393,9 @@ class FlashPhiForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
@@ -407,10 +404,9 @@ class FlashPhiForCausalLM(torch.nn.Module):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

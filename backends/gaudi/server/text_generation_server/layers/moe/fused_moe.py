@@ -16,10 +16,8 @@
 from typing import Tuple
 
 import torch
-import torch.distributed
 
 
-# TODO: Remove the functions once moe_kernel are built for ROCM
 def grouped_topk(
     hidden_states: torch.Tensor,
     gating_output: torch.Tensor,
@@ -49,4 +47,19 @@ def grouped_topk(
     if renormalize:
         topk_weights = topk_weights / topk_weights.sum(dim=-1, keepdim=True)
 
+    return topk_weights, topk_ids
+
+
+def fused_topk(
+    hidden_states: torch.Tensor,
+    gating_output: torch.Tensor,
+    topk: int,
+    renormalize: bool,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    topk_weights = torch.nn.functional.softmax(
+        gating_output, dim=1, dtype=torch.float32
+    )
+    topk_weights, topk_ids = torch.topk(topk_weights, topk, dim=-1)
+    if renormalize:
+        topk_weights /= topk_weights.sum(dim=-1, keepdim=True)
     return topk_weights, topk_ids
