@@ -383,9 +383,12 @@ class FlashVlmCausalLM(FlashCausalLM):
     def warmup_decode(
         self, batch_size: int, block_num: int, batch: FlashVlmCausalLMBatch
     ):
-        logger.info(f"warmup decode bs {batch_size} block_num {block_num}")
-        input_ids = torch.zeros(batch_size, dtype=torch.int64, device=self.device)
-        position_ids = torch.arange(batch_size, dtype=torch.int32, device=self.device)
+        input_ids = torch.zeros(
+            batch_size, dtype=batch.input_ids.dtype, device=self.device
+        )
+        position_ids = torch.arange(
+            batch_size, dtype=batch.position_ids.dtype, device=self.device
+        )
         if batch.position_ids is not None and batch.position_ids.dim() == 2:
             # qwen2_vl and qwen2_5_vl case
             position_ids = position_ids.unsqueeze(-1).repeat(
@@ -405,7 +408,7 @@ class FlashVlmCausalLM(FlashCausalLM):
             block_tables.append(block_array)
             past_len.append(blocks[i] * BLOCK_SIZE - 1)
             start_idx += blocks[i]
-        slots = torch.tensor(slots, dtype=torch.int64, device=self.device)
+        slots = torch.tensor(slots, dtype=batch.slots.dtype, device=self.device)
         input_lengths = torch.ones(batch_size, dtype=torch.int32, device=self.device)
         cache_lengths_tensor = torch.tensor(
             past_len, dtype=torch.int32, device=self.device
@@ -438,9 +441,12 @@ class FlashVlmCausalLM(FlashCausalLM):
             kv_cache=self.kv_cache,
             slots=slots,
             seqlen=trim_seqlen_metadata(seqlen),
-            lm_head_indices=None,
-            adapter_data=None,
             hpu_attention_meta=hpu_attention_meta,
+            lm_head_indices=None,
+            pixel_values=None,
+            pixel_attention_mask=None,
+            image_sizes=None,
+            image_grid_thw=None,
         )
 
     def warmup_hpu_graph(self, batch: FlashVlmCausalLMBatch):
@@ -450,6 +456,9 @@ class FlashVlmCausalLM(FlashCausalLM):
         for i, (batch_size, block_num) in enumerate(
             reversed(self.bucketing_ctx.decode_buckets)
         ):
+            log_master(
+                logger.info, f"warmup decode bs {batch_size} block_num {block_num}"
+            )
             for index in range(warmup_times):
                 self.warmup_decode(batch_size, block_num, batch)
         synchronize(self.device)
@@ -546,8 +555,8 @@ class FlashVlmCausalLM(FlashCausalLM):
                 )
         else:
             padded_bs = input_lengths.shape[0]
+        orig_bs = input_lengths.shape[0]
         if padded_bs != input_lengths.shape[0]:
-            orig_bs = input_lengths.shape[0]
             padded_input_lengths = F.pad(
                 input_lengths,
                 (0, padded_bs - orig_bs),
@@ -586,7 +595,7 @@ class FlashVlmCausalLM(FlashCausalLM):
                     value=1,
                 )
             slots = F.pad(
-                slots, (0, (padded_bs - orig_bs) * input_seq.shape[-1]), value=-1
+                slots, (0, (padded_bs - orig_bs) * input_seq.shape[-1]), value=0
             )
             if lm_head_indices is not None:
                 lm_head_indices = F.pad(
@@ -621,4 +630,6 @@ class FlashVlmCausalLM(FlashCausalLM):
             batch.image_sizes = None
         if batch.image_grid_thw is not None:
             batch.image_grid_thw = None
-        return logits, speculative_logits
+        return logits[:orig_bs], (
+            speculative_logits[:orig_bs] if speculative_logits is not None else None
+        )

@@ -27,6 +27,7 @@ from text_generation_server.utils.import_utils import (
     synchronize,
 )
 import torch.nn.functional as F
+from text_generation_server.utils.log import log_master
 
 tracer = trace.get_tracer(__name__)
 
@@ -208,9 +209,12 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
     def warmup_decode(
         self, batch_size: int, block_num: int, batch: FlashMllamaCausalLMBatch
     ):
-        logger.info(f"warmup decode bs {batch_size} block_num {block_num}")
-        input_ids = torch.zeros(batch_size, dtype=torch.int64, device=self.device)
-        position_ids = torch.arange(batch_size, dtype=torch.int32, device=self.device)
+        input_ids = torch.zeros(
+            batch_size, dtype=batch.input_ids.dtype, device=self.device
+        )
+        position_ids = torch.arange(
+            batch_size, dtype=batch.position_ids.dtype, device=self.device
+        )
         blocks = [block_num // batch_size for _ in range(batch_size)]
         blocks[0] += block_num % batch_size
         past_len = []
@@ -225,7 +229,7 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             block_tables.append(block_array)
             past_len.append(blocks[i] * BLOCK_SIZE - 1)
             start_idx += blocks[i]
-        slots = torch.tensor(slots, dtype=torch.int64, device=self.device)
+        slots = torch.tensor(slots, dtype=batch.slots.dtype, device=self.device)
         input_lengths = torch.ones(batch_size, dtype=torch.int32, device=self.device)
         cache_lengths_tensor = torch.tensor(
             past_len, dtype=torch.int32, device=self.device
@@ -266,12 +270,11 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         )
 
     def warmup_prefill(self, prompt_len: int, bs: int, batch: FlashMllamaCausalLMBatch):
-        logger.info(f"warmup prefill seq {prompt_len} bs {bs}")
         input_ids = torch.zeros(
-            prompt_len, dtype=torch.int64, device=self.device
+            prompt_len, dtype=batch.input_ids.dtype, device=self.device
         ).repeat(bs)
         position_ids = torch.arange(
-            prompt_len, dtype=torch.int32, device=self.device
+            prompt_len, dtype=batch.position_ids.dtype, device=self.device
         ).repeat(bs)
         max_bt = (prompt_len // BLOCK_SIZE + 1) * bs
         block_tables = torch.arange(
@@ -283,7 +286,7 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             for b in block_tables[i]:
                 slots.extend(range(b * BLOCK_SIZE, (b + 1) * BLOCK_SIZE))
             slot_acc.extend(slots[:prompt_len])
-        slots = torch.tensor(slot_acc, dtype=torch.int64, device=self.device)
+        slots = torch.tensor(slot_acc, dtype=batch.slots.dtype, device=self.device)
 
         input_lengths = (
             torch.ones(bs, dtype=torch.int32, device=self.device) * prompt_len
@@ -320,12 +323,16 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         for i, (batch_size, seq_len) in enumerate(
             reversed(self.bucketing_ctx.prompt_buckets)
         ):
+            log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
             for index in range(warmup_times):
                 self.warmup_prefill(seq_len, batch_size, batch)
         self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
         for i, (batch_size, block_num) in enumerate(
             reversed(self.bucketing_ctx.decode_buckets)
         ):
+            log_master(
+                logger.info, f"warmup decode bs {batch_size} block_num {block_num}"
+            )
             for index in range(warmup_times):
                 self.warmup_decode(batch_size, block_num, batch)
         synchronize(self.device)
@@ -425,8 +432,8 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
                 )
         else:
             padded_bs = input_lengths.shape[0]
+        orig_bs = input_lengths.shape[0]
         if padded_bs != input_lengths.shape[0]:
-            orig_bs = input_lengths.shape[0]
             padded_input_lengths = F.pad(
                 input_lengths,
                 (0, padded_bs - orig_bs),
@@ -455,7 +462,7 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
                 position_ids, (0, (padded_bs - orig_bs) * input_seq.shape[-1]), value=1
             )
             slots = F.pad(
-                slots, (0, (padded_bs - orig_bs) * input_seq.shape[-1]), value=-1
+                slots, (0, (padded_bs - orig_bs) * input_seq.shape[-1]), value=0
             )
             if lm_head_indices is not None:
                 lm_head_indices = F.pad(
@@ -484,4 +491,6 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         )
         if batch.pixel_values is not None:
             batch.pixel_values = None
-        return logits, speculative_logits
+        return logits[:orig_bs], (
+            speculative_logits[:orig_bs] if speculative_logits is not None else None
+        )
