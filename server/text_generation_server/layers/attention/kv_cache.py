@@ -213,12 +213,18 @@ class KVCache:
         elif ATTENTION == "flashdecoding-ipex" and key.device.type == "xpu":
             import intel_extension_for_pytorch as ipex
 
+            kv_cache_dtype = "auto"
+            if key_cache.dtype == torch.float8_e5m2:
+                kv_cache_dtype = "fp8_e5m2"
+            if key_cache.dtype == torch.float8_e4m3fn:
+                kv_cache_dtype = "fp8_e4m3"
             ipex.llm.modules.PagedAttention.reshape_and_cache_flash(
                 key,
                 value,
                 key_cache,
                 value_cache,
                 slots,
+                kv_cache_dtype=kv_cache_dtype,
                 k_scale=kv_scales.key_scale_cpu,
                 v_scale=kv_scales.value_scale_cpu,
             )
@@ -279,8 +285,21 @@ def paged_reshape_and_cache(
     elif SYSTEM == "ipex":
         import intel_extension_for_pytorch as ipex
 
+        kv_cache_dtype = "auto"
+        if key_cache.dtype == torch.float8_e5m2:
+            kv_cache_dtype = "fp8_e5m2"
+        if key_cache.dtype == torch.float8_e4m3fn:
+            kv_cache_dtype = "fp8_e4m3"
+
         ipex.llm.modules.PagedAttention.reshape_and_cache(
-            key, value, key_cache, value_cache, slots, k_scale=k_scale, v_scale=v_scale
+            key,
+            value,
+            key_cache,
+            value_cache,
+            slots,
+            kv_cache_dtype=kv_cache_dtype,
+            k_scale=k_scale,
+            v_scale=v_scale,
         )
     else:
         raise NotImplementedError(
