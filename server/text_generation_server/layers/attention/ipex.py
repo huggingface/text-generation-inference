@@ -29,6 +29,11 @@ def attention(
         raise NotImplementedError("softcap is not available in IPEX")
 
     out = torch.empty_like(query)
+    kv_cache_dtype = "auto"
+    if kv_cache.key.dtype == torch.float8_e5m2:
+        kv_cache_dtype = "fp8_e5m2"
+    if kv_cache.key.dtype == torch.float8_e4m3fn:
+        kv_cache_dtype = "fp8_e4m3"
 
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
     if ATTENTION == "flashdecoding-ipex":
@@ -45,6 +50,9 @@ def attention(
             causal,
             block_tables,
             None,
+            kv_cache_dtype=kv_cache_dtype,
+            k_scale=kv_scales.key_scale_cpu,
+            v_scale=kv_scales.value_scale_cpu,
         )
     else:
         ipex.llm.functional.varlen_attention(
@@ -84,6 +92,11 @@ def paged_attention(
         raise NotImplementedError("softcap is not available in IPEX")
 
     out = torch.empty_like(query)
+    kv_cache_dtype = "auto"
+    if kv_cache.key.dtype == torch.float8_e5m2:
+        kv_cache_dtype = "fp8_e5m2"
+    if kv_cache.key.dtype == torch.float8_e4m3fn:
+        kv_cache_dtype = "fp8_e4m3"
 
     if ATTENTION == "flashdecoding-ipex":
         ipex.llm.modules.PagedAttention.flash_attn_varlen_func(
@@ -99,6 +112,9 @@ def paged_attention(
             True,
             block_tables,
             None,
+            kv_cache_dtype=kv_cache_dtype,
+            k_scale=kv_scales.key_scale_cpu,
+            v_scale=kv_scales.value_scale_cpu,
         )
     else:
         input_lengths = seqlen.input_lengths + seqlen.cache_lengths
@@ -114,6 +130,9 @@ def paged_attention(
             BLOCK_SIZE,
             max_s,
             None,
+            kv_cache_dtype=kv_cache_dtype,
+            k_scale=kv_scales.key_scale_cpu,
+            v_scale=kv_scales.value_scale_cpu,
         )
     return out
 
