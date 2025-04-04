@@ -252,9 +252,8 @@ COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
     uv pip install grpcio-tools mypy-protobuf && \
-    uv pip install  ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir && \
+    uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir && \
     make gen-server-raw 
-RUN cp -r server/text_generation_server/pb /app/.venv/lib/python3.11/site-packages/text_generation_server/pb
 RUN cd server && \
     pwd && \
     text-generation-server --help
