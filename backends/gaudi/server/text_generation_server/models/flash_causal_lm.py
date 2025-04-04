@@ -1538,19 +1538,21 @@ class FlashCausalLM(Model):
                 self.warmup_decode(batch_size, block_num, batch)
         synchronize(self.device)
 
-    def warmup_prefill(self, prompt_len: int, bs: int, batch: FlashCausalLMBatch):
+    def warmup_prefill(
+        self, prompt_len: int, batch_size: int, batch: FlashCausalLMBatch
+    ):
         input_ids = torch.zeros(
             prompt_len, dtype=batch.input_ids.dtype, device=self.device
-        ).repeat(bs)
+        ).repeat(batch_size)
         position_ids = torch.arange(
             prompt_len, dtype=batch.position_ids.dtype, device=self.device
-        ).repeat(bs)
-        max_bt = (prompt_len // BLOCK_SIZE + 1) * bs
+        ).repeat(batch_size)
+        max_bt = (prompt_len // BLOCK_SIZE + 1) * batch_size
         block_tables = torch.arange(
             max_bt, dtype=torch.int32, device=self.device
-        ).reshape(bs, -1)
+        ).reshape(batch_size, -1)
         slot_acc = []
-        for i in range(bs):
+        for i in range(batch_size):
             slots = []
             for b in block_tables[i]:
                 slots.extend(range(b * BLOCK_SIZE, (b + 1) * BLOCK_SIZE))
@@ -1558,10 +1560,14 @@ class FlashCausalLM(Model):
         slots = torch.tensor(slot_acc, dtype=batch.slots.dtype, device=self.device)
 
         input_lengths = (
-            torch.ones(bs, dtype=torch.int32, device=self.device) * prompt_len
+            torch.ones(batch_size, dtype=torch.int32, device=self.device) * prompt_len
         )
-        cache_lengths_tensor = torch.zeros(bs, dtype=torch.int32, device=self.device)
-        cu_seqlen_prefill = torch.zeros(bs + 1, device=self.device, dtype=torch.int32)
+        cache_lengths_tensor = torch.zeros(
+            batch_size, dtype=torch.int32, device=self.device
+        )
+        cu_seqlen_prefill = torch.zeros(
+            batch_size + 1, device=self.device, dtype=torch.int32
+        )
         torch.cumsum(input_lengths, -1, out=cu_seqlen_prefill[1:])
 
         seqlen = Seqlen(
