@@ -4,7 +4,7 @@ from text_generation import AsyncClient
 import pytest
 from Levenshtein import distance as levenshtein_distance
 
-# The config in args is not optimized for speed but only check that inference is working for the different models architectures
+# The "args" config is not optimized for speed but only check that the inference is working for the different models architectures
 TEST_CONFIGS = {
     "meta-llama/Llama-3.1-8B-Instruct-shared": {
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
