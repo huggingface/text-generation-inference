@@ -96,3 +96,47 @@ curl 127.0.0.1:8080/generate \
      -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
      -H 'Content-Type: application/json'
 ```
+
+### Integration tests
+
+To run the integration tests, you need to first build the image:
+```bash
+make -C backends/gaudi image
+```
+
+Then run the following command to run the integration tests:
+```bash
+make -C backends/gaudi run-integration-tests
+```
+
+To capture the expected outputs for the integration tests, you can run the following command:
+```bash
+make -C backends/gaudi capture-expected-outputs-for-integration-tests
+```
+
+#### How the integration tests works
+The integration tests works as follows:
+
+1. Start a tgi server in a container, similar to the command:
+```bash
+docker run --runtime=habana --ipc=host --cap-add=sys_nice \
+  -p 8080:80 -v $volume:/data \
+  -e LOG_LEVEL=debug -e HF_TOKEN=$hf_token \
+  tgi-gaudi --model-id $model \
+  --max-input-tokens 512 --max-total-tokens 1024 --max-batch-size 4 --max-batch-prefill-tokens 2048
+```
+
+2. Do a /generate request to the server, similar to the command:
+```bash
+curl 127.0.0.1:8080/generate \
+     -X POST \
+     -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":20}}' \
+     -H 'Content-Type: application/json'
+```
+
+3. Check the output of the server against the expected output:
+```python
+assert curl_output == expected_output
+```
+
+This is the repeated for a set of models and configurations.
