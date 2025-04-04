@@ -8,6 +8,7 @@ import threading
 import time
 from tempfile import TemporaryDirectory
 from typing import List
+import socket
 
 import docker
 import pytest
@@ -73,12 +74,12 @@ logger.add(
 # signal.signal(signal.SIGTERM, cleanup_handler)
 
 
-def stream_container_logs(container):
+def stream_container_logs(container, test_name):
     """Stream container logs in a separate thread."""
     try:
         for log in container.logs(stream=True, follow=True):
             print(
-                "[TGI Server Logs] " + log.decode("utf-8"),
+                f"[TGI Server Logs - {test_name}] {log.decode('utf-8')}",
                 end="",
                 file=sys.stderr,
                 flush=True,
@@ -178,11 +179,21 @@ def launcher(data_volume):
         logger.info(
             f"Starting docker launcher for model {model_id} and test {test_name}"
         )
-        port = 8080
+
+        # Get a random available port
+        def get_free_port():
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("", 0))
+                s.listen(1)
+                port = s.getsockname()[1]
+            return port
+
+        port = get_free_port()
+        logger.debug(f"Using port {port}")
 
         client = docker.from_env()
 
-        container_name = f"tgi-gaudi-test-{test_name}"
+        container_name = f"tgi-gaudi-test-{test_name.replace('/', '-')}"
 
         try:
             container = client.containers.get(container_name)
@@ -225,7 +236,7 @@ def launcher(data_volume):
                 environment=env,
                 detach=True,
                 volumes=volumes,
-                ports={"80/tcp": 8080},
+                ports={"80/tcp": port},
                 **HABANA_RUN_ARGS,
             )
 
@@ -234,7 +245,7 @@ def launcher(data_volume):
             # Start log streaming in a background thread
             log_thread = threading.Thread(
                 target=stream_container_logs,
-                args=(container,),
+                args=(container, test_name),
                 daemon=True,  # This ensures the thread will be killed when the main program exits
             )
             log_thread.start()

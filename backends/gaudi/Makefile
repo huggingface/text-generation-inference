@@ -54,3 +54,9 @@ run-integration-tests:
 	DOCKER_VOLUME=${root_dir}/data \
 	HF_TOKEN=`cat ${HOME}/.cache/huggingface/token` \
 	uv run pytest --durations=0 -sv ${root_dir}/backends/gaudi/server/integration-tests
+
+# This is used to capture the expected outputs for the integration tests offering an easy way to add more models to the integration tests
+capture-expected-outputs-for-integration-tests:
+	DOCKER_VOLUME=${root_dir}/data \
+	HF_TOKEN=`cat ${HOME}/.cache/huggingface/token` \
+	uv run pytest --durations=0 -sv ${root_dir}/backends/gaudi/server/integration-tests/capture_expected_outputs.py

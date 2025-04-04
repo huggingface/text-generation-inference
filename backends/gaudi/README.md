@@ -109,6 +109,11 @@ Then run the following command to run the integration tests:
 make -C backends/gaudi run-integration-tests
 ```
 
+To capture the expected outputs for the integration tests, you can run the following command:
+```bash
+make -C backends/gaudi capture-expected-outputs-for-integration-tests
+```
+
 #### How the integration tests works
 The integration tests works as follows:
 
