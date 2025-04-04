@@ -4,14 +4,6 @@ from text_generation import AsyncClient
 import pytest
 from Levenshtein import distance as levenshtein_distance
 
-# Model that are not working but should... :(
-# - google/gemma-2-2b-it
-# - google/flan-t5-large
-# - codellama/CodeLlama-13b-hf
-# - ibm-granite/granite-3.0-8b-instruct
-# - microsoft/Phi-3.5-MoE-instruct
-# - microsoft/Phi-3-mini-4k-instruct
-
 # The config in args is not optimized for speed but only check that inference is working for the different models architectures
 TEST_CONFIGS = {
     "meta-llama/Llama-3.1-8B-Instruct-shared": {

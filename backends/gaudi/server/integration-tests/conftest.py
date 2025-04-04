@@ -54,25 +54,6 @@ logger.add(
     level="INFO",
 )
 
-# def cleanup_handler(signum, frame):
-#     logger.info("\nCleaning up containers due to shutdown, please wait...")
-#     try:
-#         client = docker.from_env()
-#         containers = client.containers.list(filters={"name": "tgi-tests-"})
-#         for container in containers:
-#             try:
-#                 container.stop()
-#                 container.remove()
-#                 logger.info(f"Successfully cleaned up container {container.name}")
-#             except Exception as e:
-#                 logger.error(f"Error cleaning up container {container.name}: {str(e)}")
-#     except Exception as e:
-#         logger.error(f"Error during cleanup: {str(e)}")
-#     sys.exit(1)
-
-# signal.signal(signal.SIGINT, cleanup_handler)
-# signal.signal(signal.SIGTERM, cleanup_handler)
-
 
 def stream_container_logs(container, test_name):
     """Stream container logs in a separate thread."""
