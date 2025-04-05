@@ -250,8 +250,6 @@ class Weights:
             tensor = slice_[start:stop]
         elif dim == 1:
             tensor = slice_[:, start:stop]
-        elif dim == 2:
-            tensor = slice_[:, :, start:stop]
         else:
             raise NotImplementedError("Let's make that generic when needed")
         # Special case for gptq which shouldn't convert
@@ -375,8 +373,8 @@ class Weights:
     def get_weights_col(self, prefix: str):
         return self.weights_loader.get_weights_col(self, prefix)
 
-    def get_multi_weights_col(self, prefixes: List[str], dim: int, flag=True):
-        return self.weights_loader.get_multi_weights_col(self, prefixes, dim, flag=flag)
+    def get_multi_weights_col(self, prefixes: List[str], dim: int):
+        return self.weights_loader.get_multi_weights_col(self, prefixes, dim)
 
     def get_tensor_shard(self, var, dim):
         world_size = self.process_group.size()
@@ -394,8 +392,8 @@ class Weights:
         tensor = tensor.to(device=self.device)
         return tensor
 
-    def get_weights_row(self, prefix: str, flag=True):
-        return self.weights_loader.get_weights_row(self, prefix, flag=flag)
+    def get_weights_row(self, prefix: str):
+        return self.weights_loader.get_weights_row(self, prefix)
 
     @contextmanager
     def use_loader(self, weights_loader: WeightsLoader):
