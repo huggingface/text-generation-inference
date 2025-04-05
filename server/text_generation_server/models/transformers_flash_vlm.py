@@ -564,4 +564,5 @@ class TransformersLlama4VlmCausalLM(TransformersFlashVlmCausalLM):
             input_ids, position_ids, cu_seqlen_prefill
         )
         inputs["cache_position"] = position_ids
+        inputs["attention_mask"] = torch.zeros((1, 1, 1, 1), device=input_ids.device)
         return inputs

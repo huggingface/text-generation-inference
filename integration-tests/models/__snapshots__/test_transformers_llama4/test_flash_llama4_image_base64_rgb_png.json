@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The image is a blank white space with no visible objects or features.",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1743861909,
+  "id": "",
+  "model": "ll-re/Llama-4-Scout-17B-16E-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.2.1-dev0-native",
+  "usage": {
+    "completion_tokens": 15,
+    "prompt_tokens": 166,
+    "total_tokens": 181
+  }
+}

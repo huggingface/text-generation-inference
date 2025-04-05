@@ -708,8 +708,23 @@ wheels = [
 ]
 
 [[package]]
+name = "hf-xet"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/64/46/db229dddc55121478105940b610fef1b466c414da02be9d4daa5602a2527/hf_xet-1.0.0.tar.gz", hash = "sha256:5e0ca891ce599fd753e7ffbdc182207d952a93e6252eeb92118475d6866bb093", size = 257192 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/0a/c16f8766fa3cd520292b1a765e9b50b8390bce4c2ed7657db9534551f5ed/hf_xet-1.0.0-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:6106304f92bbce7c9b8509f6f735f2e8ce95e4dc32af8876e874c48b15ca1903", size = 5001841 },
+    { url = "https://files.pythonhosted.org/packages/e3/9f/cca55edd85d03fc98c743bcc093965740a7440e909779c558039d6838f03/hf_xet-1.0.0-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:4d0bc7a3e6c1d21fcbb48e8726e3b19a2460e95971375e55e9a5f73ec7079a86", size = 4805318 },
+    { url = "https://files.pythonhosted.org/packages/d1/0b/28bda7ac9d699dcfb96f628aa135ddca3f0f77e9716351aab2b83966f957/hf_xet-1.0.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:23dee64f114ea9a272ff71a6a755e025d7a075a6a0dbf6da0990fe9211831ccf", size = 53504907 },
+    { url = "https://files.pythonhosted.org/packages/cb/04/ef1f7249a813841d193cbab2ef4d1d7d67c66c61d21d45223a72fdc5c88e/hf_xet-1.0.0-cp37-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:d5f160550508ed87783d1eca4288602a713d1c45ec517d937acb9d93120f0cab", size = 52410434 },
+    { url = "https://files.pythonhosted.org/packages/81/b3/e7abec2619ecd9d1c743adfe79fa69cf84530f530969daf3dc804efef65b/hf_xet-1.0.0-cp37-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:5ebd79db87df0b9d3607e7c9a6bb0662c10e36992f522f66b1d2a7fe93f53f27", size = 53465113 },
+    { url = "https://files.pythonhosted.org/packages/df/82/b51f3b6e5c6f33e91220c37b17760229704c58e79ab0fcfd0fd3b55803d3/hf_xet-1.0.0-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:8e6d2625971b4affad634835db82d5392f38de874205a9573e0dd3f0f9cb136f", size = 53461632 },
+    { url = "https://files.pythonhosted.org/packages/95/d2/32defba26d995f7acdc4fe3e5911473b25aff5b75c5a2532786435a709e8/hf_xet-1.0.0-cp37-abi3-win_amd64.whl", hash = "sha256:b446964bd75eb7f6b4d983c47241b2023eadfad1f56137ed00e1ca6fc278faec", size = 4121808 },
+]
+
+[[package]]
 name = "huggingface-hub"
-version = "0.29.1"
+version = "0.30.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
@@ -720,9 +735,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/22/37/797d6476f13e5ef6af5fc48a5d641d32b39c37e166ccf40c3714c5854a85/huggingface_hub-0.29.1.tar.gz", hash = "sha256:9524eae42077b8ff4fc459ceb7a514eca1c1232b775276b009709fe2a084f250", size = 389776 }
+sdist = { url = "https://files.pythonhosted.org/packages/78/be/049689a7197630e75c4bb53021cb209a56617c9bf39b3a0950650d1f96e1/huggingface_hub-0.30.1.tar.gz", hash = "sha256:f379e8b8d0791295602538856638460ae3cf679c7f304201eb80fb98c771950e", size = 400784 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ae/05/75b90de9093de0aadafc868bb2fa7c57651fd8f45384adf39bd77f63980d/huggingface_hub-0.29.1-py3-none-any.whl", hash = "sha256:352f69caf16566c7b6de84b54a822f6238e17ddd8ae3da4f8f2272aea5b198d5", size = 468049 },
+    { url = "https://files.pythonhosted.org/packages/99/e3/2232d0e726d4d6ea69643b9593d97d0e7e6ea69c2fe9ed5de34d476c1c47/huggingface_hub-0.30.1-py3-none-any.whl", hash = "sha256:0f6aa5ec5a4e68e5b9e45d556b4e5ea180c58f5a5ffa734e7f38c9d573028959", size = 481170 },
 ]
 
 [[package]]
@@ -2563,6 +2578,7 @@ dependencies = [
     { name = "grpcio-reflection" },
     { name = "grpcio-status" },
     { name = "hf-transfer" },
+    { name = "hf-xet" },
     { name = "huggingface-hub" },
     { name = "kernels" },
     { name = "loguru" },
@@ -2628,7 +2644,8 @@ requires-dist = [
     { name = "grpcio-tools", marker = "extra == 'dev'", specifier = ">=1.51.1,<2.0" },
     { name = "grpcio-tools", marker = "extra == 'gen'", specifier = ">=1.69.0" },
     { name = "hf-transfer", specifier = ">=0.1.8" },
-    { name = "huggingface-hub", specifier = ">=0.29.0" },
+    { name = "hf-xet", specifier = ">=1.0.0" },
+    { name = "huggingface-hub", specifier = ">=0.30.1" },
     { name = "kernels", specifier = ">=0.2.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "mypy-protobuf", marker = "extra == 'gen'", specifier = ">=3.6.0" },

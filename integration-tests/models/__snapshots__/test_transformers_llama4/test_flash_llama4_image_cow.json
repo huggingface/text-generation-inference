@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The image shows a brown cow standing on the beach with a white face and black and white marking on its ears. The cow has a white patch around its nose and mouth. The ocean and blue sky are in the background.",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1743863057,
+  "id": "",
+  "model": "ll-re/Llama-4-Scout-17B-16E-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.2.1-dev0-native",
+  "usage": {
+    "completion_tokens": 46,
+    "prompt_tokens": 164,
+    "total_tokens": 210
+  }
+}
