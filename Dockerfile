@@ -194,8 +194,6 @@ RUN cd server && \
     text-generation-server --help
 
 RUN uv pip install torchvision --no-deps
-COPY transformers-4.51.0.dev0-py3-none-any.whl .
-RUN uv pip install transformers-4.51.0.dev0-py3-none-any.whl --no-deps
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
