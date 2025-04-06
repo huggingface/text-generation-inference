@@ -710,7 +710,7 @@ fn image_tokens(
             img_string.push_str(IMAGE_START);
 
             if ratio_h * ratio_w > 1 {
-                for yy in 0..ratio_h {
+                for _yy in 0..ratio_h {
                     for xx in 0..ratio_w {
                         img_string.push_str(&PATCH.repeat(num_patches_per_chunk));
                         if xx < ratio_w - 1 {

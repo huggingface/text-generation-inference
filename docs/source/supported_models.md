@@ -9,7 +9,7 @@ Text Generation Inference enables serving optimized models. The following sectio
 - [Idefics 3](https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3) (Multimodal)
 - [Llava Next (1.6)](https://huggingface.co/llava-hf/llava-v1.6-vicuna-13b-hf) (Multimodal)
 - [Llama](https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f)
-- [Llama4](https://huggingface.co/collections/ll-re/llama-4-67f03a4fd5f976f3d443fcfd)
+- [Llama4](https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f)
 - [Phi 3](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct)
 - [Granite](https://huggingface.co/ibm-granite/granite-3.0-8b-instruct)
 - [Gemma](https://huggingface.co/google/gemma-7b)
