@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "model_type")]
@@ -100,6 +101,141 @@ impl LlavaNext {
         // The base patch covers the entire image
         let base_features = npatches.pow(2);
         unpadded_features + newline_features + base_features
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Llama4VisionConfig {
+    image_size: usize,
+    patch_size: usize,
+    pixel_shuffle_ratio: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct Llama4 {
+    text_config: TextConfig,
+    vision_config: Llama4VisionConfig,
+}
+
+fn gcd(a: usize, b: usize) -> usize {
+    if b == 0 {
+        a
+    } else {
+        gcd(b, a % b)
+    }
+}
+
+fn get_factors(dividend: usize) -> HashSet<usize> {
+    let mut factors_set = HashSet::new();
+
+    for i in 1..=((dividend as f64).sqrt() as usize) {
+        if dividend % i == 0 {
+            factors_set.insert(i);
+            factors_set.insert(dividend / i);
+        }
+    }
+
+    factors_set
+}
+
+fn find_supported_resolutions(max_num_chunks: usize, height: usize) -> Vec<(usize, usize)> {
+    let patch_size = height;
+
+    let mut asp_dict: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+
+    for chunk_size in (1..=max_num_chunks).rev() {
+        let mut _factors: Vec<_> = get_factors(chunk_size).into_iter().collect();
+        _factors.sort();
+        let _asp_ratios: Vec<(usize, usize)> =
+            _factors.iter().map(|&f| (f, chunk_size / f)).collect();
+
+        for (h, w) in _asp_ratios {
+            let divisor = gcd(h, w);
+            let key = (h / divisor, w / divisor); // reduced aspect ratio as key
+
+            asp_dict.entry(key).or_default().push((h, w));
+        }
+    }
+
+    let mut possible_resolutions = vec![];
+
+    for (_key, value) in asp_dict {
+        for (h, w) in value {
+            possible_resolutions.push((h * patch_size, w * patch_size));
+        }
+    }
+
+    possible_resolutions
+}
+
+fn get_best_fit(
+    original_height: usize,
+    original_width: usize,
+    possible_resolutions: &[(usize, usize)],
+    resize_to_max_canvas: bool,
+) -> (usize, usize) {
+    let orig_h = original_height as f32;
+    let orig_w = original_width as f32;
+
+    let mut scales = Vec::with_capacity(possible_resolutions.len());
+
+    for &(h, w) in possible_resolutions.iter() {
+        let scale_h = h as f32 / orig_h;
+        let scale_w = w as f32 / orig_w;
+        let scale = scale_h.min(scale_w);
+        scales.push(scale);
+    }
+
+    let upscaling_options: Vec<f32> = scales.iter().copied().filter(|&s| s >= 1.0).collect();
+    let selected_scale = if !upscaling_options.is_empty() {
+        if resize_to_max_canvas {
+            upscaling_options.into_iter().fold(f32::MIN, f32::max)
+        } else {
+            upscaling_options.into_iter().fold(f32::MAX, f32::min)
+        }
+    } else {
+        let downscaling_options: Vec<f32> = scales.iter().copied().filter(|&s| s < 1.0).collect();
+        downscaling_options.into_iter().fold(f32::MIN, f32::max)
+    };
+
+    let chosen_canvas: Vec<(usize, usize)> = possible_resolutions
+        .iter()
+        .zip(scales.iter())
+        .filter(|&(_, &s)| (s - selected_scale).abs() < f32::EPSILON)
+        .map(|(&(h, w), _)| (h, w))
+        .collect();
+
+    if chosen_canvas.len() > 1 {
+        chosen_canvas
+            .into_iter()
+            .min_by_key(|(h, w)| h * w)
+            .unwrap()
+    } else {
+        chosen_canvas[0]
+    }
+}
+
+impl Llama4 {
+    pub fn image_size(&self) -> usize {
+        self.vision_config.image_size
+    }
+
+    pub fn patch_size(&self) -> usize {
+        self.vision_config.patch_size
+    }
+
+    pub fn pixel_shuffle_ratio(&self) -> f64 {
+        self.vision_config.pixel_shuffle_ratio
+    }
+    pub fn get_aspect_ratios(&self, height: usize, width: usize) -> (usize, usize) {
+        let patch_size = self.vision_config.image_size;
+        // How to avoid hardcoding this?
+        let max_chunks = 15;
+        let supported = find_supported_resolutions(max_chunks, patch_size);
+        let (target_h, target_w) = get_best_fit(height, width, &supported, false);
+        (target_h / patch_size, target_w / patch_size)
     }
 }
 
@@ -258,6 +394,7 @@ pub enum Config {
     Phi3,
     Phimoe,
     Llama,
+    Llama4(Llama4),
     Baichuan,
     Paligemma(Paligemma),
     Gemma,

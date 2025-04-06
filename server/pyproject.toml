@@ -32,7 +32,8 @@ dependencies = [
     "tokenizers>=0.20.3",
     "typer>=0.15.1",
     "transformers>=4.49.0",
-    "huggingface-hub>=0.29.0",
+    "huggingface-hub>=0.30.1",
+    "hf-xet>=1.0.0",
 ]
 
 [build-system]

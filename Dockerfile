@@ -65,7 +65,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 COPY --from=ghcr.io/astral-sh/uv:0.5.31 /uv /uvx /bin/
 ENV PATH="$PATH:/root/.local/bin"
 RUN uv python install ${PYTHON_VERSION}
-RUN uv venv --python ${PYTHON_VERSION} && uv pip install torch==${PYTORCH_VERSION} pip setuptools packaging
+RUN uv venv --python ${PYTHON_VERSION} && uv pip install torch==${PYTORCH_VERSION} torchvision pip setuptools packaging
 ENV VIRTUAL_ENV=/usr/src/.venv/
 ENV PATH="$PATH:/usr/src/.venv/bin/"
 
@@ -192,6 +192,9 @@ RUN cd server && \
     uv pip install nvidia-nccl-cu12==2.25.1 && \
     pwd && \
     text-generation-server --help
+
+# This shouldn't be necessary.
+# RUN uv pip install torchvision --no-deps
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
