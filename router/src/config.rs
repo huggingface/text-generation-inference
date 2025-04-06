@@ -153,12 +153,9 @@ fn find_supported_resolutions(max_num_chunks: usize, height: usize) -> Vec<(usiz
 
         for (h, w) in _asp_ratios {
             let divisor = gcd(h, w);
-            let key = (h / divisor, w / divisor);  // reduced aspect ratio as key
+            let key = (h / divisor, w / divisor); // reduced aspect ratio as key
 
-            if !asp_dict.contains_key(&key) {
-                asp_dict.insert(key, vec![]);
-            }
-            asp_dict.get_mut(&key).unwrap().push((h, w));
+            asp_dict.entry(key).or_default().push((h, w));
         }
     }
 
@@ -176,7 +173,7 @@ fn find_supported_resolutions(max_num_chunks: usize, height: usize) -> Vec<(usiz
 fn get_best_fit(
     original_height: usize,
     original_width: usize,
-    possible_resolutions: &Vec<(usize, usize)>,
+    possible_resolutions: &[(usize, usize)],
     resize_to_max_canvas: bool,
 ) -> (usize, usize) {
     let orig_h = original_height as f32;
@@ -194,20 +191,13 @@ fn get_best_fit(
     let upscaling_options: Vec<f32> = scales.iter().copied().filter(|&s| s >= 1.0).collect();
     let selected_scale = if !upscaling_options.is_empty() {
         if resize_to_max_canvas {
-            upscaling_options
-                .into_iter()
-                .fold(f32::MIN, f32::max)
+            upscaling_options.into_iter().fold(f32::MIN, f32::max)
         } else {
-            upscaling_options
-                .into_iter()
-                .fold(f32::MAX, f32::min)
+            upscaling_options.into_iter().fold(f32::MAX, f32::min)
         }
     } else {
-        let downscaling_options: Vec<f32> =
-            scales.iter().copied().filter(|&s| s < 1.0).collect();
-        downscaling_options
-            .into_iter()
-            .fold(f32::MIN, f32::max)
+        let downscaling_options: Vec<f32> = scales.iter().copied().filter(|&s| s < 1.0).collect();
+        downscaling_options.into_iter().fold(f32::MIN, f32::max)
     };
 
     let chosen_canvas: Vec<(usize, usize)> = possible_resolutions
@@ -374,7 +364,6 @@ pub struct Gemma3VisionConfig {
 pub struct Gemma3 {
     vision_config: Gemma3VisionConfig,
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "model_type")]

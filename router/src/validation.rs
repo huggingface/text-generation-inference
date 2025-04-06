@@ -698,7 +698,8 @@ fn image_tokens(
             let image_height = config.image_size();
             let patch_size = config.patch_size();
             let pixel_shuffle_ratio = config.pixel_shuffle_ratio();
-            let downsample_ratio = (1.0 / (pixel_shuffle_ratio * pixel_shuffle_ratio)).round() as usize;
+            let downsample_ratio =
+                (1.0 / (pixel_shuffle_ratio * pixel_shuffle_ratio)).round() as usize;
 
             let (ratio_h, ratio_w) = config.get_aspect_ratios(height, width);
             let image_width = image_height; // Assuming pixel shape: [H][W][C]
@@ -726,7 +727,7 @@ fn image_tokens(
             img_string.push_str(IMAGE_END);
 
             img_string
-        },
+        }
         Qwen2Vl(config) => format!(
             "<|vision_start|>{:?}<|vision_end|>",
             "<|image_pad|>".repeat(config.get_number_of_features(height, width))
@@ -770,8 +771,8 @@ fn prepare_input<T: TokenizerTrait>(
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     let (tokenizer_query, input_chunks) = match config {
         Some(
-            config @ (Idefics | Mllama | Idefics2(_) | Idefics3(_) | Gemma3(_) | Llama4(_) | Paligemma(_)
-            | LlavaNext(_) | Qwen2Vl(_) | Qwen2_5Vl(_)),
+            config @ (Idefics | Mllama | Idefics2(_) | Idefics3(_) | Gemma3(_) | Llama4(_)
+            | Paligemma(_) | LlavaNext(_) | Qwen2Vl(_) | Qwen2_5Vl(_)),
         ) => {
             let mut input_chunks = Vec::new();
             let mut tokenizer_query = String::with_capacity(inputs.len());

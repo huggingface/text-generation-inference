@@ -207,7 +207,6 @@ pub struct Llama4Processor {
     do_image_splitting: bool,
 }
 
-
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct HubProcessorConfig {
     pub chat_template: Option<ChatTemplateVersions>,

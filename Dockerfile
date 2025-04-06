@@ -193,7 +193,8 @@ RUN cd server && \
     pwd && \
     text-generation-server --help
 
-RUN uv pip install torchvision --no-deps
+# This shouldn't be necessary.
+# RUN uv pip install torchvision --no-deps
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages

@@ -395,7 +395,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
             image_grid_thw=image_grid_thw,
             attention_mask=inputs.get("attention_mask", None),
             use_sdpa=inputs.get("use_sdpa", False),
-            cache_position=inputs.get("cache_position", None)
+            cache_position=inputs.get("cache_position", None),
         ).logits
 
         logits = self.post_process_outputs(logits, lm_head_indices)
@@ -560,9 +560,7 @@ class TransformersGemma3VlmCausalLM(TransformersFlashVlmCausalLM):
 
 class TransformersLlama4VlmCausalLM(TransformersFlashVlmCausalLM):
     def pre_process_inputs(self, input_ids, position_ids, cu_seqlen_prefill):
-        inputs = super().pre_process_inputs(
-            input_ids, position_ids, cu_seqlen_prefill
-        )
+        inputs = super().pre_process_inputs(input_ids, position_ids, cu_seqlen_prefill)
         inputs["cache_position"] = position_ids
         inputs["attention_mask"] = torch.zeros((1, 1, 1, 1), device=input_ids.device)
         return inputs
