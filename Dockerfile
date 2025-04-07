@@ -165,8 +165,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         git \
         && rm -rf /var/lib/apt/lists/*
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="$PATH:/root/.local/bin"
+# RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+# ENV PATH="$PATH:/root/.local/bin"
+COPY --from=ghcr.io/astral-sh/uv:0.5.31 /uv /uvx /bin/
 # Install flash-attention dependencies
 # RUN pip install einops --no-cache-dir
 
@@ -183,18 +184,15 @@ COPY server server
 COPY server/Makefile server/Makefile
 ENV HF_KERNELS_CACHE=/kernels
 RUN cd server && \
-	uv sync --frozen --extra gen --extra bnb --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --no-install-project --active && \
+	uv sync --frozen --extra gen --extra bnb --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --extra torch --no-install-project --active && \
     make gen-server-raw && \
     kernels download .
 
 RUN cd server && \
-    uv sync --frozen --extra gen --extra bnb --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --active --python=${PYTHON_VERSION} && \
+    uv sync --frozen --extra gen --extra bnb --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --extra torch --active --python=${PYTHON_VERSION} && \
     uv pip install nvidia-nccl-cu12==2.25.1 && \
     pwd && \
     text-generation-server --help
-
-# This shouldn't be necessary.
-# RUN uv pip install torchvision --no-deps
 
 # Copy build artifacts from flash attention builder
 COPY --from=flash-att-builder /usr/src/flash-attention/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
