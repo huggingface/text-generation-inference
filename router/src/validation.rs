@@ -566,7 +566,7 @@ fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), Validatio
             return Err(ValidationError::InvalidImageContent(content.to_string()));
         }
 
-        let data = STANDARD.decode(content["base64,".len()..].as_bytes())?;
+        let data = STANDARD.decode(&content["base64,".len()..])?;
         let img = if let Some(format) = format_from_mimetype(mimetype) {
             ImageReader::with_format(Cursor::new(&data), format).decode()?
         } else {
@@ -603,7 +603,7 @@ fn image_tokens(
 
             let mut image_string = String::with_capacity(2 * FAKE.len() + slots * IMAGE.len());
             image_string.push_str(FAKE);
-            image_string.extend(iter::repeat(IMAGE).take(slots));
+            image_string.extend(iter::repeat_n(IMAGE, slots));
             image_string.push_str(FAKE);
 
             if matches!(
