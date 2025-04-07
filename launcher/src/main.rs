@@ -1709,16 +1709,16 @@ impl From<&str> for Gpu {
 impl std::fmt::Display for Gpu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Gpu::RTX4090 => write!(f, "nvida-4090"),
-            Gpu::T4 => write!(f, "nvida-t4"),
-            Gpu::L4 => write!(f, "nvida-l4"),
-            Gpu::L40 => write!(f, "nvida-l40"),
-            Gpu::L40S => write!(f, "nvida-l40s"),
+            Gpu::RTX4090 => write!(f, "nvidia-4090"),
+            Gpu::T4 => write!(f, "nvidia-t4"),
+            Gpu::L4 => write!(f, "nvidia-l4"),
+            Gpu::L40 => write!(f, "nvidia-l40"),
+            Gpu::L40S => write!(f, "nvidia-l40s"),
             Gpu::A10G => write!(f, "nvidia-a10g"),
             Gpu::A40 => write!(f, "nvidia-a40"),
             Gpu::H100 => write!(f, "nvidia-h100-80fb-hbm3"),
-            Gpu::A100 => write!(f, "nvida-a100-sxm4-80gb"),
-            Gpu::H200 => write!(f, "nvida-h200"),
+            Gpu::A100 => write!(f, "nvidia-a100-sxm4-80gb"),
+            Gpu::H200 => write!(f, "nvidia-h200"),
             Gpu::Unknown(card) => write!(f, "{}", card),
         }
     }
