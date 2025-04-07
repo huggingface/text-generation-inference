@@ -191,7 +191,7 @@ RUN . .venv/bin/activate && cd aiter \
     && git checkout ${AITER_BRANCH} \
     && git submodule update --init --recursive \
     && pip install -r requirements.txt \
-    && PREBUILD_KERNELS=1 GPU_ARCHS=gfx942 python3 setup.py develop && pip show aiter 
+    && PREBUILD_KERNELS=1 GPU_ARCHS=gfx942 python3 setup.py develop && pip show aiter
 
 RUN rm -rf /var/lib/apt/lists/*
 
@@ -253,7 +253,7 @@ COPY server/Makefile server/Makefile
 RUN cd server && \
     uv pip install grpcio-tools mypy-protobuf && \
     uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir && \
-    make gen-server-raw 
+    make gen-server-raw
 RUN cd server && \
     pwd && \
     text-generation-server --help
