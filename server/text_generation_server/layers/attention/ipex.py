@@ -143,6 +143,8 @@ def paged_attention(
             BLOCK_SIZE,
             max_s,
             None,
+            k_scale=kv_scales.key_scale_cpu,
+            v_scale=kv_scales.value_scale_cpu,
         )
     return out
 
