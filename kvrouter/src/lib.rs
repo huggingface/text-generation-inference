@@ -10,11 +10,8 @@ use hyper::StatusCode;
 use hyper_util::{client::legacy::connect::HttpConnector, rt::TokioExecutor};
 use rand::{rng, Rng};
 use serde::Deserialize;
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
-use tokio::sync::{mpsc, oneshot, RwLock};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::sync::{mpsc, oneshot};
 
 mod trie;
 
@@ -90,7 +87,7 @@ impl LoadBalancer for RoundRobin {
 
 pub struct OverloadHandler<T: LoadBalancer> {
     load_balancer: T,
-    backends: Arc<RwLock<Vec<String>>>,
+    backends: Vec<String>,
     inqueue: Vec<AtomicUsize>,
     inflight: Vec<AtomicUsize>,
     factor: f32,
@@ -98,19 +95,9 @@ pub struct OverloadHandler<T: LoadBalancer> {
 }
 
 impl<T: LoadBalancer> OverloadHandler<T> {
-    pub async fn new(load_balancer: T, backends: Arc<RwLock<Vec<String>>>, rx: Rcv) -> Self {
-        let inflight = backends
-            .read()
-            .await
-            .iter()
-            .map(|_| AtomicUsize::new(0))
-            .collect();
-        let inqueue = backends
-            .read()
-            .await
-            .iter()
-            .map(|_| AtomicUsize::new(0))
-            .collect();
+    pub async fn new(load_balancer: T, backends: Vec<String>, rx: Rcv) -> Self {
+        let inflight = backends.iter().map(|_| AtomicUsize::new(0)).collect();
+        let inqueue = backends.iter().map(|_| AtomicUsize::new(0)).collect();
         let factor: f32 = std::env::var(FACTOR_KEY)
             .unwrap_or("1.5".to_string())
             .parse()
@@ -126,13 +113,12 @@ impl<T: LoadBalancer> OverloadHandler<T> {
     }
 
     async fn next(&mut self, key: &[u8]) -> Option<String> {
-        let backends = self.backends.read().await;
-        if backends.is_empty() {
+        if self.backends.is_empty() {
             return None;
         }
         // Get the backend URL
-        let index = self.load_balancer.next(key, backends.len());
-        let n = backends.len();
+        let index = self.load_balancer.next(key, self.backends.len());
+        let n = self.backends.len();
         let mut index = index % n;
 
         let mut inflight = self.inflight[index].load(Ordering::Relaxed);
@@ -148,11 +134,11 @@ impl<T: LoadBalancer> OverloadHandler<T> {
                 );
             }
             index += 1;
-            index %= backends.len();
+            index %= self.backends.len();
             inflight = self.inflight[index].load(Ordering::Relaxed);
             inqueue = self.inflight[index].load(Ordering::Relaxed);
         }
-        let backend = &backends[index];
+        let backend = &self.backends[index];
         self.inflight[index].fetch_add(1, Ordering::Relaxed);
         self.inqueue[index].fetch_add(1, Ordering::Relaxed);
         Some(backend.to_string())
@@ -173,39 +159,27 @@ impl<T: LoadBalancer> OverloadHandler<T> {
                     }
                 }
                 Msg::Dequeue(backend) => {
-                    let index = self
-                        .backends
-                        .read()
-                        .await
-                        .iter()
-                        .position(|b| b == &backend);
+                    let index = self.backends.iter().position(|b| b == &backend);
                     if let Some(index) = index {
                         self.inqueue[index].fetch_sub(1, Ordering::Relaxed);
                     }
                 }
                 Msg::Deflight(backend) => {
-                    let index = self
-                        .backends
-                        .read()
-                        .await
-                        .iter()
-                        .position(|b| b == &backend);
+                    let index = self.backends.iter().position(|b| b == &backend);
                     if let Some(index) = index {
                         self.inflight[index].fetch_sub(1, Ordering::Relaxed);
                     }
                 }
                 Msg::AddBackend(backend) => {
-                    let mut backends = self.backends.write().await;
-                    backends.push(backend);
-                    backends.sort();
+                    self.backends.push(backend);
+                    self.backends.sort();
                 }
                 Msg::RemoveBackend(backend) => {
-                    let mut backends = self.backends.write().await;
-                    backends.retain(|b| *b == backend);
-                    backends.sort();
+                    self.backends.retain(|b| *b == backend);
+                    self.backends.sort();
                 }
                 Msg::SetBackends(backends) => {
-                    *self.backends.write().await = backends;
+                    self.backends = backends;
                 }
             }
         }

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     routing::Router,
     routing::{get, post},
@@ -8,17 +6,16 @@ use hyper::StatusCode;
 use kvrouter::{
     handler, set_backends_handler, Communicator, ContentAware, OverloadHandler, RoundRobin,
 };
-use tokio::sync::RwLock;
 
 #[tokio::main]
 async fn main() {
     // List of backend servers
-    let backends = Arc::new(RwLock::new(vec![
+    let backends = vec![
         // "http://localhost:8000".to_string(),
         // "http://localhost:8001".to_string(),
         // "http://localhost:8002".to_string(),
         // "http://localhost:8003".to_string(),
-    ]));
+    ];
 
     // Create a new instance of the RoundRobinRouter
 
