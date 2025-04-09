@@ -87,7 +87,7 @@ RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https:/
 
 RUN mv /tmp/intel-for-pytorch-gpu-dev.list /etc/apt/sources.list.d
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt install -y xpu-smi cmake ninja-build pciutils intel-ocloc
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt install -y xpu-smi cmake ninja-build pciutils intel-ocloc libnl-genl-3-200
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \
@@ -99,8 +99,6 @@ ENV HF_HOME=/data \
 
 WORKDIR /usr/src
 RUN pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/test/xpu
-
-RUN pip install triton-xpu==3.2.0b1 --no-cache-dir
 
 # Install server
 COPY proto proto
@@ -119,7 +117,9 @@ ENV CCL_TOPO_FABRIC_VERTEX_CONNECTION_CHECK=0
 ENV TORCH_DEVICE_BACKEND_AUTOLOAD=0
 
 RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/xpu/oneccl_bind_pt-2.6.0%2Bxpu-cp311-cp311-linux_x86_64.whl
-RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/xpu/intel_extension_for_pytorch-2.6.10%2Bxpu-cp311-cp311-linux_x86_64.whl
+RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout d5a7036316a01ea8220eb4da78a2207c423a1166
+RUN sed -i 's/VERSION_MINOR 7/VERSION_MINOR 6/' intel-extension-for-pytorch/version.txt
+RUN cd intel-extension-for-pytorch && git submodule update --init --recursive && USE_AOT_DEVLIST='pvc,ats-m150' BUILD_SEPARATE_OPS=OFF BUILD_WITH_CPU=OFF USE_XETLA=ON python setup.py install && rm -rf /usr/src/intel-extension-for-pytorch
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router
