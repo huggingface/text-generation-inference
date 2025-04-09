@@ -105,6 +105,8 @@ def paged_attention(
         kv_cache_dtype = "fp8_e4m3"
     if ATTENTION == "flashdecoding-ipex":
         window_size_right = -1 if window_size_left == -1 else 0
+        if softcap is None:
+            softcap = -1.0
         ipex.llm.modules.PagedAttention.flash_attn_varlen_func(
             out,
             query.contiguous() if query.device.type == "xpu" else query,
