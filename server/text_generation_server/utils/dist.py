@@ -73,6 +73,13 @@ def initialize_torch_distributed():
             if SYSTEM == "ipex":
                 import intel_extension_for_pytorch as ipex
 
+                if torch.xpu.is_available():
+                    assert (
+                        WORLD_SIZE <= torch.xpu.device_count()
+                    ), "Each process is one xpu"
+                    device = RANK % torch.xpu.device_count()
+                    torch.xpu.set_device(device)
+
                 ipex.distributed.init_process_group(
                     backend="ccl",
                     world_size=WORLD_SIZE,
