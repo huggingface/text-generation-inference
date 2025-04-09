@@ -368,6 +368,8 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         for i, (batch_size, block_num) in enumerate(
             reversed(self.bucketing_ctx.decode_buckets)
         ):
+            if batch_size > block_num:
+                continue
             log_master(
                 logger.info, f"warmup decode bs {batch_size} block_num {block_num}"
             )
