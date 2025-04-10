@@ -204,7 +204,7 @@ pub struct Gemma3Processor {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Llama4Processor {
     #[serde(default)]
-    do_image_splitting: bool,
+    max_patches: usize,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
