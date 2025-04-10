@@ -1041,7 +1041,6 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 processor_kwargs={
                     "use_fast": True,
-                    "size": {"height": 336, "width": 336},
                 },
             )
     elif model_type == BAICHUAN:
