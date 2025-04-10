@@ -15,9 +15,10 @@ import pytest
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
 import logging
-from gaudi.test_generate import TEST_CONFIGS
+from gaudi.test_gaudi_generate import TEST_CONFIGS
 from text_generation import AsyncClient
 from text_generation.types import Response
+import huggingface_hub
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,7 +30,7 @@ logger = logging.getLogger(__file__)
 # Use the latest image from the local docker build
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", "tgi-gaudi")
 DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", None)
-HF_TOKEN = os.getenv("HF_TOKEN", None)
+HF_TOKEN = huggingface_hub.get_token()
 
 assert (
     HF_TOKEN is not None
@@ -152,7 +153,7 @@ def data_volume():
 
 
 @pytest.fixture(scope="module")
-def launcher(data_volume):
+def gaudi_launcher(event_loop):
     @contextlib.contextmanager
     def docker_launcher(
         model_id: str,
@@ -272,7 +273,7 @@ def launcher(data_volume):
 
 
 @pytest.fixture(scope="module")
-def generate_load():
+def gaudi_generate_load():
     async def generate_load_inner(
         client: AsyncClient, prompt: str, max_new_tokens: int, n: int
     ) -> List[Response]:

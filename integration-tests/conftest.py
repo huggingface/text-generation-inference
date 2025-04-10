@@ -1,4 +1,8 @@
-pytest_plugins = ["fixtures.neuron.service", "fixtures.neuron.export_models"]
+pytest_plugins = [
+    "fixtures.neuron.service",
+    "fixtures.neuron.export_models",
+    "fixtures.gaudi.service",
+]
 # ruff: noqa: E402
 from _pytest.fixtures import SubRequest
 from huggingface_hub.inference._generated.types.chat_completion import (
