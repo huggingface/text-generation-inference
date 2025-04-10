@@ -116,7 +116,7 @@ class TransformersFlashCausalLM(FlashCausalLM):
             device = torch.device(f"cuda:{rank}")
             dtype = default_dtype if dtype is None else dtype
         elif hasattr(torch, "xpu") and torch.xpu.is_available():
-            device = torch.device("xpu")
+            device = torch.device(f"xpu:{rank}")
             dtype = default_dtype if dtype is None else dtype
         else:
             raise ValueError(

@@ -87,7 +87,7 @@ RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https:/
 
 RUN mv /tmp/intel-for-pytorch-gpu-dev.list /etc/apt/sources.list.d
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt install -y xpu-smi cmake ninja-build pciutils intel-ocloc
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt install -y xpu-smi cmake ninja-build pciutils intel-ocloc libnl-genl-3-200
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \
@@ -98,9 +98,7 @@ ENV HF_HOME=/data \
 
 
 WORKDIR /usr/src
-RUN pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/test/xpu
-
-RUN pip install triton-xpu==3.2.0b1 --no-cache-dir
+RUN pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/xpu
 
 # Install server
 COPY proto proto
