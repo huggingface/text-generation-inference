@@ -8,8 +8,8 @@ TEST_CONFIGS = {
     "meta-llama/Llama-3.1-8B-Instruct-shared": {
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
         "input": "What is Deep Learning?",
-        "expected_greedy_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use",
-        "expected_batch_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use",
+        "expected_greedy_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use of artificial neural networks to analyze and interpret data. It is a type of",
+        "expected_batch_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use of artificial neural networks to analyze and interpret data. It is a type of",
         "args": [
             "--sharded",
             "true",
