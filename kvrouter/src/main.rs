@@ -24,15 +24,17 @@ async fn main() {
 
     let (sx, rx) = tokio::sync::mpsc::channel(100);
     let communicator = Communicator::new(sx);
+    let host = std::env::var("TGI_KVROUTER_HOST").unwrap_or("127.0.0.1");
+    let port : u16= std::env::var("TGI_KVROUTER_PORT").unwrap_or("3000").parse()?;
     tokio::task::spawn(async move {
         if std::env::var("TGI_KVROUTER_LB").unwrap_or("".to_string()) == *"roundrobin" {
             println!("Using round robin");
             let lb = RoundRobin::new();
-            let mut router = OverloadHandler::new(lb, backends, rx).await;
+            let mut router = OverloadHandler::new(lb, backends, rx);
             router.run().await;
         } else {
             let lb = ContentAware::new();
-            let mut router = OverloadHandler::new(lb, backends, rx).await;
+            let mut router = OverloadHandler::new(lb, backends, rx);
             router.run().await;
         };
     });
@@ -44,7 +46,7 @@ async fn main() {
         .with_state(communicator);
 
     // run it
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind((HOST, PORT)).await.unwrap();
     println!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
 }
