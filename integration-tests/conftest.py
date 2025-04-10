@@ -47,7 +47,6 @@ from text_generation.types import (
     ChatComplete,
     ChatCompletionChunk,
     ChatCompletionComplete,
-    Completion,
     Details,
     Grammar,
     InputToken,
@@ -68,6 +67,9 @@ def pytest_addoption(parser):
     parser.addoption(
         "--neuron", action="store_true", default=False, help="run neuron tests"
     )
+    parser.addoption(
+        "--gaudi", action="store_true", default=False, help="run gaudi tests"
+    )
 
 
 def pytest_configure(config):
@@ -84,6 +86,14 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(pytest.mark.skip(reason="need --release option to run"))
 
         selectors.append(skip_release)
+
+    if config.getoption("--gaudi"):
+
+        def skip_not_gaudi(item):
+            if "gaudi" not in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --gaudi to run"))
+
+        selectors.append(skip_not_gaudi)
     if config.getoption("--neuron"):
 
         def skip_not_neuron(item):
@@ -99,7 +109,12 @@ def pytest_collection_modifyitems(config, items):
             if "neuron" in item.keywords:
                 item.add_marker(pytest.mark.skip(reason="requires --neuron to run"))
 
+        def skip_gaudi(item):
+            if "gaudi" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --gaudi to run"))
+
         selectors.append(skip_neuron)
+        selectors.append(skip_gaudi)
     for item in items:
         for selector in selectors:
             selector(item)
@@ -131,7 +146,6 @@ class ResponseComparator(JSONSnapshotExtension):
             or isinstance(data, ChatComplete)
             or isinstance(data, ChatCompletionChunk)
             or isinstance(data, ChatCompletionComplete)
-            or isinstance(data, Completion)
             or isinstance(data, OAIChatCompletionChunk)
             or isinstance(data, OAICompletion)
         ):
@@ -188,8 +202,6 @@ class ResponseComparator(JSONSnapshotExtension):
                     if isinstance(choices, List) and len(choices) >= 1:
                         if "delta" in choices[0]:
                             return ChatCompletionChunk(**data)
-                        if "text" in choices[0]:
-                            return Completion(**data)
                     return ChatComplete(**data)
                 else:
                     return Response(**data)
@@ -282,9 +294,6 @@ class ResponseComparator(JSONSnapshotExtension):
                 )
             )
 
-        def eq_completion(response: Completion, other: Completion) -> bool:
-            return response.choices[0].text == other.choices[0].text
-
         def eq_chat_complete(response: ChatComplete, other: ChatComplete) -> bool:
             return (
                 response.choices[0].message.content == other.choices[0].message.content
@@ -328,11 +337,6 @@ class ResponseComparator(JSONSnapshotExtension):
 
         if len(serialized_data) == 0:
             return len(snapshot_data) == len(serialized_data)
-
-        if isinstance(serialized_data[0], Completion):
-            return len(snapshot_data) == len(serialized_data) and all(
-                [eq_completion(r, o) for r, o in zip(serialized_data, snapshot_data)]
-            )
 
         if isinstance(serialized_data[0], ChatComplete):
             return len(snapshot_data) == len(serialized_data) and all(
