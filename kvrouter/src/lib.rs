@@ -172,17 +172,19 @@ impl<T: LoadBalancer> OverloadHandler<T> {
                 }
                 Msg::AddBackend(backend) => {
                     match self.backends.binary_search(&backend) {
-                        Ok(pos) => {} // element already in vector @ `pos` 
+                        Ok(pos) => {
+                            log::warn!("Backend {backend} already exists at pos {pos}");
+                        } // element already in vector @ `pos`
                         Err(pos) => {
-                            self.backends.insert(pos, new_elem)
-                            self.inflight.insert(pos, AtomicUsize::new(0))
-                            self.inqueue.insert(pos, AtomicUsize::new(0))
+                            self.backends.insert(pos, backend);
+                            self.inflight.insert(pos, AtomicUsize::new(0));
+                            self.inqueue.insert(pos, AtomicUsize::new(0));
                         }
                     }
                 }
                 Msg::RemoveBackend(backend) => {
                     let position = self.backends.iter().position(|b| *b == backend);
-                    if let Some(p) = position{
+                    if let Some(p) = position {
                         self.backends.remove(p);
                         self.inflight.remove(p);
                         self.inqueue.remove(p);
@@ -190,19 +192,27 @@ impl<T: LoadBalancer> OverloadHandler<T> {
                 }
                 Msg::SetBackends(mut new_backends) => {
                     new_backends.sort();
-                    let (new_backends, new_inflight, new_inqueue): (Vec<_>, Vec<_>, Vec<_>) = self.new_backends.iter().enumerate().map(|(ni, nb)| {
-                        if let Some(i) = backends.iter().position(|b| b == nb){
-                            let inflight = self.inflight[i];
-                            let inqueue = self.inqueue[i];
-                            (nb, inflight, inqueue)
-                        }else{
-                            (nb, AtomicUsize::new(0), AtomicUsize::new(0))
-                        }
-                    }).collect();
+                    let (new_backends, (new_inflight, new_inqueue)): (
+                        Vec<String>,
+                        (Vec<_>, Vec<_>),
+                    ) = new_backends
+                        .into_iter()
+                        .map(|nb| {
+                            if let Some(i) = self.backends.iter().position(|b| *b == nb) {
+                                let inflight =
+                                    AtomicUsize::new(self.inflight[i].load(Ordering::Relaxed));
+                                let inqueue =
+                                    AtomicUsize::new(self.inqueue[i].load(Ordering::Relaxed));
+                                (nb, (inflight, inqueue))
+                            } else {
+                                (nb, (AtomicUsize::new(0), AtomicUsize::new(0)))
+                            }
+                        })
+                        .unzip();
 
                     self.backends = new_backends;
-                    self.inflight = inflight;
-                    self.inqueue = inqueue;
+                    self.inflight = new_inflight;
+                    self.inqueue = new_inqueue;
                 }
             }
         }

@@ -8,7 +8,7 @@ use kvrouter::{
 };
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // List of backend servers
     let backends = vec![
         // "http://localhost:8000".to_string(),
@@ -24,8 +24,10 @@ async fn main() {
 
     let (sx, rx) = tokio::sync::mpsc::channel(100);
     let communicator = Communicator::new(sx);
-    let host = std::env::var("TGI_KVROUTER_HOST").unwrap_or("127.0.0.1");
-    let port : u16= std::env::var("TGI_KVROUTER_PORT").unwrap_or("3000").parse()?;
+    let host = std::env::var("TGI_KVROUTER_HOST").unwrap_or("127.0.0.1".to_string());
+    let port: u16 = std::env::var("TGI_KVROUTER_PORT")
+        .unwrap_or("3000".to_string())
+        .parse()?;
     tokio::task::spawn(async move {
         if std::env::var("TGI_KVROUTER_LB").unwrap_or("".to_string()) == *"roundrobin" {
             println!("Using round robin");
@@ -46,7 +48,8 @@ async fn main() {
         .with_state(communicator);
 
     // run it
-    let listener = tokio::net::TcpListener::bind((HOST, PORT)).await.unwrap();
+    let listener = tokio::net::TcpListener::bind((host, port)).await.unwrap();
     println!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
+    Ok(())
 }
