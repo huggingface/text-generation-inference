@@ -14,10 +14,17 @@ import docker
 import pytest
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
-from loguru import logger
-from test_model import TEST_CONFIGS
+import logging
+from gaudi.test_generate import TEST_CONFIGS
 from text_generation import AsyncClient
 from text_generation.types import Response
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    stream=sys.stdout,
+)
+logger = logging.getLogger(__file__)
 
 # Use the latest image from the local docker build
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", "tgi-gaudi")
@@ -47,12 +54,6 @@ HABANA_RUN_ARGS = {
     "ipc_mode": "host",
     "cap_add": ["sys_nice"],
 }
-
-logger.add(
-    sys.stderr,
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="INFO",
-)
 
 
 def stream_container_logs(container, test_name):

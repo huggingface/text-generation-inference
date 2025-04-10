@@ -50,10 +50,9 @@ local-dev-install: install-dependencies
 
 # In order to run the integration tests, you need to first build the image (make -C backends/gaudi image)
 run-integration-tests:
-	uv pip install -r ${root_dir}/backends/gaudi/server/integration-tests/requirements.txt
 	DOCKER_VOLUME=${root_dir}/data \
 	HF_TOKEN=`cat ${HOME}/.cache/huggingface/token` \
-	uv run pytest --durations=0 -sv ${root_dir}/backends/gaudi/server/integration-tests
+    pytest --durations=0 -s -vv integration-tests --gaudi
 
 # This is used to capture the expected outputs for the integration tests offering an easy way to add more models to the integration tests
 capture-expected-outputs-for-integration-tests:
