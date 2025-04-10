@@ -2,7 +2,6 @@ from typing import Any, Dict
 
 from text_generation import AsyncClient
 import pytest
-from Levenshtein import distance as levenshtein_distance
 
 # The "args" config is not optimized for speed but only check that the inference is working for the different models architectures
 TEST_CONFIGS = {
@@ -271,6 +270,4 @@ async def test_model_multiple_requests(
     expected = expected_outputs["batch"]
     for r in responses:
         assert r.details.generated_tokens == 32
-        # Compute the similarity with the expectation using the levenshtein distance
-        # We should not have more than two substitutions or additions
-        assert levenshtein_distance(r.generated_text, expected) < 3
+        assert r.generated_text == expected
