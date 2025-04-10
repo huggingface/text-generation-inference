@@ -14,15 +14,23 @@ import docker
 import pytest
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
-from loguru import logger
-from test_model import TEST_CONFIGS
+import logging
+from gaudi.test_gaudi_generate import TEST_CONFIGS
 from text_generation import AsyncClient
 from text_generation.types import Response
+import huggingface_hub
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    stream=sys.stdout,
+)
+logger = logging.getLogger(__file__)
 
 # Use the latest image from the local docker build
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", "tgi-gaudi")
 DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", None)
-HF_TOKEN = os.getenv("HF_TOKEN", None)
+HF_TOKEN = huggingface_hub.get_token()
 
 assert (
     HF_TOKEN is not None
@@ -47,12 +55,6 @@ HABANA_RUN_ARGS = {
     "ipc_mode": "host",
     "cap_add": ["sys_nice"],
 }
-
-logger.add(
-    sys.stderr,
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="INFO",
-)
 
 
 def stream_container_logs(container, test_name):
@@ -151,7 +153,7 @@ def data_volume():
 
 
 @pytest.fixture(scope="module")
-def launcher(data_volume):
+def gaudi_launcher(event_loop):
     @contextlib.contextmanager
     def docker_launcher(
         model_id: str,
@@ -271,7 +273,7 @@ def launcher(data_volume):
 
 
 @pytest.fixture(scope="module")
-def generate_load():
+def gaudi_generate_load():
     async def generate_load_inner(
         client: AsyncClient, prompt: str, max_new_tokens: int, n: int
     ) -> List[Response]:
