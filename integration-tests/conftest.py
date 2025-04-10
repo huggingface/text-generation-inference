@@ -94,6 +94,14 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(pytest.mark.skip(reason="requires --gaudi to run"))
 
         selectors.append(skip_not_gaudi)
+    else:
+
+        def skip_gaudi(item):
+            if "gaudi" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --gaudi to run"))
+
+        selectors.append(skip_gaudi)
+
     if config.getoption("--neuron"):
 
         def skip_not_neuron(item):
@@ -109,12 +117,8 @@ def pytest_collection_modifyitems(config, items):
             if "neuron" in item.keywords:
                 item.add_marker(pytest.mark.skip(reason="requires --neuron to run"))
 
-        def skip_gaudi(item):
-            if "gaudi" in item.keywords:
-                item.add_marker(pytest.mark.skip(reason="requires --gaudi to run"))
-
         selectors.append(skip_neuron)
-        selectors.append(skip_gaudi)
+
     for item in items:
         for selector in selectors:
             selector(item)
