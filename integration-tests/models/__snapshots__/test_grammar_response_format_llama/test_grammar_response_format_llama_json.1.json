@@ -1,0 +1,23 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{ \"unit\": \"fahrenheit\", \"temperature\": [ 72, 79, 88 ] }",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1740095072,
+  "id": "",
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "object": "chat.completion",
+  "system_fingerprint": "3.1.1-dev0-native",
+  "usage": {
+    "completion_tokens": 29,
+    "prompt_tokens": 135,
+    "total_tokens": 164
+  }
+}
