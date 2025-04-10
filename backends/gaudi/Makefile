@@ -52,7 +52,7 @@ local-dev-install: install-dependencies
 run-integration-tests:
 	DOCKER_VOLUME=${root_dir}/data \
 	HF_TOKEN=`cat ${HOME}/.cache/huggingface/token` \
-    pytest --durations=0 -s -vv integration-tests --gaudi
+    pytest --durations=0 -s -vv ${root_dir}/integration-tests --gaudi
 
 # This is used to capture the expected outputs for the integration tests offering an easy way to add more models to the integration tests
 capture-expected-outputs-for-integration-tests:
