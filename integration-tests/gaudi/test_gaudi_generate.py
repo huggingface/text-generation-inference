@@ -3,7 +3,7 @@ from typing import Any, Dict
 from text_generation import AsyncClient
 import pytest
 
-# The "args" config is not optimized for speed but only check that the inference is working for the different models architectures
+# The "args" values in TEST_CONFIGS are not optimized for speed but only check that the inference is working for the different models architectures.
 TEST_CONFIGS = {
     "meta-llama/Llama-3.1-8B-Instruct-shared": {
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
