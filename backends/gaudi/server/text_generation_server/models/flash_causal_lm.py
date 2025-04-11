@@ -1512,9 +1512,10 @@ class FlashCausalLM(Model):
 
         self.bucketing_ctx = HPUBucketingContext(
             os.getenv("DECODE_MAX_BS", 128),  # self.max_num_seqs, #TODO
-            os.getenv("PREFILL_MAX_BS", 16),  # self.max_num_prefill_seqs, #TODO
+            os.getenv("PREFILL_MAX_BS", 64),  # self.max_num_prefill_seqs, #TODO
             BLOCK_SIZE,
             num_blocks * BLOCK_SIZE,
+            False,
         )
         self.bucketing_ctx.num_hpu_blocks = num_blocks
         if os.getenv("VLLM_SKIP_WARMUP", "false").lower() == "true":
