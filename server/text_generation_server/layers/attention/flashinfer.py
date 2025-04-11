@@ -90,7 +90,7 @@ def use_prefill_with_paged_kv_state(
             paged_kv_last_page_len=last_page_len,
             num_qo_heads=num_heads,
             num_kv_heads=num_kv_heads,
-            head_dim=head_size,
+            head_dim_qk=head_size,
             kv_data_type=kv_dtype,
             q_data_type=q_dtype,
             page_size=page_size,
