@@ -11,7 +11,7 @@ from text_generation_server.utils.weights import (
 )
 
 from vllm_hpu_extension.ops import scaled_fp8_quant
-from vllm_hpu_extension.ops import get_hpu_gaudi2_scale_factor, is_hpu_gaudi2
+from vllm_hpu_extension.scales import get_hpu_gaudi2_scale_factor, is_hpu_gaudi2
 import habana_frameworks.torch.utils.experimental as htexp
 
 w8a8_block_fp8_matmul = None

@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "The image does not depict a dog; it shows a cow standing on a beach. Therefore, there is no breed of a dog to identify.",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1743863056,
+  "id": "",
+  "model": "ll-re/Llama-4-Scout-17B-16E-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.2.1-dev0-native",
+  "usage": {
+    "completion_tokens": 30,
+    "prompt_tokens": 168,
+    "total_tokens": 198
+  }
+}

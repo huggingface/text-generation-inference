@@ -74,11 +74,8 @@ fn encoding_to_tokens(encoding: &tokenizers::Encoding, input: &str) -> Vec<Simpl
             .iter()
             .zip(offsets)
             .map(|(&id, &(start, stop))| {
-                let text = input
-                    .chars()
-                    .skip(start)
-                    .take(stop - start)
-                    .collect::<String>();
+                let text: Vec<u8> = input.bytes().skip(start).take(stop - start).collect();
+                let text: String = String::from_utf8_lossy(&text).to_string();
                 SimpleToken {
                     id,
                     text,

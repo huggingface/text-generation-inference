@@ -1344,9 +1344,6 @@ class FlashCausalLM(Model):
     def batch_type(self) -> Type[FlashCausalLMBatch]:
         return FlashCausalLMBatch
 
-    def max_past(self) -> int:
-        return getattr(self.model, "max_past", None)
-
     def init_kv_cache(
         self,
         num_blocks: int,
@@ -1791,12 +1788,6 @@ class FlashCausalLM(Model):
             cache_lengths_tensor = batch.cache_lengths_tensor
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
-
-        if cu_seqlen_prefill is None and self.max_past() is not None:
-            # In decode, not prefill, we're actually overwriting the KV-cache
-            # in a circular buffer mode.
-            # This makes sure the max_s for the decode pass is correct.
-            max_s = min(self.max_past(), max_s)
 
         bs = input_ids.shape[0]
         sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])

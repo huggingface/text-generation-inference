@@ -6,8 +6,7 @@ build-vllm-rocm:
 		git clone https://github.com/mht-sharma/vllm.git vllm; \
 	fi
 	cd vllm && git fetch && git checkout $(commit_rocm) &&  \
-	PYTORCH_ROCM_ARCH="gfx90a;gfx942" python setup.py build
+	PYTORCH_ROCM_ARCH="gfx90a;gfx942" python3 setup.py bdist_wheel --dist-dir=dist
 
 install-vllm-rocm: build-vllm-rocm
-	cd vllm && git fetch && git checkout $(commit_rocm) && \
-	PYTORCH_ROCM_ARCH="gfx90a;gfx942" pip install -e .
+	cd vllm && git fetch && git checkout $(commit_rocm)
