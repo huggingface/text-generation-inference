@@ -17,6 +17,7 @@
   grpcio-status,
   grpcio-tools,
   hf-transfer,
+  hf-xet,
   kernels,
   loguru,
   mamba-ssm,
@@ -92,6 +93,7 @@ buildPythonPackage {
     grpcio-status
     grpcio-tools
     hf-transfer
+    hf-xet
     kernels
     loguru
     mamba-ssm

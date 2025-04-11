@@ -18,8 +18,18 @@ final: prev: {
             src = final.fetchFromGitHub {
               owner = "huggingface";
               repo = "transformers";
-              rev = "v4.50.0";
-              hash = "sha256-/scrMPUY43n+XAMbwWCtmiJKXscXGLrklyDg9XZTaqw=";
+              rev = "v4.51.0";
+              hash = "sha256-dnVpc6fm1SYGcx7FegpwVVxUY6XRlsxLs5WOxYv11y8=";
+            };
+          }
+        );
+        huggingface-hub = python-super.huggingface-hub.overrideAttrs (
+          _: _: {
+            src = final.fetchFromGitHub {
+              owner = "huggingface";
+              repo = "huggingface_hub";
+              rev = "v0.30.0";
+              hash = "sha256-sz+n1uoWrSQPqJFiG/qCT6b4r08kD9MsoPZXbfWNB2o=";
             };
           }
         );

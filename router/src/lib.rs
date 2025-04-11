@@ -179,6 +179,7 @@ pub enum HubPreprocessorConfig {
     Idefics2Processor(Idefics2Preprocessor),
     Idefics3Processor(Idefics2Preprocessor),
     Gemma3Processor(Gemma3Processor),
+    Llama4Processor(Llama4Processor),
 }
 
 impl HubPreprocessorConfig {
@@ -196,6 +197,12 @@ pub struct Idefics2Preprocessor {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Gemma3Processor {
+    #[serde(default)]
+    do_image_splitting: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Llama4Processor {
     #[serde(default)]
     do_image_splitting: bool,
 }
