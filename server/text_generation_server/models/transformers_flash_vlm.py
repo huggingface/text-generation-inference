@@ -769,6 +769,7 @@ class TransformersLlama4VlmCausalLM(TransformersFlashVlmCausalLM):
                 block_tables = self.cuda_graphs[max_bs]["block_tables"][: bs * max_bt]
             else:
                 block_tables = self.cuda_graphs[max_bs]["block_tables"][:bs]
+                block_tables_local = self.cuda_graphs[max_bs]["block_tables_local"][:bs]
             slots = self.cuda_graphs[max_bs]["slots"][:bs]
             input_lengths_tensor = self.cuda_graphs[max_bs]["input_lengths"][:bs]
             cache_lengths_tensor = self.cuda_graphs[max_bs]["cache_lengths"][:bs]
