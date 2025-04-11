@@ -5,6 +5,7 @@ from io import BytesIO
 from opentelemetry import trace
 from typing import Iterable, Optional, Tuple, List, Type, Dict
 
+from torch.nn import attention
 from transformers import PreTrainedTokenizerBase
 from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.pb import generate_pb2
@@ -485,6 +486,14 @@ class VlmCausalLM(FlashCausalLM):
                 )
                 batch.position_ids = position_ids
 
+        if self.model.config.model_type == "gemma3" and cu_seqlen_prefill is not None:
+            # Get the mask, needed for flashinfer.
+            attention_mask = self.model.get_attention_mask(
+                input_ids, cu_seqlen_prefill, self.dtype, bool_mask=True
+            ).reshape(-1)
+        else:
+            attention_mask = None
+
         # Try to find an associated cuda graph
         bs = input_ids.shape[0]
         sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
@@ -508,6 +517,7 @@ class VlmCausalLM(FlashCausalLM):
                 cu_seqlen_prefill=cu_seqlen_prefill,
                 input_lengths_tensor=input_lengths,
                 cache_lengths_tensor=cache_lengths_tensor,
+                attention_mask=attention_mask,
             ):
                 seqlen = Seqlen(
                     input_lengths=input_lengths,
