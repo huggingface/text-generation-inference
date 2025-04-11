@@ -408,7 +408,6 @@ class FlashVlmCausalLM(FlashCausalLM):
             block_tables.append(block_array)
             past_len.append(blocks[i] * BLOCK_SIZE - 1)
             start_idx += blocks[i]
-        slots = torch.tensor(slots, dtype=batch.slots.dtype, device=self.device)
         input_lengths = torch.ones(batch_size, dtype=torch.int32, device=self.device)
         cache_lengths_tensor = torch.tensor(
             past_len, dtype=torch.int32, device=self.device
@@ -433,13 +432,14 @@ class FlashVlmCausalLM(FlashCausalLM):
             batch_size,
             bucketing_ctx=None,
         )
+        slots_tensor = torch.tensor(slots, dtype=batch.slots.dtype, device=self.device)
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,
             cu_seqlen_prefill=None,
             kv_cache=self.kv_cache,
-            slots=slots,
+            slots=slots_tensor,
             seqlen=trim_seqlen_metadata(seqlen),
             hpu_attention_meta=hpu_attention_meta,
             lm_head_indices=None,

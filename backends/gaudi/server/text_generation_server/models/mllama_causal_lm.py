@@ -247,7 +247,6 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             block_tables.append(block_array)
             past_len.append(blocks[i] * BLOCK_SIZE - 1)
             start_idx += blocks[i]
-        slots = torch.tensor(slots, dtype=batch.slots.dtype, device=self.device)
         input_lengths = torch.ones(batch_size, dtype=torch.int32, device=self.device)
         cache_lengths_tensor = torch.tensor(
             past_len, dtype=torch.int32, device=self.device
@@ -279,12 +278,13 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         indices, cross_attention_len = generate_cross_attention_states(
             cross_attention_states, image_indices, seqlen, 1, False
         )
+        slots_tensor = torch.tensor(slots, dtype=batch.slots.dtype, device=self.device)
         self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,
             cu_seqlen_prefill=None,
             kv_cache=self.kv_cache,
-            slots=slots,
+            slots=slots_tensor,
             seqlen=trim_seqlen_metadata(seqlen),
             hpu_attention_meta=hpu_attention_meta,
             lm_head_indices=None,
