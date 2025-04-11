@@ -10,13 +10,8 @@ from text_generation_server.layers import (
     TensorParallelRowLinear,
 )
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
-from text_generation_server.layers.marlin import GPTQMarlinWeightsLoader
-from text_generation_server.layers.moe.gptq_marlin import (
-    GPTQMarlinSparseMoELayer,
-    can_use_marlin_moe_gemm,
-)
 from text_generation_server.layers.moe.unquantized import UnquantizedSparseMoELayer
-from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.layers.moe.fp8 import FP8SparseMoELayer
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import (
     DefaultWeightsLoader,
@@ -24,12 +19,7 @@ from text_generation_server.utils.weights import (
     UnquantizedWeight,
 )
 
-if SYSTEM == "rocm":
-    from .fused_moe_rocm import grouped_topk
-    from vllm.model_executor.layers.fused_moe import fused_topk
-elif SYSTEM != "ipex":
-    from moe_kernels.fused_moe import fused_topk, grouped_topk
-
+from .fused_moe import fused_topk, grouped_topk
 
 # NOTE: we are using a protocol here, because multiple inherance is not nice.
 #       We need `Module`, and `Module` -> some abstract class -> some concrete
@@ -52,6 +42,8 @@ class MoELayer(Protocol):
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
         hidden_act: str = "silu",
+        scoring_func: Optional[str] = None,
+        e_score_correction_bias: Optional[float] = None,
     ): ...
 
     def forward(
@@ -81,8 +73,13 @@ class DenseMoELayer(nn.Module):
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
         hidden_act: str = "silu",
+        scoring_func: Optional[str] = None,
+        e_score_correction_bias: Optional[float] = None,
     ):
         super().__init__()
+
+        assert scoring_func is None, "scoring func is not handled"
+        assert e_score_correction_bias is None, "scoring correction bias is not handled"
 
         log_once(
             logger.info,
@@ -199,22 +196,27 @@ class SparseMoELayer(nn.Module):
         topk: int,
         topk_group: Optional[int],
         weights: Weights,
+        scoring_func: Optional[str] = "softmax",
+        e_score_correction_bias: Optional[float] = None,
         gate_proj_name: str = "gate_proj",
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
     ):
         super().__init__()
-
         if (
             isinstance(weights.loader, DefaultWeightsLoader)
             and isinstance(weights.loader.weight_class, UnquantizedWeight)
         ) or isinstance(weights.loader, HybridFP8UnquantLoader):
-            cls = UnquantizedSparseMoELayer
-        elif isinstance(weights.loader, GPTQMarlinWeightsLoader) and weights.loader.sym:
-            cls = GPTQMarlinSparseMoELayer
+            if (
+                isinstance(weights.loader, HybridFP8UnquantLoader)
+                and weights.loader.to_fp8
+            ):
+                cls = FP8SparseMoELayer
+            else:
+                cls = UnquantizedSparseMoELayer
         else:
             raise ValueError(
-                f"Unsupported weights loader: {weights.loader}, sparse MoE is only supported for unquantized and GPTQ weights"
+                f"Unsupported weights loader: {type(weights.loader)}, sparse MoE is only supported for unquantized, AWQ, and GPTQ weights"
             )
 
         log_once(
@@ -230,6 +232,8 @@ class SparseMoELayer(nn.Module):
             topk=topk,
             topk_group=topk_group,
             weights=weights,
+            scoring_func=scoring_func,
+            e_score_correction_bias=e_score_correction_bias,
             gate_proj_name=gate_proj_name,
             up_proj_name=up_proj_name,
             down_proj_name=down_proj_name,
@@ -241,17 +245,6 @@ class SparseMoELayer(nn.Module):
     @staticmethod
     def is_supported(weights: Weights) -> bool:
         return (
-            (
-                isinstance(weights.loader, DefaultWeightsLoader)
-                and isinstance(weights.loader.weight_class, UnquantizedWeight)
-            )
-            or isinstance(weights.loader, HybridFP8UnquantLoader)
-            or (
-                isinstance(weights.loader, GPTQMarlinWeightsLoader)
-                and can_use_marlin_moe_gemm(
-                    quant_method=weights.loader.quant_method,
-                    quantize=weights.loader.quantize,
-                    sym=weights.loader.sym,
-                )
-            )
-        )
+            isinstance(weights.loader, DefaultWeightsLoader)
+            and isinstance(weights.loader.weight_class, UnquantizedWeight)
+        ) or isinstance(weights.loader, HybridFP8UnquantLoader)

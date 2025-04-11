@@ -29,8 +29,8 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     TensorParallelRowLinear,
@@ -39,7 +39,7 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -132,6 +132,7 @@ class FlashNeoxAttention(torch.nn.Module):
             head_size=self.head_size,
             hidden_size=self.hidden_size,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=True
         )
@@ -146,10 +147,9 @@ class FlashNeoxAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, 3, self.num_heads, self.head_size)
@@ -165,30 +165,35 @@ class FlashNeoxAttention(torch.nn.Module):
         qkv[:, 0] = torch.cat((query_rot, query_pass), dim=-1)
         qkv[:, 1] = torch.cat((key_rot, key_pass), dim=-1)
 
-        reshape_and_cache(qkv[:, 1], qkv[:, 2], kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(
+            key=qkv[:, 1],
+            value=qkv[:, 2],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # flash attention
+            # sdpa
             attn_output = attention(
-                qkv[:, 0],
-                kv_cache[0] if PREFILL_IN_KV_CACHE else qkv[:, 1],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else qkv[:, 2],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=qkv[:, 0],
+                key=qkv[:, 1],
+                value=qkv[:, 2],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 qkv[:, 0],
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
@@ -255,10 +260,9 @@ class FlashNeoXLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         if self.use_parallel_residual:
             ln1_hidden_states, _ = self.input_layernorm(hidden_states)
@@ -269,10 +273,9 @@ class FlashNeoXLayer(nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache,
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
             ln2_hidden_states, _ = self.post_attention_layernorm(hidden_states)
@@ -293,10 +296,9 @@ class FlashNeoXLayer(nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache,
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
             hidden_states, residual = self.post_attention_layernorm(
@@ -347,18 +349,15 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_in(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].attention.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].attention.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -369,10 +368,9 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.final_layer_norm(hidden_states, residual)
@@ -401,11 +399,9 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
@@ -414,10 +410,9 @@ class FlashGPTNeoXForCausalLM(FlashGPTNeoXPreTrainedModel):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]
