@@ -70,7 +70,6 @@ from text_generation_server.utils.import_utils import (
 import vllm_hpu_extension.environment as environment
 import habana_frameworks.torch as htorch
 import itertools
-from vllm_hpu_extension.ops import batch2block, block2batch
 from vllm_hpu_extension.bucketing import HPUBucketingContext
 
 tracer = trace.get_tracer(__name__)
@@ -149,11 +148,6 @@ def prepare_for_decode(
     mask = torch.arange(0, BLOCK_SIZE, device=device, dtype=torch.int32).unsqueeze(0)
     mask = mask >= block_usage.unsqueeze(-1)
     attn_bias = torch.zeros_like(mask, dtype=dtype).masked_fill_(mask, -math.inf)
-    ones = torch.ones(
-        (block_mapping.size(0),), device=device, dtype=block_mapping.dtype
-    )
-    sums = batch2block(block2batch(ones, block_mapping), block_mapping)
-    block_scales = torch.reciprocal(torch.maximum(ones, sums))
     return trim_attn_metadata(
         HPUPagedAttentionMetadata(
             block_list=block_list,
@@ -161,7 +155,6 @@ def prepare_for_decode(
             block_usage=block_usage,
             block_mapping=block_mapping.to(dtype),
             attn_bias=attn_bias,
-            block_scales=block_scales,
         )
     )
 

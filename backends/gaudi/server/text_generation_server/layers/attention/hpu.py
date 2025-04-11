@@ -74,7 +74,6 @@ def paged_attention(
         block_list=hpu_attention_meta.block_list,
         block_mapping=hpu_attention_meta.block_mapping,
         block_bias=hpu_attention_meta.attn_bias,
-        block_scales=hpu_attention_meta.block_scales,
         block_groups=hpu_attention_meta.block_groups,
         scale=softmax_scale,
         matmul_qk_op=Matmul(),
