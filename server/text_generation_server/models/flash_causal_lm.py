@@ -2434,6 +2434,7 @@ class FlashCausalLM(Model):
         input_lengths_tensor: torch.Tensor,
         cache_lengths_tensor: torch.Tensor,
         state: Optional[Any] = None,
+        attention_mask: Optional[torch.Tensor] = None,
     ) -> ContextManager:
         if ATTENTION != "flashinfer":
             return nullcontext()
@@ -2450,6 +2451,7 @@ class FlashCausalLM(Model):
                 ),
                 block_tables=block_tables,
                 cu_seqlens=cu_seqlen_prefill,
+                custom_mask=attention_mask,
                 input_lengths=input_lengths_tensor + cache_lengths_tensor,
                 num_heads=self.num_heads,
                 num_kv_heads=self.num_kv_heads,
