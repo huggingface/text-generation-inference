@@ -5,7 +5,6 @@ from io import BytesIO
 from opentelemetry import trace
 from typing import Iterable, Optional, Tuple, List, Type, Dict
 
-from torch.nn import attention
 from transformers import PreTrainedTokenizerBase
 from transformers.image_processing_utils import select_best_resolution
 from text_generation_server.pb import generate_pb2
