@@ -68,7 +68,7 @@ def paged_attention(
 ):
     batch_size, head_num, head_size = query.shape
     output = ops.flat_pa(
-        query=query,
+        query=query.view(batch_size, 1, head_num * head_size),
         key_cache=kv_cache.key,
         value_cache=kv_cache.value,
         block_list=hpu_attention_meta.block_list,
