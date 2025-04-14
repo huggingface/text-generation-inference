@@ -11,15 +11,15 @@ repository = "https://github.com/huggingface/text-generation-inference"
 
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 pydantic = "> 2, < 3"
-aiohttp = "^3.8"
+aiohttp = "^3.11"
 huggingface-hub = ">= 0.12, < 1.0"
 
-[tool.poetry.dev-dependencies]
-pytest = "^6.2.5"
-pytest-asyncio = "^0.17.2"
-pytest-cov = "^3.0.0"
+[tool.poetry.group.dev.dependencies]
+pytest = "^8"
+pytest-asyncio = "^0.26"
+pytest-cov = "^6.0.0"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
