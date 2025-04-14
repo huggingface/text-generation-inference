@@ -12,7 +12,7 @@ from huggingface_hub import HfApi
 from accelerate import init_empty_weights
 from text_generation_server.utils import initialize_torch_distributed, Weights
 from text_generation_server.utils.hub import weight_files
-from text_generation_server.layers.gptq.quant_linear import QuantLinear
+from text_generation_server.layers.gptq import QuantLinear
 from loguru import logger
 from typing import Optional
 from text_generation_server.layers.gptq.utils import torch_snr_error
@@ -956,15 +956,24 @@ def quantize(
 
     pack(model, quantizers, bits, groupsize)
     from safetensors.torch import save_file
-    from transformers.modeling_utils import shard_checkpoint
+    from huggingface_hub import split_torch_state_dict_into_shards
 
     state_dict = model.state_dict()
     state_dict = {k: v.cpu().contiguous() for k, v in state_dict.items()}
 
     max_shard_size = "10GB"
-    shards, index = shard_checkpoint(
-        state_dict, max_shard_size=max_shard_size, weights_name="model.safetensors"
+    state_dict_split = split_torch_state_dict_into_shards(
+        state_dict,
+        filename_pattern="model.safetensors",
+        max_shard_size=max_shard_size,
     )
+    index = None
+    if state_dict_split.is_sharded:
+        index = {
+            "metadata": state_dict_split.metadata,
+            "weight_map": state_dict_split.tensor_to_filename,
+        }
+    shards = state_dict_split.filename_to_tensors
     os.makedirs(output_dir, exist_ok=True)
     for shard_file, shard in shards.items():
         save_file(

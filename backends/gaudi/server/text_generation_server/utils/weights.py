@@ -7,8 +7,6 @@ from typing import Dict, List, Optional, Union, Type
 from safetensors import safe_open
 from dataclasses import dataclass
 
-from text_generation_server.utils.import_utils import SYSTEM
-
 
 class WeightsLoader(ABC):
     """
@@ -88,12 +86,9 @@ class UnquantizedWeight(Weight):
     weight: torch.Tensor
 
     def get_linear(self, bias: torch.Tensor):
-        from text_generation_server.layers.linear import FastLinear, FastLinearROCm
+        from text_generation_server.layers.linear import FastLinear
 
-        if SYSTEM == "rocm":
-            return FastLinearROCm(self.weight, bias)
-        else:
-            return FastLinear(self.weight, bias)
+        return FastLinear(self.weight, bias)
 
 
 class DefaultWeightsLoader(WeightsLoader):
@@ -197,7 +192,7 @@ class Weights:
         slice_ = f.get_slice(tensor_name)
         return slice_
 
-    def _has_tensor(self, tensor_name: str):
+    def has_tensor(self, tensor_name: str):
         try:
             self.get_filename(tensor_name)
         except Exception:
@@ -207,7 +202,9 @@ class Weights:
     def get_shape(self, tensor_name: str):
         return self._get_slice(tensor_name).get_shape()
 
-    def get_tensor(self, tensor_name: str, to_device=True, to_dtype=True):
+    def get_tensor(
+        self, tensor_name: str, to_device: bool = True, to_dtype: bool = True
+    ) -> torch.Tensor:
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
         tensor = f.get_tensor(tensor_name)
@@ -218,6 +215,7 @@ class Weights:
             tensor.dtype
             not in [
                 torch.float8_e4m3fn,
+                torch.int8,
                 torch.int16,
                 torch.int32,
                 torch.int64,
@@ -253,7 +251,8 @@ class Weights:
         # u4 which are disguised as int32. exl2 uses int16.
         # FP8 uses torch.float8_e4m3fn.
         if (
-            tensor.dtype not in (torch.float8_e4m3fn, torch.int16, torch.int32)
+            tensor.dtype
+            not in (torch.float8_e4m3fn, torch.int8, torch.int16, torch.int32)
             and to_dtype
         ):
             tensor = tensor.to(dtype=self.dtype)
@@ -329,6 +328,7 @@ class Weights:
             tensor.dtype
             not in [
                 torch.float8_e4m3fn,
+                torch.int8,
                 torch.int16,
                 torch.int32,
                 torch.int64,

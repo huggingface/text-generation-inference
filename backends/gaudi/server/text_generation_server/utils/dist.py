@@ -1,15 +1,13 @@
 import os
 import torch
-
+from torch.distributed import ProcessGroup
 from datetime import timedelta
 from loguru import logger
 
 # Tensor Parallelism settings
 RANK = int(os.getenv("RANK", "0"))
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", "1"))
-
-# CUDA memory fraction
-MEMORY_FRACTION = float(os.getenv("CUDA_MEMORY_FRACTION", "1.0"))
+MEMORY_FRACTION = float(os.getenv("HPU_MEMORY_FRACTION", "0.8"))
 
 
 class FakeBarrier:
@@ -17,10 +15,11 @@ class FakeBarrier:
         pass
 
 
-class FakeGroup:
+class FakeGroup(ProcessGroup):
     def __init__(self, rank, size):
         self._rank = rank
         self._size = size
+        super().__init__(rank, size)
 
     def allreduce(self, *args, **kwargs):
         return FakeBarrier()
@@ -42,42 +41,11 @@ class FakeGroup:
     def rank(self):
         return self._rank
 
+    def _get_backend_name(self):
+        return "fake"
+
 
 def initialize_torch_distributed():
-
-    world_size = int(os.getenv("WORLD_SIZE", "1"))
-
-    options = None
-    if torch.cuda.is_available():
-        from torch.distributed import ProcessGroupNCCL
-
-        # Set the device id.
-        assert WORLD_SIZE <= torch.cuda.device_count(), "Each process is one gpu"
-        device = RANK % torch.cuda.device_count()
-        torch.cuda.set_device(device)
-        torch.cuda.set_per_process_memory_fraction(MEMORY_FRACTION, device)
-        backend = "nccl"
-        options = ProcessGroupNCCL.Options()
-        options.is_high_priority_stream = True
-        options._timeout = timedelta(seconds=60)
-    elif torch.hpu.is_available():
-        backend = "hccl"
-        n_hpus = torch.hpu.device_count()
-        if world_size > n_hpus:
-            raise ValueError(
-                f"WORLD_SIZE ({world_size}) is higher than the number of available HPUs ({n_hpus})."
-            )
-    else:
-        try:
-            import oneccl_bindings_for_pytorch  # noqa: F401
-
-            backend = "ccl"
-            if os.getenv("CCL_WORKER_COUNT", None) is None:
-                os.environ["CCL_WORKER_COUNT"] = str(1)
-        except ImportError:
-            backend = "gloo"
-        options = None
-
     if WORLD_SIZE == 1:
         return FakeGroup(RANK, WORLD_SIZE), RANK, WORLD_SIZE
     else:
@@ -87,11 +55,10 @@ def initialize_torch_distributed():
         if not torch.distributed.is_initialized():
             # Call the init process.
             torch.distributed.init_process_group(
-                backend=backend,
+                backend="hccl",
                 world_size=WORLD_SIZE,
                 rank=RANK,
-                timeout=timedelta(seconds=60),
-                pg_options=options,
+                timeout=timedelta(seconds=120),
             )
         else:
             logger.warning("torch.distributed is already initialized.")

@@ -19,7 +19,7 @@ from torch import nn
 from typing import Optional, List, Tuple
 
 from text_generation_server.layers.tensor_parallel import TensorParallelColumnLinear
-from text_generation_server.layers.attention import Seqlen
+from text_generation_server.layers.attention import Seqlen, HPUPagedAttentionMetadata
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
     load_vision_model,
@@ -69,22 +69,20 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor] = None,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         pixel_values: torch.FloatTensor = None,
         # Unused here
         pixel_attention_mask: Optional[torch.BoolTensor] = None,
         image_sizes: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         # TODO This is odd but apparently pali gemma position ids start at 1.
         if cu_seqlen_prefill is not None:
-            max_s += 1
             position_ids += 1
 
         if pixel_values is not None:
@@ -106,10 +104,10 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=kv_cache,
-            block_tables=block_tables,
             slots=slots,
             seqlen=seqlen,
-            max_s=max_s,
+            hpu_attention_meta=hpu_attention_meta,
+            adapter_data=adapter_data,
         )
 
         if lm_head_indices is not None:

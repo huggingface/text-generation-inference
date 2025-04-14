@@ -12,14 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" PyTorch Idefics2 model."""
+""" PyTorch Idefics3 model."""
 
 from typing import List, Optional, Tuple
 
 import torch
 import torch.utils.checkpoint
 from torch import nn
-import math
 
 from transformers.activations import ACT2FN
 from text_generation_server.models.custom_modeling.vlm import (
@@ -50,7 +49,7 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
     return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
 
 
-class Idefics2VisionEmbeddings(nn.Module):
+class Idefics3VisionEmbeddings(nn.Module):
     """
     This is a modified version of `siglip.modelign_siglip.SiglipVisionEmbeddings` to enable images of variable
     resolution.
@@ -131,7 +130,7 @@ class Idefics2VisionEmbeddings(nn.Module):
         return embeddings
 
 
-class Idefics2VisionAttention(nn.Module):
+class Idefics3VisionAttention(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
@@ -229,7 +228,7 @@ class Idefics2VisionAttention(nn.Module):
         return attn_output
 
 
-class Idefics2VisionMLP(nn.Module):
+class Idefics3VisionMLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
@@ -248,11 +247,11 @@ class Idefics2VisionMLP(nn.Module):
         return hidden_states
 
 
-class Idefics2EncoderLayer(nn.Module):
+class Idefics3EncoderLayer(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         self.embed_dim = config.hidden_size
-        self.self_attn = Idefics2VisionAttention(
+        self.self_attn = Idefics3VisionAttention(
             prefix=f"{prefix}.self_attn", config=config, weights=weights
         )
         self.layer_norm1 = nn.LayerNorm.load(
@@ -261,7 +260,7 @@ class Idefics2EncoderLayer(nn.Module):
         self.layer_norm2 = nn.LayerNorm.load(
             prefix=f"{prefix}.layer_norm2", eps=config.layer_norm_eps, weights=weights
         )
-        self.mlp = Idefics2VisionMLP(
+        self.mlp = Idefics3VisionMLP(
             prefix=f"{prefix}.mlp", config=config, weights=weights
         )
 
@@ -288,13 +287,13 @@ class Idefics2EncoderLayer(nn.Module):
         return hidden_states
 
 
-class Idefics2Encoder(nn.Module):
+class Idefics3Encoder(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
         self.layers = nn.ModuleList(
             [
-                Idefics2EncoderLayer(
+                Idefics3EncoderLayer(
                     prefix=f"{prefix}.layers.{i}", config=config, weights=weights
                 )
                 for i in range(config.num_hidden_layers)
@@ -316,14 +315,14 @@ class Idefics2Encoder(nn.Module):
         return hidden_states
 
 
-class Idefics2VisionTransformer(nn.Module):
+class Idefics3VisionTransformer(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         self.config = config
-        self.embeddings = Idefics2VisionEmbeddings(
+        self.embeddings = Idefics3VisionEmbeddings(
             prefix=f"{prefix}.embeddings", config=config, weights=weights
         )
-        self.encoder = Idefics2Encoder(
+        self.encoder = Idefics3Encoder(
             prefix=f"{prefix}.encoder", config=config, weights=weights
         )
         self.post_layernorm = nn.LayerNorm.load(
@@ -377,315 +376,60 @@ class Idefics2VisionTransformer(nn.Module):
         return last_hidden_state
 
 
-class Idefics2MLP(nn.Module):
+class Idefics3SimpleMLP(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
-        act = config.text_config.hidden_act
-        self.act = (
-            ACT2FN[act]
-            if "gelu" not in act
-            else lambda x: torch.nn.functional.gelu(
-                x,
-                approximate=(
-                    "tanh" if act in ["gelu_fast", "gelu_pytorch_tanh"] else "none"
-                ),
-            )
-        )
-        self.gate_up_proj = TensorParallelColumnLinear.load_multi(
-            config,
-            prefixes=[f"{prefix}.gate_proj", f"{prefix}.up_proj"],
-            weights=weights,
-            dim=0,
-            bias=False,
-        )
-        self.down_proj = TensorParallelRowLinear.load(
-            config,
-            prefix=f"{prefix}.down_proj",
-            weights=weights,
-            bias=False,
-        )
+        input_size = config.vision_config.hidden_size * (config.scale_factor**2)
+        output_size = config.text_config.hidden_size
+        proj = nn.Parameter(
+            weights.get_tensor(f"{prefix}.modality_projection.proj.weight"),
+            requires_grad=False,
+        ).to(weights.dtype)
+        self.proj = nn.Linear(input_size, output_size, bias=False)
+        self.proj.weight = proj
 
-    def forward(self, hidden_states):
-        start_shape = hidden_states.shape[:-1]
-        gate_up_states = self.gate_up_proj(hidden_states)
-        intermediate_size = gate_up_states.shape[-1] // 2
-        gate_up_states = gate_up_states.view(-1, 2, intermediate_size)
-        return self.down_proj(
-            self.act(gate_up_states[:, 0]) * gate_up_states[:, 1]
-        ).view(*start_shape, -1)
+    def forward(self, x):
+        return self.proj(x)
 
 
-class Idefics2RMSNorm(nn.Module):
-    def __init__(self, prefix, weights, eps):
-        """
-        Idefics2RMSNorm is equivalent to T5LayerNorm
-        """
-        super().__init__()
-        self.weight = nn.Parameter(
-            weights.get_tensor(f"{prefix}.weight"), requires_grad=False
-        )
-        self.variance_epsilon = eps
-
-    def forward(self, hidden_states):
-        input_dtype = hidden_states.dtype
-        hidden_states = hidden_states.to(torch.float32)
-        variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-        return self.weight * hidden_states.to(input_dtype)
-
-
-class Idefics2PerceiverAttention(nn.Module):
+class Idefics3Connector(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
+        self.modality_projection = Idefics3SimpleMLP(prefix, config, weights)
+        self.scale_factor = config.scale_factor
 
-        self.layer_idx = None
-        self.hidden_size = config.text_config.hidden_size
-        self.num_heads = config.perceiver_config.resampler_n_heads
-        self.head_size = config.perceiver_config.resampler_head_dim
-        self.num_key_value_heads = config.perceiver_config.num_key_value_heads
-        self.num_key_value_groups = self.num_heads // self.num_key_value_heads
-        self.attention_dropout = config.perceiver_config.attention_dropout
-        self.num_heads = self.num_heads // weights.process_group.size()
-        self.num_key_value_heads = (
-            self.num_key_value_heads // weights.process_group.size()
+    def pixel_shuffle(self, x, scale_factor=2):
+        bsz, seq, embed_dim = x.size()
+        height = width = int(seq**0.5)
+        x = x.view(bsz, height, width, embed_dim)
+        x = x.view(bsz, height, int(width / scale_factor), embed_dim * scale_factor)
+        x = x.permute(0, 2, 1, 3)
+        x = x.reshape(
+            bsz,
+            int(width / scale_factor),
+            int(height / scale_factor),
+            embed_dim * (scale_factor**2),
         )
+        x = x.permute(0, 2, 1, 3)
+        x = x.reshape(bsz, int(seq / (scale_factor**2)), embed_dim * (scale_factor**2))
+        return x
 
-        self.q_proj = TensorParallelColumnLinear.load(
-            config,
-            prefix=f"{prefix}.q_proj",
-            weights=weights,
-            bias=False,
-        )
-        self.kv = TensorParallelColumnLinear.load_multi(
-            config,
-            prefixes=[f"{prefix}.k_proj", f"{prefix}.v_proj"],
-            dim=0,
-            weights=weights,
-            bias=False,
-        )
-        self.o_proj = TensorParallelRowLinear.load(
-            config=config, prefix=f"{prefix}.o_proj", weights=weights, bias=False
-        )
-
-        self.is_causal = False
-
-    def forward(
-        self,
-        latents: torch.Tensor,
-        context: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        bsz, q_len, _ = latents.size()
-        kv_seq_len = q_len + context.size()[1]
-
-        hidden_states = torch.concat([context, latents], dim=-2)
-        query_states = self.q_proj(latents)
-        kv = self.kv(hidden_states)
-        key_states, value_states = kv.split(
-            [
-                self.head_size * self.num_key_value_heads,
-                self.head_size * self.num_key_value_heads,
-            ],
-            dim=2,
-        )
-
-        query_states = query_states.view(
-            bsz, q_len, self.num_heads, self.head_size
-        ).transpose(1, 2)
-        key_states = key_states.view(
-            bsz, kv_seq_len, self.num_key_value_heads, self.head_size
-        ).transpose(1, 2)
-        value_states = value_states.view(
-            bsz, kv_seq_len, self.num_key_value_heads, self.head_size
-        ).transpose(1, 2)
-
-        # repeat k/v heads if n_kv_heads < n_heads
-        key_states = repeat_kv(key_states, self.num_key_value_groups)
-        value_states = repeat_kv(value_states, self.num_key_value_groups)
-
-        attn_weights = torch.matmul(
-            query_states, key_states.transpose(2, 3)
-        ) / math.sqrt(self.head_size)
-
-        if attn_weights.size() != (bsz, self.num_heads, q_len, kv_seq_len):
-            raise ValueError(
-                f"Attention weights should be of size {(bsz, self.num_heads, q_len, kv_seq_len)}, but is"
-                f" {attn_weights.size()}"
-            )
-
-        if attention_mask is not None:
-            if attention_mask.size() != (bsz, 1, q_len, kv_seq_len):
-                raise ValueError(
-                    f"Attention mask should be of size {(bsz, 1, q_len, kv_seq_len)}, but is {attention_mask.size()}"
-                )
-
-            attn_weights = attn_weights + attention_mask
-
-        # upcast attention to fp32
-        attn_weights = nn.functional.softmax(
-            attn_weights, dim=-1, dtype=torch.float32
-        ).to(query_states.dtype)
-        attn_output = torch.matmul(attn_weights, value_states)
-
-        if attn_output.size() != (bsz, self.num_heads, q_len, self.head_size):
-            raise ValueError(
-                f"`attn_output` should be of size {(bsz, self.num_heads, q_len, self.head_size)}, but is"
-                f" {attn_output.size()}"
-            )
-
-        attn_output = attn_output.transpose(1, 2).contiguous()
-        attn_output = attn_output.reshape(bsz, q_len, self.num_heads * self.head_size)
-
-        attn_output = self.o_proj(attn_output)
-
-        return attn_output
-
-
-class Idefics2PerceiverLayer(nn.Module):
-    def __init__(self, prefix, config, weights):
-        super().__init__()
-        self.hidden_size = config.text_config.hidden_size
-        self.n_latents = config.perceiver_config.resampler_n_latents
-        self.depth = config.perceiver_config.resampler_depth
-        self.rms_norm_eps = config.text_config.rms_norm_eps
-
-        self.input_latents_norm = Idefics2RMSNorm(
-            prefix=f"{prefix}.input_latents_norm",
-            weights=weights,
-            eps=self.rms_norm_eps,
-        )
-        self.input_context_norm = Idefics2RMSNorm(
-            prefix=f"{prefix}.input_context_norm",
-            weights=weights,
-            eps=self.rms_norm_eps,
-        )
-        self.self_attn = Idefics2PerceiverAttention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights
-        )
-        self.post_attention_layernorm = Idefics2RMSNorm(
-            prefix=f"{prefix}.post_attention_layernorm",
-            weights=weights,
-            eps=self.rms_norm_eps,
-        )
-        self.mlp = Idefics2MLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
-
-    def forward(
-        self,
-        latents: torch.Tensor,
-        context: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-    ):
-        """
-        Args:
-            latents (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
-            context (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
-            attention_mask (`torch.FloatTensor`, *optional*): attention mask of size
-                `(batch, sequence_length)` where padding elements are indicated by 0.
-        """
-        residual = latents
-
-        latents = self.input_latents_norm(latents)
-        context = self.input_context_norm(context)
-
-        latents = self.self_attn(
-            latents=latents,
-            context=context,
-            attention_mask=attention_mask,
-        )
-        latents = residual + latents
-        residual = latents
-
-        latents = self.post_attention_layernorm(latents)
-        latents = self.mlp(latents)
-        latents = residual + latents
-
-        return latents
-
-
-class Idefics2PerceiverResampler(nn.Module):
-    def __init__(self, prefix, config, weights) -> None:
-        super().__init__()
-        self.hidden_size = config.text_config.hidden_size
-        self.hidden_act = config.perceiver_config.hidden_act
-        self.n_latents = config.perceiver_config.resampler_n_latents
-        self.depth = config.perceiver_config.resampler_depth
-        self.rms_norm_eps = config.text_config.rms_norm_eps
-
-        # Create Latents for Perceiver
-        self.latents = weights.get_tensor(f"{prefix}.latents")
-
-        # Create Transformer Blocks
-        self.layers = nn.ModuleList(
-            [
-                Idefics2PerceiverLayer(
-                    prefix=f"{prefix}.layers.{idx}", config=config, weights=weights
-                )
-                for idx in range(self.depth)
-            ]
-        )
-        self.norm = Idefics2RMSNorm(
-            prefix=f"{prefix}.norm",
-            weights=weights,
-            eps=config.text_config.rms_norm_eps,
-        )
-
-    def forward(
-        self,
-        context: torch.Tensor,
-        attention_mask,
-    ) -> torch.Tensor:
-        # seq embed -> bsz seq embed
-        latents = self.latents.unsqueeze(0).expand(
-            (context.shape[0], *self.latents.size())
-        )
-
-        latent_attention_mask = torch.ones(
-            (attention_mask.size(0), latents.size(1)),
-            dtype=attention_mask.dtype,
-            device=attention_mask.device,
-        )
-        attention_mask = torch.cat([attention_mask, latent_attention_mask], dim=-1)
-        attention_mask = _prepare_4d_attention_mask(
-            attention_mask, latents.dtype, tgt_len=self.n_latents
-        )
-
-        compressed_context = latents
-        for perceiver_layer in self.layers:
-            compressed_context = perceiver_layer(
-                compressed_context,
-                context,
-                attention_mask=attention_mask,
-            )
-        compressed_context = self.norm(compressed_context)
-
-        return compressed_context
-
-
-class Idefics2Connector(nn.Module):
-    def __init__(self, prefix, config, weights):
-        super().__init__()
-        self.modality_projection = Idefics2MLP(
-            prefix=f"{prefix}.modality_projection", config=config, weights=weights
-        )
-        self.perceiver_resampler = Idefics2PerceiverResampler(
-            prefix=f"{prefix}.perceiver_resampler", config=config, weights=weights
-        )
-
-    def forward(self, image_hidden_states, attention_mask):
+    def forward(self, image_hidden_states):
+        image_hidden_states = self.pixel_shuffle(image_hidden_states, self.scale_factor)
         image_hidden_states = self.modality_projection(image_hidden_states)
-        image_hidden_states = self.perceiver_resampler(
-            context=image_hidden_states, attention_mask=attention_mask
-        )
         return image_hidden_states
 
 
-class Idefics2ForConditionalGeneration(nn.Module):
+class Idefics3ForConditionalGeneration(nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
         config.vision_config.quantize = None
         config.vision_config.speculator = config.speculator
         config.text_config.quantize = config.quantize
         config.text_config.speculator = config.speculator
+        # set tie_word_embeddings to True to load `.embed_tokens.weight` instead of `.lm_head.weight`
+        # since Idefics3 uses the `embed_tokens` for the final prediction
+        # config.text_config.tie_word_embeddings = True
 
         vision_config = config.vision_config
         self.text_model = load_text_model(
@@ -698,7 +442,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
 
         # The vision and connector models are not quantized.
         with weights.use_loader(DefaultWeightsLoader(UnquantizedWeight)):
-            self.vision_model = Idefics2VisionTransformer(
+            self.vision_model = Idefics3VisionTransformer(
                 prefix=(
                     f"{prefix}.model.vision_model" if prefix else "model.vision_model"
                 ),
@@ -707,14 +451,13 @@ class Idefics2ForConditionalGeneration(nn.Module):
             )
 
             config.quantize = None
-            self.connector = Idefics2Connector(
+            self.connector = Idefics3Connector(
                 prefix=f"{prefix}.model.connector" if prefix else "model.connector",
                 config=config,
                 weights=weights,
             )
 
         self.config = config
-        self.image_seq_len = config.perceiver_config.resampler_n_latents
         self.image_token_id = config.image_token_id
         self.pad_token_id = (
             config.pad_token_id if config.pad_token_id is not None else -1
@@ -750,6 +493,9 @@ class Idefics2ForConditionalGeneration(nn.Module):
         image_sizes: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
+        video_grid_thw: Optional[torch.LongTensor] = None,
+        cross_attention_states: Optional[torch.Tensor] = None,
+        image_indices=None,
     ):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         if pixel_values is not None:
@@ -770,7 +516,6 @@ class Idefics2ForConditionalGeneration(nn.Module):
                     dim=(-1, -2, -3)
                 ) != nb_values_per_image
                 pixel_values = pixel_values[real_images_inds].contiguous()
-
                 # Handle the vision attention mask
                 if pixel_attention_mask is None:
                     pixel_attention_mask = torch.ones(
@@ -826,12 +571,11 @@ class Idefics2ForConditionalGeneration(nn.Module):
                 # Modality projection & resampling
                 image_hidden_states = self.connector(
                     image_hidden_states,
-                    attention_mask=patch_attention_mask.view(pixel_values.size(0), -1),
                 )
+
                 all_states.append(image_hidden_states)
             image_hidden_states = torch.stack(all_states, dim=0)
-            # When we generate, we don't want to replace the potential image_token_id that we generated by images
-            # that simply don't exist
+
             inputs_embeds = self._merge_input_ids_with_image_features(
                 input_ids, inputs_embeds, image_hidden_states
             )

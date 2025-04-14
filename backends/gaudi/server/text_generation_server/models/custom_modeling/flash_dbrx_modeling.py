@@ -20,17 +20,14 @@ from torch import nn
 from transformers.activations import ACT2FN
 from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple, Any
-from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 
-if SYSTEM != "ipex":
-    from vllm.model_executor.layers.fused_moe import fused_moe
 
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
-    PREFILL_IN_KV_CACHE,
+    HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers import (
     FastLinear,
@@ -46,6 +43,7 @@ from text_generation_server.layers.rotary import (
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
+from vllm_hpu_extension.ops import DynamicFusedMOE
 
 
 class DbrxAttentionConfig(PretrainedConfig):
@@ -290,6 +288,7 @@ class DbrxAttention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         self.o_proj = TensorParallelRowLinear.load(
             config,
@@ -309,10 +308,9 @@ class DbrxAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
         if self.clip_qkv is not None:
@@ -330,30 +328,35 @@ class DbrxAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(
+            key=kv[:, 0],
+            value=kv[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # flash attention
+            # sdpa
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, 0],
+                value=kv[:, 1],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -387,10 +390,9 @@ class DbrxNormAttentionNorm(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         normed_hidden_states, res = self.norm_1(hidden_states, residual)
 
@@ -401,10 +403,9 @@ class DbrxNormAttentionNorm(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
 
         # faster post attention rms norm
@@ -482,18 +483,15 @@ class BlockSparseMoE(nn.Module):
 
         self.process_group = weights.process_group
 
+        self.hpu_fused_moe = DynamicFusedMOE(self.num_experts)
+        for i in range(self.num_experts):
+            self.hpu_fused_moe.MoeOp.w13_list[i].set_weight(self.wv1[i])
+            self.hpu_fused_moe.MoeOp.w2_list[i].set_weight(self.w2[i])
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # router_logits: (num_tokens, n_experts)
         router_logits = self.gate(x)
-        out = fused_moe(
-            x,
-            self.wv1,
-            self.w2,
-            router_logits,
-            self.top_k,
-            renormalize=self.moe_normalize_expert_weights,
-            inplace=True,
-        )
+        out = self.hpu_fused_moe(x, router_logits, self.top_k)
 
         # Reduce sum
         if self.process_group.size() > 1:
@@ -620,10 +618,9 @@ class DbrxLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         # Self Attention
         attn_output, attn_res = self.attn(
@@ -633,10 +630,9 @@ class DbrxLayer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
 
         moe_output = self.moe(attn_output)
@@ -677,18 +673,15 @@ class DbrxModel(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].attn.self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].attn.self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -699,10 +692,9 @@ class DbrxModel(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -732,11 +724,9 @@ class FlashDbrxForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -745,10 +735,9 @@ class FlashDbrxForCausalLM(torch.nn.Module):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

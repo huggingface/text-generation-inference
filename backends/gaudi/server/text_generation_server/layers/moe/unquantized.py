@@ -3,13 +3,8 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import UnquantizedWeight, Weights
-
-if SYSTEM == "rocm":
-    from vllm.model_executor.layers.fused_moe import fused_moe
-elif SYSTEM != "ipex":
-    from moe_kernels.fused_moe import fused_moe
+from vllm_hpu_extension.ops import DynamicFusedMOE
 
 
 class UnquantizedSparseMoELayer(nn.Module):
@@ -23,6 +18,8 @@ class UnquantizedSparseMoELayer(nn.Module):
         topk: int,
         topk_group: Optional[int],
         weights: Weights,
+        scoring_func: Optional[str] = "softmax",
+        e_score_correction_bias: Optional[float] = None,
         gate_proj_name: str = "gate_proj",
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
@@ -37,6 +34,9 @@ class UnquantizedSparseMoELayer(nn.Module):
         self.topk = topk
         self.topk_group = topk_group
         self.renormalize = renormalize
+        self.weight_block_size = weights.weights_loader.weight_block_size
+        self.scoring_func = scoring_func
+        self.e_score_correction_bias = e_score_correction_bias
 
         self.gate_up_proj = _load_expert_multi_weights_col(
             prefix=prefix,
@@ -53,30 +53,13 @@ class UnquantizedSparseMoELayer(nn.Module):
             weights=weights,
         )
 
-    def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
-        if SYSTEM == "rocm":
-            return fused_moe(
-                x,
-                self.gate_up_proj,
-                self.down_proj,
-                gating_output,
-                self.topk,
-                renormalize=self.renormalize,
-                inplace=True,
-            )
+        self.hpu_fused_moe = DynamicFusedMOE(n_experts)
+        for i in range(n_experts):
+            self.hpu_fused_moe.MoeOp.w13_list[i].set_weight(self.gate_up_proj[i])
+            self.hpu_fused_moe.MoeOp.w2_list[i].set_weight(self.down_proj[i])
 
-        return fused_moe(
-            x,
-            w1=self.gate_up_proj,
-            w2=self.down_proj,
-            gating_output=gating_output,
-            topk=self.topk,
-            renormalize=self.renormalize,
-            inplace=True,
-            use_grouped_topk=self.n_expert_group is not None,
-            num_expert_group=self.n_expert_group,
-            topk_group=self.topk_group,
-        )
+    def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
+        return self.hpu_fused_moe(x, gating_output, self.topk)
 
 
 def _load_expert_multi_weights_col(

@@ -37,9 +37,9 @@ from text_generation_server.layers.attention import (
     Seqlen,
     attention,
     paged_attention,
-    reshape_and_cache,
+    HPUPagedAttentionMetadata,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
@@ -215,6 +215,7 @@ class MixtralAttention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         self.o_proj = TensorParallelRowLinear.load(
             config,
@@ -234,11 +235,9 @@ class MixtralAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
-        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
         query, kv = qkv.split(
@@ -253,38 +252,36 @@ class MixtralAttention(torch.nn.Module):
 
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        if prefill_cache_indices is not None:
-            kv_to_cache = kv[prefill_cache_indices]
-        else:
-            kv_to_cache = kv
-
-        reshape_and_cache(
-            kv_to_cache[:, 0], kv_to_cache[:, 1], kv_cache[0], kv_cache[1], slots
+        kv_cache.store(
+            key=kv[:, 0],
+            value=kv[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
         )
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # flash attention
+            # sdpa
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv_to_cache[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, 0],
+                value=kv[:, 1],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                softmax_scale=self.softmax_scale,
                 window_size_left=self.max_past,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
@@ -378,11 +375,9 @@ class MixtralLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
-        prefill_cache_indices,
+        hpu_attention_meta,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -393,11 +388,9 @@ class MixtralLayer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
-            prefill_cache_indices,
+            hpu_attention_meta,
         )
 
         # faster post attention rms norm
@@ -448,20 +441,15 @@ class MixtralModel(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        true_max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, true_max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -472,11 +460,9 @@ class MixtralModel(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
-                prefill_cache_indices,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -507,34 +493,21 @@ class FlashMixtralForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        true_max_s = max_s
-        if prefill_cache_indices is not None:
-            # Slots also need to be sliced as it has the same size as the whole kv tensor
-            slots = slots[prefill_cache_indices]
-        elif self.max_past is not None:
-            # Clamp in decode mode as paged attention requires clamped values whereas the flash attention
-            # kernel requires the true values
-            seqlen = seqlen.clamp(max=self.max_past_tensor)
 
         hidden_states = self.model(
             input_ids,
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
-            true_max_s,
-            prefill_cache_indices,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

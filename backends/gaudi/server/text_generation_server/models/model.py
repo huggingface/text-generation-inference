@@ -33,6 +33,7 @@ class Model(ABC):
         sliding_window: Optional[int] = None,
         speculate: Optional[int] = None,
         adapter_id: str = BASE_MODEL_ADAPTER_ID,
+        support_chunking: bool = False,
     ):
         self.model_id = model_id
         self.model = model.eval()
