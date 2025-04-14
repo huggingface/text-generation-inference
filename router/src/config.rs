@@ -229,10 +229,13 @@ impl Llama4 {
     pub fn pixel_shuffle_ratio(&self) -> f64 {
         self.vision_config.pixel_shuffle_ratio
     }
-    pub fn get_aspect_ratios(&self, height: usize, width: usize) -> (usize, usize) {
+    pub fn get_aspect_ratios(
+        &self,
+        height: usize,
+        width: usize,
+        max_chunks: usize,
+    ) -> (usize, usize) {
         let patch_size = self.vision_config.image_size;
-        // How to avoid hardcoding this?
-        let max_chunks = 15;
         let supported = find_supported_resolutions(max_chunks, patch_size);
         let (target_h, target_w) = get_best_fit(height, width, &supported, false);
         (target_h / patch_size, target_w / patch_size)
