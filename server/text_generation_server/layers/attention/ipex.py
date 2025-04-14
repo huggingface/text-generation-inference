@@ -39,6 +39,8 @@ def attention(
     # We do not need to check window_size_left (not supported) here, so it is already checked ahead of time at model load.
     if ATTENTION == "flashdecoding-ipex":
         window_size_right = -1 if window_size_left == -1 else 0
+        if softcap is None:
+            softcap = -1.0
         ipex.llm.modules.PagedAttention.flash_attn_varlen_func(
             out,
             query.contiguous() if query.device.type == "xpu" else query,
