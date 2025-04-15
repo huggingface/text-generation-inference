@@ -698,10 +698,14 @@ fn image_tokens(
             let image_height = config.image_size();
             let patch_size = config.patch_size();
             let pixel_shuffle_ratio = config.pixel_shuffle_ratio();
+            let max_patches = match preprocessor_config {
+                Some(HubPreprocessorConfig::Llama4Processor(cfg)) => cfg.max_patches,
+                _ => panic!("Expected Llama4Processor in preprocessor_config"),
+            };
             let downsample_ratio =
                 (1.0 / (pixel_shuffle_ratio * pixel_shuffle_ratio)).round() as usize;
 
-            let (ratio_h, ratio_w) = config.get_aspect_ratios(height, width);
+            let (ratio_h, ratio_w) = config.get_aspect_ratios(height, width, max_patches);
             let image_width = image_height; // Assuming pixel shape: [H][W][C]
 
             let num_patches_per_chunk =
