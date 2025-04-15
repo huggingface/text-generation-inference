@@ -12,7 +12,7 @@ from text_generation_server.utils import initialize_torch_distributed
 from text_generation_server.layers.attention import paged_attention, attention, Seqlen
 from text_generation_server.layers.attention.kv_cache import KVScales, KVCache
 from text_generation_server.models.globals import ATTENTION
-
+from text_generation_server.utils.import_utils import SYSTEM
 
 tracer = trace.get_tracer(__name__)
 
@@ -115,8 +115,11 @@ class TransformersFlashCausalLM(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = default_dtype if dtype is None else dtype
-        elif hasattr(torch, "xpu") and torch.xpu.is_available():
-            device = torch.device("xpu")
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+            else:
+                device = torch.device("cpu")
             dtype = default_dtype if dtype is None else dtype
         else:
             raise ValueError(
