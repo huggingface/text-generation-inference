@@ -3,9 +3,8 @@ ARG cuda_base=12.8.0
 ARG build_type=release
 ARG ompi_version=4.1.7
 ARG sccache_gha_enabled=off
-ARG actions_cache_url=""
+ARG actions_results_url=""
 ARG actions_runtime_token=""
-
 
 # CUDA dependent dependencies resolver stage
 FROM nvidia/cuda:${cuda_base}-cudnn-devel-ubuntu24.04 AS cuda-builder
@@ -66,7 +65,7 @@ WORKDIR /usr/src/text-generation-inference
 ARG cuda_arch_list
 ARG build_type
 ARG sccache_gha_enabled
-ARG actions_cache_url
+ARG actions_results_url
 ARG actions_runtime_token
 
 # Install Rust
@@ -85,7 +84,7 @@ ENV CUDA_ARCH_LIST=${cuda_arch_list}
 
 # SCCACHE Specifics args - before finding a better, more generic, way...
 ENV SCCACHE_GHA_ENABLED=${sccache_gha_enabled}
-ENV ACTIONS_CACHE_URL=${actions_cache_url}
+ENV ACTIONS_RESULTS_URL=${actions_results_url}
 ENV ACTIONS_RUNTIME_TOKEN=${actions_runtime_token}
 
 COPY Cargo.lock Cargo.lock

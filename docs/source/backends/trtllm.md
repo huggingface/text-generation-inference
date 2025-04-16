@@ -163,7 +163,7 @@ WORKDIR /usr/src/text-generation-inference
 ARG cuda_arch_list
 ARG build_type
 ARG sccache_gha_enabled
-ARG actions_cache_url
+ARG actions_results_url
 ARG actions_runtime_token
 
 # Install Rust
