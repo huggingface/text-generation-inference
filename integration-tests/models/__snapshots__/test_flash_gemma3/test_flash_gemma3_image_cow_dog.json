@@ -13,11 +13,11 @@
       "usage": null
     }
   ],
-  "created": 1741964477,
+  "created": 1744396697,
   "id": "",
   "model": "google/gemma-3-4b-it",
   "object": "chat.completion",
-  "system_fingerprint": "3.2.1-dev0-native",
+  "system_fingerprint": "3.2.3-dev0-native",
   "usage": {
     "completion_tokens": 75,
     "prompt_tokens": 279,
