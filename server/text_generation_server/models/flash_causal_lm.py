@@ -1899,7 +1899,9 @@ class FlashCausalLM(Model):
             batch.prepare_for_prefill()
 
         self.get_input_embeddings(batch)
+        from pdb import set_trace
 
+        set_trace()
         prefill_logprobs = batch.prefill_next_token_indices is not None
 
         # Update adapter indices for speculative tokens (if present)

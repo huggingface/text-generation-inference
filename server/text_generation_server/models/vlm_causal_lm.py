@@ -499,6 +499,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 if image_id not in self.encoder_cache[i]:
                     self.scheduled_image_input.append((i, image_position))
                     scheduled_image_pixel_values.append(pixel_values)
+                    self.image_inputs[i][j] = None
 
         if self.has_image and len(scheduled_image_pixel_values):
             self.pixel_values = torch.cat(
@@ -589,6 +590,37 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 mm_embeds.append(mm_embeds_item)
 
         return torch.cat(mm_embeds, dim=0).to(device)
+
+    def free_encoder_cache(self):
+        for i, (
+            r,
+            cache_length,
+            input_length,
+            request_prefilling,
+        ) in enumerate(
+            zip(
+                self.requests,
+                self.cache_lengths,
+                self.input_lengths,
+                self.prefilling_mask,
+            )
+        ):
+            if not request_prefilling or self.image_positions[i] is None:
+                continue
+
+            for j, image_position in enumerate(self.image_positions[i]):
+                image_id = image_position.id
+
+                start_pos = image_position.offset
+                length = image_position.length
+
+                cache_length = cache_length + input_length
+                if start_pos >= cache_length:
+                    # No encoder input required at this step
+                    break
+
+                if start_pos + length <= cache_length:
+                    self.encoder_cache[i][image_id] = None
 
 
 class VlmCausalLM(FlashCausalLM):
@@ -831,4 +863,6 @@ class VlmCausalLM(FlashCausalLM):
             else None
         )
         logits = cuda_graph["logits"][:bs]
+
+        batch.free_encoder_cache()
         return logits, speculative_logits

@@ -304,6 +304,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
             device=device,
             rank=rank,
             world_size=world_size,
+            support_chunking=True,
         )
 
         # Monkey patch of `self.model.forward` to match `FlashCausalLM`. It avoids duplicating a lot of code
