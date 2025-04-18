@@ -207,6 +207,8 @@ class FlashCausalLMBatch(Batch):
     # Maximum number of blocks
     max_blocks: int
 
+    inputs_embeds: Optional[torch.Tensor] = None
+
     def to_pb(self) -> generate_pb2.CachedBatch:
         return generate_pb2.CachedBatch(
             id=self.batch_id,
@@ -1895,6 +1897,8 @@ class FlashCausalLM(Model):
         prefill = batch.prefilling
         if prefill:
             batch.prepare_for_prefill()
+
+        self.get_input_embeddings(batch)
 
         prefill_logprobs = batch.prefill_next_token_indices is not None
 
