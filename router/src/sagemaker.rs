@@ -67,16 +67,26 @@ pub(crate) async fn sagemaker_compatibility(
     default_return_full_text: Extension<bool>,
     infer: Extension<Infer>,
     compute_type: Extension<ComputeType>,
+    context: Extension<Option<opentelemetry::Context>>,
     info: Extension<Info>,
     Json(req): Json<SagemakerRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     match req {
         SagemakerRequest::Generate(req) => {
-            compat_generate(default_return_full_text, infer, compute_type, Json(req)).await
+            compat_generate(
+                default_return_full_text,
+                infer,
+                compute_type,
+                context,
+                Json(req),
+            )
+            .await
         }
-        SagemakerRequest::Chat(req) => chat_completions(infer, compute_type, info, Json(req)).await,
+        SagemakerRequest::Chat(req) => {
+            chat_completions(infer, compute_type, info, context, Json(req)).await
+        }
         SagemakerRequest::Completion(req) => {
-            completions(infer, compute_type, info, Json(req)).await
+            completions(infer, compute_type, info, context, Json(req)).await
         }
     }
 }
