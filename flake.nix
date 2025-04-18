@@ -44,9 +44,24 @@
         benchmark = cargoNix.workspaceMembers.text-generation-benchmark.build.override {
           inherit crateOverrides;
         };
-        launcher = cargoNix.workspaceMembers.text-generation-launcher.build.override {
-          inherit crateOverrides;
-        };
+        launcher =
+          let
+            launcherUnwrapped = cargoNix.workspaceMembers.text-generation-launcher.build.override {
+              inherit crateOverrides;
+            };
+            packagePath =
+              with pkgs.python3.pkgs;
+              makePythonPath [
+                torch
+              ];
+          in
+          pkgs.writeShellApplication {
+            name = "text-generation-launcher";
+            text = ''
+              PYTHONPATH="${packagePath}" ${launcherUnwrapped}/bin/text-generation-launcher "$@"
+            '';
+          };
+
         router =
           let
             routerUnwrapped = cargoNix.workspaceMembers.text-generation-router-v3.build.override {
@@ -161,11 +176,15 @@
             '';
           };
 
-          dockerImage = pkgs.callPackage nix/docker.nix {
+          # Use plain nixpkgs without overlays for dockerTools. dockerTools
+          # uses a Python package for computing the layers from the transitive
+          # closure. However, this needs a lot of rebuilds due to our overlay.
+
+          dockerImage = nixpkgs.legacyPackages.${system}.callPackage nix/docker.nix {
             text-generation-inference = default;
           };
 
-          dockerImageStreamed = pkgs.callPackage nix/docker.nix {
+          dockerImageStreamed = nixpkgs.legacyPackages.${system}.callPackage nix/docker.nix {
             text-generation-inference = default;
             stream = true;
           };

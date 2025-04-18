@@ -8,6 +8,7 @@ on:
       - "proto/**"
       - "router/**"
       - "launcher/**"
+      - "backends/**"
       - "Cargo.lock"
       - "rust-toolchain.toml"
 
@@ -20,19 +21,14 @@ jobs:
     runs-on:
       group: aws-highmemory-32-plus-priv
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v4
         id: python
         with:
           python-version: 3.11
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@1.85.0
         with:
-          # Released on: 02 May, 2024
-          # https://releases.rs/docs/1.78.0/
-          toolchain: 1.80.0
-          override: true
           components: rustfmt, clippy
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
@@ -44,10 +40,18 @@ jobs:
         run: |
           sudo apt update
           sudo apt install python3.11-dev -y
+          pip install -U pip uv
+          uv venv
+          source ./.venv/bin/activate
           make install-cpu
+      - name: Download locked kernels
+        run: |
+          source ./.venv/bin/activate
+          kernels download server
       - name: Run server tests
         run: |
-          pip install pytest
+          source ./.venv/bin/activate
+          uv pip install pytest
           export HF_TOKEN=${{ secrets.HF_TOKEN }}
           pytest -s -vv server/tests
       - name: Pre-commit checks

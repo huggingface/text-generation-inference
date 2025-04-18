@@ -27,15 +27,16 @@ async def test_compressed_tensors_w8a8_int_dynamic_weight(
 ):
     response = await compressed_tensors_w8a8_int_dynamic_weight.generate(
         "What is deep learning?",
-        max_new_tokens=10,
+        # prefer a longer response than the default, allow the llm to end generation
+        max_new_tokens=1000,
         decoder_input_details=True,
     )
 
     assert (
         response.generated_text
-        == " Deep learning is a subset of machine learning that uses"
+        == " Deep learning is a subset of machine learning that uses neural networks to learn from data. It is a type of artificial intelligence that can learn from and make predictions on large amounts of data. Deep learning is used in a variety of applications, including image and speech recognition, natural language processing, and autonomous vehicles. It is a rapidly growing field with many potential applications in the future."
     )
-    assert response.details.generated_tokens == 10
+    assert response.details.generated_tokens == 76
     assert response == response_snapshot
 
 
@@ -64,7 +65,7 @@ async def test_compressed_tensors_w8a8_int_dynamic_weight_all_params(
     assert response.details.generated_tokens == 10
     assert (
         response.generated_text
-        == "What is deep learning?\n\nDeep Learning is an area of artificial intelligence"
+        == "What is deep learning?\nDeep Learning (DL), or artificial neural networks"
     )
     assert response == response_snapshot
 

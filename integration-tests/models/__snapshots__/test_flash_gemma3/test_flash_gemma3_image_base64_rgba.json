@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "Okay, let's analyze the image. \n\nThe transparent image reveals a stylized depiction of **a human head**. It's a minimalist, geometric representation, showing the basic shapes of the skull, eye sockets, and head outline. \n\nIf you'd like, you can give me more details about the image or ask me to focus on a specific aspect of it.",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1744396703,
+  "id": "",
+  "model": "google/gemma-3-4b-it",
+  "object": "chat.completion",
+  "system_fingerprint": "3.2.3-dev0-native",
+  "usage": {
+    "completion_tokens": 78,
+    "prompt_tokens": 277,
+    "total_tokens": 355
+  }
+}

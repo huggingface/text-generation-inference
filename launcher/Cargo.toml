@@ -9,7 +9,7 @@ homepage.workspace = true
 [dependencies]
 clap = { version = "4.4.5", features = ["derive", "env"] }
 ctrlc = { version = "3.4.1", features = ["termination"] }
-hf-hub = "0.3.2"
+hf-hub = "0.4.2"
 nix = { version = "0.28.0", features = ["signal"] }
 once_cell = "1.19.0"
 pyo3 = { workspace = true }

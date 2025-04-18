@@ -8,6 +8,7 @@ pub mod validation;
 mod kserve;
 pub mod logging;
 
+mod chat;
 mod sagemaker;
 pub mod usage_stats;
 mod vertex;
@@ -20,6 +21,7 @@ use serde::{Deserialize, Serialize};
 use tokenizers::Encoding;
 use tracing::warn;
 use utoipa::ToSchema;
+use uuid::Uuid;
 use validation::Validation;
 
 #[allow(clippy::large_enum_variant)]
@@ -79,7 +81,7 @@ impl TokenizerTrait for tokenizers::Tokenizer {
     }
 }
 
-impl<'a> TokenizerTrait for PyTokenizer<'a> {
+impl TokenizerTrait for PyTokenizer<'_> {
     fn encode_trait(
         &self,
         query: String,
@@ -150,6 +152,11 @@ impl HubTokenizerConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ChatTemplateStandalone {
+    pub chat_template: ChatTemplateVersions,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(untagged)]
 pub enum TokenizerConfigToken {
@@ -170,6 +177,9 @@ impl TokenizerConfigToken {
 #[serde(tag = "processor_class")]
 pub enum HubPreprocessorConfig {
     Idefics2Processor(Idefics2Preprocessor),
+    Idefics3Processor(Idefics2Preprocessor),
+    Gemma3Processor(Gemma3Processor),
+    Llama4Processor(Llama4Processor),
 }
 
 impl HubPreprocessorConfig {
@@ -183,6 +193,18 @@ impl HubPreprocessorConfig {
 pub struct Idefics2Preprocessor {
     #[serde(default)]
     do_image_splitting: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Gemma3Processor {
+    #[serde(default)]
+    do_image_splitting: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Llama4Processor {
+    #[serde(default)]
+    max_patches: usize,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -540,6 +562,7 @@ pub(crate) struct Chunk {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug))]
 pub(crate) struct ChatCompletion {
     pub id: String,
     #[schema(example = "1706270835")]
@@ -552,6 +575,7 @@ pub(crate) struct ChatCompletion {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug))]
 pub(crate) struct ChatCompletionComplete {
     pub index: u32,
     pub message: OutputMessage,
@@ -560,6 +584,7 @@ pub(crate) struct ChatCompletionComplete {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct ChatCompletionLogprobs {
     content: Vec<ChatCompletionLogprob>,
 }
@@ -618,6 +643,7 @@ impl From<(Vec<Token>, Vec<Vec<Token>>)> for ChatCompletionLogprobs {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct ChatCompletionLogprob {
     token: String,
     logprob: f32,
@@ -625,12 +651,14 @@ pub(crate) struct ChatCompletionLogprob {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct ChatCompletionTopLogprob {
     token: String,
     logprob: f32,
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct Usage {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
@@ -639,6 +667,7 @@ pub(crate) struct Usage {
 
 #[derive(Clone, Serialize, ToSchema)]
 #[serde(tag = "object")]
+#[cfg_attr(test, derive(Debug))]
 enum CompletionType {
     #[serde(rename = "chat.completion.chunk")]
     ChatCompletionChunk(ChatCompletionChunk),
@@ -662,6 +691,7 @@ impl ChatCompletion {
             (Some(content), None) => OutputMessage::ChatMessage(TextMessage {
                 role: "assistant".into(),
                 content,
+                ..Default::default()
             }),
             (None, Some(tool_calls)) => OutputMessage::ToolCall(ToolCallMessage {
                 role: "assistant".to_string(),
@@ -672,6 +702,7 @@ impl ChatCompletion {
                 OutputMessage::ChatMessage(TextMessage {
                     role: "assistant".into(),
                     content: output,
+                    ..Default::default()
                 })
             }
             (None, None) => {
@@ -679,6 +710,7 @@ impl ChatCompletion {
                 OutputMessage::ChatMessage(TextMessage {
                     role: "assistant".into(),
                     content: "".to_string(),
+                    ..Default::default()
                 })
             }
         };
@@ -703,6 +735,7 @@ impl ChatCompletion {
     }
 }
 #[derive(Clone, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug))]
 pub(crate) struct ChatCompletionChunk {
     pub id: String,
     #[schema(example = "1706270978")]
@@ -715,6 +748,7 @@ pub(crate) struct ChatCompletionChunk {
 }
 
 #[derive(Clone, Serialize, ToSchema)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub(crate) struct ChatCompletionChoice {
     pub index: u32,
     pub delta: ChatCompletionDelta,
@@ -726,11 +760,12 @@ pub(crate) struct ChatCompletionChoice {
 pub struct ToolCallDelta {
     #[schema(example = "assistant")]
     role: String,
-    tool_calls: DeltaToolCall,
+    tool_calls: Vec<DeltaToolCall>,
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
 #[serde(untagged)]
+#[cfg_attr(test, derive(PartialEq))]
 enum ChatCompletionDelta {
     Chat(TextMessage),
     Tool(ToolCallDelta),
@@ -755,46 +790,16 @@ impl ChatCompletionChunk {
     pub(crate) fn new(
         model: String,
         system_fingerprint: String,
-        delta: Option<String>,
-        tool_calls: Option<Vec<String>>,
         created: u64,
-        logprobs: Option<ChatCompletionLogprobs>,
-        finish_reason: Option<String>,
+        choices: Vec<ChatCompletionChoice>,
         usage: Option<Usage>,
     ) -> Self {
-        let delta = match (delta, tool_calls) {
-            (Some(delta), _) => ChatCompletionDelta::Chat(TextMessage {
-                role: "assistant".to_string(),
-                content: delta,
-            }),
-            (None, Some(tool_calls)) => ChatCompletionDelta::Tool(ToolCallDelta {
-                role: "assistant".to_string(),
-                tool_calls: DeltaToolCall {
-                    index: 0,
-                    id: String::new(),
-                    r#type: "function".to_string(),
-                    function: Function {
-                        name: None,
-                        arguments: tool_calls[0].to_string(),
-                    },
-                },
-            }),
-            (None, None) => ChatCompletionDelta::Chat(TextMessage {
-                role: "assistant".to_string(),
-                content: "".to_string(),
-            }),
-        };
         Self {
             id: String::new(),
             created,
             model,
             system_fingerprint,
-            choices: vec![ChatCompletionChoice {
-                index: 0,
-                delta,
-                logprobs,
-                finish_reason,
-            }],
+            choices,
             usage,
         }
     }
@@ -839,7 +844,7 @@ pub(crate) struct ChatRequest {
     pub top_logprobs: Option<u32>,
 
     /// The maximum number of tokens that can be generated in the chat completion.
-    #[serde(default)]
+    #[serde(default, alias = "max_completion_tokens")]
     #[schema(default = "1024", example = "32")]
     pub max_tokens: Option<u32>,
 
@@ -910,7 +915,7 @@ pub(crate) struct ChatRequest {
     /// Options for streaming response. Only set this when you set stream: true.
     #[serde(default)]
     #[schema(nullable = true, example = "null")]
-    pub stream_options: Option<StreamOptions>,
+    pub stream_options: StreamOptions,
 }
 
 impl ChatRequest {
@@ -941,7 +946,7 @@ impl ChatRequest {
         let stop = stop.unwrap_or_default();
         // enable greedy only when temperature is 0
         let (do_sample, temperature) = match temperature {
-            Some(temperature) if temperature == 0.0 => (false, None),
+            Some(0.0) => (false, None),
             other => (true, other),
         };
 
@@ -1004,19 +1009,43 @@ impl ChatRequest {
                     seed,
                     top_n_tokens: top_logprobs,
                     grammar,
-                    adapter_id: model.filter(|m| *m != "tgi").map(String::from),
+                    adapter_id: model.filter(|m| *m != "tgi"),
                 },
             },
             using_tools,
         ))
     }
+
+    fn next_int_id(&self) -> Result<String, Box<dyn std::error::Error>> {
+        let mut id: usize = 0;
+        for message in &self.messages {
+            if let MessageBody::Tool { tool_calls } = &message.body {
+                for tool_call in tool_calls {
+                    let new_id: usize = tool_call.id.parse()?;
+                    id = std::cmp::max(id, new_id + 1);
+                }
+            }
+        }
+        Ok(id.to_string())
+    }
+
+    /// Try to have linearly increasing id
+    /// or resort to using Uuid if the initial
+    /// scheme is not understood
+    fn next_tool_call_id(&self) -> String {
+        self.next_int_id().unwrap_or_else(|_| {
+            let uid = Uuid::new_v4().to_string();
+            uid.to_string()
+        })
+    }
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize)]
+#[derive(Clone, Deserialize, ToSchema, Serialize, Default)]
 #[cfg_attr(test, derive(Debug, PartialEq))]
 struct StreamOptions {
     /// If set, an additional chunk will be streamed before the data: [DONE] message. The usage field on this chunk shows the token usage statistics for the entire request, and the choices field will always be an empty array. All other chunks will also include a usage field, but with a null value.
     #[schema(example = "true")]
+    #[serde(default)]
     include_usage: bool,
 }
 
@@ -1024,7 +1053,7 @@ pub fn default_tool_prompt() -> String {
     "\nGiven the functions available, please respond with a JSON for a function call with its proper arguments that best answers the given prompt. Respond in the format {name: function name, parameters: dictionary of argument name and its value}.Do not use variables.\n".to_string()
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, ToSchema, PartialEq, Serialize)]
 #[serde(tag = "type")]
 pub enum TypedChoice {
     #[serde(rename = "function")]
@@ -1099,19 +1128,19 @@ pub struct JsonSchemaTool {
     properties: Properties,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 struct FunctionsMap {
     #[serde(rename = "$functions")]
     functions: std::collections::HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 struct FunctionRef {
     #[serde(rename = "$ref")]
     ref_path: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, ToSchema, PartialEq)]
 struct Properties {
     #[serde(serialize_with = "serialize_function")]
     function: Vec<FunctionRef>,
@@ -1128,12 +1157,19 @@ where
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema, Default, PartialEq)]
-pub(crate) struct FunctionDefinition {
+pub struct FunctionDefinition {
     #[serde(default)]
     pub description: Option<String>,
     pub name: String,
-    #[serde(alias = "parameters")]
+    #[serde(alias = "parameters", serialize_with = "serialize_as_string")]
     pub arguments: serde_json::Value,
+}
+
+fn serialize_as_string<S>(value: &serde_json::Value, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&value.to_string())
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, ToSchema)]
@@ -1156,7 +1192,7 @@ pub(crate) struct ChatTemplateInputs<'a> {
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Default, Debug, PartialEq)]
-pub(crate) struct ToolCall {
+pub struct ToolCall {
     pub id: String,
     pub r#type: String,
     pub function: FunctionDefinition,
@@ -1175,15 +1211,31 @@ pub enum MessageChunk {
     ImageUrl { image_url: Url },
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
 pub struct Message {
     #[schema(example = "user")]
-    role: String,
+    pub role: String,
+    #[serde(flatten)]
     #[schema(example = "My name is David and I")]
-    pub content: MessageContent,
+    pub body: MessageBody,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(example = "\"David\"")]
-    name: Option<String>,
+    pub name: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
+#[serde(untagged)]
+pub enum MessageBody {
+    // When a regular text message is provided.
+    Content {
+        #[serde(rename = "content")]
+        content: MessageContent,
+    },
+    // When tool calls are provided.
+    Tool {
+        #[serde(rename = "tool_calls")]
+        tool_calls: Vec<ToolCall>,
+    },
 }
 
 #[derive(Clone, Deserialize, Serialize, ToSchema, Debug, PartialEq)]
@@ -1210,19 +1262,28 @@ impl MessageContent {
     }
 }
 
-#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq)]
+#[derive(Clone, Deserialize, ToSchema, Serialize, Debug, PartialEq, Default)]
 pub struct TextMessage {
     #[schema(example = "user")]
     pub role: String,
     #[schema(example = "My name is David and I")]
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
 }
 
 impl From<Message> for TextMessage {
     fn from(value: Message) -> Self {
+        let content = match value.body {
+            MessageBody::Content { content } => content,
+            MessageBody::Tool { tool_calls } => {
+                let content = serde_json::to_string(&tool_calls).unwrap_or_default();
+                MessageContent::SingleText(content)
+            }
+        };
         TextMessage {
             role: value.role,
-            content: match value.content {
+            content: match content {
                 MessageContent::SingleText(text) => text,
                 MessageContent::MultipleChunks(chunks) => chunks
                     .into_iter()
@@ -1233,6 +1294,7 @@ impl From<Message> for TextMessage {
                     .collect::<Vec<_>>()
                     .join(""),
             },
+            ..Default::default()
         }
     }
 }
@@ -1407,7 +1469,7 @@ pub(crate) struct ChatTokenizeResponse {
 #[serde(transparent)]
 pub(crate) struct TokenizeResponse(Vec<SimpleToken>);
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, Clone)]
 pub(crate) struct StreamDetails {
     #[schema(example = "length")]
     pub finish_reason: FinishReason,
@@ -1419,7 +1481,7 @@ pub(crate) struct StreamDetails {
     pub input_length: u32,
 }
 
-#[derive(Serialize, ToSchema)]
+#[derive(Serialize, ToSchema, Clone)]
 pub(crate) struct StreamResponse {
     pub index: u32,
     pub token: Token,
@@ -1564,9 +1626,11 @@ mod tests {
         assert_eq!(
             request.messages[0],
             Message {
+                name: None,
                 role: "user".to_string(),
-                content: MessageContent::SingleText("What is Deep Learning?".to_string()),
-                name: None
+                body: MessageBody::Content {
+                    content: MessageContent::SingleText("What is Deep Learning?".to_string())
+                },
             }
         );
     }
@@ -1616,13 +1680,16 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            Message{
+            Message {
+                name: None,
                 role: "user".to_string(),
-                content: MessageContent::MultipleChunks(vec![
-                    MessageChunk::Text { text: "Whats in this image?".to_string() },
-                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
-                ]),
-                name: None
+
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![
+                        MessageChunk::Text { text: "Whats in this image?".to_string() },
+                        MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() }},
+                    ]),
+                },
             }
         );
     }
@@ -1630,12 +1697,14 @@ mod tests {
     #[test]
     fn text_message_convert() {
         let message = Message{
+            name: None,
                 role: "user".to_string(),
-                content: MessageContent::MultipleChunks(vec![
-                    MessageChunk::Text { text: "Whats in this image?".to_string() },
-                    MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
-                ]),
-                name: None
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![
+                        MessageChunk::Text { text: "Whats in this image?".to_string() },
+                        MessageChunk::ImageUrl { image_url: Url { url: "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png".to_string() } }
+                    ]),
+                }
             };
         let textmsg: TextMessage = message.into();
         assert_eq!(textmsg.content, "Whats in this image?![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)");
@@ -1655,9 +1724,25 @@ mod tests {
 
         assert!(matches!(
             request.stream_options,
-            Some(StreamOptions {
+            StreamOptions {
                 include_usage: true
-            })
+            }
+        ));
+
+        let json = json!({
+            "model": "",
+            "messages": [{
+                "role": "user",
+                "content": "Hello"
+            }]
+        });
+        let request: ChatRequest = serde_json::from_str(json.to_string().as_str()).unwrap();
+
+        assert!(matches!(
+            request.stream_options,
+            StreamOptions {
+                include_usage: false
+            }
         ));
     }
 
@@ -1666,6 +1751,7 @@ mod tests {
         let message = OutputMessage::ChatMessage(TextMessage {
             role: "assistant".to_string(),
             content: "This is the answer".to_string(),
+            ..Default::default()
         });
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(
@@ -1690,7 +1776,7 @@ mod tests {
         let serialized = serde_json::to_string(&message).unwrap();
         assert_eq!(
             serialized,
-            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":{"format":"csv"}}}]}"#
+            r#"{"role":"assistant","tool_calls":[{"id":"0","type":"function","function":{"description":null,"name":"myfn","arguments":"{\"format\":\"csv\"}"}}]}"#
         );
     }
 

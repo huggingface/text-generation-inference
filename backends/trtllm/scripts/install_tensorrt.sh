@@ -2,13 +2,13 @@
 
 set -ex
 
-TRT_VER_BASE="10.4.0"
-TRT_VER_FULL="${TRT_VER_BASE}.26"
-CUDA_VER="12.6"
-CUDNN_VER="9.5.0.50-1"
-NCCL_VER="2.22.3-1+cuda12.6"
-CUBLAS_VER="12.6.3.3-1"
-NVRTC_VER="12.6.77-1"
+TRT_VER_BASE="10.8.0"
+TRT_VER_FULL="${TRT_VER_BASE}.43"
+CUDA_VER="12.8"
+CUDNN_VER="9.7.0.66-1"
+NCCL_VER="2.25.1-1+cuda${CUDA_VER}"
+CUBLAS_VER="${CUDA_VER}.3.14-1"
+NVRTC_VER="${CUDA_VER}.61-1"
 
 for i in "$@"; do
     case $i in
@@ -73,7 +73,7 @@ install_centos_requirements() {
 install_tensorrt() {
     #PY_VERSION=$(python3 -c 'import sys; print(".".join(map(str, sys.version_info[0:2])))')
     #PARSED_PY_VERSION=$(echo "${PY_VERSION//./}")
-    TRT_CUDA_VERSION="12.6"
+    TRT_CUDA_VERSION="12.8"
 
     if [ -z "$RELEASE_URL_TRT" ];then
         ARCH=${TRT_TARGETARCH}

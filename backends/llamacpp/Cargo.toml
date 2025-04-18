@@ -1,0 +1,22 @@
+[package]
+name = "text-generation-router-llamacpp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+
+[build-dependencies]
+bindgen = "0.71.1"
+pkg-config = "0.3.31"
+
+[dependencies]
+async-trait = "0.1.85"
+clap = "4.5.27"
+hf-hub.workspace = true
+num_cpus = "1.16.0"
+text-generation-router = { path = "../../router" }
+thiserror = "2.0.11"
+tokenizers.workspace = true
+tokio = { version = "1.43.0", features = ["process"] }
+tokio-stream = "0.1.17"
+tracing = "0.1.41"

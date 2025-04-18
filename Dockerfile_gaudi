@@ -1,0 +1,126 @@
+# Those arguments are required to build the image
+ARG HABANA_VERSION=1.20.0
+ARG PYTORCH_VERSION=2.6.0
+
+# Rust builder
+FROM lukemathwalker/cargo-chef:latest-rust-1.85.1 AS chef
+WORKDIR /usr/src
+
+ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+FROM chef AS planner
+COPY Cargo.lock Cargo.lock
+COPY Cargo.toml Cargo.toml
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY benchmark benchmark
+COPY router router
+COPY backends backends
+COPY launcher launcher
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+
+ENV PYO3_PYTHON="/root/.local/bin/python" \
+    PYTHON_SYS_EXECUTABLE="/root/.local/bin/python" \
+    PYO3_PYTHON_VERSION="3.10"
+
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && . $HOME/.local/bin/env \
+    && uv python install 3.10 --default --preview \
+    && test -f /root/.local/bin/python || (echo "Python 3.10 not found at /root/.local/bin/python" && exit 1)
+
+RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
+    curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
+    unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
+    unzip -o $PROTOC_ZIP -d /usr/local 'include/*' && \
+    rm -f $PROTOC_ZIP
+
+COPY --from=planner /usr/src/recipe.json recipe.json
+RUN cargo chef cook --profile release-opt --recipe-path recipe.json
+
+ARG GIT_SHA
+ARG DOCKER_LABEL
+
+COPY Cargo.toml Cargo.toml
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY benchmark benchmark
+COPY router router
+COPY backends backends
+COPY launcher launcher
+RUN cargo build --profile release-opt
+
+# Text Generation Inference base image
+ARG HABANA_VERSION
+ARG PYTORCH_VERSION
+
+FROM vault.habana.ai/gaudi-docker/${HABANA_VERSION}/ubuntu22.04/habanalabs/pytorch-installer-${PYTORCH_VERSION}:latest AS base
+
+ENV ATTENTION=default
+ENV PREFIX_CACHING=0
+ENV PREFILL_CHUNKING=0
+
+# Text Generation Inference base env
+ENV HF_HOME=/data \
+    HF_HUB_ENABLE_HF_TRANSFER=1 \
+    PORT=80
+
+# Assert that Python 3.10 is installed as the launcher is compiled with Python 3.10
+RUN python3.10 --version || (echo "Python 3.10 is not installed" && exit 1)
+
+# libssl.so.1.1 is not installed on Ubuntu 22.04 by default, install it
+RUN wget http://nz2.archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2_amd64.deb && \
+    dpkg -i ./libssl1.1_1.1.1f-1ubuntu2_amd64.deb
+
+WORKDIR /usr/src
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        libssl-dev \
+        ca-certificates \
+        make \
+        curl \
+        git \
+        && rm -rf /var/lib/apt/lists/*
+
+# Install server
+COPY proto proto
+COPY backends/gaudi/server server
+COPY backends/gaudi/server/Makefile server/Makefile
+ARG HABANA_VERSION
+RUN cd server && \
+    make gen-server && \
+    pip install --no-deps -r requirements.txt && \
+    bash ./dill-0.3.8-patch.sh && \
+    pip install "git+https://github.com/HabanaAI/DeepSpeed.git@${HABANA_VERSION}" && \
+    BUILD_CUDA_EXT=0 pip install git+https://github.com/AutoGPTQ/AutoGPTQ.git@097dd04e --no-build-isolation && \
+    pip install . --no-cache-dir
+RUN pip install git+https://github.com/sywangyi/vllm-hpu-extension.git
+# Install benchmarker
+COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
+# Install router
+COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/local/bin/text-generation-router
+# Install launcher
+COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
+
+
+# AWS Sagemaker compatible image
+FROM base AS sagemaker
+
+COPY sagemaker-entrypoint.sh entrypoint.sh
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]
+
+# Final image
+FROM base
+
+ENV HF_HUB_ENABLE_HF_TRANSFER 1
+ENV HABANA_VISIBLE_DEVICES all
+ENV OMPI_MCA_btl_vader_single_copy_mechanism NONE
+
+COPY backends/gaudi/tgi-entrypoint.sh /tgi-entrypoint.sh
+RUN chmod +x /tgi-entrypoint.sh
+
+ENTRYPOINT ["/tgi-entrypoint.sh"]
+CMD ["--json-output"]

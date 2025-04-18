@@ -1,26 +1,27 @@
 [workspace]
 members = [
-  "benchmark",
-  "backends/v2",
-  "backends/v3",
-  "backends/grpc-metadata",
-  "backends/trtllm",
-  "launcher",
-  "router"
+    "benchmark",
+    "backends/v2",
+    "backends/v3",
+    "backends/grpc-metadata",
+    "backends/trtllm",
+    "backends/llamacpp",
+    "launcher",
+    "router"
 ]
 default-members = [
-  "benchmark",
-  "backends/v2",
-  "backends/v3",
-  "backends/grpc-metadata",
-  # "backends/trtllm",
-  "launcher",
-  "router"
+    "benchmark",
+    "backends/v2",
+    "backends/v3",
+    "backends/grpc-metadata",
+    # "backends/trtllm",
+    "launcher",
+    "router"
 ]
 resolver = "2"
 
 [workspace.package]
-version = "3.0.2-dev0"
+version = "3.2.3-dev0"
 edition = "2021"
 authors = ["Olivier Dehaene"]
 homepage = "https://github.com/huggingface/text-generation-inference"
@@ -28,7 +29,7 @@ homepage = "https://github.com/huggingface/text-generation-inference"
 [workspace.dependencies]
 base64 = "0.22.0"
 tokenizers = { version = "0.20.0", features = ["http"] }
-hf-hub = { version = "0.3.1", features = ["tokio"] }
+hf-hub = { version = "0.4.2", features = ["tokio"] }
 metrics = { version = "0.23.0" }
 metrics-exporter-prometheus = { version = "0.15.1", features = [] }
 minijinja = { version = "2.2.0", features = ["json"] }

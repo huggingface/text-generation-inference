@@ -1,0 +1,34 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": null,
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": "{\"location\":\"Brooklyn, NY\",\"format\":\"fahrenheit\"}",
+              "description": null,
+              "name": "get_current_weather"
+            },
+            "id": "0",
+            "type": "function"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1741372657,
+  "id": "",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.1.2-dev0-native",
+  "usage": {
+    "completion_tokens": 29,
+    "prompt_tokens": 286,
+    "total_tokens": 315
+  }
+}

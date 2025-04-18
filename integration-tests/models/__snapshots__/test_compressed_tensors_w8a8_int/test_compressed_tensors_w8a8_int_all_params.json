@@ -32,7 +32,7 @@
       },
       {
         "id": 1101,
-        "logprob": -1.0947266,
+        "logprob": -1.0136719,
         "special": false,
         "text": " also"
       },
@@ -56,13 +56,13 @@
       },
       {
         "id": 4009,
-        "logprob": -0.15563965,
+        "logprob": -0.21923828,
         "special": false,
         "text": " network"
       },
       {
         "id": 477,
-        "logprob": -1.4003906,
+        "logprob": -1.4824219,
         "special": false,
         "text": " or"
       }

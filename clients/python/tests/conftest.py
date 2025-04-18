@@ -21,7 +21,7 @@ def fake_model():
 
 @pytest.fixture
 def unsupported_model():
-    return "gpt2"
+    return "google-bert/bert-base-uncased"
 
 
 @pytest.fixture

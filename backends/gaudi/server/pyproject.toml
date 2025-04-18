@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "text-generation-server"
+version = "2.0.4"
+description = "Text Generation Inference Python gRPC Server"
+authors = ["Olivier Dehaene <olivier@huggingface.co>"]
+
+[tool.poetry.scripts]
+text-generation-server = 'text_generation_server.cli:app'
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+protobuf = "^5.0"
+grpcio = "^1.71.1"
+grpcio-status = "*"
+grpcio-reflection = "*"
+grpc-interceptor = "^0.15.0"
+typer = "^0.15.0"
+loguru = "^0.7.3"
+opentelemetry-api = "^1.32.0"
+opentelemetry-exporter-otlp = "^1.32.0"
+opentelemetry-instrumentation-grpc = "^0.53b0"
+hf-transfer = "^0.1.9"
+sentencepiece = "^0.2.0"
+peft = "^0.15"
+optimum-habana = "1.17"
+transformers = "^4.49"
+numpy = "^1.26"
+accelerate = "^0.33"
+outlines= { version = "^0.0.36", optional = true }
+prometheus-client = "^0.21.1"
+py-cpuinfo = "^9.0.0"
+
+[tool.poetry.group.dev.dependencies]
+grpcio-tools = "*"
+pytest = "^8.3.5"
+
+[tool.pytest.ini_options]
+markers = ["private: marks tests as requiring an admin hf token (deselect with '-m \"not private\"')"]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"

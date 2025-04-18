@@ -7,67 +7,67 @@
     "seed": 0,
     "tokens": [
       {
-        "id": 1939,
-        "logprob": -2.2675781,
+        "id": 5267,
+        "logprob": -1.1464844,
         "special": false,
-        "text": "?\n\n"
+        "text": "?\n"
       },
       {
         "id": 33464,
-        "logprob": 0.0,
+        "logprob": -0.83203125,
         "special": false,
         "text": "Deep"
       },
       {
         "id": 20909,
-        "logprob": -0.37695312,
+        "logprob": -0.5625,
         "special": false,
         "text": " Learning"
       },
       {
-        "id": 4102,
-        "logprob": -1.9316406,
+        "id": 320,
+        "logprob": -2.1464844,
         "special": false,
-        "text": " "
+        "text": " ("
       },
       {
-        "id": 285,
+        "id": 16524,
         "logprob": 0.0,
         "special": false,
-        "text": "is"
+        "text": "DL"
       },
       {
-        "id": 458,
-        "logprob": -0.80859375,
+        "id": 701,
+        "logprob": -2.2089844,
         "special": false,
-        "text": " an"
+        "text": "),"
       },
       {
-        "id": 3082,
-        "logprob": -1.4541016,
+        "id": 476,
+        "logprob": -0.27368164,
         "special": false,
-        "text": " area"
-      },
-      {
-        "id": 315,
-        "logprob": 0.0,
-        "special": false,
-        "text": " of"
+        "text": " or"
       },
       {
         "id": 20443,
-        "logprob": -0.5136719,
+        "logprob": -0.09442139,
         "special": false,
         "text": " artificial"
       },
       {
-        "id": 11229,
+        "id": 29728,
         "logprob": 0.0,
         "special": false,
-        "text": " intelligence"
+        "text": " neural"
+      },
+      {
+        "id": 14155,
+        "logprob": 0.0,
+        "special": false,
+        "text": " networks"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "What is deep learning?\n\nDeep Learning is an area of artificial intelligence"
+  "generated_text": "What is deep learning?\nDeep Learning (DL), or artificial neural networks"
 }

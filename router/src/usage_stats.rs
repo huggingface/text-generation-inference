@@ -43,6 +43,7 @@ pub enum EventType {
     Start,
     Stop,
     Error,
+    Ping,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,7 +71,7 @@ impl UsageStatsEvent {
             .post(TELEMETRY_URL)
             .headers(headers)
             .body(body)
-            .timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(10))
             .send()
             .await;
     }
@@ -96,6 +97,8 @@ pub struct Args {
     disable_grammar_support: bool,
     max_client_batch_size: usize,
     usage_stats_level: UsageStatsLevel,
+    backend_name: &'static str,
+    origin: Option<String>,
 }
 
 impl Args {
@@ -119,6 +122,8 @@ impl Args {
         disable_grammar_support: bool,
         max_client_batch_size: usize,
         usage_stats_level: UsageStatsLevel,
+        backend_name: &'static str,
+        origin: Option<String>,
     ) -> Self {
         Self {
             model_config,
@@ -139,6 +144,8 @@ impl Args {
             disable_grammar_support,
             max_client_batch_size,
             usage_stats_level,
+            backend_name,
+            origin,
         }
     }
 }
@@ -150,6 +157,7 @@ pub struct Env {
     docker_label: &'static str,
     nvidia_info: Option<Vec<NvidiaSmiInfo>>,
     xpu_info: Option<Vec<XpuSmiInfo>>,
+    hpu_info: Option<Vec<HpuSmiInfo>>,
     system_env: SystemInfo,
 }
 
@@ -282,6 +290,60 @@ impl XpuSmiInfo {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
+struct HpuSmiInfo {
+    name: String,
+    pci_bus_id: String,
+    driver_version: String,
+    temperature: String,
+    utilization: String,
+    memory_total: String,
+    memory_free: String,
+    memory_used: String,
+    power_draw_instant: String,
+}
+
+impl HpuSmiInfo {
+    fn new() -> Option<Vec<HpuSmiInfo>> {
+        let output = Command::new("hl-smi")
+            .args([
+                "--query-aip=name,bus_id,driver_version,temperature.aip,utilization.aip,memory.total,memory.free,memory.used,power.draw",
+                "--format=csv"
+            ])
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let stdout = String::from_utf8(output.stdout).ok()?;
+
+        let mut rdr = ReaderBuilder::new()
+            .has_headers(true)
+            .from_reader(stdout.as_bytes());
+
+        let mut infos = Vec::new();
+
+        for result in rdr.records() {
+            let record = result.ok()?;
+            infos.push(HpuSmiInfo {
+                name: record[0].to_string(),
+                pci_bus_id: record[1].to_string(),
+                driver_version: record[2].to_string(),
+                temperature: record[3].to_string(),
+                utilization: record[4].to_string(),
+                memory_total: record[5].to_string(),
+                memory_free: record[6].to_string(),
+                memory_used: record[7].to_string(),
+                power_draw_instant: record[8].to_string(),
+            });
+        }
+
+        Some(infos)
+    }
+}
+
 #[derive(Serialize, Debug, Clone)]
 pub struct SystemInfo {
     cpu_count: usize,
@@ -328,9 +390,13 @@ impl Env {
             system_env: SystemInfo::new(),
             nvidia_info: NvidiaSmiInfo::new(),
             xpu_info: XpuSmiInfo::new(),
+            hpu_info: HpuSmiInfo::new(),
             git_sha: option_env!("VERGEN_GIT_SHA").unwrap_or("N/A"),
             docker_label: option_env!("DOCKER_LABEL").unwrap_or("N/A"),
         }
+    }
+    pub fn is_hpu_device(&self) -> bool {
+        self.hpu_info.is_some()
     }
 }
 

@@ -40,6 +40,8 @@ pub trait Backend {
     fn start_health(&self) -> bool {
         false
     }
+
+    fn name(&self) -> &'static str;
 }
 
 /// Inference struct
@@ -50,7 +52,7 @@ pub struct Infer {
     /// Request backend
     backend: Arc<dyn Backend + Send + Sync>,
     /// Chat template
-    chat_template: Option<ChatTemplate>,
+    pub(crate) chat_template: Option<ChatTemplate>,
     /// Inference limit
     limit_concurrent_requests: Arc<Semaphore>,
     /// Backend health

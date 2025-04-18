@@ -7,11 +7,11 @@
       "text": " A Beginner’s Guide\nDeep learning is a subset"
     }
   ],
-  "created": 1725876621,
+  "created": 1741264812,
   "id": "",
-  "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
   "object": "text_completion",
-  "system_fingerprint": "2.2.1-dev0-native",
+  "system_fingerprint": "3.1.2-dev0-native",
   "usage": {
     "completion_tokens": 10,
     "prompt_tokens": 6,

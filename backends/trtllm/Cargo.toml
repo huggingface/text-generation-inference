@@ -7,20 +7,17 @@ homepage.workspace = true
 
 [dependencies]
 async-trait = "0.1"
-async-stream = "0.3"
 clap = { version = "4.5", features = ["derive"] }
 cxx = "1.0"
-hashbrown = "0.14"
+hashbrown = "0.15"
 hf-hub = { workspace = true }
-log = { version = "0.4", features = [] }
 text-generation-router = { path = "../../router" }
 tokenizers = { workspace = true }
-tokio = { version = "1.39", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
-tokio-stream = "0.1.15"
+tokio = { version = "1.43.0", features = ["rt", "rt-multi-thread", "parking_lot", "signal", "sync"] }
+tokio-stream = "0.1.17"
 thiserror = "1.0.63"
 tracing = "0.1"
-tracing-opentelemetry = "0.25"
-tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+pyo3 = { workspace = true }
 
 [build-dependencies]
 cmake = "0.1"

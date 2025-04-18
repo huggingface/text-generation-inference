@@ -4,11 +4,14 @@ from typing import List, Tuple
 import numpy
 import torch
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 
-try:
-    import marlin_kernels
-except ImportError:
-    marlin_kernels = None
+if SYSTEM == "cuda":
+    quantization = load_kernel(
+        module="quantization", repo_id="kernels-community/quantization"
+    )
+else:
+    quantization = None
 
 try:
     major, _minor = torch.cuda.get_device_capability()
@@ -23,7 +26,7 @@ def _check_marlin_kernels():
             "Using quantized Marlin models requires a GPU with CUDA capability 8.0 or later."
         )
 
-    if marlin_kernels is None:
+    if quantization is None:
         raise NotImplementedError(
             "marlin is not installed, install it with: pip install server/marlin"
         )

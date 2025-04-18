@@ -198,7 +198,7 @@ Options:
           
           For `max_batch_total_tokens=1000`, you could fit `10` queries of `total_tokens=100` or a single query of `1000` tokens.
           
-          Overall this number should be the largest possible amount that fits the remaining memory (after the model is loaded). Since the actual memory overhead depends on other parameters like if you're using quantization, flash attention or the model implementation, text-generation-inference cannot infer this number automatically.
+          Overall this number should be the largest possible amount that fits the remaining memory (after the model is loaded). Since the actual memory overhead depends on other parameters like if you're using quantization, flash attention or the model implementation, text-generation-inference infers this number automatically if not provided ensuring that the value is as large as possible.
           
           [env: MAX_BATCH_TOTAL_TOKENS=]
 
@@ -476,6 +476,15 @@ Options:
           Logprobs in the prompt are deactivated by default because they consume a large amount of VRAM (especially for long prompts). Using this flag reallows users to ask for them.
           
           [env: ENABLE_PREFILL_LOGPROBS=]
+
+```
+## GRACEFUL_TERMINATION_TIMEOUT
+```shell
+  -g, --graceful-termination-timeout <GRACEFUL_TERMINATION_TIMEOUT>
+          Change timeout of graceful termination of the TGI server
+          
+          [env: GRACEFUL_TERMINATION_TIMEOUT=]
+          [default: 90]
 
 ```
 ## HELP

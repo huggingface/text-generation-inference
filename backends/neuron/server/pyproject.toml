@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=78.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "text-generation-server"
+version = "VERSION"
+authors = [{name="David Corvoysier", email="david@huggingface.co" }]
+description = "TGI compatible inference server for AWS Neuronx platforms"
+dependencies = [
+    'protobuf > 3.20.1, < 4',
+    'grpcio == 1.57.0',
+    'grpcio-status == 1.48.2',
+    'grpcio-reflection == 1.48.2',
+    'grpc-interceptor == 0.15.2',
+    'typer == 0.6.1',
+    'safetensors',
+    'loguru == 0.6.0',
+    'optimum-neuron[neuronx] >= 0.0.28',
+]
+
+[tool.setuptools]
+packages = ["text_generation_server", "text_generation_server.pb"]
+
+[project.scripts]
+text-generation-server = 'text_generation_server.cli:app'

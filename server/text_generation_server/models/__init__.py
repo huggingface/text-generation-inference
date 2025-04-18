@@ -6,20 +6,23 @@ from compressed_tensors.compressors.model_compressors.model_compressor import (
 )
 from compressed_tensors.quantization import QuantizationType
 from pydantic import ValidationError
-import torch
 import enum
 import os
-
-from loguru import logger
-from transformers.configuration_utils import PretrainedConfig
-from transformers.models.auto import modeling_auto
-from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional, List, Dict
 from pathlib import Path
+from loguru import logger
+
+import torch
+import transformers
+from transformers.configuration_utils import PretrainedConfig
+from transformers.models.auto import modeling_auto
+from transformers.dynamic_module_utils import get_class_from_dynamic_module
+from huggingface_hub import hf_hub_download, HfApi
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
 from text_generation_server.models.causal_lm import CausalLM, CausalLMBatchKeysLast
+
 from text_generation_server.models.custom_modeling.opt_modeling import OPTForCausalLM
 from text_generation_server.models.custom_modeling.mpt_modeling import (
     MPTForCausalLM,
@@ -87,6 +90,10 @@ try:
         FlashDeepseekV2ForCausalLM,
         DeepseekV2Config,
     )
+    from text_generation_server.models.custom_modeling.flash_deepseek_v3_modeling import (
+        FlashDeepseekV3ForCausalLM,
+        DeepseekV3Config,
+    )
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
     )
@@ -98,6 +105,17 @@ try:
     )
     from text_generation_server.models.custom_modeling.flash_gemma2_modeling import (
         FlashGemma2ForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_gemma3_modeling import (
+        FlashGemma3ForCausalLM,
+        Gemma3ForConditionalGeneration,
+    )
+    from text_generation_server.models.custom_modeling.gemma3.processing_gemma3 import (
+        Gemma3Processor,
+    )
+    from text_generation_server.models.custom_modeling.gemma3.configuration_gemma3 import (
+        Gemma3Config,
+        Gemma3TextConfig,
     )
     from text_generation_server.models.custom_modeling.flash_dbrx_modeling import (
         FlashDbrxForCausalLM,
@@ -152,8 +170,16 @@ try:
     from text_generation_server.models.custom_modeling.idefics2 import (
         Idefics2ForConditionalGeneration,
     )
+    from text_generation_server.models.custom_modeling.idefics3 import (
+        Idefics3ForConditionalGeneration,
+    )
     from text_generation_server.models.custom_modeling.qwen2_vl import (
         Qwen2VLForConditionalGeneration,
+    )
+    from text_generation_server.models.custom_modeling.qwen2_5_vl import (
+        Qwen2_5VLForConditionalGeneration,
+        Qwen2_5_VLConfig,
+        Qwen2_5_VLProcessor,
     )
     from text_generation_server.layers.attention import SUPPORTS_WINDOWING
 except ImportError as e:
@@ -175,6 +201,21 @@ except ImportError as e:
 if MAMBA_AVAILABLE:
     __all__.append(Mamba)
 
+FLASH_TRANSFORMERS_BACKEND = torch.cuda.is_available() or SYSTEM == "ipex"
+
+try:
+    from text_generation_server.models.transformers_flash_causal_lm import (
+        TransformersFlashCausalLM,
+    )
+    from text_generation_server.models.transformers_flash_vlm import (
+        TransformersFlashVlmCausalLM,
+        TransformersGemma3VlmCausalLM,
+        TransformersLlama4VlmCausalLM,
+    )
+except ImportError as e:
+    log_master(logger.warning, f"Could not import Flash Transformers Backend: {e}")
+    FLASH_TRANSFORMERS_BACKEND = False
+
 
 class ModelType(enum.Enum):
     DEEPSEEK_V2 = {
@@ -182,10 +223,21 @@ class ModelType(enum.Enum):
         "name": "Deepseek V2",
         "url": "https://huggingface.co/deepseek-ai/DeepSeek-V2",
     }
+    DEEPSEEK_V3 = {
+        "type": "deepseek_v3",
+        "name": "Deepseek V3",
+        "url": "https://huggingface.co/deepseek-ai/DeepSeek-V3",
+    }
     IDEFICS2 = {
         "type": "idefics2",
         "name": "Idefics 2",
         "url": "https://huggingface.co/HuggingFaceM4/idefics2-8b",
+        "multimodal": True,
+    }
+    IDEFICS3 = {
+        "type": "idefics3",
+        "name": "Idefics 3",
+        "url": "https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3",
         "multimodal": True,
     }
     LLAVA_NEXT = {
@@ -197,6 +249,11 @@ class ModelType(enum.Enum):
     LLAMA = {
         "type": "llama",
         "name": "Llama",
+        "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
+    }
+    LLAMA4 = {
+        "type": "llama4",
+        "name": "Llama4",
         "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
     }
     PHI3 = {
@@ -223,6 +280,16 @@ class ModelType(enum.Enum):
         "type": "gemma2",
         "name": "Gemma2",
         "url": "https://huggingface.co/collections/google/gemma-2-release-667d6600fd5220e7b967f315",
+    }
+    GEMMA3 = {
+        "type": "gemma3",
+        "name": "Gemma3",
+        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d",
+    }
+    GEMMA3_TEXT = {
+        "type": "gemma3_text",
+        "name": "Gemma3 Text",
+        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d",
     }
     COHERE = {
         "type": "cohere",
@@ -288,6 +355,11 @@ class ModelType(enum.Enum):
         "type": "qwen2_vl",
         "name": "Qwen 2 VL",
         "url": "https://huggingface.co/collections/Qwen/qwen2-vl-66cee7455501d7126940800d",
+    }
+    QWEN2_5_VL = {
+        "type": "qwen2_5_vl",
+        "name": "Qwen 2.5 VL",
+        "url": "https://huggingface.co/collections/Qwen/qwen25-66e81a666513e518adb90d9e",
     }
     OPT = {
         "type": "opt",
@@ -588,7 +660,6 @@ def get_model(
         raise ValueError(
             f"The backend {SYSTEM} does not support sliding window attention that is used by the model type {model_type}. To use this model nonetheless with the {SYSTEM} backend, please launch TGI with the argument `--max-input-tokens` smaller than sliding_window={sliding_window} (got here max_input_tokens={max_input_tokens})."
         )
-
     if model_type == DEEPSEEK_V2:
         if FLASH_ATTENTION:
             head_size = max(
@@ -613,6 +684,40 @@ def get_model(
         elif sharded:
             raise NotImplementedError(
                 FLASH_ATT_ERROR_MESSAGE.format("Sharded Deepseek V2")
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == DEEPSEEK_V3:
+        if FLASH_ATTENTION:
+            head_size = max(
+                config_dict.get("qk_nope_dim", 128)
+                + config_dict.get("qk_rope_dim", 64),
+                config_dict.get("v_head_dim", 128),
+            )
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashDeepseekV3ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                default_dtype=torch.bfloat16,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                config_class=DeepseekV3Config,
+                head_size=head_size,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format("Sharded Deepseek V3")
             )
         else:
             return CausalLM.fallback(
@@ -795,6 +900,15 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=GPTNeoXConfig,
             )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         elif sharded:
             return CausalLM(
                 model_id=model_id,
@@ -829,7 +943,7 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
             )
         else:
-            return CausalLM.fallback(
+            return TransformersFlashCausalLM.fallback(
                 model_id,
                 revision,
                 quantize=quantize,
@@ -879,12 +993,58 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
-    elif (
-        model_type == LLAMA
-        or model_type == BAICHUAN
-        or model_type == PHI3
-        or model_type == GRANITE
-    ):
+    elif model_type == LLAMA or model_type == PHI3 or model_type == GRANITE:
+        if FLASH_ATTENTION:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashLlamaForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(
+                FLASH_ATT_ERROR_MESSAGE.format(f"Sharded {model_type}")
+            )
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == LLAMA4:
+        if FLASH_TRANSFORMERS_BACKEND:
+            from transformers import Llama4ForConditionalGeneration as Llama4Model
+
+            return TransformersLlama4VlmCausalLM.fallback(
+                model_id,
+                Llama4Model,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                processor_kwargs={
+                    "use_fast": True,
+                },
+            )
+    elif model_type == BAICHUAN:
         if FLASH_ATTENTION:
             return FlashCausalLM(
                 model_id=model_id,
@@ -910,6 +1070,7 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
+
     if model_type == GEMMA:
         if FLASH_ATTENTION:
             return FlashCausalLM(
@@ -924,6 +1085,15 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma"))
@@ -951,8 +1121,96 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma2"))
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == GEMMA3_TEXT:
+        if FLASH_ATTENTION:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashGemma3ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                # TODO: once implemented in transformers, use the config class
+                # and processor class from there.
+                config_class=Gemma3TextConfig,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma3"))
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+    elif model_type == GEMMA3:
+        if FLASH_ATTENTION:
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Gemma3ForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                # TODO: once implemented in transformers, use the config class
+                # and processor class from there.
+                config_class=Gemma3Config,
+                processor_class=Gemma3Processor,
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import Gemma3ForConditionalGeneration as Gemma3Model
+
+            return TransformersGemma3VlmCausalLM.fallback(
+                model_id,
+                Gemma3Model,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma3"))
         else:
             return CausalLM.fallback(
                 model_id,
@@ -975,6 +1233,15 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Cohere"))
@@ -1079,6 +1346,15 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mistral"))
         else:
@@ -1104,6 +1380,15 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Mixtral"))
         else:
@@ -1128,6 +1413,15 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
             )
         elif sharded:
             raise NotImplementedError(
@@ -1155,6 +1449,15 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Qwen2"))
@@ -1208,17 +1511,65 @@ def get_model(
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
     if model_type == QWEN2_VL:
-        return VlmCausalLM(
-            model_id=model_id,
-            model_class=Qwen2VLForConditionalGeneration,
-            revision=revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            kv_cache_dtype=kv_cache_dtype,
-            trust_remote_code=trust_remote_code,
-            lora_adapter_ids=lora_adapter_ids,
-        )
+        if FLASH_ATTENTION:
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Qwen2VLForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                default_dtype=torch.bfloat16,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        # TODO: Uncomment when transformers is refactored
+        # elif FLASH_TRANSFORMERS_BACKEND:
+        #     from transformers import Qwen2VLForConditionalGeneration as Qwen2VLModel
+
+        #     return TransformersQwen2VlmCausalLM.fallback(
+        #         model_id,
+        #         Qwen2VLModel,
+        #         revision,
+        #         quantize=quantize,
+        #         speculator=speculator,
+        #         dtype=torch.bfloat16,
+        #         trust_remote_code=trust_remote_code,
+        #     )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Qwen2_VL"))
+    if model_type == QWEN2_5_VL:
+        if FLASH_ATTENTION:
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Qwen2_5VLForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                default_dtype=torch.bfloat16,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                config_class=Qwen2_5_VLConfig,
+                processor_class=Qwen2_5_VLProcessor,
+            )
+        # TODO: Uncomment when transformers is refactored
+        # elif FLASH_TRANSFORMERS_BACKEND:
+        #     return TransformersQwen2VlmCausalLM.fallback(
+        #         model_id,
+        #         Qwen2VLModel,
+        #         revision,
+        #         quantize=quantize,
+        #         speculator=speculator,
+        #         dtype=torch.bfloat16,
+        #         trust_remote_code=trust_remote_code,
+        #         config_class=Qwen2_5_VLConfig,
+        #         processor_class=Qwen2_5_VLProcessor,
+        #     )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Qwen2_5_VL"))
     if model_type == MLLAMA:
         if FLASH_ATTENTION:
             return MllamaCausalLM(
@@ -1233,6 +1584,20 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
+        # TODO: Uncomment when transformers is refactored and cross attn is added
+        # elif FLASH_TRANSFORMERS_BACKEND:
+        #     from transformers import MllamaForConditionalGeneration as MllamaModel
+
+        #     return TransformersFlashVlmCausalLM.fallback(
+        #         model_id,
+        #         MllamaModel,
+        #         revision,
+        #         quantize=quantize,
+        #         speculator=speculator,
+        #         dtype=torch.bfloat16,
+        #         trust_remote_code=trust_remote_code,
+        #         batch_class=MllamaCausalLMBatch,
+        #     )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Mllama"))
     if model_type == IDEFICS2:
@@ -1250,6 +1615,50 @@ def get_model(
                 # XXX: Extremely important to cap resolution in order to limit
                 # VRAM usage.
                 processor_kwargs={"size": {"longest_edge": 448, "shortest_edge": 378}},
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import Idefics2ForConditionalGeneration as Idefics2Model
+
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                Idefics2Model,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+                processor_kwargs={"size": {"longest_edge": 448, "shortest_edge": 378}},
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+    if model_type == IDEFICS3:
+        if FLASH_ATTENTION:
+            return VlmCausalLM(
+                model_id=model_id,
+                model_class=Idefics3ForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                # XXX: Extremely important to cap resolution in order to limit
+                # VRAM usage.
+                processor_kwargs={"size": {"longest_edge": 1456}},
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import Idefics3ForConditionalGeneration as Idefics3Model
+
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                Idefics3Model,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                processor_kwargs={"size": {"longest_edge": 1456}},
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
@@ -1269,9 +1678,21 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 batch_class=PaliGemmaBatch,
             )
-        else:
-            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Idefics"))
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import PaliGemmaForConditionalGeneration as PaliGemmaModel
 
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                PaliGemmaModel,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                batch_class=PaliGemmaBatch,
+            )
+        else:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("PaliGemma"))
     if model_type == LLAVA_NEXT:
         if FLASH_ATTENTION:
             return VlmCausalLM(
@@ -1284,11 +1705,21 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
             )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            from transformers import LlavaNextForConditionalGeneration as LlavaNextModel
+
+            return TransformersFlashVlmCausalLM.fallback(
+                model_id,
+                LlavaNextModel,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("LlavaNext"))
 
-    if sharded:
-        raise NotImplementedError("sharded is not supported for AutoModel")
     if quantize == "gptq":
         raise NotImplementedError(
             "gptq quantization is not supported for AutoModel, you can try to quantize it with `text-generation-server quantize ORIGINAL_MODEL_ID NEW_MODEL_ID`"
@@ -1301,28 +1732,38 @@ def get_model(
         raise NotImplementedError("Eetq quantization is not supported for AutoModel")
     elif quantize == "exl2":
         raise NotImplementedError("exl2 quantization is not supported for AutoModel")
-    if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-        return CausalLM.fallback(
-            model_id,
-            revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-    if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
-        return Seq2SeqLM.fallback(
-            model_id,
-            revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
 
     auto_map = config_dict.get("auto_map", None)
-    if trust_remote_code and auto_map is not None:
-        if "AutoModelForCausalLM" in auto_map.keys():
+    model_class = None
+
+    # If the model is already in the library
+    if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
+        model_class = getattr(
+            transformers, modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[model_type]
+        )
+    elif (
+        trust_remote_code
+        and auto_map is not None
+        and "AutoModelForCausalLM" in auto_map.keys()
+    ):
+        model_class = get_class_from_dynamic_module(
+            config_dict["auto_map"]["AutoModelForCausalLM"], model_id
+        )
+
+    # This means the model is ForCausalLM
+    if model_class is not None:
+        if FLASH_TRANSFORMERS_BACKEND and model_class.is_backend_compatible():
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError("sharded is not supported for AutoModel")
+        else:
             return CausalLM.fallback(
                 model_id,
                 revision,
@@ -1331,15 +1772,25 @@ def get_model(
                 dtype=dtype,
                 trust_remote_code=trust_remote_code,
             )
-        if "AutoModelForSeq2SeqLM" in auto_map.keys():
-            return Seq2SeqLM.fallback(
-                model_id,
-                revision,
-                quantize=quantize,
-                speculator=speculator,
-                dtype=dtype,
-                trust_remote_code=trust_remote_code,
-            )
+
+    # Not supported at this point
+    if sharded:
+        raise NotImplementedError("sharded is not supported for AutoModel")
+
+    # This means it is a ForSeq2SeqLM model
+    if model_type in modeling_auto.MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES or (
+        trust_remote_code
+        and auto_map is not None
+        and "AutoModelForSeq2SeqLM" in auto_map.keys()
+    ):
+        return Seq2SeqLM.fallback(
+            model_id,
+            revision,
+            quantize=quantize,
+            speculator=speculator,
+            dtype=dtype,
+            trust_remote_code=trust_remote_code,
+        )
 
     raise ValueError(f"Unsupported model type {model_type}")
 
@@ -1422,6 +1873,9 @@ def get_model_with_lora_adapters(
                 "up_proj",
                 "down_proj",
                 "qkv_proj",
+                # add c_* layers used in starcoder2
+                "c_proj",
+                "c_fc",
             ]
 
             for layer_name in adapter_layers:

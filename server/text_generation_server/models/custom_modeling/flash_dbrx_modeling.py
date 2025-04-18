@@ -22,13 +22,14 @@ from transformers.configuration_utils import PretrainedConfig
 from typing import Optional, List, Tuple, Any
 from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 
-if SYSTEM == "rocm":
-    from vllm.model_executor.layers.fused_moe import fused_moe
-elif SYSTEM == "ipex":
+if SYSTEM == "ipex":
     from intel_extension_for_pytorch.llm.modules import GatedMLPMOE
+elif SYSTEM == "cuda":
+    moe_kernels = load_kernel(module="moe", repo_id="kernels-community/moe")
 else:
-    from moe_kernels.fused_moe import fused_moe
+    import moe_kernels
 
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -512,7 +513,7 @@ class BlockSparseMoE(nn.Module):
                 topk_group=None,
             )
         else:
-            out = fused_moe(
+            out = moe_kernels.fused_moe(
                 x,
                 self.wv1,
                 self.w2,

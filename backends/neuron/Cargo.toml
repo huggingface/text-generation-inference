@@ -1,0 +1,47 @@
+[workspace]
+members = [
+  "backends/v2",
+  "backends/grpc-metadata",
+  "launcher",
+  "router"
+]
+default-members = [
+  "backends/v2",
+  "backends/grpc-metadata",
+  "launcher",
+  "router"
+]
+resolver = "2"
+
+[workspace.package]
+version = "3.0.0"
+edition = "2021"
+authors = ["Olivier Dehaene"]
+homepage = "https://github.com/huggingface/text-generation-inference"
+
+[workspace.dependencies]
+base64 = "0.22.0"
+tokenizers = { version = "0.20.0", features = ["http"] }
+hf-hub = { version = "0.4.2", features = ["tokio"] }
+metrics = { version = "0.23.0" }
+metrics-exporter-prometheus = { version = "0.15.1", features = [] }
+minijinja = { version = "2.2.0", features = ["json"] }
+minijinja-contrib = { version = "2.0.2", features = ["pycompat"] }
+pyo3 = { version = "0.22.2", features = ["auto-initialize"] }
+
+[profile.release]
+incremental = true
+
+[profile.release-binary]
+inherits = "release"
+debug = 1
+incremental = true
+panic = "abort"
+
+[profile.release-opt]
+inherits = "release"
+debug = 0
+incremental = false
+lto = "fat"
+opt-level = 3
+codegen-units = 1

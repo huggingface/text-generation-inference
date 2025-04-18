@@ -6,9 +6,11 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple, Type, Union
 
+from loguru import logger
 import torch
 from peft import LoraConfig as _LoraConfig
 from torch.distributed import ProcessGroup
+from text_generation_server.utils.log import log_master
 
 from text_generation_server.adapters.config import AdapterConfig, ModuleMap
 
@@ -205,6 +207,14 @@ class LoraWeights(AdapterWeights):
 
         for layer_id in range(nlayers):
             key = (layer_id, layer_type)
+            if key not in target_to_layer:
+                # There is no layer of this type in the model
+                log_master(
+                    logger.warning,
+                    f"Key specified in lora weights but not found in base model: {key}",
+                )
+                return None
+
             weight_name, layer = target_to_layer[key]
             base_weight = layer.base_layer.linear.weight
             base_device = base_weight.device

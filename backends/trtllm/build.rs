@@ -3,24 +3,34 @@ use pkg_config;
 use std::env;
 use std::env::consts::ARCH;
 use std::path::{absolute, PathBuf};
+use std::sync::LazyLock;
 
-const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 2] = ["spdlog", "fmt"];
+const ADDITIONAL_BACKEND_LINK_LIBRARIES: [&str; 1] = ["spdlog"];
 const CUDA_ARCH_LIST: Option<&str> = option_env!("CUDA_ARCH_LIST");
-const CUDA_REQUIRED_VERSION: &str = "12.6";
+const CUDA_REQUIRED_VERSION: &str = "12.8";
 const MPI_REQUIRED_VERSION: &str = "4.1";
 const INSTALL_PREFIX: Option<&str> = option_env!("CMAKE_INSTALL_PREFIX");
 const TENSORRT_ROOT_DIR: Option<&str> = option_env!("TENSORRT_ROOT_DIR");
 const NCCL_ROOT_DIR: Option<&str> = option_env!("NCCL_ROOT_DIR");
 
+const IS_GHA_BUILD: LazyLock<bool> = LazyLock::new(|| {
+    option_env!("SCCACHE_GHA_ENABLED").map_or(false, |value| match value.to_lowercase().as_str() {
+        "on" => true,
+        "true" => true,
+        "1" => true,
+        _ => false,
+    })
+});
+
 // Dependencies
-const BACKEND_DEPS: [&str; 2] = ["tgi_trtllm_backend_impl", "tgi_trtllm_backend"];
+const BACKEND_DEPS: &str = "tgi_trtllm_backend_impl";
 const CUDA_TRANSITIVE_DEPS: [&str; 4] = ["cuda", "cudart", "cublas", "nvidia-ml"];
 const TENSORRT_LLM_TRANSITIVE_DEPS: [(&str, &str); 5] = [
     ("dylib", "tensorrt_llm"),
-    ("static", "tensorrt_llm_executor_static"),
     ("dylib", "tensorrt_llm_nvrtc_wrapper"),
     ("dylib", "nvinfer_plugin_tensorrt_llm"),
-    ("dylib", "decoder_attention"),
+    ("dylib", "decoder_attention_0"),
+    ("dylib", "decoder_attention_1"),
 ];
 
 macro_rules! probe {
@@ -30,6 +40,48 @@ macro_rules! probe {
                 .expect(&format!("Failed to locate {}", $name));
         }
     };
+}
+
+fn get_compiler_flag(
+    switch: bool,
+    true_case: &'static str,
+    false_case: &'static str,
+) -> &'static str {
+    match switch {
+        true => true_case,
+        false => false_case,
+    }
+}
+
+fn get_library_architecture() -> &'static str {
+    let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+    let env = env::var("CARGO_CFG_TARGET_ENV").unwrap();
+
+    match os.as_str() {
+        "linux" => {
+            if env != "gnu" {
+                panic!("unsupported linux ABI {env}, only 'gnu' is supported")
+            }
+
+            match arch.as_str() {
+                "x86_64" => "x86_64-linux-gnu",
+                "aarch64" => "aarch64-linux-gnu",
+                _ => panic!("unsupported linux architecture {arch}"),
+            }
+        }
+        "windows" => {
+            if env != "msvc" {
+                panic!("unsupported windows ABI {env}, only 'msvc' is supported")
+            }
+
+            match arch.as_str() {
+                "x86_64" => "x86_64-windows-msvc",
+                _ => panic!("unsupported windows architecture {arch}"),
+            }
+        }
+        _ => panic!("unsupported OS {os}"),
+    }
 }
 
 fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf, PathBuf) {
@@ -43,7 +95,8 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
         install_path = absolute(out_dir).expect("cannot happen").join(install_path);
     }
 
-    let _ = cmake::Config::new(".")
+    let mut config = cmake::Config::new(".");
+    config
         .uses_cxx11()
         .generator("Ninja")
         .profile(match is_debug {
@@ -53,9 +106,50 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
         .env("OPT_LEVEL", opt_level)
         .define("CMAKE_INSTALL_PREFIX", &install_path)
         .define("CMAKE_CUDA_COMPILER", "/usr/local/cuda/bin/nvcc")
+        .define("CMAKE_LIBRARY_ARCHITECTURE", get_library_architecture())
         .define("TGI_TRTLLM_BACKEND_TARGET_CUDA_ARCH_LIST", cuda_arch_list)
-        .define("TGI_TRTLLM_BACKEND_TRT_ROOT", tensorrt_path)
-        .build();
+        .define(
+            "TGI_TRTLLM_BACKEND_DEBUG",
+            get_compiler_flag(is_debug, "ON", "OFF"),
+        )
+        .define("TGI_TRTLLM_BACKEND_TRT_ROOT", tensorrt_path);
+
+    if is_debug || *IS_GHA_BUILD {
+        config.define("TGI_TRTLLM_BACKEND_BUILD_TESTS", "ON");
+    }
+
+    if option_env!("USE_LLD_LINKER").is_some() {
+        println!("cargo:warning=Using lld linker");
+        config.define("TGI_TRTLLM_BACKEND_BUILD_USE_LLD", "ON");
+    }
+
+    if (is_debug && option_env!("ENABLE_ASAN").is_some()) || *IS_GHA_BUILD {
+        println!("cargo:warning=Enabling Address Sanitizer");
+        config.define("TGI_TRTLLM_BACKEND_ENABLE_ASAN", "ON");
+    }
+
+    if (is_debug && option_env!("ENABLE_UBSAN").is_some()) || *IS_GHA_BUILD {
+        println!("cargo:warning=Enabling Undefined Sanitizer");
+        config.define("TGI_TRTLLM_BACKEND_ENABLE_UBSAN", "ON");
+    }
+
+    if let Some(nvcc_host_compiler) = option_env!("CMAKE_CUDA_HOST_COMPILER") {
+        config.define("CMAKE_CUDA_HOST_COMPILER", nvcc_host_compiler);
+    }
+
+    if let Some(wrapper) = option_env!("RUSTC_WRAPPER") {
+        println!("cargo:warning=Using caching tool: {wrapper}");
+        config.define("CMAKE_C_COMPILER_LAUNCHER", wrapper);
+        config.define("CMAKE_CXX_COMPILER_LAUNCHER", wrapper);
+        config.define("CMAKE_CUDA_COMPILER_LAUNCHER", wrapper);
+    }
+
+    // Allow to override which Python to use ...
+    if let Some(python3) = option_env!("Python3_EXECUTABLE") {
+        config.define("Python3_EXECUTABLE", python3);
+    }
+
+    config.build();
 
     // Additional transitive CMake dependencies
     let deps_folder = out_dir.join("build").join("_deps");
@@ -70,46 +164,43 @@ fn build_backend(is_debug: bool, opt_level: &str, out_dir: &PathBuf) -> (PathBuf
     }
 
     // Emit linkage information from the artifacts we just built
-    let install_lib_path = install_path.join("lib");
-
-    println!(
-        r"cargo:warning=Adding link search path: {}",
-        install_lib_path.display()
-    );
-    println!(r"cargo:rustc-link-search={}", install_lib_path.display());
-
+    for path in ["lib", "lib64"] {
+        let install_lib_path = install_path.join(path);
+        println!(
+            r"cargo:warning=Adding link search path: {}",
+            install_lib_path.display()
+        );
+        println!(r"cargo:rustc-link-search={}", install_lib_path.display());
+    }
     (PathBuf::from(install_path), deps_folder)
 }
 
 fn build_ffi_layer(deps_folder: &PathBuf, is_debug: bool) {
-    let ndebug = match is_debug {
-        true => "1",
-        false => "0",
-    };
-
     CFG.include_prefix = "backends/trtllm";
     cxx_build::bridge("src/lib.rs")
         .static_flag(true)
-        .include(deps_folder.join("fmt-src").join("include"))
+        .std("c++23")
         .include(deps_folder.join("spdlog-src").join("include"))
         .include(deps_folder.join("json-src").join("include"))
         .include(deps_folder.join("trtllm-src").join("cpp").join("include"))
         .include("/usr/local/cuda/include")
         .include("/usr/local/tensorrt/include")
-        .file("src/ffi.cpp")
-        .std("c++20")
-        .define("NDEBUG", ndebug)
+        .include("csrc/")
+        .file("csrc/ffi.hpp")
+        .define(
+            "TGI_TRTLLM_BACKEND_DEBUG",
+            get_compiler_flag(is_debug, "ON", "OFF"),
+        )
         .compile("tgi_trtllm_backend");
 
     println!("cargo:rerun-if-changed=CMakeLists.txt");
     println!("cargo:rerun-if-changed=cmake/trtllm.cmake");
     println!("cargo:rerun-if-changed=cmake/json.cmake");
-    println!("cargo:rerun-if-changed=cmake/fmt.cmake");
     println!("cargo:rerun-if-changed=cmake/spdlog.cmake");
-    println!("cargo:rerun-if-changed=include/backend.h");
-    println!("cargo:rerun-if-changed=lib/backend.cpp");
-    println!("cargo:rerun-if-changed=include/ffi.h");
-    println!("cargo:rerun-if-changed=src/ffi.cpp");
+    println!("cargo:rerun-if-changed=csrc/backend.hpp");
+    println!("cargo:rerun-if-changed=csrc/backend.cpp");
+    println!("cargo:rerun-if-changed=csrc/hardware.hpp");
+    println!("cargo:rerun-if-changed=csrc/ffi.hpp");
 }
 
 fn main() {
@@ -118,6 +209,7 @@ fn main() {
     let build_profile = env::var("PROFILE").unwrap();
     let (is_debug, opt_level) = match build_profile.as_ref() {
         "debug" => (true, "0"),
+        "dev" => (true, "0"),
         _ => (false, "3"),
     };
 
@@ -154,7 +246,5 @@ fn main() {
         });
 
     // Backend
-    BACKEND_DEPS.iter().for_each(|name| {
-        println!("cargo:rustc-link-lib=static={}", name);
-    });
+    println!("cargo:rustc-link-lib=static={}", &BACKEND_DEPS);
 }

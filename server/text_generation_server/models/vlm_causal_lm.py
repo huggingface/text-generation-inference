@@ -13,6 +13,7 @@ from text_generation_server.models.flash_causal_lm import (
     FlashCausalLM,
 )
 from text_generation_server.models.globals import PREFIX_CACHING, ATTENTION
+from loguru import logger
 from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
 from text_generation_server.layers.attention import Seqlen
@@ -22,6 +23,67 @@ tracer = trace.get_tracer(__name__)
 
 IDEFICS2_FAKE_TOKEN = "<fake_token_around_image>"
 IDEFICS2_IMAGE_TOKEN = "<image>"
+
+IDEFICS3_IMAGE_TOKEN = "<image>"
+IDEFICS3_FAKE_IMAGE_TOKEN = "<fake_token_around_image>"
+IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
+
+
+def prompt_split_image_llama4(aspect_ratio, num_patches_per_chunk):
+    """
+    Create a structured string representation of image tokens
+
+    Args:
+       num_patches: Number of patches in the image
+
+    Returns:
+        String with appropriate image tokens
+    """
+    img_string = "<|image_start|>"
+    ratio_h, ratio_w = aspect_ratio
+    if ratio_h * ratio_w > 1:
+        for yy in range(ratio_h):
+            for xx in range(ratio_w):
+                img_string += "<|patch|>" * num_patches_per_chunk
+                if xx < ratio_w - 1:
+                    img_string += "<|tile_x_separator|>"
+
+            img_string += "<|tile_y_separator|>"
+    img_string += "<|image|>"
+    img_string += "<|patch|>" * num_patches_per_chunk
+    img_string += "<|image_end|>"
+
+    return img_string
+
+
+# copied from: https://github.com/huggingface/transformers/blob/02ed609285c2448b3b54c31e362f2c389fa952ab/src/transformers/models/idefics3/processing_idefics3.py#L44-L60
+def _prompt_split_image(
+    *,
+    image_seq_len: int,
+    image_rows: int,
+    image_cols: int,
+    fake_token_around_image: str,
+    image_token: str,
+    global_img_token: str,
+):
+    """Prompt with expanded image tokens for when the image is split into patches."""
+    text_split_images = ""
+    for n_h in range(image_rows):
+        for n_w in range(image_cols):
+            text_split_images += (
+                f"{fake_token_around_image}"
+                + f"<row_{n_h + 1}_col_{n_w + 1}>"
+                + f"{image_token}" * image_seq_len
+            )
+        text_split_images += "\n"
+
+    text_split_images += (
+        f"\n{fake_token_around_image}"
+        + f"{global_img_token}"
+        + f"{image_token}" * image_seq_len
+        + f"{fake_token_around_image}"
+    )
+    return text_split_images
 
 
 def get_anyres_image_grid_shape(image_size, grid_pinpoints, patch_size):
@@ -54,10 +116,26 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         if processor.image_processor.do_image_splitting:
             image_str *= 5
         return image_str
+    if config.model_type == "idefics3":
+        # TODO: implement this in a more general way
+        n_rows = image_input["rows"][0][image_id]
+        n_cols = image_input["cols"][0][image_id]
+        image_seq_len = int(
+            ((config.vision_config.image_size // config.vision_config.patch_size) ** 2)
+            / (config.scale_factor**2)
+        )
+        image_str = _prompt_split_image(
+            image_seq_len=image_seq_len,
+            image_rows=n_rows,
+            image_cols=n_cols,
+            fake_token_around_image=IDEFICS3_FAKE_IMAGE_TOKEN,
+            image_token=IDEFICS3_IMAGE_TOKEN,
+            global_img_token=IDEFICS3_GLOBAL_IMG_TOKEN,
+        )
+        return image_str
     elif config.model_type == "llava_next":
         height, width = image_input["image_sizes"][image_id]
         num_features = get_number_of_features(height, width, config)
-        from loguru import logger
 
         log_master(
             logger.info,
@@ -68,9 +146,38 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
     elif config.model_type == "paligemma":
         return "<image>" * config.text_config.num_image_tokens
     elif config.model_type == "qwen2_vl":
-        num_pads = image_input.pixel_values.shape[0] // 4
+        grid_t, grid_h, grid_w = image_input["image_grid_thw"][image_id]
+        num_pads = grid_t * grid_h * grid_w // 4
         padding = "<|image_pad|>" * num_pads
         return f"<|vision_start|>{padding}<|vision_end|>"
+    elif config.model_type == "qwen2_5_vl":
+        grid_t, grid_h, grid_w = image_input["image_grid_thw"][image_id]
+        num_pads = grid_t * grid_h * grid_w // 4
+        padding = "<|image_pad|>" * num_pads
+        return f"<|vision_start|>{padding}<|vision_end|>"
+    elif config.model_type == "gemma3":
+        # TODO: get correct number of features via reviewing the Gemma3 architecture
+        # and calculating the number of image tokens
+        num_pads = 256
+        padding = "<image_soft_token>" * num_pads
+        return f"\n\n<start_of_image>{padding}<end_of_image>\n\n"
+    elif config.model_type == "llama4":
+        patch_size = config.vision_config.patch_size
+        pixel_shuffle_ratio = config.vision_config.pixel_shuffle_ratio
+        downsample_ratio = int(round(1.0 / (pixel_shuffle_ratio**2)))
+        aspect_ratios = image_input["aspect_ratios"][image_id]
+        image_height, image_width = image_input["pixel_values"][image_id].shape[-2:]
+
+        num_patches_per_chunk = int(
+            (image_height // patch_size)
+            * (image_width // patch_size)
+            // downsample_ratio
+        )
+        tokens_for_this_image = prompt_split_image_llama4(
+            aspect_ratios, num_patches_per_chunk
+        )
+
+        return tokens_for_this_image
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -179,7 +286,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     image = Image.open(BytesIO(chunk.image.data))
                     # qwen2_vl expects images to be greater than 20 pixels, this is for warmup since the
                     # default warmup image is 20x20
-                    if config.model_type == "qwen2_vl":
+                    if config.model_type in {"qwen2_vl", "qwen2_5_vl"}:
                         if image.width <= 20:
                             w = image.width * 2
                             h = image.height * 2
@@ -187,18 +294,31 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
                     if config.model_type == "llava_next":
                         images.append(image)
+                    elif config.model_type == "gemma3":
+                        images.append(image)
+                    elif config.model_type == "llama4":
+                        images.append(image)
                     else:
                         images.append([image])
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
         if images:
-            image_inputs = processor.image_processor(images, return_tensors="pt")
+            kwargs = {}
+            if (
+                hasattr(processor, "image_processor_class")
+                and processor.image_processor_class == "Idefics3ImageProcessor"
+            ):
+                kwargs["return_row_col_info"] = True
+
+            image_inputs = processor.image_processor(
+                images, return_tensors="pt", **kwargs
+            )
         else:
             image_inputs = None
 
-        batch_inputs = []
-        max_truncation = 0
+        batch_tokenized_inputs = []
+        max_length = 0
         image_id = 0
         for r in requests:
             full_text = ""
@@ -211,18 +331,16 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         processor, image_inputs, config, image_id
                     )
                     image_id += 1
-
+            # from pdb import set_trace; set_trace()
             full_text = image_text_replacement_fixup(config, full_text)
-
-            batch_inputs.append(full_text)
-            max_truncation = max(max_truncation, r.truncate)
-
-        batch_tokenized_inputs = tokenizer(
-            batch_inputs,
-            truncation=True,
-            max_length=max_truncation,
-            add_special_tokens=not config.model_type == "paligemma",
-        )["input_ids"]
+            input_ids = tokenizer(
+                full_text,
+                truncation=True,
+                max_length=r.truncate,
+                add_special_tokens=r.add_special_tokens,
+            )["input_ids"]
+            max_length = max(max_length, len(input_ids))
+            batch_tokenized_inputs.append(input_ids)
 
         return batch_tokenized_inputs, image_inputs
 
@@ -300,9 +418,6 @@ class VlmCausalLM(FlashCausalLM):
     def batch_type(self) -> Type[VlmCausalLMBatch]:
         return self.batch_class
 
-    def max_past(self) -> Optional[int]:
-        return getattr(self.model.text_model, "max_past", None)
-
     def forward(
         self,
         batch: VlmCausalLMBatch,
@@ -363,18 +478,20 @@ class VlmCausalLM(FlashCausalLM):
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
-        if self.model.config.model_type == "qwen2_vl":
+        if self.model.config.model_type in {"qwen2_vl", "qwen2_5_vl"}:
             if position_ids.dim() == 1 and batch.prefilling:
                 position_ids = self.model.get_position_ids(
                     input_ids, batch.image_grid_thw
                 )
                 batch.position_ids = position_ids
 
-        if cu_seqlen_prefill is None and self.max_past() is not None:
-            # In decode, not prefill, we're actually overwriting the KV-cache
-            # in a circular buffer mode.
-            # This makes sure the max_s for the decode pass is correct.
-            max_s = min(self.max_past(), max_s)
+        if self.model.config.model_type == "gemma3" and cu_seqlen_prefill is not None:
+            # Get the mask, needed for flashinfer.
+            attention_mask = self.model.get_attention_mask(
+                input_ids, cu_seqlen_prefill, self.dtype, bool_mask=True
+            ).reshape(-1)
+        else:
+            attention_mask = None
 
         # Try to find an associated cuda graph
         bs = input_ids.shape[0]
@@ -399,6 +516,7 @@ class VlmCausalLM(FlashCausalLM):
                 cu_seqlen_prefill=cu_seqlen_prefill,
                 input_lengths_tensor=input_lengths,
                 cache_lengths_tensor=cache_lengths_tensor,
+                attention_mask=attention_mask,
             ):
                 seqlen = Seqlen(
                     input_lengths=input_lengths,

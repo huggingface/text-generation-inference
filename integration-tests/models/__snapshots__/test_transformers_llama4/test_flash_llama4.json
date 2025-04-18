@@ -1,0 +1,613 @@
+{
+  "details": {
+    "best_of_sequences": null,
+    "finish_reason": "length",
+    "generated_tokens": 100,
+    "prefill": [],
+    "seed": null,
+    "tokens": [
+      {
+        "id": 2721,
+        "logprob": -0.21582031,
+        "special": false,
+        "text": " people"
+      },
+      {
+        "id": 21807,
+        "logprob": -0.26953125,
+        "special": false,
+        "text": " died"
+      },
+      {
+        "id": 310,
+        "logprob": -0.95703125,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 290,
+        "logprob": -1.3359375,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 220,
+        "logprob": -1.3828125,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 7284,
+        "logprob": -0.011291504,
+        "special": false,
+        "text": "191"
+      },
+      {
+        "id": 36,
+        "logprob": -0.011413574,
+        "special": false,
+        "text": "8"
+      },
+      {
+        "id": 18938,
+        "logprob": -0.23242188,
+        "special": false,
+        "text": " flu"
+      },
+      {
+        "id": 27650,
+        "logprob": -0.0010070801,
+        "special": false,
+        "text": " pandemic"
+      },
+      {
+        "id": 26,
+        "logprob": -0.69140625,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 114059,
+        "logprob": -1.4375,
+        "special": false,
+        "text": " Estimating"
+      },
+      {
+        "id": 290,
+        "logprob": -0.24316406,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 10593,
+        "logprob": -0.37304688,
+        "special": false,
+        "text": " death"
+      },
+      {
+        "id": 49973,
+        "logprob": -0.025390625,
+        "special": false,
+        "text": " toll"
+      },
+      {
+        "id": 323,
+        "logprob": -0.27539062,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 290,
+        "logprob": -0.057617188,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 220,
+        "logprob": -0.040527344,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 7284,
+        "logprob": -0.00050735474,
+        "special": false,
+        "text": "191"
+      },
+      {
+        "id": 36,
+        "logprob": -9.298325e-06,
+        "special": false,
+        "text": "8"
+      },
+      {
+        "id": 18938,
+        "logprob": -0.09863281,
+        "special": false,
+        "text": " flu"
+      },
+      {
+        "id": 27650,
+        "logprob": -0.0011749268,
+        "special": false,
+        "text": " pandemic"
+      },
+      {
+        "id": 373,
+        "logprob": -0.32421875,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 8210,
+        "logprob": -0.58203125,
+        "special": false,
+        "text": " difficult"
+      },
+      {
+        "id": 2895,
+        "logprob": -0.40429688,
+        "special": false,
+        "text": " because"
+      },
+      {
+        "id": 323,
+        "logprob": -1.2734375,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 49119,
+        "logprob": -0.51171875,
+        "special": false,
+        "text": " incomplete"
+      },
+      {
+        "id": 13308,
+        "logprob": -0.38085938,
+        "special": false,
+        "text": " records"
+      },
+      {
+        "id": 341,
+        "logprob": -0.55859375,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 2895,
+        "logprob": -0.765625,
+        "special": false,
+        "text": " because"
+      },
+      {
+        "id": 323,
+        "logprob": -1.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 290,
+        "logprob": -0.828125,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 2304,
+        "logprob": -1.015625,
+        "special": false,
+        "text": " fact"
+      },
+      {
+        "id": 511,
+        "logprob": -0.004638672,
+        "special": false,
+        "text": " that"
+      },
+      {
+        "id": 2233,
+        "logprob": -0.953125,
+        "special": false,
+        "text": " many"
+      },
+      {
+        "id": 323,
+        "logprob": -0.87890625,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 290,
+        "logprob": -0.60546875,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 6759,
+        "logprob": -1.6484375,
+        "special": false,
+        "text": " extra"
+      },
+      {
+        "id": 40657,
+        "logprob": -0.00022125244,
+        "special": false,
+        "text": " deaths"
+      },
+      {
+        "id": 1610,
+        "logprob": -0.67578125,
+        "special": false,
+        "text": " were"
+      },
+      {
+        "id": 702,
+        "logprob": -0.30664062,
+        "special": false,
+        "text": " not"
+      },
+      {
+        "id": 48692,
+        "logprob": -0.1953125,
+        "special": false,
+        "text": " attributed"
+      },
+      {
+        "id": 328,
+        "logprob": -0.0079956055,
+        "special": false,
+        "text": " to"
+      },
+      {
+        "id": 290,
+        "logprob": -0.515625,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 18938,
+        "logprob": -0.0040893555,
+        "special": false,
+        "text": " flu"
+      },
+      {
+        "id": 26,
+        "logprob": -0.083496094,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 13618,
+        "logprob": -0.515625,
+        "special": false,
+        "text": " Many"
+      },
+      {
+        "id": 22215,
+        "logprob": -1.5703125,
+        "special": false,
+        "text": " experts"
+      },
+      {
+        "id": 11081,
+        "logprob": -0.96875,
+        "special": false,
+        "text": " believe"
+      },
+      {
+        "id": 511,
+        "logprob": -0.1171875,
+        "special": false,
+        "text": " that"
+      },
+      {
+        "id": 290,
+        "logprob": -0.25195312,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 220,
+        "logprob": -0.828125,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 7284,
+        "logprob": -0.00010967255,
+        "special": false,
+        "text": "191"
+      },
+      {
+        "id": 36,
+        "logprob": -8.535385e-05,
+        "special": false,
+        "text": "8"
+      },
+      {
+        "id": 18938,
+        "logprob": -0.056152344,
+        "special": false,
+        "text": " flu"
+      },
+      {
+        "id": 27650,
+        "logprob": -0.0007095337,
+        "special": false,
+        "text": " pandemic"
+      },
+      {
+        "id": 26132,
+        "logprob": -0.18847656,
+        "special": false,
+        "text": " killed"
+      },
+      {
+        "id": 1867,
+        "logprob": -0.71484375,
+        "special": false,
+        "text": " between"
+      },
+      {
+        "id": 220,
+        "logprob": -0.0062561035,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 1175,
+        "logprob": -0.009277344,
+        "special": false,
+        "text": "50"
+      },
+      {
+        "id": 341,
+        "logprob": -0.15332031,
+        "special": false,
+        "text": " and"
+      },
+      {
+        "id": 220,
+        "logprob": -8.34465e-07,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 1135,
+        "logprob": -0.00065612793,
+        "special": false,
+        "text": "100"
+      },
+      {
+        "id": 5534,
+        "logprob": -1.4066696e-05,
+        "special": false,
+        "text": " million"
+      },
+      {
+        "id": 2721,
+        "logprob": -0.0008392334,
+        "special": false,
+        "text": " people"
+      },
+      {
+        "id": 26,
+        "logprob": -0.54296875,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 372,
+        "logprob": -1.8046875,
+        "special": false,
+        "text": " I"
+      },
+      {
+        "id": 140680,
+        "logprob": -0.578125,
+        "special": false,
+        "text": "assistant"
+      },
+      {
+        "id": 200006,
+        "logprob": 0.0,
+        "special": true,
+        "text": "<|header_end|>"
+      },
+      {
+        "id": 368,
+        "logprob": 0.0,
+        "special": false,
+        "text": "\n\n"
+      },
+      {
+        "id": 954,
+        "logprob": -0.032226562,
+        "special": false,
+        "text": "The"
+      },
+      {
+        "id": 220,
+        "logprob": -4.4345856e-05,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 7284,
+        "logprob": 0.0,
+        "special": false,
+        "text": "191"
+      },
+      {
+        "id": 36,
+        "logprob": 0.0,
+        "special": false,
+        "text": "8"
+      },
+      {
+        "id": 18938,
+        "logprob": -0.015625,
+        "special": false,
+        "text": " flu"
+      },
+      {
+        "id": 27650,
+        "logprob": 0.0,
+        "special": false,
+        "text": " pandemic"
+      },
+      {
+        "id": 24,
+        "logprob": -0.0072021484,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 1437,
+        "logprob": -0.0001707077,
+        "special": false,
+        "text": " also"
+      },
+      {
+        "id": 5711,
+        "logprob": 0.0,
+        "special": false,
+        "text": " known"
+      },
+      {
+        "id": 486,
+        "logprob": 0.0,
+        "special": false,
+        "text": " as"
+      },
+      {
+        "id": 290,
+        "logprob": -5.9604645e-07,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 25836,
+        "logprob": -1.4305115e-06,
+        "special": false,
+        "text": " Spanish"
+      },
+      {
+        "id": 18938,
+        "logprob": -0.0015029907,
+        "special": false,
+        "text": " flu"
+      },
+      {
+        "id": 24,
+        "logprob": -0.0052490234,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 373,
+        "logprob": -0.3125,
+        "special": false,
+        "text": " is"
+      },
+      {
+        "id": 26078,
+        "logprob": -0.21289062,
+        "special": false,
+        "text": " indeed"
+      },
+      {
+        "id": 1085,
+        "logprob": -0.080078125,
+        "special": false,
+        "text": " one"
+      },
+      {
+        "id": 323,
+        "logprob": 0.0,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 290,
+        "logprob": 0.0,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 2167,
+        "logprob": -0.20117188,
+        "special": false,
+        "text": " most"
+      },
+      {
+        "id": 92679,
+        "logprob": -0.12695312,
+        "special": false,
+        "text": " devastating"
+      },
+      {
+        "id": 854,
+        "logprob": -0.25976562,
+        "special": false,
+        "text": " public"
+      },
+      {
+        "id": 4500,
+        "logprob": 0.0,
+        "special": false,
+        "text": " health"
+      },
+      {
+        "id": 93079,
+        "logprob": -0.50390625,
+        "special": false,
+        "text": " crises"
+      },
+      {
+        "id": 310,
+        "logprob": 0.0,
+        "special": false,
+        "text": " in"
+      },
+      {
+        "id": 6023,
+        "logprob": -0.0015182495,
+        "special": false,
+        "text": " human"
+      },
+      {
+        "id": 7068,
+        "logprob": 0.0,
+        "special": false,
+        "text": " history"
+      },
+      {
+        "id": 26,
+        "logprob": -0.0012664795,
+        "special": false,
+        "text": "."
+      },
+      {
+        "id": 114059,
+        "logprob": -0.004119873,
+        "special": false,
+        "text": " Estimating"
+      },
+      {
+        "id": 290,
+        "logprob": -0.00033569336,
+        "special": false,
+        "text": " the"
+      },
+      {
+        "id": 6318,
+        "logprob": -0.20117188,
+        "special": false,
+        "text": " exact"
+      }
+    ],
+    "top_tokens": null
+  },
+  "generated_text": " people died in the 1918 flu pandemic. Estimating the death toll of the 1918 flu pandemic is difficult because of incomplete records and because of the fact that many of the extra deaths were not attributed to the flu. Many experts believe that the 1918 flu pandemic killed between 50 and 100 million people. Iassistant\n\nThe 1918 flu pandemic, also known as the Spanish flu, is indeed one of the most devastating public health crises in human history. Estimating the exact"
+}

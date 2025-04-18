@@ -1,0 +1,4 @@
+transformers==4.49
+huggingface-hub==0.28.1
+hf-transfer==0.1.9
+torch==2.6.0

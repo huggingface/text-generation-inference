@@ -1,0 +1,167 @@
+# Fetch and extract the TGI sources
+FROM alpine AS tgi
+RUN mkdir -p /tgi
+
+# Fetch the optimum-neuron sources directly to avoid relying on pypi deployments
+FROM alpine AS optimum-neuron
+RUN mkdir -p /optimum-neuron
+ADD https://github.com/huggingface/optimum-neuron/archive/refs/tags/v0.1.0.tar.gz /optimum-neuron/sources.tar.gz
+RUN tar -C /optimum-neuron -xf /optimum-neuron/sources.tar.gz --strip-components=1
+
+# Build cargo components (adapted from TGI original Dockerfile)
+# Note: we cannot use the cargo-chef base image as it uses python 3.11
+FROM ubuntu:22.04 AS chef
+
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends \
+    curl ca-certificates build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain 1.85.1 --profile minimal -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN cargo install cargo-chef --locked
+
+WORKDIR /usr/src
+
+FROM chef AS planner
+COPY backends/neuron/Cargo.toml Cargo.toml
+COPY Cargo.lock Cargo.lock
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY router router
+COPY backends backends
+COPY launcher launcher
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends \
+    unzip python3-dev libssl-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+RUN PROTOC_ZIP=protoc-21.12-linux-x86_64.zip && \
+    curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v21.12/$PROTOC_ZIP && \
+    unzip -o $PROTOC_ZIP -d /usr/local bin/protoc && \
+    unzip -o $PROTOC_ZIP -d /usr/local 'include/*' && \
+    rm -f $PROTOC_ZIP
+
+COPY backends/neuron/Cargo.toml Cargo.toml
+COPY --from=planner /usr/src/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+COPY Cargo.lock Cargo.lock
+COPY rust-toolchain.toml rust-toolchain.toml
+COPY proto proto
+COPY router router
+COPY backends backends
+COPY launcher launcher
+RUN cargo build --release
+
+# Python base image
+FROM ubuntu:22.04 AS base
+
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends \
+    python3-pip \
+    python3-setuptools \
+    python-is-python3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+RUN pip3 --no-cache-dir install --upgrade pip
+
+# Python server build image
+FROM base AS pyserver
+
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends \
+    make \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+RUN install -d /pyserver
+WORKDIR /pyserver
+COPY backends/neuron/server server
+COPY proto proto
+RUN pip3 install -r server/build-requirements.txt
+RUN VERBOSE=1 BUILDDIR=/pyserver/build PROTODIR=/pyserver/proto make -C server package
+
+# Neuron base image (used for deployment)
+FROM base AS neuron
+
+# Install system prerequisites
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends \
+    gnupg2 \
+    wget \
+    python3-dev \
+    libexpat1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+RUN echo "deb https://apt.repos.neuron.amazonaws.com jammy main" > /etc/apt/sources.list.d/neuron.list
+RUN wget -qO - https://apt.repos.neuron.amazonaws.com/GPG-PUB-KEY-AMAZON-AWS-NEURON.PUB | apt-key add -
+
+# Install neuronx packages
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends \
+    aws-neuronx-dkms=2.19.64.0 \
+    aws-neuronx-collectives=2.23.135.0-3e70920f2 \
+    aws-neuronx-runtime-lib=2.23.112.0-9b5179492 \
+    aws-neuronx-tools=2.20.204.0 \
+    libxml2 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+ENV PATH="/opt/bin/:/opt/aws/neuron/bin:${PATH}"
+
+# Install manually torch CPU version to avoid pulling CUDA
+RUN pip3 install \
+    torch==2.5.1 \
+    torchvision==0.20.1 \
+    --index-url https://download.pytorch.org/whl/cpu
+
+RUN pip3 install \
+    neuronx-cc==2.16.372.0 \
+    torch-neuronx==2.5.1.2.4.0 \
+    transformers-neuronx==0.13.322 \
+    neuronx-distributed==0.10.1 \
+    libneuronxla==2.1.681.0 \
+    --extra-index-url=https://pip.repos.neuron.amazonaws.com
+
+# Install HuggingFace packages
+RUN pip3 install \
+    hf_transfer huggingface_hub
+
+# Install optimum-neuron
+COPY --from=optimum-neuron /optimum-neuron optimum-neuron
+RUN pip3 install ./optimum-neuron
+
+# TGI base env
+ENV HUGGINGFACE_HUB_CACHE=/tmp \
+    HF_HUB_ENABLE_HF_TRANSFER=1 \
+    PORT=80
+
+# Disable color logs as they are not supported by CloudWatch
+ENV LOGURU_COLORIZE=NO
+ENV LOG_COLORIZE=0
+
+# Install router
+COPY --from=builder /usr/src/target/release/text-generation-router-v2 /usr/local/bin/text-generation-router
+# Install launcher
+COPY --from=builder /usr/src/target/release/text-generation-launcher /usr/local/bin/text-generation-launcher
+# Install python server
+COPY --from=pyserver /pyserver/build/dist dist
+RUN pip install dist/text_generation_server*.tar.gz
+
+# Final image
+FROM neuron
+
+COPY backends/neuron/tgi_env.py /tgi_env.py
+COPY backends/neuron/tgi-entrypoint.sh /tgi-entrypoint.sh
+RUN chmod +x /tgi-entrypoint.sh
+
+ENTRYPOINT ["/tgi-entrypoint.sh"]

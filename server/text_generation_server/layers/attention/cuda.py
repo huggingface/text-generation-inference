@@ -1,6 +1,7 @@
 import torch
 from text_generation_server.layers.attention.kv_cache import KVCache, KVScales
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.models.globals import (
     ATTENTION,
     BLOCK_SIZE,
@@ -12,6 +13,18 @@ from typing import Optional
 major, minor = torch.cuda.get_device_capability()
 is_sm75 = major == 7 and minor == 5
 _PARTITION_SIZE = 512
+
+if SYSTEM == "cuda":
+    try:
+        paged_attention_kernels = load_kernel(
+            module="paged_attention", repo_id="kernels-community/paged-attention"
+        )
+    except Exception as e:
+        raise ImportError(
+            f"Could not import attention kernels. Make sure your installation is correct. Complete error: {e}"
+        )
+else:
+    paged_attention_kernels = None
 
 
 def paged_attention(
@@ -25,6 +38,7 @@ def paged_attention(
     *,
     kv_scales: KVScales,
     softcap: Optional[float] = None,
+    window_size_left: Optional[int] = -1,
 ):
     # Adapted from: https://github.com/vllm-project/vllm/blob/f8a1e39fae05ca610be8d5a78be9d40f5274e5fc/vllm/model_executor/layers/attention.py
     # Copyright 2023 The vLLM team. All rights
@@ -60,18 +74,20 @@ def paged_attention(
         from text_generation_server.layers.attention.flashinfer import decode_state
 
         return decode_state.get().forward(
-            # TODO: remove `contiguous` call once https://github.com/flashinfer-ai/flashinfer/pull/553 is merged.
-            query.contiguous(),
+            query,
             paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
             k_scale=kv_scales.key_scale_cpu if can_scale else 1.0,
             v_scale=kv_scales.value_scale_cpu if can_scale else 1.0,
+            window_left=window_size_left,
         )
     elif ATTENTION == "flashdecoding":
         max_q = 1
         max_k = max_s
         import flash_attn_2_cuda
+
+        window_size_right = -1 if window_size_left == -1 else 0
 
         # TODO fixme when flash contains the fix.
         # Number of splits is not correctly handled
@@ -97,8 +113,8 @@ def paged_attention(
             softmax_scale,
             False,  # zero_tensors
             True,  # causal
-            -1,  # Window_left
-            -1,  # Window right
+            window_size_left,  # Window_left
+            window_size_right,  # Window right
             softcap,
             False,  # return softmax
             None,  # generator
@@ -108,28 +124,30 @@ def paged_attention(
         if softcap is not None:
             raise RuntimeError("Paged attention doesn't support softcapping")
         input_lengths = seqlen.input_lengths + seqlen.cache_lengths
-        import attention_kernels
 
         out = torch.empty_like(query)
+
+        kv_cache_dtype = "fp8" if kv_cache.dtype == torch.float8_e4m3fn else "auto"
 
         use_v1 = max_s <= 8192 and (
             max_num_partitions == 1 or num_seqs * num_heads > 512
         )
         if use_v1:
-            attention_kernels.paged_attention_v1(
+            paged_attention_kernels.paged_attention_v1(
                 out,
                 query,
                 kv_cache.key,
                 kv_cache.value,
-                kv_head_mapping,
+                kv_cache.key.shape[1],
                 softmax_scale,
                 block_tables,
                 input_lengths,
                 block_size,
                 max_s,
                 None,
-                "auto",
-                1.0,
+                kv_cache_dtype,
+                torch.tensor(kv_scales.key_scale_cpu if can_scale else 1.0),
+                torch.tensor(kv_scales.value_scale_cpu if can_scale else 1.0),
             )
         else:
             # Run PagedAttention V2.
@@ -146,7 +164,7 @@ def paged_attention(
             )
             max_logits = torch.empty_like(exp_sums)
 
-            attention_kernels.paged_attention_v2(
+            paged_attention_kernels.paged_attention_v2(
                 out,
                 exp_sums,
                 max_logits,
@@ -154,15 +172,16 @@ def paged_attention(
                 query,
                 kv_cache.key,
                 kv_cache.value,
-                kv_head_mapping,
+                kv_cache.key.shape[1],
                 softmax_scale,
                 block_tables,
                 input_lengths,
                 block_size,
                 max_s,
                 None,
-                "auto",
-                1.0,
+                kv_cache_dtype,
+                torch.tensor(kv_scales.key_scale_cpu if can_scale else 1.0),
+                torch.tensor(kv_scales.value_scale_cpu if can_scale else 1.0),
             )
     return out
 
@@ -231,15 +250,14 @@ def attention(
             softcap = 0.0
 
         return prefill_with_paged_kv_state.get().forward(
-            # TODO: remove `contiguous` call once https://github.com/flashinfer-ai/flashinfer/pull/553 is merged.
-            query.contiguous(),
+            query,
             causal=causal,
             paged_kv_cache=(kv_cache.key, kv_cache.value),
             logits_soft_cap=softcap,
             sm_scale=softmax_scale,
-            window_left=window_size_left,
             k_scale=kv_scales.key_scale_cpu if can_scale else 1.0,
             v_scale=kv_scales.value_scale_cpu if can_scale else 1.0,
+            window_left=window_size_left,
         )
 
     # If we are using flashdecoding or paged, we always use flash-attn for

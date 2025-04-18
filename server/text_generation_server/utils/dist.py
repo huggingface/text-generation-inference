@@ -1,6 +1,6 @@
 import os
 import torch
-
+from torch.distributed import ProcessGroup
 from datetime import timedelta
 from loguru import logger
 from text_generation_server.utils.import_utils import SYSTEM
@@ -18,10 +18,11 @@ class FakeBarrier:
         pass
 
 
-class FakeGroup:
+class FakeGroup(ProcessGroup):
     def __init__(self, rank, size):
         self._rank = rank
         self._size = size
+        super().__init__(rank, size)
 
     def allreduce(self, *args, **kwargs):
         return FakeBarrier()
@@ -72,6 +73,13 @@ def initialize_torch_distributed():
             if SYSTEM == "ipex":
                 import intel_extension_for_pytorch as ipex
 
+                if torch.xpu.is_available():
+                    assert (
+                        WORLD_SIZE <= torch.xpu.device_count()
+                    ), "Each process is one xpu"
+                    device = RANK % torch.xpu.device_count()
+                    torch.xpu.set_device(device)
+
                 ipex.distributed.init_process_group(
                     backend="ccl",
                     world_size=WORLD_SIZE,
@@ -80,12 +88,14 @@ def initialize_torch_distributed():
                     pg_options=options,
                 )
             else:
+                device = torch.device(f"cuda:{RANK}")
                 torch.distributed.init_process_group(
                     backend=backend,
                     world_size=WORLD_SIZE,
                     rank=RANK,
                     timeout=timedelta(seconds=120),
                     pg_options=options,
+                    device_id=device,
                 )
         else:
             logger.warning("torch.distributed is already initialized.")

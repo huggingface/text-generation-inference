@@ -94,6 +94,8 @@ def test_get_mlp_weights_with_gate_up_proj():
 
     # assert the result
     expected = {
+        (3, "c_fc"): ("model.layers.3.mlp.c_fc", mock_layer.mlp.c_fc),
+        (3, "c_proj"): ("model.layers.3.mlp.c_proj", mock_layer.mlp.c_proj),
         (3, "gate_proj"): ("model.layers.3.mlp.gate_proj", mock_layer.mlp.gate_up_proj),
         (3, "up_proj"): ("model.layers.3.mlp.up_proj", mock_layer.mlp.gate_up_proj),
         (3, "down_proj"): ("model.layers.3.mlp.down_proj", mock_layer.mlp.down_proj),
@@ -188,6 +190,8 @@ def test_get_mlp_weights_llama_compatibility():
     result = get_mlp_weights(3, mock_layer)
 
     expected = {
+        (3, "c_fc"): ("model.layers.3.mlp.c_fc", mock_layer.mlp.c_fc),
+        (3, "c_proj"): ("model.layers.3.mlp.c_proj", mock_layer.mlp.c_proj),
         (3, "gate_proj"): ("model.layers.3.mlp.gate_proj", mock_layer.mlp.gate_up_proj),
         (3, "up_proj"): ("model.layers.3.mlp.up_proj", mock_layer.mlp.gate_up_proj),
         (3, "down_proj"): ("model.layers.3.mlp.down_proj", mock_layer.mlp.down_proj),
@@ -240,6 +244,8 @@ def test_get_mlp_weights_gemma_compatibility():
     result = get_mlp_weights(3, mock_layer)
 
     expected = {
+        (3, "c_fc"): ("model.layers.3.mlp.c_fc", mock_layer.mlp.c_fc),
+        (3, "c_proj"): ("model.layers.3.mlp.c_proj", mock_layer.mlp.c_proj),
         (3, "gate_proj"): ("model.layers.3.mlp.gate_proj", mock_layer.mlp.gate_proj),
         (3, "up_proj"): ("model.layers.3.mlp.up_proj", mock_layer.mlp.up_proj),
         (3, "down_proj"): ("model.layers.3.mlp.down_proj", mock_layer.mlp.down_proj),

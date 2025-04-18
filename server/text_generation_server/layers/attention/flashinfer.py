@@ -45,13 +45,14 @@ def use_prefill_with_paged_kv_state(
     state: flashinfer.BatchPrefillWithPagedKVCacheWrapper,
     block_tables: torch.Tensor,
     cu_seqlens: torch.Tensor,
+    custom_mask: Optional[torch.Tensor],
     input_lengths: torch.Tensor,
     num_heads: int,
     num_kv_heads: int,
     head_size: int,
     page_size: int,
-    dtype: torch.dtype,
-    window_left: int,
+    kv_dtype: torch.dtype,
+    q_dtype: torch.dtype,
 ):
     """
     Context manager to set the active flashinfer prefill state to the given
@@ -83,21 +84,21 @@ def use_prefill_with_paged_kv_state(
 
     token = prefill_with_paged_kv_state.set(state)
     try:
-        state.begin_forward(
+        state.plan(
             qo_indptr=cu_seqlens,
             paged_kv_indptr=indptr,
             paged_kv_indices=block_tables,
             paged_kv_last_page_len=last_page_len,
+            custom_mask=custom_mask,
             num_qo_heads=num_heads,
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
-            q_data_type=dtype,
+            kv_data_type=kv_dtype,
+            q_data_type=q_dtype,
             page_size=page_size,
-            window_left=window_left,
         )
         yield
     finally:
-        state.end_forward()
         if token is not None:
             prefill_with_paged_kv_state.reset(token)
 
@@ -111,41 +112,6 @@ def create_prefill_state(
     return flashinfer.BatchPrefillWithRaggedKVCacheWrapper(
         workspace_buffer, kv_layout="NHD", use_cuda_graph=False
     )
-
-
-@contextmanager
-def use_prefill_state(
-    *,
-    state: flashinfer.BatchPrefillWithRaggedKVCacheWrapper,
-    cu_seqlens: torch.Tensor,
-    num_heads: int,
-    num_kv_heads: int,
-    head_size: int,
-    dtype: torch.dtype,
-    window_left: int,
-):
-    """
-    Context manager to set the active flashinfer prefill state to the given
-    `state` and parameters. This state will be used by all calls to the
-    `attention` function while the context manager is active.
-    """
-
-    token = prefill_state.set(state)
-    try:
-        state.begin_forward(
-            qo_indptr=cu_seqlens,
-            kv_indptr=cu_seqlens,
-            num_qo_heads=num_heads,
-            num_kv_heads=num_kv_heads,
-            head_dim=head_size,
-            q_data_type=dtype,
-            window_left=window_left,
-        )
-        yield
-    finally:
-        state.end_forward()
-        if token is not None:
-            prefill_state.reset(token)
 
 
 def create_decode_state(
@@ -205,8 +171,7 @@ def use_decode_state(
     head_size: int,
     page_size: int,
     kv_cache_dtype: torch.dtype,
-    dtype: torch.dtype,
-    window_left: int,
+    q_dtype: torch.dtype,
 ):
     """
     Context manager to set the active flashinfer decoding state to the given
@@ -233,7 +198,7 @@ def use_decode_state(
     token = decode_state.set(state)
 
     try:
-        state.begin_forward(
+        state.plan(
             indptr=indptr,
             indices=block_tables,
             last_page_len=last_page_len,
@@ -242,11 +207,9 @@ def use_decode_state(
             head_dim=head_size,
             page_size=page_size,
             data_type=kv_cache_dtype,
-            q_data_type=dtype,
-            window_left=window_left,
+            q_data_type=q_dtype,
         )
         yield
     finally:
-        state.end_forward()
         if token is not None:
             decode_state.reset(token)

@@ -1,11 +1,7 @@
 use clap::{Parser, ValueEnum};
-use hf_hub::{
-    api::sync::{Api, ApiBuilder},
-    Repo, RepoType,
-};
+use hf_hub::{api::sync::ApiBuilder, Repo, RepoType};
 use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
-use regex::Regex;
 use serde::Deserialize;
 use std::env;
 use std::ffi::OsString;
@@ -101,12 +97,15 @@ fn get_config(
     let filename = if !path.exists() {
         // Assume it's a hub id
 
-        let api = if let Ok(token) = std::env::var("HF_TOKEN") {
+        let mut builder = ApiBuilder::from_env();
+        if let Ok(token) = std::env::var("HF_TOKEN") {
             // env variable has precedence over on file token.
-            ApiBuilder::new().with_token(Some(token)).build()?
-        } else {
-            Api::new()?
+            builder = builder.with_token(Some(token))
         };
+        if let Ok(origin) = env::var("HF_HUB_USER_AGENT_ORIGIN") {
+            builder = builder.with_user_agent("origin", origin.as_str());
+        }
+        let api = builder.build()?;
         let repo = if let Some(ref revision) = revision {
             api.repo(Repo::with_revision(
                 model_id,
@@ -144,13 +143,15 @@ fn resolve_attention(config: &Option<Config>, lora_adapters: &Option<String>) ->
             }
         }
 
-        let fallback_attention = if matches!(compute_capability, Some((major, _)) if major < 8) {
+        let fallback_attention = if compute_capability.is_none()
+            || matches!(compute_capability, Some((major, _)) if major < 8)
+        {
             "paged"
         } else {
             "flashdecoding"
         };
 
-        match config.head_dim {
+        match config.get_head_dim() {
             Some(h) if h == 64 || h == 128 || h == 256 => {
                 if lora_adapters.is_some() && prefix_caching.is_none() {
                     tracing::info!("Disabling prefix caching because of lora adapters");
@@ -212,6 +213,7 @@ struct RawConfig {
     num_key_value_heads: Option<usize>,
     num_hidden_layers: Option<usize>,
     head_dim: Option<usize>,
+    text_config: Option<TextConfig>,
     vision_config: Option<VisionConfig>,
     is_encoder_decoder: Option<bool>,
     #[serde(rename = "num_experts_per_tok")]
@@ -232,6 +234,11 @@ struct QuantizationConfig {
 struct VisionConfig {}
 
 #[derive(Debug, Deserialize)]
+struct TextConfig {
+    head_dim: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
 struct Config {
     max_position_embeddings: Option<usize>,
     quantize: Option<Quantization>,
@@ -242,6 +249,7 @@ struct Config {
     intermediate_size: Option<usize>,
     hidden_size: Option<usize>,
     model_type: Option<String>,
+    text_config: Option<TextConfig>,
     vision_config: Option<VisionConfig>,
     is_encoder_decoder: bool,
     num_experts_per_token: usize,
@@ -251,6 +259,25 @@ struct Config {
 }
 
 impl Config {
+    fn get_head_dim(&self) -> Option<usize> {
+        if let Some(head_dim) = self.head_dim {
+            return Some(head_dim);
+        }
+
+        let text_config = self.text_config.as_ref()?;
+        if let Some(head_size) = text_config.head_dim {
+            return Some(head_size);
+        }
+
+        match self.model_type.as_deref() {
+            // We special-case gemma3 here, since we need flashinfer for
+            // handling bidirectional masks. And flashinfer can only be
+            // used when the head size is known.
+            Some("gemma3") => Some(256),
+            _ => None,
+        }
+    }
+
     fn flop(&self) -> Option<u64> {
         if self.vision_config.is_some() {
             // VLM are much harder to predict and VRAM requirements
@@ -259,7 +286,7 @@ impl Config {
         }
         let num_heads = self.num_heads? as u64;
         let num_kv_heads = self.num_kv_heads? as u64;
-        let head_dim = self.head_dim? as u64;
+        let head_dim = self.get_head_dim()? as u64;
         let hidden_size = self.hidden_size? as u64;
         let intermediate_size = (self.intermediate_size?
             * (self.num_experts_per_token + self.num_shared_experts))
@@ -287,7 +314,7 @@ impl Config {
         }
         // 2 for key and values
         // 2 for f16 dtype?
-        Some(self.num_kv_heads? * 2 * self.head_dim? * 2 * self.num_layers?)
+        Some(self.num_kv_heads? * 2 * self.get_head_dim()? * 2 * self.num_layers?)
     }
 
     fn mlp_vram_per_tok(&self) -> Option<usize> {
@@ -308,8 +335,8 @@ impl Config {
     }
 
     fn model_vram(&self) -> Option<usize> {
-        let attn_vram = (self.num_heads? + 2 * self.num_kv_heads?) * self.head_dim?;
-        let o_vram = self.num_heads? * self.head_dim? * self.hidden_size?;
+        let attn_vram = (self.num_heads? + 2 * self.num_kv_heads?) * self.get_head_dim()?;
+        let o_vram = self.num_heads? * self.get_head_dim()? * self.hidden_size?;
         // gate + up + down = 3
         let mlp_vram = 3 * self.intermediate_size? * self.num_experts * self.hidden_size?;
         let layer_vram = mlp_vram + attn_vram + o_vram;
@@ -347,6 +374,7 @@ impl From<RawConfig> for Config {
         let num_kv_heads = other.num_key_value_heads.or(other.num_attention_heads);
         let intermediate_size = other.intermediate_size;
         let model_type = other.model_type;
+        let text_config = other.text_config;
         let vision_config = other.vision_config;
         let is_encoder_decoder = other.is_encoder_decoder.unwrap_or(false);
         let num_experts_per_token = other.num_experts_per_token.unwrap_or(1);
@@ -358,6 +386,7 @@ impl From<RawConfig> for Config {
             quantize,
             head_dim,
             model_type,
+            text_config,
             vision_config,
             is_encoder_decoder,
             hidden_size,
@@ -700,8 +729,8 @@ struct Args {
     /// Overall this number should be the largest possible amount that fits the
     /// remaining memory (after the model is loaded). Since the actual memory overhead
     /// depends on other parameters like if you're using quantization, flash attention
-    /// or the model implementation, text-generation-inference cannot infer this number
-    /// automatically.
+    /// or the model implementation, text-generation-inference infers this number automatically
+    /// if not provided ensuring that the value is as large as possible.
     #[clap(long, env)]
     max_batch_total_tokens: Option<u32>,
 
@@ -874,6 +903,10 @@ struct Args {
     /// Using this flag reallows users to ask for them.
     #[clap(long, env)]
     enable_prefill_logprobs: bool,
+
+    /// Change timeout of graceful termination of the TGI server
+    #[clap(default_value = "90", long, short, env)]
+    graceful_termination_timeout: u64,
 }
 
 #[derive(Debug)]
@@ -915,6 +948,7 @@ fn shard_manager(
     log_level: LevelFilter,
     status_sender: mpsc::Sender<ShardStatus>,
     shutdown: Arc<AtomicBool>,
+    graceful_termination_timeout: u64,
     _shutdown_sender: mpsc::Sender<()>,
 ) {
     // Enter shard-manager tracing span
@@ -1188,7 +1222,12 @@ fn shard_manager(
 
         // We received a shutdown signal
         if shutdown.load(Ordering::SeqCst) {
-            terminate("shard", p, Duration::from_secs(90)).unwrap();
+            terminate(
+                "shard",
+                p,
+                Duration::from_secs(graceful_termination_timeout),
+            )
+            .unwrap();
             return;
         }
 
@@ -1527,9 +1566,15 @@ fn spawn_shards(
     status_receiver: &mpsc::Receiver<ShardStatus>,
     status_sender: mpsc::Sender<ShardStatus>,
     running: Arc<AtomicBool>,
+    graceful_termination_timeout: u64,
 ) -> Result<(), LauncherError> {
     // Start shard processes
     for rank in 0..num_shard {
+        if rank != 0 && env_runtime::Env::new().should_start_a_single_hpu_shard() {
+            tracing::info!("Running on HPU, the launcher will not do any sharding as actual sharding is done in the server");
+            break;
+        }
+
         let model_id = args.model_id.clone();
         let revision = args.revision.clone();
         let uds_path = args.shard_uds_path.clone();
@@ -1589,6 +1634,7 @@ fn spawn_shards(
                 max_log_level,
                 status_sender,
                 shutdown,
+                graceful_termination_timeout,
                 shutdown_sender,
             )
         });
@@ -1602,6 +1648,10 @@ fn spawn_shards(
             Ok(ShardStatus::Ready) => {
                 shard_ready += 1;
                 if shard_ready == num_shard {
+                    break;
+                }
+                if env_runtime::Env::new().should_start_a_single_hpu_shard() {
+                    tracing::info!("HPU detected, shard is ready");
                     break;
                 }
             }
@@ -1631,8 +1681,10 @@ enum Gpu {
     L40,
     L40S,
     A10G,
+    A40,
     H100,
     A100,
+    H200,
     Unknown(String),
 }
 
@@ -1651,9 +1703,15 @@ impl From<&str> for Gpu {
             "nvidia-l40" => Gpu::L40,
             "nvidia-l40s" => Gpu::L40S,
             "nvidia-a10g" => Gpu::A10G,
+            "nvidia-a40" => Gpu::A40,
             "nvidia-h100-80gb-hbm3" => Gpu::H100,
+            "nvidia-h100-nvl" => Gpu::H100,
+            "nvidia-h100" => Gpu::H100,
             "nvidia-a100-sxm4-80gb" => Gpu::A100,
+            "nvidia-a100-sxm4-40gb" => Gpu::A100,
+            "nvidia-a100-80gb-pcie" => Gpu::A100,
             "nvidia-a100" => Gpu::A100,
+            "nvidia-h200" => Gpu::H200,
             card => Gpu::Unknown(card.to_string()),
         }
     }
@@ -1662,14 +1720,16 @@ impl From<&str> for Gpu {
 impl std::fmt::Display for Gpu {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Gpu::RTX4090 => write!(f, "nvida-4090"),
-            Gpu::T4 => write!(f, "nvida-t4"),
-            Gpu::L4 => write!(f, "nvida-l4"),
-            Gpu::L40 => write!(f, "nvida-l40"),
-            Gpu::L40S => write!(f, "nvida-l40s"),
+            Gpu::RTX4090 => write!(f, "nvidia-4090"),
+            Gpu::T4 => write!(f, "nvidia-t4"),
+            Gpu::L4 => write!(f, "nvidia-l4"),
+            Gpu::L40 => write!(f, "nvidia-l40"),
+            Gpu::L40S => write!(f, "nvidia-l40s"),
             Gpu::A10G => write!(f, "nvidia-a10g"),
+            Gpu::A40 => write!(f, "nvidia-a40"),
             Gpu::H100 => write!(f, "nvidia-h100-80fb-hbm3"),
-            Gpu::A100 => write!(f, "nvida-a100-sxm4-80gb"),
+            Gpu::A100 => write!(f, "nvidia-a100-sxm4-80gb"),
+            Gpu::H200 => write!(f, "nvidia-h200"),
             Gpu::Unknown(card) => write!(f, "{}", card),
         }
     }
@@ -1691,11 +1751,16 @@ impl ComputeType {
             Gpu::L40S => Some(363 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/products/a10-gpu/
             Gpu::A10G => Some(125 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/a40/
+            // https://images.nvidia.com/content/Solutions/data-center/a40/nvidia-a40-datasheet.pdf
+            Gpu::A40 => Some(149 * 10u64.pow(12)),
+            // https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf
+            Gpu::A100 => Some(312 * 10u64.pow(12)),
             // https://www.nvidia.com/en-us/data-center/h100/
             // https://www.techpowerup.com/gpu-specs/docs/nvidia-gh100-architecture.pdf
             Gpu::H100 => Some(900 * 10u64.pow(12)),
-            // https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf
-            Gpu::A100 => Some(312 * 10u64.pow(12)),
+            // https://www.nvidia.com/en-us/data-center/h200/
+            Gpu::H200 => Some(989 * 10u64.pow(12)),
             Gpu::Unknown(card) => {
                 tracing::warn!("Unkown compute for card {card}");
                 None
@@ -1957,6 +2022,8 @@ fn main() -> Result<(), LauncherError> {
     // Pattern match configuration
     let args: Args = Args::parse();
 
+    let graceful_termination_timeout = args.graceful_termination_timeout;
+
     // Filter events with LOG_LEVEL
     let varname = "LOG_LEVEL";
     let env_filter = if let Ok(log_level) = std::env::var(varname) {
@@ -2033,7 +2100,17 @@ fn main() -> Result<(), LauncherError> {
             None => {
                 let compute_type = compute_type(num_shard);
                 let compute_optimal = compute_optimal(config.as_ref(), compute_type.as_ref());
-                let default = compute_optimal.unwrap_or(4096);
+                // TODO: remove this when we correctly esimate the flops for VLMs
+                // this is a short term temporary fix to enable vlms to avoid rejecting images
+                let default_optimal = match config {
+                    Some(ref config) => match config.model_type.as_deref() {
+                        Some("qwen2_vl") | Some("qwen2_5_vl") => 10_000,
+                        Some("gemma3") => 8000,
+                        _ => 4096,
+                    },
+                    None => 4096,
+                };
+                let default = compute_optimal.unwrap_or(default_optimal);
                 let vram_maximum = vram_maximum(
                     config.as_ref(),
                     compute_type.as_ref(),
@@ -2075,14 +2152,7 @@ fn main() -> Result<(), LauncherError> {
     let cuda_graphs = match (&args.cuda_graphs, &quantize) {
         (Some(cuda_graphs), _) => cuda_graphs.iter().cloned().filter(|&c| c > 0).collect(),
         #[allow(deprecated)]
-        (
-            None,
-            Some(
-                Quantization::Bitsandbytes
-                | Quantization::BitsandbytesNf4
-                | Quantization::BitsandbytesFp4,
-            ),
-        ) => {
+        (None, Some(Quantization::Bitsandbytes)) => {
             tracing::warn!("Bitsandbytes doesn't work with cuda graphs, deactivating them");
             vec![]
         }
@@ -2172,26 +2242,21 @@ fn main() -> Result<(), LauncherError> {
             }
 
             // capture adapter_id, path, revision in format of adapter_id=path@revision
-            let re = Regex::new(r"^([^=@]+)(?:=([^@]+))?(?:@(.+))?$").unwrap();
-            if let Some(caps) = re.captures(adapter) {
-                let adapter_id = caps.get(1).map_or("", |m| m.as_str());
-                let revision = caps.get(3).map(|m| m.as_str());
-
-                download_convert_model(
-                    adapter_id,
-                    revision,
-                    args.trust_remote_code,
-                    args.huggingface_hub_cache.as_deref(),
-                    args.weights_cache_override.as_deref(),
-                    running.clone(),
-                    false, // avoid merging lora adapters if using multi-lora
-                )?;
-            } else {
-                return Err(LauncherError::ArgumentValidation(format!(
-                    "Invalid LoRA adapter format: {}",
-                    adapter
-                )));
-            }
+            // path is disabled beforehand.
+            let mut splits = adapter.split("@");
+            let adapter_id = splits.next().ok_or_else(|| {
+                LauncherError::ArgumentValidation("Missing adapter id".to_string())
+            })?;
+            let revision = splits.next();
+            download_convert_model(
+                adapter_id,
+                revision,
+                args.trust_remote_code,
+                args.huggingface_hub_cache.as_deref(),
+                args.weights_cache_override.as_deref(),
+                running.clone(),
+                false, // avoid merging lora adapters if using multi-lora
+            )?;
         }
     }
 
@@ -2223,6 +2288,7 @@ fn main() -> Result<(), LauncherError> {
         &status_receiver,
         status_sender,
         running.clone(),
+        graceful_termination_timeout,
     )?;
 
     // We might have received a termination signal
@@ -2267,7 +2333,12 @@ fn main() -> Result<(), LauncherError> {
     }
 
     // Graceful termination
-    terminate("webserver", webserver, Duration::from_secs(90)).unwrap();
+    terminate(
+        "webserver",
+        webserver,
+        Duration::from_secs(graceful_termination_timeout),
+    )
+    .unwrap();
     shutdown_shards(shutdown, &shutdown_receiver);
 
     exit_code

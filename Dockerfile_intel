@@ -1,6 +1,6 @@
 ARG PLATFORM=xpu
 
-FROM lukemathwalker/cargo-chef:latest-rust-1.80.1 AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.85.1 AS chef
 WORKDIR /usr/src
 
 ARG CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
@@ -45,7 +45,7 @@ RUN cargo build --profile release-opt --frozen
 
 # Text Generation Inference base image for Intel
 
-FROM intel/oneapi-basekit:2024.2.1-0-devel-ubuntu22.04 AS xpu
+FROM intel/oneapi-basekit:2025.0.1-0-devel-ubuntu22.04 AS xpu
 
 USER root
 
@@ -87,7 +87,7 @@ RUN echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https:/
 
 RUN mv /tmp/intel-for-pytorch-gpu-dev.list /etc/apt/sources.list.d
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt install -y xpu-smi cmake ninja-build pciutils intel-pti-dev-0.9
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt install -y xpu-smi cmake ninja-build pciutils intel-ocloc libnl-genl-3-200
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \
@@ -96,29 +96,28 @@ ENV HF_HOME=/data \
 
 
 
-WORKDIR /usr/src
-RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/torch-2.5.0a0%2Bgite84e33f-cp311-cp311-linux_x86_64.whl --no-cache-dir
-RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/torchaudio-2.5.0a0%2B56bc006-cp311-cp311-linux_x86_64.whl --no-cache-dir
-RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/torchvision-0.20.0a0%2B8e8a208-cp311-cp311-linux_x86_64.whl --no-cache-dir
-RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/intel_extension_for_pytorch-2.5.10%2Bgit9d489a8-cp311-cp311-linux_x86_64.whl --no-cache-dir
-RUN pip install https://intel-extension-for-pytorch.s3.us-east-1.amazonaws.com/ipex_dev/xpu/oneccl_bind_pt-2.5.0%2Bxpu-cp311-cp311-linux_x86_64.whl --no-cache-dir
 
-RUN pip install triton-xpu==3.0.0b2 --no-cache-dir
+WORKDIR /usr/src
+RUN pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/xpu
 
 # Install server
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
+ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements_intel.txt && \
-    pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
+    pip install -U pip uv && \
+    uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
 
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/oneapi/pti/0.9/lib:/opt/conda/lib
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/conda/lib
 ENV CCL_ZE_IPC_EXCHANGE=sockets
-#ENV TORCH_LLM_ALLREDUCE=1
-#ENV CCL_TOPO_FABRIC_VERTEX_CONNECTION_CHECK=0
+ENV TORCH_LLM_ALLREDUCE=1
+ENV CCL_TOPO_FABRIC_VERTEX_CONNECTION_CHECK=0
+ENV TORCH_DEVICE_BACKEND_AUTOLOAD=0
 
+RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/xpu/oneccl_bind_pt-2.6.0%2Bxpu-cp311-cp311-linux_x86_64.whl
+RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/xpu/intel_extension_for_pytorch-2.6.10%2Bxpu-cp311-cp311-linux_x86_64.whl
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router
@@ -158,7 +157,7 @@ ARG MAMBA_VERSION=23.1.0-1
 ARG PYTHON_VERSION='3.11.10'
 # Automatically set by buildx
 ARG TARGETPLATFORM
-ENV PATH /opt/conda/bin:$PATH
+ENV PATH=/opt/conda/bin:$PATH
 
 # TGI seem to require libssl.so.1.1 instead of libssl.so.3 so we can't use ubuntu 22.04. Ubuntu 20.04 has python==3.8, and TGI requires python>=3.9, hence the need for miniconda.
 # Install mamba
@@ -181,22 +180,14 @@ RUN case ${TARGETPLATFORM} in \
 
 RUN conda install -c conda-forge gperftools mkl
 
-
-RUN pip install https://download.pytorch.org/whl/nightly/cpu/torch-2.5.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
-RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchvision-0.20.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
-RUN pip install https://download.pytorch.org/whl/nightly/cpu/torchaudio-2.4.0.dev20240815%2Bcpu-cp311-cp311-linux_x86_64.whl
-
-RUN pip install triton py-libnuma
+RUN pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+RUN pip install triton==3.1.0 py-libnuma
 
 WORKDIR /usr/src
 
-RUN git clone https://github.com/intel/intel-extension-for-pytorch && cd intel-extension-for-pytorch && git checkout b7b552baf64283b594665b8687430fe92990e497
-RUN git clone https://github.com/intel/torch-ccl.git && cd torch-ccl && git checkout v2.4.0+cpu+rc0
+RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/cpu/intel_extension_for_pytorch-2.6.0%2Bcpu-cp311-cp311-linux_x86_64.whl
+RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/cpu/oneccl_bind_pt-2.6.0%2Bcpu-cp311-cp311-linux_x86_64.whl
 
-RUN sed -i 's/VERSION_MINOR 6/VERSION_MINOR 5/' intel-extension-for-pytorch/version.txt
-RUN cd intel-extension-for-pytorch && git submodule sync && git submodule update --init --recursive && python setup.py install
-
-RUN cd torch-ccl && git submodule sync && git submodule update --init --recursive && pip install .
 
 ENV LD_PRELOAD=/opt/conda/lib/libtcmalloc.so
 ENV CCL_ROOT=/opt/conda/lib/python3.11/site-packages/oneccl_bindings_for_pytorch
@@ -209,10 +200,11 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/conda/lib/"
 COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
+ENV UV_SYSTEM_PYTHON=1
 RUN cd server && \
     make gen-server && \
-    pip install -r requirements_intel.txt && \
-    pip install ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
+    pip install -U pip uv && \
+    uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
@@ -222,9 +214,9 @@ COPY --from=builder /usr/src/target/release-opt/text-generation-router /usr/loca
 COPY --from=builder /usr/src/target/release-opt/text-generation-launcher /usr/local/bin/text-generation-launcher
 
 FROM ${PLATFORM} AS final
-ENV ATTENTION=paged
-ENV PREFIX_CACHING=0
-ENV PREFILL_CHUNKING=0
+ENV ATTENTION=flashdecoding-ipex
+ENV PREFIX_CACHING=1
+ENV PREFILL_CHUNKING=1
 ENV CUDA_GRAPHS=0
 ENTRYPOINT ["text-generation-launcher"]
 CMD ["--json-output"]

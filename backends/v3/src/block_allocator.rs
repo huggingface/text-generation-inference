@@ -2,7 +2,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::radix::RadixAllocator;
-
+use text_generation_router::usage_stats::Env;
 #[derive(Debug, Clone)]
 pub struct BlockAllocation {
     pub allocation_id: u64,
@@ -141,6 +141,7 @@ pub struct SimpleAllocator {
     free_blocks: Vec<u32>,
     block_size: u32,
     window_size: Option<u32>,
+    is_hpu_device: bool,
 }
 
 impl SimpleAllocator {
@@ -150,6 +151,7 @@ impl SimpleAllocator {
             // Block 0 is reserved for health checks
             free_blocks: (1..blocks).collect(),
             window_size,
+            is_hpu_device: Env::new().is_hpu_device(),
         }
     }
 }
@@ -165,13 +167,13 @@ impl Allocator for SimpleAllocator {
             let (tokens, repeats) = match self.window_size {
                 None => (tokens, 1),
                 Some(window_size) => {
-                    let repeats = (tokens + window_size - 1) / window_size;
+                    let repeats = tokens.div_ceil(window_size);
                     let tokens = core::cmp::min(tokens, window_size);
                     (tokens, repeats as usize)
                 }
             };
             // Pad to a multiple of block size
-            let required_blocks = (tokens + self.block_size - 1) / self.block_size;
+            let required_blocks = tokens.div_ceil(self.block_size);
             (required_blocks, repeats)
         };
 
@@ -179,9 +181,15 @@ impl Allocator for SimpleAllocator {
         if required_blocks > self.free_blocks.len() as u32 {
             None
         } else {
-            let blocks = self
+            if self.is_hpu_device {
+                self.free_blocks.sort_by(|a, b| b.cmp(a));
+            }
+            let mut blocks = self
                 .free_blocks
                 .split_off(self.free_blocks.len() - required_blocks as usize);
+            if self.is_hpu_device {
+                blocks.sort();
+            }
             let mut slots =
                 Vec::with_capacity((required_blocks * self.block_size * repeats as u32) as usize);
 
