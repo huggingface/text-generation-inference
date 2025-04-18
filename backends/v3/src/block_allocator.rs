@@ -177,7 +177,7 @@ impl Allocator for SimpleAllocator {
             (required_blocks, repeats)
         };
 
-        let tokens = tokens as usize;
+        let mut tokens = tokens as usize;
         if required_blocks > self.free_blocks.len() as u32 {
             None
         } else {
@@ -189,6 +189,8 @@ impl Allocator for SimpleAllocator {
                 .split_off(self.free_blocks.len() - required_blocks as usize);
             if self.is_hpu_device {
                 blocks.sort();
+                // need 1 slot for ping-pong optimization
+                tokens += 1;
             }
             let mut slots =
                 Vec::with_capacity((required_blocks * self.block_size * repeats as u32) as usize);

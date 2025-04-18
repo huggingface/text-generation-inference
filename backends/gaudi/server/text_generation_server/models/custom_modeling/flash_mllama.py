@@ -681,11 +681,10 @@ class MllamaTextCrossAttention(nn.Module):
         # bsz, q_len, _ = hidden_states.size()
         (
             cross_attention_states,
-            cu_seqlen_q,
-            cu_seqlen_k,
+            cross_attention_len,
             indices,
         ) = cross_attention_states
-        bs = cu_seqlen_q.size(0) - 1
+        bs = cross_attention_len.size(0)
         query_states = self.q_proj(hidden_states)
         query_states = query_states.view(bs, -1, self.num_heads, self.head_size)
         query_states = self.q_norm(query_states)
@@ -814,8 +813,6 @@ class FlashLlamaCrossLayer(torch.nn.Module):
 
         indices = cross_attention_states[-1]
         out_hidden_states = hidden_states[:]
-        if len(indices) > 0:
-            assert max(indices) < hidden_states.shape[0]
         hidden_states = hidden_states[indices]
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
@@ -914,59 +911,14 @@ class FlashMllamaForConditionalGeneration(nn.Module):
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor],
         adapter_data: Optional[torch.Tensor] = None,
-        # XXX: Putting these as optional so that the cuda warmup calls can go through.
         cross_attention_states: Optional[torch.Tensor] = None,
-        image_indices=None,
+        indices=None,
+        cross_attention_len: Optional[torch.Tensor] = None,
     ):
         if cross_attention_states is not None:
-            seqlen_q = len(image_indices)
-            n_images = cross_attention_states.shape[0]
-            seqlen_k = cross_attention_states.shape[1]
-            device = cross_attention_states.device
-            if cu_seqlen_prefill is not None:
-                offset = 0
-                cu_q = []
-                indices = []
-                for index in image_indices:
-                    cu_q.append(offset)
-                    length = seqlen.input_lengths[index].item()
-                    assert index < seqlen.cu_seqlen_q.shape[0]
-                    input_ids_offset = seqlen.cu_seqlen_q[index]
-                    indices.extend(range(input_ids_offset, input_ids_offset + length))
-                    offset += length
-                cu_q.append(offset)
-                cu_seqlen_q = torch.Tensor(cu_q).to(device=device, dtype=torch.int32)
-
-                assert max(indices) < input_ids.shape[0]
-
-                cu_seqlen_k = (
-                    torch.arange(
-                        n_images + 1,
-                        device=device,
-                        dtype=torch.int32,
-                    )
-                    * seqlen_k
-                )
-            else:
-                cu_seqlen_q = torch.arange(
-                    seqlen_q + 1, device=device, dtype=torch.int32
-                )
-                seqlen_k = cross_attention_states.shape[1]
-                n_images = cross_attention_states.shape[0]
-                cu_seqlen_k = (
-                    torch.arange(
-                        n_images + 1,
-                        device=device,
-                        dtype=torch.int32,
-                    )
-                    * seqlen_k
-                )
-                indices = image_indices[:]
-
             cross_attention_states = (
                 cross_attention_states,
-                cu_seqlen_q,
-                cu_seqlen_k,
+                cross_attention_len,
                 indices,
             )
 
