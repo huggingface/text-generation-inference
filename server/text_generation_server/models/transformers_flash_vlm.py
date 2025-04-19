@@ -574,7 +574,8 @@ class TransformersLlama4VlmCausalLM(TransformersFlashVlmCausalLM):
         inputs["attention_mask"] = torch.zeros((1, 1, 1, 1), device=input_ids.device)
         return inputs
 
-    def get_vision_embeds(self, pixel_values, image_sizes=None):
+    def get_vision_embeds(self, pixel_values, **kwargs):
+        image_sizes = kwargs.get("image_sizes", None)
         image_features = self.model.get_image_features(
             pixel_values=pixel_values,
             vision_feature_layer=self.model.config.vision_config.vision_feature_layer,
@@ -586,10 +587,10 @@ class TransformersLlama4VlmCausalLM(TransformersFlashVlmCausalLM):
         projected_vision_flat = self.model.multi_modal_projector(vision_flat)
         return projected_vision_flat
 
-    def get_input_embeds(self, input_ids, vision_embeddings=None):
+    def get_input_embeds(self, input_ids, vision_embeds=None):
         inputs_embeds = self.model.get_input_embeddings()(input_ids)
 
-        if vision_embeddings is not None:
+        if vision_embeds is not None:
             original_inputs_embeds_shape = inputs_embeds.shape
             special_image_mask = (input_ids == self.config.image_token_index).unsqueeze(
                 -1
@@ -600,17 +601,15 @@ class TransformersLlama4VlmCausalLM(TransformersFlashVlmCausalLM):
             final_mask_1d = final_mask[..., 0].reshape(-1)
             num_tokens_to_fill = final_mask_1d.sum()
 
-            if num_tokens_to_fill != vision_embeddings.size(0):
+            if num_tokens_to_fill != vision_embeds.size(0):
                 raise ValueError(
                     f"Mismatch: final_mask wants {num_tokens_to_fill} embeddings, "
-                    f"but multi_modal_projector returned {vision_embeddings.size(0)}"
+                    f"but multi_modal_projector returned {vision_embeds.size(0)}"
                 )
 
             expanded_mask = final_mask_1d.unsqueeze(-1).expand(
                 -1, inputs_embeds.size(-1)
             )
-            inputs_embeds = inputs_embeds.masked_scatter(
-                expanded_mask, vision_embeddings
-            )
+            inputs_embeds = inputs_embeds.masked_scatter(expanded_mask, vision_embeds)
             inputs_embeds = inputs_embeds.view(original_inputs_embeds_shape)
         return inputs_embeds

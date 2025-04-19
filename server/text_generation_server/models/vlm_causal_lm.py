@@ -376,7 +376,6 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                         image = image
                     else:
                         image = [image]
-
                     pixel_values = processor.image_processor(
                         [image], return_tensors="pt", **kwargs
                     )
@@ -387,9 +386,10 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
             if len(image_inputs) > 0:
                 batch_image_inputs[i] = image_inputs
-        from pdb import set_trace
+        # pixel_values = processor.image_processor(
+        #                 all_images, return_tensors="pt", **kwargs
+        #             )
 
-        set_trace()
         batch_image_positions = []
         batch_tokenized_inputs = []
         max_length = 0
@@ -410,6 +410,8 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
                     if config.model_type == "gemma3":
                         image_text = image_text.replace("\n\n", "")
+                    elif config.model_type == "idefics2":
+                        image_text = image_text_replacement_fixup(config, image_text)
 
                     image_tokens.append(
                         (
@@ -434,8 +436,19 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
             prev = 0
             image_positions = []
+            idefics_replacement = False
+
+            config.image_token_index = (
+                config.image_token_index
+                if hasattr(config, "image_token_index")
+                else config.image_token_id
+            )
             for image_id, id_token, tokens in image_tokens:
                 id_token = tokenizer.get_vocab()[id_token]
+
+                if config.model_type == "idefics2" and idefics_replacement:
+                    id_token = config.image_token_index
+                    tokens = tokens[1:]
 
                 length = len(tokens)
                 index = input_ids[prev:].index(id_token)
@@ -462,6 +475,13 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
                 image_positions.append(pos)
                 prev = index + length
+
+                if config.model_type == "idefics2" and prev != len(input_ids):
+                    if input_ids[prev] == config.image_token_id:
+                        # means this is replaced by image_text_replacement_fixup
+                        idefics_replacement = True
+                    else:
+                        idefics_replacement = False
 
             if len(image_positions) > 0:
                 batch_image_positions[i] = image_positions
@@ -540,40 +560,35 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                     self.image_inputs[i][j] = None
 
         if self.has_image and len(scheduled_image_pixel_values):
-            self.pixel_values = torch.cat(
-                [d["pixel_values"] for d in scheduled_image_pixel_values], dim=0
-            ).to(device)
+            self.pixel_values = [
+                d["pixel_values"].to(device) for d in scheduled_image_pixel_values
+            ]
 
             if "pixel_attention_mask" in scheduled_image_pixel_values[0]:
-                self.pixel_attention_mask = torch.cat(
-                    [d["pixel_attention_mask"] for d in scheduled_image_pixel_values],
-                    dim=0,
-                ).to(device)
+                self.pixel_attention_mask = [
+                    d["pixel_attention_mask"].to(device)
+                    for d in scheduled_image_pixel_values
+                ]
 
             if "image_sizes" in scheduled_image_pixel_values[0]:
-                self.image_sizes = torch.cat(
-                    [d["image_sizes"] for d in scheduled_image_pixel_values], dim=0
-                ).to(device)
+                self.image_sizes = [
+                    d["image_sizes"].to(device) for d in scheduled_image_pixel_values
+                ]
 
             if "image_grid_thw" in scheduled_image_pixel_values[0]:
-                self.image_grid_thw = torch.cat(
-                    [d["image_grid_thw"] for d in scheduled_image_pixel_values], dim=0
-                ).to(device)
+                self.image_grid_thw = [
+                    d["image_grid_thw"].to(device) for d in scheduled_image_pixel_values
+                ]
         else:
             self.pixel_values = None
             self.pixel_attention_mask = None
             self.image_sizes = None
             self.image_grid_thw = None
 
-    def update_encoder_cache(self, encoder_outputs):
-        prev = 0
-        for i, input in self.scheduled_image_input:
-            length = input.num_placeholder_tokens
-            self.encoder_cache[i][input.id] = scatter_image_embeds(
-                encoder_outputs[prev : prev + length], input.is_embed
-            )
-
-            prev = prev + length
+    def update_encoder_cache(self, encoder_outputs, batch, input):
+        self.encoder_cache[batch][input.id] = scatter_image_embeds(
+            encoder_outputs, input.is_embed
+        )
 
     def get_mm_embeddings(self):
         device = self.input_ids.device
@@ -675,22 +690,75 @@ class VlmCausalLM(FlashCausalLM):
     def batch_type(self) -> Type[VlmCausalLMBatch]:
         return self.batch_class
 
+    def get_vision_embeds(
+        self,
+        pixel_values: torch.Tensor,
+        pixel_attention_mask: torch.Tensor,
+        image_sizes: torch.Tensor,
+        image_grid_thw: torch.Tensor,
+    ):
+        embeds = self.model.get_vision_embeds(
+            pixel_values=pixel_values,
+            pixel_attention_mask=pixel_attention_mask,
+            image_sizes=image_sizes,
+            image_grid_thw=image_grid_thw,
+        )
+        return embeds
+
+    def get_input_embeds(
+        self,
+        input_ids: torch.Tensor,
+        vision_embeds: Optional[torch.Tensor] = None,
+    ):
+        return self.model.get_input_embeds(
+            input_ids=input_ids,
+            vision_embeds=vision_embeds,
+        )
+
     def get_mm_embeddings(self, batch):
         if batch.pixel_values is not None:
-            encoder_outputs = self.get_vision_embeds(batch.pixel_values)
-            batch.update_encoder_cache(encoder_outputs)
-            batch.pixel_values = None
+            for i, image_input in batch.scheduled_image_input:
+                from pdb import set_trace
+
+                set_trace()
+                pixel_values = batch.pixel_values[i]
+                pixel_attention_mask = (
+                    batch.pixel_attention_mask[i]
+                    if batch.pixel_attention_mask is not None
+                    else None
+                )
+                image_sizes = (
+                    batch.image_sizes[i] if batch.image_sizes is not None else None
+                )
+                image_grid_thw = (
+                    batch.image_grid_thw[i]
+                    if batch.image_grid_thw is not None
+                    else None
+                )
+
+                encoder_outputs = self.get_vision_embeds(
+                    pixel_values=pixel_values,
+                    pixel_attention_mask=pixel_attention_mask,
+                    image_sizes=image_sizes,
+                    image_grid_thw=image_grid_thw,
+                )
+                batch.update_encoder_cache(encoder_outputs, i, image_input)
+
+        batch.pixel_values = None
+        batch.pixel_attention_mask = None
+        batch.image_sizes = None
+        batch.image_grid_thw = None
         return batch.get_mm_embeddings()
 
     def get_input_embeddings(self, batch):
         if batch.has_image:
-            vision_embeddings = self.get_mm_embeddings(batch)
+            vision_embeds = self.get_mm_embeddings(batch)
             batch.has_image = False
         else:
-            vision_embeddings = None
+            vision_embeds = None
 
         inputs_embeds = self.get_input_embeds(
-            batch.input_ids, vision_embeddings=vision_embeddings
+            batch.input_ids, vision_embeds=vision_embeds
         )
 
         batch.inputs_embeds = inputs_embeds
