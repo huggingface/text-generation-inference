@@ -1188,7 +1188,7 @@ class VlmCausalLM(FlashCausalLM):
         # Copy inputs to the static inputs of the cuda graph
         # Static inputs are potentially padded
         cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
-        cuda_graph["input_embeds"][: inputs_embeds.shape[0]] = inputs_embeds
+        cuda_graph["inputs_embeds"][: inputs_embeds.shape[0]] = inputs_embeds
         cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
         if ATTENTION == "flashinfer":
             block_tables = block_tables_to_ragged(
