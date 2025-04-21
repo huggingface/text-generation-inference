@@ -387,7 +387,6 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
             image_id = 0
 
             for chunk in r.input_chunks.chunks:
-
                 chunk_type = chunk.WhichOneof("chunk")
                 if chunk_type == "text":
                     text = preprocess_text(config, chunk.text)
