@@ -29,6 +29,9 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
     aspect_ratio_mask: Optional[torch.Tensor] = None
     cross_attention_states: Optional[torch.Tensor] = None
 
+    def prepare_for_prefill(self):
+        super(VlmCausalLMBatch, self).prepare_for_prefill()
+
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches):
@@ -196,6 +199,9 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
 
 
 class MllamaCausalLM(VlmCausalLM):
+    def get_input_embeddings(self, batch):
+        batch.inputs_embeds = None
+
     def forward(
         self,
         batch: MllamaCausalLMBatch,

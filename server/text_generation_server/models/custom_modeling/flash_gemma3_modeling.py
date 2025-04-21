@@ -700,6 +700,7 @@ class Gemma3ForConditionalGeneration(nn.Module):
         self.pad_token_id = (
             config.pad_token_id if config.pad_token_id is not None else -1
         )
+        self.dtype = weights.dtype
 
     def get_attention_mask(
         self,
@@ -762,6 +763,38 @@ class Gemma3ForConditionalGeneration(nn.Module):
         else:
             return torch.where(full_attention_mask, 0, min_dtype).to(device)
 
+    def get_vision_embeds(
+        self,
+        pixel_values: torch.FloatTensor,
+        **kwargs,
+    ):
+        pixel_values = pixel_values.to(dtype=self.dtype)
+        image_outputs = self.vision_model(pixel_values)
+        vision_outputs = self.post_vision_model_layernorm(
+            image_outputs.last_hidden_state
+        )
+        image_features = self.multimodal_projector(vision_outputs)
+        image_features = image_features.view(-1, image_features.shape[-1])
+        return image_features
+
+    def get_input_embeds(
+        self,
+        input_ids: torch.Tensor,
+        vision_embeds: torch.Tensor = None,
+        **kwargs,
+    ):
+        inputs_embeds = self.text_model.embed_tokens(input_ids)
+
+        if vision_embeds is not None:
+            # Replace the image token embeddings with the vision features
+            image_token_mask = (input_ids == self.config.image_token_index).to(
+                input_ids.device
+            )
+            inputs_embeds[image_token_mask] = vision_embeds.view(
+                -1, vision_embeds.shape[-1]
+            )
+        return inputs_embeds
+
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -781,26 +814,17 @@ class Gemma3ForConditionalGeneration(nn.Module):
         image_sizes: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
+        inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        inputs_embeds = self.text_model.embed_tokens(input_ids)
         if cu_seqlen_prefill is not None:
             max_s += 1
             position_ids += 1
 
-        if pixel_values is not None:
-            pixel_values = pixel_values.to(dtype=inputs_embeds.dtype)
-            image_outputs = self.vision_model(pixel_values)
-            vision_outputs = self.post_vision_model_layernorm(
-                image_outputs.last_hidden_state
-            )
-            image_features = self.multimodal_projector(vision_outputs)
+        image_token_mask = (input_ids == self.config.image_token_index).to(
+            input_ids.device
+        )
 
-            image_token_mask = (input_ids == self.config.image_token_index).to(
-                input_ids.device
-            )
-            inputs_embeds[image_token_mask] = image_features.view(
-                -1, image_features.shape[-1]
-            )
+        if torch.any(image_token_mask):
             attention_mask = self.get_attention_mask(
                 input_ids,
                 cu_seqlen_prefill,

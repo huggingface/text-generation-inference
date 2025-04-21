@@ -163,6 +163,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
         processor_kwargs=None,
         kv_cache_dtype: Optional[torch.dtype] = None,
         batch_class=VlmCausalLMBatch,
+        support_chunking: bool = True,
     ):
         self.batch_class = batch_class
         self.quantize = quantize
@@ -304,7 +305,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
             device=device,
             rank=rank,
             world_size=world_size,
-            support_chunking=True,
+            support_chunking=support_chunking,
         )
 
         # Monkey patch of `self.model.forward` to match `FlashCausalLM`. It avoids duplicating a lot of code
@@ -339,6 +340,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
         trust_remote_code: bool = False,
         batch_class: Optional[type] = VlmCausalLMBatch,
         processor_kwargs: Optional[dict] = None,
+        support_chunking: bool = True,
     ):
         return cls(
             model_id=model_id,
@@ -350,6 +352,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
             trust_remote_code=trust_remote_code,
             batch_class=batch_class,
             processor_kwargs=processor_kwargs,
+            support_chunking=support_chunking,
         )
 
     def _model_forward(

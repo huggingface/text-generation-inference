@@ -13,7 +13,7 @@ from text_generation_server.models.flash_causal_lm import (
     FlashCausalLMBatch,
     FlashCausalLM,
 )
-from text_generation_server.models.globals import PREFIX_CACHING, ATTENTION
+from text_generation_server.models.globals import PREFIX_CACHING, ATTENTION, MEM_POOL
 from loguru import logger
 from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
@@ -119,8 +119,8 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         return image_str, IDEFICS2_FAKE_TOKEN
     if config.model_type == "idefics3":
         # TODO: implement this in a more general way
-        n_rows = image_input["rows"][0][image_id]
-        n_cols = image_input["cols"][0][image_id]
+        n_rows = image_input[image_id]["rows"][0][0]
+        n_cols = image_input[image_id]["cols"][0][0]
         image_seq_len = int(
             ((config.vision_config.image_size // config.vision_config.patch_size) ** 2)
             / (config.scale_factor**2)
@@ -135,7 +135,7 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         )
         return image_str, IDEFICS3_FAKE_IMAGE_TOKEN
     elif config.model_type == "llava_next":
-        height, width = image_input["image_sizes"][image_id]
+        height, width = image_input[image_id]["image_sizes"][0]
         num_features = get_number_of_features(height, width, config)
 
         log_master(
@@ -147,12 +147,12 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
     elif config.model_type == "paligemma":
         return "<image>" * config.text_config.num_image_tokens, "<image>"
     elif config.model_type == "qwen2_vl":
-        grid_t, grid_h, grid_w = image_input["image_grid_thw"][image_id]
+        grid_t, grid_h, grid_w = image_input[image_id]["image_grid_thw"][0]
         num_pads = grid_t * grid_h * grid_w // 4
         padding = "<|image_pad|>" * num_pads
         return f"<|vision_start|>{padding}<|vision_end|>", "<|vision_start|>"
     elif config.model_type == "qwen2_5_vl":
-        grid_t, grid_h, grid_w = image_input["image_grid_thw"][image_id]
+        grid_t, grid_h, grid_w = image_input[image_id]["image_grid_thw"][0]
         num_pads = grid_t * grid_h * grid_w // 4
         padding = "<|image_pad|>" * num_pads
         return f"<|vision_start|>{padding}<|vision_end|>", "<|vision_start|>"
@@ -344,8 +344,155 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
     def batch_tokenized_inputs(
         cls, requests: Iterable[generate_pb2.Request], tokenizer, processor, config
     ):
-        # Process images first. We need all of them so that the processor
-        # can make the image splits the same size. And we need the final
+        kwargs = {}
+        if (
+            hasattr(processor, "image_processor_class")
+            and processor.image_processor_class == "Idefics3ImageProcessor"
+        ):
+            kwargs["return_row_col_info"] = True
+
+        max_length = 0
+        vocab = tokenizer.get_vocab()
+        config.image_token_index = (
+            config.image_token_index
+            if hasattr(config, "image_token_index")
+            else config.image_token_id
+        )
+
+        batch_tokenized_inputs: List[List[int]] = []
+        batch_image_inputs: List[Optional[List[dict]]] = []
+        batch_image_positions: List[Optional[List[ImagePositions]]] = []
+
+        for i, r in enumerate(requests):
+            text_parts = []
+            image_inputs = []
+            image_texts = []
+
+            image_id = 0
+
+            for chunk in r.input_chunks.chunks:
+                chunk_type = chunk.WhichOneof("chunk")
+                if chunk_type == "text":
+                    text_parts.append(chunk.text)
+                    continue
+
+                if chunk_type != "image":
+                    raise RuntimeError(f"Invalid chunk type {chunk_type}")
+
+                img = Image.open(BytesIO(chunk.image.data))
+
+                if config.model_type in {"qwen2_vl", "qwen2_5_vl"} and img.width <= 20:
+                    img = img.resize((img.width * 2, img.height * 2))
+
+                if config.model_type in {"paligemma"}:
+                    img = img.convert("RGB")
+
+                if config.model_type not in {"llava_next", "gemma3", "llama4"}:
+                    img = [img]
+
+                image_input = processor.image_processor(
+                    [img], return_tensors="pt", **kwargs
+                )
+                image_inputs.append(image_input)
+
+                img_text, id_token_str = image_text_replacement(
+                    processor, image_input, config, 0
+                )
+
+                text_parts.append(img_text)
+
+                image_texts.append([image_id, id_token_str, img_text])
+                image_id += 1
+
+            full_text = image_text_replacement_fixup(config, "".join(text_parts))
+            input_ids = tokenizer(
+                full_text,
+                truncation=True,
+                max_length=r.truncate,
+                add_special_tokens=r.add_special_tokens,
+            )["input_ids"]
+            max_length = max(max_length, len(input_ids))
+
+            if len(image_inputs) > 0:
+                img_start_token = vocab[image_texts[0][1]]
+                image_positions = cls.get_image_positions(
+                    input_ids, image_texts, img_start_token, config, tokenizer
+                )
+            else:
+                image_inputs = None
+                image_positions = None
+
+            batch_tokenized_inputs.append(input_ids)
+            batch_image_inputs.append(image_inputs)
+            batch_image_positions.append(image_positions)
+
+        return batch_tokenized_inputs, batch_image_inputs, batch_image_positions
+
+    @classmethod
+    def get_image_positions(
+        cls,
+        input_ids: List[int],
+        image_texts: List[Tuple[int, str, str]],
+        img_start_token: int,
+        config,
+        tokenizer: PreTrainedTokenizerBase,
+    ) -> List[ImagePositions]:
+        image_positions = []
+        num_images = len(image_texts)
+
+        input_ids_t = torch.as_tensor(input_ids, dtype=torch.int32)
+        img_start_token_pos = torch.where(input_ids_t.eq(img_start_token))[0]
+
+        last_pos = 0
+        for i in range(num_images):
+            image_id, img_start_token_str, img_text = image_texts[i]
+            img_text = image_text_replacement_fixup(config, img_text)
+            if config.model_type == "gemma3":
+                img_text = img_text.replace("\n\n", "")
+
+            tokens = tokenizer(img_text, add_special_tokens=False)["input_ids"]
+
+            pos = torch.searchsorted(img_start_token_pos, last_pos, right=False)
+            index = img_start_token_pos[pos]
+
+            is_embed = torch.tensor(tokens) == config.image_token_index
+            num_placeholder_tokens = is_embed.sum().item()
+
+            length = len(tokens)
+            if num_placeholder_tokens == length:
+                is_embed = None
+
+            pos = ImagePositions(
+                offset=index,
+                length=length,
+                id=image_id,
+                num_placeholder_tokens=num_placeholder_tokens,
+                is_embed=is_embed,
+            )
+
+            image_positions.append(pos)
+            last_pos = index + length
+
+            if (
+                config.model_type == "idefics2"
+                and i + 1 != num_images
+                and input_ids[last_pos] == config.image_token_index
+            ):
+                fake_token = last_pos - 1
+                fake_token_index = torch.searchsorted(
+                    img_start_token_pos, fake_token, right=False
+                )
+                img_start_token_pos[fake_token_index] = last_pos
+                image_texts[i + 1][2] = image_texts[i + 1][2][
+                    len(img_start_token_str) :
+                ]
+
+        return image_positions
+
+    @classmethod
+    def batch_tokenized_inputs2(
+        cls, requests: Iterable[generate_pb2.Request], tokenizer, processor, config
+    ):
         # sizes to insert correct number of image tokens.
         kwargs = {}
         if (
@@ -374,21 +521,20 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
                     if config.model_type in {"llava_next", "gemma3", "llama4"}:
                         image = image
+                    elif config.model_type in {"paligemma"}:
+                        image = image.convert("RGB")
                     else:
                         image = [image]
-                    pixel_values = processor.image_processor(
+                    image_input = processor.image_processor(
                         [image], return_tensors="pt", **kwargs
                     )
 
-                    image_inputs.append(pixel_values)
+                    image_inputs.append(image_input)
                 else:
                     raise RuntimeError(f"Invalid chunk type {chunk_type}")
 
             if len(image_inputs) > 0:
                 batch_image_inputs[i] = image_inputs
-        # pixel_values = processor.image_processor(
-        #                 all_images, return_tensors="pt", **kwargs
-        #             )
 
         batch_image_positions = []
         batch_tokenized_inputs = []
@@ -554,29 +700,8 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
                 if image_id not in self.encoder_cache[i]:
                     self.pixel_values.append((i, image_position, image_inputs))
-                    # scheduled_image_pixel_values.append(image_inputs)
                     self.image_inputs[i][j] = None
 
-        # if self.has_image and len(scheduled_image_pixel_values):
-        #     self.pixel_values = [
-        #         d["pixel_values"].to(device) for d in scheduled_image_pixel_values
-        #     ]
-
-        #     if "pixel_attention_mask" in scheduled_image_pixel_values[0]:
-        #         self.pixel_attention_mask = [
-        #             d["pixel_attention_mask"].to(device)
-        #             for d in scheduled_image_pixel_values
-        #         ]
-
-        #     if "image_sizes" in scheduled_image_pixel_values[0]:
-        #         self.image_sizes = [
-        #             d["image_sizes"].to(device) for d in scheduled_image_pixel_values
-        #         ]
-
-        #     if "image_grid_thw" in scheduled_image_pixel_values[0]:
-        #         self.image_grid_thw = [
-        #             d["image_grid_thw"].to(device) for d in scheduled_image_pixel_values
-        #         ]
         if not self.has_image:
             self.pixel_values = None
             self.pixel_attention_mask = None
@@ -637,12 +762,21 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 if is_embed is not None:
                     is_embed = is_embed[start_idx:end_idx]
 
+                from loguru import logger
+
+                logger.info(
+                    f"image_id {image_id} start_idx {start_idx} end_idx {end_idx}, length {length}"
+                )
+
                 mm_embeds_item = gather_image_embeds(
                     encoder_output[start_idx:end_idx],
                     is_embed=is_embed,
                 )
-                mm_embeds.append(mm_embeds_item)
+                if mm_embeds_item is not None:
+                    mm_embeds.append(mm_embeds_item)
 
+        if len(mm_embeds) == 0:
+            return None
         return torch.cat(mm_embeds, dim=0).to(device)
 
     def free_encoder_cache(self):
@@ -662,6 +796,7 @@ class VlmCausalLM(FlashCausalLM):
         batch_class=VlmCausalLMBatch,
         revision,
         trust_remote_code: bool,
+        support_chunking: bool = True,
         **kwargs,
     ):
         if PREFIX_CACHING:
@@ -679,14 +814,160 @@ class VlmCausalLM(FlashCausalLM):
             model_id=model_id,
             revision=revision,
             trust_remote_code=trust_remote_code,
-            # FIXME: VLM do not work with context chunking yet
-            support_chunking=False,
+            support_chunking=support_chunking,
             **kwargs,
         )
 
     @property
     def batch_type(self) -> Type[VlmCausalLMBatch]:
         return self.batch_class
+
+    def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
+        max_bs = max(self.cuda_graphs.keys()) if self.cuda_graphs else None
+        input_lengths = [max_s] * bs
+        cache_lengths = [0] * bs
+        if max_bs is None:
+            input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
+            input_embeds = torch.zeros(
+                (bs, self.model.config.text_config.hidden_size),
+                device=self.device,
+                dtype=self.dtype,
+            )
+            position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
+            config = getattr(self.model, "config", None)
+            rope_scaling = getattr(config, "rope_scaling", None) if config else None
+            if (  # mrope have position_ids per section, if so repeat n times
+                isinstance(rope_scaling, dict) and rope_scaling["rope_type"] == "mrope"
+            ):
+                n_sections = len(self.model.config.rope_scaling["mrope_section"])
+                position_ids = position_ids.unsqueeze(1).repeat(1, n_sections)
+            slots = torch.arange(bs, dtype=torch.int64, device=self.device)
+            input_lengths_tensor = (
+                torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
+            )
+            cache_lengths_tensor = torch.zeros(
+                bs, dtype=torch.int32, device=self.device
+            )
+            block_tables = torch.arange(
+                max_bt, dtype=torch.int32, device=self.device
+            ).repeat(bs)
+            block_tables = block_tables.reshape((bs, max_bt))
+            if ATTENTION == "flashinfer":
+                block_tables = block_tables_to_ragged(
+                    block_tables=block_tables,
+                    input_lengths=input_lengths,
+                    cache_lengths=cache_lengths,
+                    input_lengths_tensor=input_lengths_tensor,
+                    cache_lengths_tensor=cache_lengths_tensor,
+                    max_current_length=max_s,
+                )
+        else:
+            if bs > max_bs:
+                raise RuntimeError(
+                    "Cuda graphs should be generated in decreasing order size to reduce VRAM usage"
+                )
+            input_ids = self.cuda_graphs[max_bs]["input_ids"][:bs]
+            input_embeds = self.cuda_graphs[max_bs]["input_embeds"][:bs]
+            position_ids = self.cuda_graphs[max_bs]["position_ids"][:bs]
+            if ATTENTION == "flashinfer":
+                block_tables = self.cuda_graphs[max_bs]["block_tables"][: bs * max_bt]
+            else:
+                block_tables = self.cuda_graphs[max_bs]["block_tables"][:bs]
+            slots = self.cuda_graphs[max_bs]["slots"][:bs]
+            input_lengths_tensor = self.cuda_graphs[max_bs]["input_lengths"][:bs]
+            cache_lengths_tensor = self.cuda_graphs[max_bs]["cache_lengths"][:bs]
+
+        if ATTENTION == "flashinfer":
+            from text_generation_server.layers.attention.flashinfer import (
+                create_decode_state_cuda_graphs,
+            )
+
+            block_tables_ptr = torch.zeros(
+                bs + 1, dtype=torch.int32, device=self.device
+            )
+            last_page_len = torch.ones(bs, dtype=torch.int32, device=self.device)
+            state = create_decode_state_cuda_graphs(
+                device=input_ids.device,
+                block_tables=block_tables,
+                block_tables_ptr=block_tables_ptr,
+                last_page_len=last_page_len,
+                num_heads=self.num_heads,
+                num_kv_heads=self.num_kv_heads,
+            )
+        else:
+            state = None
+
+        graph = torch.cuda.CUDAGraph()
+        self.cuda_graphs[bs] = {
+            "input_ids": input_ids,
+            "input_embeds": input_embeds,
+            "position_ids": position_ids,
+            "kv_cache": self.kv_cache,
+            "block_tables": block_tables,
+            "slots": slots,
+            "input_lengths": input_lengths_tensor,
+            "cache_lengths": cache_lengths_tensor,
+            "state": state,
+            "graph": graph,
+        }
+
+        torch.cuda.synchronize()
+        # Run once outside to warmup
+        with self._forward_context(
+            block_tables=block_tables,
+            cu_seqlen_prefill=None,
+            input_lengths_tensor=input_lengths_tensor,
+            state=state,
+            cache_lengths_tensor=cache_lengths_tensor,
+        ):
+            seqlen = Seqlen(
+                input_lengths=input_lengths_tensor,
+                cache_lengths=cache_lengths_tensor,
+                cu_seqlen_q=None,
+                max_q=1,
+                max_k=max_s,
+            )
+            self.model.forward(
+                input_ids=input_ids,
+                inputs_embeds=input_embeds,
+                position_ids=position_ids,
+                cu_seqlen_prefill=None,
+                kv_cache=self.kv_cache,
+                block_tables=block_tables,
+                slots=slots,
+                seqlen=seqlen,
+                max_s=max_s,
+                prefill_cache_indices=None,
+                lm_head_indices=None,
+            )
+            del seqlen
+
+            torch.cuda.synchronize()
+
+            with torch.cuda.graph(graph, pool=MEM_POOL):
+                seqlen = Seqlen(
+                    input_lengths=input_lengths_tensor,
+                    cache_lengths=cache_lengths_tensor,
+                    cu_seqlen_q=None,
+                    max_q=1,
+                    max_k=max_s,
+                )
+                logits, speculative_logits = self.model.forward(
+                    input_ids=input_ids,
+                    inputs_embeds=input_embeds,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=None,
+                    kv_cache=self.kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    seqlen=seqlen,
+                    max_s=max_s,
+                    prefill_cache_indices=None,
+                    lm_head_indices=None,
+                )
+                self.cuda_graphs[bs]["logits"] = logits
+                self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
+        torch.cuda.synchronize()
 
     def get_vision_embeds(
         self,
@@ -901,6 +1182,7 @@ class VlmCausalLM(FlashCausalLM):
         # Copy inputs to the static inputs of the cuda graph
         # Static inputs are potentially padded
         cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
+        cuda_graph["input_embeds"][: inputs_embeds.shape[0]] = inputs_embeds
         cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
         if ATTENTION == "flashinfer":
             block_tables = block_tables_to_ragged(
