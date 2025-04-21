@@ -1346,6 +1346,9 @@ class FlashCausalLM(Model):
     def batch_type(self) -> Type[FlashCausalLMBatch]:
         return FlashCausalLMBatch
 
+    def get_input_embeddings(self, batch):
+        batch.inputs_embeds = None
+
     def init_kv_cache(
         self,
         num_blocks: int,
