@@ -7,6 +7,7 @@ from text_generation_server.pb.generate_pb2 import FinishReason, GrammarType
 from text_generation_server.utils.logits_process import (
     FrequencyPenaltyLogitsProcessor,
     GrammarLogitProcessor,
+    LogitBiasProcessor,
     HeterogeneousProcessorWrapper,
     HeterogeneousRepetitionPenaltyLogitsProcessor,
     HeterogeneousFrequencyPenaltyLogitsProcessor,
@@ -57,6 +58,11 @@ class NextTokenChooser:
         self.grammar_processor = (
             GrammarLogitProcessor(tokenizer, device, grammar, grammar_type)
             if grammar != ""
+            else None
+        )
+        self.logit_bias_processor = (
+            LogitBiasProcessor(logit_bias, tokenizer, device)
+            if logit_bias is not None and len(logit_bias) > 0
             else None
         )
         self.tokenizer = tokenizer
