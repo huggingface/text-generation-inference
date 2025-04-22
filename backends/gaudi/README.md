@@ -104,9 +104,14 @@ To run the integration tests, you need to first build the image:
 make -C backends/gaudi image
 ```
 
-Then run the following command to run the integration tests:
+Then run the following command to run the integration tests (CI tests):
 ```bash
 make -C backends/gaudi run-integration-tests
+```
+
+To run the integration tests with all models, you can run the following command:
+```bash
+make -C backends/gaudi run-integration-tests-with-all-models
 ```
 
 To capture the expected outputs for the integration tests, you can run the following command:
