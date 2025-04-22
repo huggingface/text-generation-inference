@@ -16,6 +16,7 @@ use text_generation_router::validation::{
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Instrument, Span};
+use std::collections::HashMap;
 
 /// Queue entry
 #[derive(Debug)]
@@ -577,6 +578,7 @@ mod tests {
                     frequency_penalty: 0.0,
                     watermark: false,
                     grammar: None,
+                    logit_bias: HashMap::new(),
                 },
                 stopping_parameters: ValidStoppingParameters {
                     ignore_eos_token: false,
