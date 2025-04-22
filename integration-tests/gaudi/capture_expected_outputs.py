@@ -3,7 +3,7 @@ import os
 from typing import Dict, Any, Generator
 
 import pytest
-from test_generate import TEST_CONFIGS
+from test_gaudi_generate import TEST_CONFIGS
 
 UNKNOWN_CONFIGS = {
     name: config
