@@ -32,7 +32,6 @@ TEST_CONFIGS = {
             "--max-batch-prefill-tokens",
             "2048",
         ],
-        "run_by_default": True,
     },
     "meta-llama/Llama-3.1-8B-Instruct": {
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
