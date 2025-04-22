@@ -16,7 +16,6 @@ use text_generation_router::validation::{
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Instrument, Span};
-use std::collections::HashMap;
 
 /// Queue entry
 #[derive(Debug)]

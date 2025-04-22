@@ -12,7 +12,6 @@ use text_generation_router::validation::{
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Span};
-use std::collections::HashMap;
 
 /// Queue entry
 #[derive(Debug)]
@@ -402,6 +401,7 @@ impl From<ValidStoppingParameters> for StoppingCriteriaParameters {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use std::sync::Arc;
     use tracing::info_span;
 
