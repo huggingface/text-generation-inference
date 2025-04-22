@@ -74,6 +74,12 @@ def pytest_addoption(parser):
     parser.addoption(
         "--gaudi", action="store_true", default=False, help="run gaudi tests"
     )
+    parser.addoption(
+        "--gaudi-all-models",
+        action="store_true",
+        default=False,
+        help="Run tests for all models instead of just the default subset",
+    )
 
 
 def pytest_configure(config):
