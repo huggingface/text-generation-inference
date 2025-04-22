@@ -543,7 +543,7 @@ class Idefics3ForConditionalGeneration(nn.Module):
 
         return image_hidden_states.view(-1, image_hidden_states.shape[-1])
 
-    def get_input_embeds(
+    def get_inputs_embeds(
         self,
         input_ids: torch.Tensor,
         vision_embeds: torch.Tensor = None,

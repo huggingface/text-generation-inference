@@ -248,8 +248,17 @@ Options:
   -p, --port <PORT>
           The port to listen on
           
-          [env: PORT=]
+          [env: PORT=80]
           [default: 3000]
+
+```
+## PROMETHEUS_PORT
+```shell
+  -p, --prometheus-port <PROMETHEUS_PORT>
+          The Prometheus port to listen on
+          
+          [env: PROMETHEUS_PORT=]
+          [default: 9000]
 
 ```
 ## SHARD_UDS_PATH

@@ -80,7 +80,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         )
         return image_features
 
-    def get_input_embeds(
+    def get_inputs_embeds(
         self,
         input_ids: torch.Tensor,
         vision_embeds: torch.Tensor = None,

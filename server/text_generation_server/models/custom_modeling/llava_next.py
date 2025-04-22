@@ -250,7 +250,7 @@ class LlavaNextForConditionalGeneration(nn.Module):
         image_features = torch.stack(new_image_features, dim=0)
         return image_features.view(-1, image_features.shape[-1])
 
-    def get_input_embeds(
+    def get_inputs_embeds(
         self,
         input_ids: torch.Tensor,
         vision_embeds: torch.Tensor = None,

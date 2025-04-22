@@ -590,7 +590,7 @@ class TransformersLlama4VlmCausalLM(TransformersFlashVlmCausalLM):
         projected_vision_flat = self.model.multi_modal_projector(vision_flat)
         return projected_vision_flat
 
-    def get_input_embeds(self, input_ids, vision_embeds=None):
+    def get_inputs_embeds(self, input_ids, vision_embeds=None):
         inputs_embeds = self.model.get_input_embeddings()(input_ids)
 
         if vision_embeds is not None:

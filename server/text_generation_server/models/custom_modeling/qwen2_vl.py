@@ -509,7 +509,7 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw).squeeze(0)
         return image_embeds
 
-    def get_input_embeds(
+    def get_inputs_embeds(
         self,
         input_ids: torch.Tensor,
         vision_embeds: torch.Tensor = None,

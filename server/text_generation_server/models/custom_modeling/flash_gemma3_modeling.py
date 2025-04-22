@@ -777,7 +777,7 @@ class Gemma3ForConditionalGeneration(nn.Module):
         image_features = image_features.view(-1, image_features.shape[-1])
         return image_features
 
-    def get_input_embeds(
+    def get_inputs_embeds(
         self,
         input_ids: torch.Tensor,
         vision_embeds: torch.Tensor = None,
@@ -820,11 +820,7 @@ class Gemma3ForConditionalGeneration(nn.Module):
             max_s += 1
             position_ids += 1
 
-        image_token_mask = (input_ids == self.config.image_token_index).to(
-            input_ids.device
-        )
-
-        if torch.any(image_token_mask):
+        if pixel_values:
             attention_mask = self.get_attention_mask(
                 input_ids,
                 cu_seqlen_prefill,
