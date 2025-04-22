@@ -420,6 +420,18 @@ impl Validation {
             seed,
             watermark,
             grammar,
+            logit_bias: Some(
+                request
+                    .parameters
+                    .logit_bias
+                    .iter()
+                    .flat_map(|bias| {
+                        bias.iter()
+                            .map(|(k, v)| (k.parse::<u32>().unwrap(), *v as f32))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect(),
+            ),
         };
         let stopping_parameters = ValidStoppingParameters {
             max_new_tokens,
@@ -902,6 +914,8 @@ pub struct ValidParameters {
     pub watermark: bool,
     /// / grammar (applied if not empty)
     pub grammar: Option<ValidGrammar>,
+    /// / logit bias
+    pub logit_bias: Option<Vec<(u32, f32)>>,
 }
 
 #[derive(Debug, Clone)]

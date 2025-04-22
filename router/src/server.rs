@@ -798,6 +798,7 @@ pub(crate) async fn completions(
                 top_n_tokens: None,
                 grammar: None,
                 adapter_id: model.as_ref().filter(|m| *m != "tgi").map(String::from),
+                logit_bias: None,
             },
         })
         .collect();
@@ -1191,6 +1192,7 @@ pub(crate) async fn chat_completions(
     let (generate_request, using_tools): (GenerateRequest, bool) =
         chat.clone().try_into_generate(&infer)?;
     span.record("parameters", format!("{:?}", generate_request.parameters));
+    println!("ChatRequest: {:#?}", generate_request);
     let logprobs = logprobs.unwrap_or_default();
 
     // extract model id from request if specified

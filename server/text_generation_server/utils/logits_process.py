@@ -623,3 +623,65 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
             new_fsms.append(self.fsms[i])
         self.fsms = new_fsms
         return self
+
+
+class HeterogeneousLogitBiasProcessor:
+    """Process logits with different logit biases for each sequence in the batch."""
+
+    def __init__(
+        self,
+        logit_biases: List[Optional[dict]],
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
+    ):
+        self.device = device
+        self.tokenizer = tokenizer
+        self.logit_biases = logit_biases
+        self.batch_size = len(logit_biases)
+
+        # Pre-compute token IDs for each token string
+        self.token_id_mapping = {}
+
+        # Create a mapping of indices that have logit biases
+        self.indices_with_biases = {
+            i: bias_dict
+            for i, bias_dict in enumerate(self.logit_biases)
+            if bias_dict is not None and len(bias_dict) > 0
+        }
+
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
+        # If no indices have biases, return scores unchanged
+        if not self.indices_with_biases:
+            return scores
+
+        # For each index with a bias, apply the bias to the corresponding scores
+        for i, bias_dict in self.indices_with_biases.items():
+            for token_str, bias_value in bias_dict.items():
+                # Get token ID, either from cache or by computing it
+                if token_str not in self.token_id_mapping:
+                    if token_str.isdigit():
+                        # If the token string is already a numeric ID
+                        token_id = int(token_str)
+                    else:
+                        # Otherwise, use the tokenizer to get the ID
+                        tokens = self.tokenizer.encode(
+                            token_str, add_special_tokens=False
+                        )
+                        token_id = tokens[0] if tokens else -1  # Use -1 for not found
+
+                    self.token_id_mapping[token_str] = token_id
+
+                token_id = self.token_id_mapping[token_str]
+
+                # Apply bias if token ID is valid
+                if 0 <= token_id < scores.size(-1):
+                    scores[i, token_id] += bias_value
+
+        return scores
+
+    def filter(self, indices: List[int]):
+        """Keep only the logit biases for the specified indices."""
+        new_logit_biases = [self.logit_biases[i] for i in indices]
+        return HeterogeneousLogitBiasProcessor(
+            new_logit_biases, self.tokenizer, self.device
+        )

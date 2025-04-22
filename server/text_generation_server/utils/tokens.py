@@ -15,6 +15,7 @@ from text_generation_server.utils.logits_process import (
     HeterogeneousTopPLogitsWarper,
     HeterogeneousTypicalLogitsWarper,
     HeterogeneousGrammarLogitProcessor,
+    HeterogeneousLogitBiasProcessor,
     static_warper,
 )
 from text_generation_server.utils.watermark import WatermarkLogitsProcessor
@@ -38,6 +39,7 @@ class NextTokenChooser:
         grammar: str = "",
         grammar_type: GrammarType = GrammarType.GRAMMAR_TYPE_NONE,
         fsm_grammar_state: int = 0,
+        logit_bias: Optional[dict] = None,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -58,6 +60,7 @@ class NextTokenChooser:
             else None
         )
         self.tokenizer = tokenizer
+        self.logit_bias = logit_bias
 
         has_warpers = (
             (temperature is not None and temperature != 1.0)
@@ -87,6 +90,8 @@ class NextTokenChooser:
             scores = self.frequency_processor(input_ids, scores)
         if self.grammar_processor is not None:
             scores = self.grammar_processor(scores, self.fsm_grammar_state)
+        if self.logit_bias_processor is not None:
+            scores = self.logit_bias_processor(input_ids, scores)
 
         if self.static_warper is None:
             next_logprob = torch.log_softmax(scores, -1)
@@ -125,6 +130,7 @@ class NextTokenChooser:
             tokenizer=tokenizer,
             grammar=pb.grammar,
             grammar_type=pb.grammar_type,
+            logit_bias=dict(pb.logit_bias) if pb.logit_bias else None,
         )
 
 
@@ -248,8 +254,13 @@ class HeterogeneousNextTokenChooser:
         grammars: List[str],
         grammar_types: List[int],
         fsm_grammar_states=List[int],
+        logit_biases: List[Optional[dict]] = None,
     ):
         warpers = []
+
+        # Initialize with empty logit biases if none provided
+        if logit_biases is None:
+            logit_biases = [None] * len(do_sample)
 
         self.watermark_processor = (
             HeterogeneousProcessorWrapper(
@@ -284,6 +295,12 @@ class HeterogeneousNextTokenChooser:
                 tokenizer, device, grammars, grammar_types
             )
             if any([grammar != "" for grammar in grammars])
+            else None
+        )
+
+        self.logit_bias_processor = (
+            HeterogeneousLogitBiasProcessor(logit_biases, tokenizer, device)
+            if any([bias is not None and len(bias) > 0 for bias in logit_biases])
             else None
         )
 
@@ -322,6 +339,7 @@ class HeterogeneousNextTokenChooser:
         self.fsm_grammar_states = fsm_grammar_states
         self.grammars = grammars
         self.grammar_types = grammar_types
+        self.logit_biases = logit_biases
 
     def __call__(
         self,
@@ -353,6 +371,8 @@ class HeterogeneousNextTokenChooser:
                 _scores = self.frequency_processor(input_ids, _scores)
             if self.grammar_processor is not None:
                 _scores = self.grammar_processor(_scores, self.fsm_grammar_states)
+            if self.logit_bias_processor is not None:
+                _scores = self.logit_bias_processor(input_ids, _scores)
             for warper in self.warpers:
                 _scores = warper(input_ids, _scores)
             _next_ids = self.choice(_scores)
@@ -444,6 +464,9 @@ class HeterogeneousNextTokenChooser:
         if self.grammar_processor is not None:
             self.grammar_processor = self.grammar_processor.filter(indices)
 
+        if self.logit_bias_processor is not None:
+            self.logit_bias_processor = self.logit_bias_processor.filter(indices)
+
         filtered_warpers = []
         for warper in self.warpers:
             filtered_warper = warper.filter(indices)
@@ -453,6 +476,7 @@ class HeterogeneousNextTokenChooser:
 
         self.seeds = [self.seeds[i] for i in indices]
         self.do_sample = [self.do_sample[i] for i in indices]
+        self.logit_biases = [self.logit_biases[i] for i in indices]
 
         new_grammars = []
         new_fsm_grammar_states = []
@@ -500,6 +524,9 @@ class HeterogeneousNextTokenChooser:
             fsm_grammar_states=(
                 fsm_grammar_states if fsm_grammar_states else [0] * len(pb)
             ),
+            logit_biases=[
+                dict(pb_.logit_bias) if pb_.logit_bias else None for pb_ in pb
+            ],
         )
 
 
