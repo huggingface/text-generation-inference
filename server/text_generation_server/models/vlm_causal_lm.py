@@ -204,7 +204,8 @@ def preprocess_image(config, img):
         img = img.resize((img.width * 2, img.height * 2))
     elif model_type == "paligemma":
         img = img.convert("RGB")
-    elif model_type not in {"llava_next", "gemma3", "llama4"}:
+
+    if model_type in {"llava_next", "gemma3", "llama4"}:
         img = [img]
 
     return img
