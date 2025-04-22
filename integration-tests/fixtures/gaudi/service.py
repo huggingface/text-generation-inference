@@ -190,11 +190,7 @@ def gaudi_launcher(event_loop):
         except Exception as e:
             logger.error(f"Error handling existing container: {str(e)}")
 
-        model_name = next(
-            name for name, cfg in TEST_CONFIGS.items() if cfg["model_id"] == model_id
-        )
-
-        tgi_args = TEST_CONFIGS[model_name]["args"].copy()
+        tgi_args = TEST_CONFIGS[test_name]["args"].copy()
 
         env = BASE_ENV.copy()
 
@@ -202,14 +198,19 @@ def gaudi_launcher(event_loop):
         env["MODEL_ID"] = model_id
 
         # Add env config that is definied in the fixture parameter
-        if "env_config" in TEST_CONFIGS[model_name]:
-            env.update(TEST_CONFIGS[model_name]["env_config"].copy())
+        if "env_config" in TEST_CONFIGS[test_name]:
+            env.update(TEST_CONFIGS[test_name]["env_config"].copy())
 
         volumes = [f"{DOCKER_VOLUME}:/data"]
         logger.debug(f"Using volume {volumes}")
 
         try:
+            logger.debug(f"Using command {tgi_args}")
             logger.info(f"Creating container with name {container_name}")
+
+            logger.debug(f"Using environment {env}")
+            logger.debug(f"Using volumes {volumes}")
+            logger.debug(f"HABANA_RUN_ARGS {HABANA_RUN_ARGS}")
 
             # Log equivalent docker run command for debugging, this is not actually executed
             container = client.containers.run(
