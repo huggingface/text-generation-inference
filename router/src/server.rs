@@ -1522,6 +1522,7 @@ pub async fn run(
     max_client_batch_size: usize,
     usage_stats_level: usage_stats::UsageStatsLevel,
     payload_limit: usize,
+    prometheus_port: u16,
 ) -> Result<(), WebServerError> {
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
@@ -1825,6 +1826,7 @@ pub async fn run(
         compat_return_full_text,
         allow_origin,
         payload_limit,
+        prometheus_port,
     )
     .await;
 
@@ -1886,6 +1888,7 @@ async fn start(
     compat_return_full_text: bool,
     allow_origin: Option<AllowOrigin>,
     payload_limit: usize,
+    prometheus_port: u16,
 ) -> Result<(), WebServerError> {
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
@@ -1959,8 +1962,12 @@ async fn start(
     // let skipped_matcher = Matcher::Full(String::from("tgi_request_skipped_tokens"));
     // let skipped_buckets: Vec<f64> = (0..shard_info.speculate + 1).map(|x| x as f64).collect();
 
+    let mut p_addr = addr;
+    p_addr.set_port(prometheus_port);
+
     // Prometheus handler
     let builder = PrometheusBuilder::new()
+        .with_http_listener(p_addr)
         .set_buckets_for_metric(duration_matcher, &duration_buckets)
         .unwrap()
         .set_buckets_for_metric(input_length_matcher, &input_length_buckets)
