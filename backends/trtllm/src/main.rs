@@ -325,7 +325,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
                 max_client_batch_size,
                 usage_stats,
                 payload_limit,
-                prometheus_port
+                prometheus_port,
             )
             .await?;
             Ok(())
