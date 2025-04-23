@@ -1522,6 +1522,8 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
             )
         # TODO: Uncomment when transformers is refactored
         # elif FLASH_TRANSFORMERS_BACKEND:
@@ -1553,6 +1555,8 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=Qwen2_5_VLConfig,
                 processor_class=Qwen2_5_VLProcessor,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
             )
         # TODO: Uncomment when transformers is refactored
         # elif FLASH_TRANSFORMERS_BACKEND:
