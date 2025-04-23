@@ -773,6 +773,10 @@ struct Args {
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
 
+    /// The Prometheus port to listen on.
+    #[clap(default_value = "9000", long, short, env)]
+    prometheus_port: u16,
+
     /// The name of the socket for gRPC communication between the webserver
     /// and the shards.
     #[clap(default_value = "/tmp/text-generation-server", long, env)]
@@ -1848,6 +1852,8 @@ fn spawn_webserver(
         args.hostname.to_string(),
         "--port".to_string(),
         args.port.to_string(),
+        "--prometheus-port".to_string(),
+        args.prometheus_port.to_string(),
         "--master-shard-uds-path".to_string(),
         format!("{}-0", args.shard_uds_path),
         "--tokenizer-name".to_string(),
