@@ -577,7 +577,7 @@ mod tests {
                     frequency_penalty: 0.0,
                     watermark: false,
                     grammar: None,
-                    logit_bias: HashMap::new(),
+                    logit_bias: None,
                 },
                 stopping_parameters: ValidStoppingParameters {
                     ignore_eos_token: false,

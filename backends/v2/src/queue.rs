@@ -401,7 +401,6 @@ impl From<ValidStoppingParameters> for StoppingCriteriaParameters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use std::sync::Arc;
     use tracing::info_span;
 
@@ -430,7 +429,7 @@ mod tests {
                     frequency_penalty: 0.0,
                     watermark: false,
                     grammar: None,
-                    logit_bias: HashMap::new(),
+                    logit_bias: None,
                 },
                 stopping_parameters: ValidStoppingParameters {
                     ignore_eos_token: false,
