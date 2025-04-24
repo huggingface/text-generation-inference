@@ -67,7 +67,9 @@ class PaliGemmaForConditionalGeneration(nn.Module):
     def get_vision_embeds(
         self,
         pixel_values: torch.FloatTensor,
-        **kwargs,
+        pixel_attention_mask: Optional[torch.FloatTensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
     ):
         pixel_values = pixel_values.to(dtype=self.dtype)
         image_outputs = self.vision_tower(pixel_values)
@@ -84,7 +86,6 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         self,
         input_ids: torch.Tensor,
         vision_embeds: torch.Tensor = None,
-        **kwargs,
     ):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
 

@@ -721,7 +721,6 @@ class VlmCausalLM(FlashCausalLM):
         input_lengths = [max_s] * bs
         cache_lengths = [0] * bs
         if max_bs is None:
-            input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
             inputs_embeds = torch.zeros(
                 (bs, self.model.config.text_config.hidden_size),
                 device=self.device,
@@ -760,7 +759,6 @@ class VlmCausalLM(FlashCausalLM):
                 raise RuntimeError(
                     "Cuda graphs should be generated in decreasing order size to reduce VRAM usage"
                 )
-            input_ids = self.cuda_graphs[max_bs]["input_ids"][:bs]
             inputs_embeds = self.cuda_graphs[max_bs]["inputs_embeds"][:bs]
             position_ids = self.cuda_graphs[max_bs]["position_ids"][:bs]
             if ATTENTION == "flashinfer":
@@ -781,7 +779,7 @@ class VlmCausalLM(FlashCausalLM):
             )
             last_page_len = torch.ones(bs, dtype=torch.int32, device=self.device)
             state = create_decode_state_cuda_graphs(
-                device=input_ids.device,
+                device=inputs_embeds.device,
                 block_tables=block_tables,
                 block_tables_ptr=block_tables_ptr,
                 last_page_len=last_page_len,
@@ -793,7 +791,6 @@ class VlmCausalLM(FlashCausalLM):
 
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs] = {
-            "input_ids": input_ids,
             "inputs_embeds": inputs_embeds,
             "position_ids": position_ids,
             "kv_cache": self.kv_cache,
@@ -822,7 +819,6 @@ class VlmCausalLM(FlashCausalLM):
                 max_k=max_s,
             )
             self.model.forward(
-                input_ids=input_ids,
                 inputs_embeds=inputs_embeds,
                 position_ids=position_ids,
                 cu_seqlen_prefill=None,
@@ -847,7 +843,6 @@ class VlmCausalLM(FlashCausalLM):
                     max_k=max_s,
                 )
                 logits, speculative_logits = self.model.forward(
-                    input_ids=input_ids,
                     inputs_embeds=inputs_embeds,
                     position_ids=position_ids,
                     cu_seqlen_prefill=None,
@@ -1007,14 +1002,21 @@ class VlmCausalLM(FlashCausalLM):
                 )
                 batch.position_ids = position_ids
 
+        attention_mask = None
+        attention_mask_forward = None
         if self.model.config.model_type == "gemma3" and cu_seqlen_prefill is not None:
             # Get the mask, needed for flashinfer.
-            attention_mask = self.model.get_attention_mask(
-                input_ids, cu_seqlen_prefill, self.dtype, bool_mask=True
-            ).reshape(-1)
-            batch.pixel_values = 1
-        else:
-            attention_mask = None
+            has_image = (input_ids == self.model.config.image_token_index).any()
+
+            if has_image:
+                attention_mask = self.model.get_attention_mask(
+                    input_ids, cu_seqlen_prefill, self.dtype, bool_mask=True
+                )
+                min_dtype = torch.finfo(self.dtype).min
+                attention_mask_forward = torch.where(attention_mask, 0, min_dtype).to(
+                    input_ids.device
+                )
+                attention_mask = attention_mask.reshape(-1)
 
         # Try to find an associated cuda graph
         bs = input_ids.shape[0]
@@ -1049,7 +1051,6 @@ class VlmCausalLM(FlashCausalLM):
                     max_k=batch.max_current_length,
                 )
                 logits, speculative_logits = self.model.forward(
-                    input_ids=input_ids,
                     inputs_embeds=inputs_embeds,
                     position_ids=position_ids,
                     cu_seqlen_prefill=cu_seqlen_prefill,
@@ -1060,27 +1061,17 @@ class VlmCausalLM(FlashCausalLM):
                     max_s=max_s,
                     prefill_cache_indices=batch.prefill_cache_indices,
                     lm_head_indices=lm_head_indices,
-                    pixel_values=batch.pixel_values,
-                    pixel_attention_mask=batch.pixel_attention_mask,
-                    image_sizes=batch.image_sizes,
-                    image_grid_thw=batch.image_grid_thw,
+                    attention_mask=attention_mask_forward,
                 )
                 if batch.prefill_cache_indices is not None:
                     batch.prefill_cache_indices = None
                 if batch.pixel_values is not None:
                     batch.pixel_values = None
-                if batch.pixel_attention_mask is not None:
-                    batch.pixel_attention_mask = None
-                if batch.image_sizes is not None:
-                    batch.image_sizes = None
-                if batch.image_grid_thw is not None:
-                    batch.image_grid_thw = None
                 batch.free_encoder_cache()
                 return logits, speculative_logits
 
         # Copy inputs to the static inputs of the cuda graph
         # Static inputs are potentially padded
-        cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
         cuda_graph["inputs_embeds"][: inputs_embeds.shape[0]] = inputs_embeds
         cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
         if ATTENTION == "flashinfer":

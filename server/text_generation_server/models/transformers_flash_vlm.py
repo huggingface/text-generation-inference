@@ -577,8 +577,13 @@ class TransformersLlama4VlmCausalLM(TransformersFlashVlmCausalLM):
         inputs["attention_mask"] = torch.zeros((1, 1, 1, 1), device=input_ids.device)
         return inputs
 
-    def get_vision_embeds(self, pixel_values, **kwargs):
-        image_sizes = kwargs.get("image_sizes", None)
+    def get_vision_embeds(
+        self,
+        pixel_values: torch.FloatTensor,
+        pixel_attention_mask: Optional[torch.FloatTensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
+    ):
         image_features = self.model.get_image_features(
             pixel_values=pixel_values,
             vision_feature_layer=self.model.config.vision_config.vision_feature_layer,

@@ -766,7 +766,9 @@ class Gemma3ForConditionalGeneration(nn.Module):
     def get_vision_embeds(
         self,
         pixel_values: torch.FloatTensor,
-        **kwargs,
+        pixel_attention_mask: Optional[torch.FloatTensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
     ):
         pixel_values = pixel_values.to(dtype=self.dtype)
         image_outputs = self.vision_model(pixel_values)
@@ -781,7 +783,6 @@ class Gemma3ForConditionalGeneration(nn.Module):
         self,
         input_ids: torch.Tensor,
         vision_embeds: torch.Tensor = None,
-        **kwargs,
     ):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
 
@@ -797,7 +798,6 @@ class Gemma3ForConditionalGeneration(nn.Module):
 
     def forward(
         self,
-        input_ids: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -810,22 +810,13 @@ class Gemma3ForConditionalGeneration(nn.Module):
         pixel_values: torch.FloatTensor = None,
         # Unused here
         attention_mask: Optional[torch.BoolTensor] = None,
-        pixel_attention_mask: Optional[torch.BoolTensor] = None,
-        image_sizes: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
-        image_grid_thw: Optional[torch.LongTensor] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         if cu_seqlen_prefill is not None:
             max_s += 1
             position_ids += 1
 
-        if pixel_values:
-            attention_mask = self.get_attention_mask(
-                input_ids,
-                cu_seqlen_prefill,
-                inputs_embeds.dtype,
-            )
         # Use flash attention for text-only input
         # else:
         #     if cu_seqlen_prefill is not None:
