@@ -13,7 +13,6 @@ class HPUPagedAttentionMetadata:
     block_list: Optional[torch.Tensor]
     block_mapping: Optional[torch.Tensor]
     block_usage: Optional[torch.Tensor]
-    block_scales: Optional[torch.Tensor]
     block_groups: Optional[torch.Tensor]
     attn_bias: Optional[torch.Tensor]
 
@@ -66,7 +65,6 @@ def trim_attn_metadata(metadata: HPUPagedAttentionMetadata) -> object:
             "block_list",
             "block_mapping",
             "block_usage",
-            "block_scales",
             "block_groups",
             "attn_bias",
         ],

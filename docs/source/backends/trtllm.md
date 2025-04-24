@@ -163,7 +163,7 @@ WORKDIR /usr/src/text-generation-inference
 ARG cuda_arch_list
 ARG build_type
 ARG sccache_gha_enabled
-ARG actions_cache_url
+ARG actions_results_url
 ARG actions_runtime_token
 
 # Install Rust
@@ -171,7 +171,7 @@ ENV PATH="/root/.cargo/bin:$PATH"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y && \
     chmod -R a+w /root/.rustup && \
     chmod -R a+w /root/.cargo && \
-    cargo install sccache --locked
+    cargo install sccache --version ">=0.10.0" --locked
 
 ENV LD_LIBRARY_PATH="/usr/local/mpi/lib:$LD_LIBRARY_PATH"
 ENV PKG_CONFIG_PATH="/usr/local/mpi/lib/pkgconfig"
