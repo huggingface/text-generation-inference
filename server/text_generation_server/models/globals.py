@@ -15,9 +15,9 @@ PREFIX_CACHING = os.environ["PREFIX_CACHING"].lower() in {
 PREFILL_CHUNKING = os.getenv("PREFILL_CHUNKING", "1").lower() in {"1", "true"}
 log_master(logger.info, f"Using prefix caching = {PREFIX_CACHING}")
 _expected = {"paged", "flashdecoding", "flashdecoding-ipex", "flashinfer"}
-assert ATTENTION in _expected, (
-    f"Attention is not valid {ATTENTION}, expected {_expected}"
-)
+assert (
+    ATTENTION in _expected
+), f"Attention is not valid {ATTENTION}, expected {_expected}"
 log_master(logger.info, f"Using Attention = {ATTENTION}")
 
 if PREFIX_CACHING and ATTENTION not in {
