@@ -10,6 +10,7 @@ include Makefile-flashinfer
 unit-tests:
 	pip install -U pip uv
 	uv pip install -e ".[dev]"
+	uv sync --inexact --extra dev --active
 	pytest -s -vv -m "not private" tests
 
 gen-server:
@@ -30,14 +31,14 @@ gen-server-raw:
 	touch text_generation_server/pb/__init__.py
 
 install-server: gen-server
-	uv pip install -e ".[accelerate, compressed-tensors, quantize, peft, outlines]"
+	uv sync --inexact --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines --active
 
 
 install: install-cuda
 	echo "Installed server"
 
 install-cuda: install-server install-flash-attention-v2-cuda install-flash-attention
-	uv pip install -e ".[attention,bnb,marlin,moe]"
+	uv sync --inexact --extra attention --extra bnb --extra marlin --extra moe --active
 	uv pip install nvidia-nccl-cu12==2.22.3
 	kernels download .
 
