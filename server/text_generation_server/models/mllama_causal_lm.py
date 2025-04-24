@@ -199,7 +199,8 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
 
 
 class MllamaCausalLM(VlmCausalLM):
-    def get_input_embeddings(self, batch):
+    def set_inputs_embeds(self, batch):
+        # Set the input embeddings to None, as we are using the input_ids for the model
         batch.inputs_embeds = None
 
     def forward(

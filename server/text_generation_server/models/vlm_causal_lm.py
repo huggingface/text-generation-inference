@@ -205,7 +205,8 @@ def preprocess_image(config, img):
     elif model_type == "paligemma":
         img = img.convert("RGB")
 
-    if model_type in {"llava_next", "gemma3", "llama4"}:
+    if model_type not in {"llava_next", "gemma3", "llama4"}:
+        # TODO: check if this is needed
         img = [img]
 
     return img
@@ -307,6 +308,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
     image_grid_thw: Optional[torch.Tensor]
     cache_entries_to_free: List[Tuple[int, int]]
     has_image_inputs: bool = False
+    inputs_embeds: Optional[torch.Tensor] = None
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
@@ -334,6 +336,8 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         batch.pixel_attention_mask = None
         batch.image_sizes = None
         batch.image_grid_thw = None
+        batch.inputs_embeds = None
+
         # To be filled in prepare_for_prefill
         batch.has_image_inputs = False
         batch.cache_entries_to_free = []
@@ -349,7 +353,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         image_positions = []
         encoder_cache = []
 
-        for i, request_id in enumerate(request_ids):
+        for request_id in request_ids:
             idx = self.requests_idx_mapping[request_id]
             image_inputs.append(self.image_inputs[idx])
             image_positions.append(self.image_positions[idx])
@@ -360,6 +364,7 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         batch.pixel_attention_mask = None
         batch.image_sizes = None
         batch.image_grid_thw = None
+        batch.inputs_embeds = None
 
         batch.image_inputs = image_inputs
         batch.image_positions = image_positions
@@ -383,10 +388,9 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
 
         max_length = 0
         vocab = tokenizer.get_vocab()
-        config.image_token_index = (
-            config.image_token_index
-            if hasattr(config, "image_token_index")
-            else config.image_token_id
+
+        config.image_token_index = getattr(
+            config, "image_token_index", config.image_token_id
         )
 
         batch_tokenized_inputs: List[List[int]] = []
@@ -550,6 +554,12 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         self.cache_entries_to_free = []
 
         self.pixel_values = []
+
+        assert (
+            len(self.cache_lengths)
+            == len(self.input_lengths)
+            == len(self.prefilling_mask)
+        ), "Mismatch in lengths of cache_lengths, input_lengths, and prefilling_mask"
 
         for i, (
             cache_length,
@@ -915,7 +925,7 @@ class VlmCausalLM(FlashCausalLM):
 
         batch.pixel_values = None
 
-    def get_input_embeddings(self, batch):
+    def set_inputs_embeds(self, batch):
         if batch.has_image_inputs:
             self.encode_images(batch)
             vision_embeds = batch.gather_vision_embeds()

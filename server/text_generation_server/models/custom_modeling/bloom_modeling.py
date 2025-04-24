@@ -661,7 +661,7 @@ class BloomModel(BloomPreTrainedModel):
 
         return combined_attention_mask
 
-    def set_input_embeddings(self, new_embeddings: torch.Tensor):
+    def set_inputs_embeds(self, new_embeddings: torch.Tensor):
         self.word_embeddings = new_embeddings
 
     def forward(
