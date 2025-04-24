@@ -720,9 +720,10 @@ class VlmCausalLM(FlashCausalLM):
         max_bs = max(self.cuda_graphs.keys()) if self.cuda_graphs else None
         input_lengths = [max_s] * bs
         cache_lengths = [0] * bs
+        config = getattr(self.model.config, "text_config", self.model.config)
         if max_bs is None:
             inputs_embeds = torch.zeros(
-                (bs, self.model.config.text_config.hidden_size),
+                (bs, config.hidden_size),
                 device=self.device,
                 dtype=self.dtype,
             )
