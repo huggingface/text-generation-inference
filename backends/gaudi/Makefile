@@ -8,7 +8,7 @@ PYTORCH_VERSION := 2.6.0
 .PHONY:	image run-local-dev-container install-dependencies install-server install-router install-launcher local-dev-install
 
 image:
-	docker build -t tgi-gaudi -f ${root_dir}/Dockerfile_gaudi ${root_dir} --build-arg HABANA_VERSION=$(HABANA_VERSION) --build-arg PYTORCH_VERSION=$(PYTORCH_VERSION)
+	docker build --ulimit nofile=4096 -t tgi-gaudi -f ${root_dir}/Dockerfile_gaudi ${root_dir} --build-arg HABANA_VERSION=$(HABANA_VERSION) --build-arg PYTORCH_VERSION=$(PYTORCH_VERSION)
 
 run-local-dev-container:
 		docker run -it \

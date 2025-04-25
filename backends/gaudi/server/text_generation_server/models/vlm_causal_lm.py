@@ -1,3 +1,4 @@
+import json
 import re
 import torch
 import os
@@ -12,6 +13,7 @@ import tempfile
 import copy
 from text_generation_server.models import Model
 from transformers import PreTrainedTokenizerBase
+from text_generation_server.utils import weight_files
 from text_generation_server.utils.tokens import batch_top_tokens
 from text_generation_server.pb import generate_pb2
 from text_generation_server.models.causal_lm import (
@@ -43,11 +45,7 @@ from transformers import (
     AutoTokenizer,
     AutoConfig,
 )
-from optimum.habana.checkpoint_utils import (
-    get_repo_root,
-    model_on_meta,
-    write_checkpoints_json,
-)
+from optimum.habana.checkpoint_utils import model_on_meta
 
 from text_generation_server.utils.speculate import get_speculate
 from text_generation_server.models.types import (
@@ -840,6 +838,9 @@ class VlmCausalLM(Model):
         if hq_env.is_quantization_enabled:
             htorch.core.hpu_set_env()
 
+        # Get weight files
+        weight_files(model_id, revision=revision, extension=".safetensors")
+
         if world_size > 1:
             os.environ.setdefault(
                 "DEEPSPEED_USE_HABANA_FRAMEWORKS_DETERMINISTIC_API", "1"
@@ -847,8 +848,6 @@ class VlmCausalLM(Model):
             model = self.get_deepspeed_model(model_class, model_id, dtype, revision)
             model = hq_env.prepare_model_for_quantization(model)
         else:
-            get_repo_root(model_id)
-
             # Check support for rope scaling
             model_kwargs = {}
             config = AutoConfig.from_pretrained(model_id)
@@ -1000,7 +999,6 @@ class VlmCausalLM(Model):
             with deepspeed.OnDevice(dtype=dtype, device="meta"):
                 model = model_class.from_config(config, torch_dtype=dtype)
         else:
-            get_repo_root(model_id, local_rank=os.getenv("LOCAL_RANK"))
             # TODO: revisit placement on CPU when auto-injection is possible
             with deepspeed.OnDevice(dtype=dtype, device="cpu"):
                 model = model_class.from_pretrained(
@@ -1019,7 +1017,10 @@ class VlmCausalLM(Model):
         if load_to_meta:
             # model loaded to meta is managed differently
             checkpoints_json = tempfile.NamedTemporaryFile(suffix=".json", mode="+w")
-            write_checkpoints_json(model_id, local_rank, checkpoints_json)
+            checkpoint_files = [str(f) for f in weight_files(model_id, revision=revision, extension=".safetensors")]
+            data = {"type": "ds_model", "checkpoints": checkpoint_files, "version": 1.0}
+            json.dump(data, checkpoints_json)
+            checkpoints_json.flush()
             ds_inference_kwargs["checkpoint"] = checkpoints_json.name
         model = deepspeed.init_inference(model, **ds_inference_kwargs)
 
