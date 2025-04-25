@@ -389,9 +389,8 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
         max_length = 0
         vocab = tokenizer.get_vocab()
 
-        config.image_token_index = getattr(
-            config, "image_token_index", config.image_token_id
-        )
+        if not hasattr(config, "image_token_index"):
+            config.image_token_index = config.image_token_id
 
         batch_tokenized_inputs: List[List[int]] = []
         batch_image_inputs: List[Optional[List[dict]]] = []
