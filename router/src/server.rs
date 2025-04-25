@@ -1577,7 +1577,7 @@ pub async fn run(
             let cache = std::env::var("HUGGINGFACE_HUB_CACHE")
                 .map_err(|_| ())
                 .map(|cache_dir| Cache::new(cache_dir.into()))
-                .unwrap_or_else(|_| Cache::default());
+                .unwrap_or_else(|_| Cache::from_env());
             tracing::warn!("Offline mode active using cache defaults");
             Type::Cache(cache)
         } else {
