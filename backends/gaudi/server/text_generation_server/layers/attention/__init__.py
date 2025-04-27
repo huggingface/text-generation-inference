@@ -3,6 +3,7 @@ from .common import (
     HPUPagedAttentionMetadata,
     trim_attn_metadata,
     trim_seqlen_metadata,
+    _async_h2d_tensor_copy,
 )
 
 from .hpu import (
@@ -25,4 +26,5 @@ __all__ = [
     "HPUPagedAttentionMetadata",
     "trim_seqlen_metadata",
     "trim_attn_metadata",
+    "_async_h2d_tensor_copy",
 ]

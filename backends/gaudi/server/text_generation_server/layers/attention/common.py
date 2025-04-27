@@ -75,40 +75,25 @@ def trim_attn_metadata(metadata: HPUPagedAttentionMetadata) -> object:
 @dataclass
 class Seqlen:
     input_lengths: torch.Tensor
-    cache_lengths: torch.Tensor
-    cu_seqlen_q: Optional[torch.Tensor]
-    cu_seqlen_k: Optional[torch.Tensor]
 
     def __init__(
         self,
         input_lengths,
-        cache_lengths,
-        cu_seqlen_q=None,
     ):
         self.input_lengths = input_lengths
-        self.cache_lengths = cache_lengths
-        device = self.input_lengths.device
-        shape = self.input_lengths.shape
-        if cu_seqlen_q is None:
-            cu_seqlen_q = torch.arange(
-                shape[0] + 1,
-                device=device,
-                dtype=torch.int32,
-            )
-        cu_seqlen_k = torch.zeros(shape[-1] + 1, device=device, dtype=torch.int32)
-
-        # cuda graphs don't like this and this is necessary to clamp within mistral
-        # Although FA2 might not want the clamping
-        # cu_seqlen_k[0] = 0
-        total = self.input_lengths + self.cache_lengths
-        torch.cumsum(total, -1, out=cu_seqlen_k[1:])
-
-        self.cu_seqlen_q = cu_seqlen_q
-        self.cu_seqlen_k = cu_seqlen_k
 
     def clamp(self, max):
         # Flash decoding doesn't need to clamp
         return self
+
+
+def _async_h2d_tensor_copy(source, device="hpu"):
+    if source is None:
+        return None
+    assert source.device.type == "cpu", "Source tensor is not present in host memory!"
+    target = torch.empty(source.shape, dtype=source.dtype, device=device)
+    target.copy_(source, non_blocking=True)
+    return target
 
 
 def trim_seqlen_metadata(metadata: Seqlen) -> object:
@@ -137,9 +122,6 @@ def trim_seqlen_metadata(metadata: Seqlen) -> object:
         "TrimmedSeqlen",
         [
             "input_lengths",
-            "cache_lengths",
-            "cu_seqlen_q",
-            "cu_seqlen_k",
         ],
     )
     return attention_metadata
