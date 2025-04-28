@@ -270,6 +270,7 @@ class LlavaNextForConditionalGeneration(nn.Module):
 
     def forward(
         self,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -282,7 +283,6 @@ class LlavaNextForConditionalGeneration(nn.Module):
         # Unused for this model
         attention_mask: Optional[torch.BoolTensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
-        inputs_embeds: Optional[torch.Tensor] = None,
     ):
         hidden_states = self.text_model.model(
             inputs_embeds=inputs_embeds,

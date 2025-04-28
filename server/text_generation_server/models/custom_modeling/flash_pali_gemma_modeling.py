@@ -97,6 +97,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
 
     def forward(
         self,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -109,7 +110,6 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         # Unused here
         attention_mask: Optional[torch.BoolTensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
-        inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # TODO This is odd but apparently pali gemma position ids start at 1.
         if cu_seqlen_prefill is not None:

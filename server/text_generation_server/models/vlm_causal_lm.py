@@ -919,6 +919,9 @@ class VlmCausalLM(FlashCausalLM):
                 )
 
         batch.pixel_values = None
+        batch.pixel_attention_mask = None
+        batch.image_sizes = None
+        batch.image_grid_thw = None
 
     def set_inputs_embeds(self, batch):
         if batch.has_image_inputs:
@@ -1005,18 +1008,14 @@ class VlmCausalLM(FlashCausalLM):
         attention_mask = None
         attention_mask_forward = None
         if self.model.config.model_type == "gemma3" and cu_seqlen_prefill is not None:
-            # Get the mask, needed for flashinfer.
-            has_image = (input_ids == self.model.config.image_token_index).any()
-
-            if has_image:
-                attention_mask = self.model.get_attention_mask(
-                    input_ids, cu_seqlen_prefill, self.dtype, bool_mask=True
-                )
-                min_dtype = torch.finfo(self.dtype).min
-                attention_mask_forward = torch.where(attention_mask, 0, min_dtype).to(
-                    input_ids.device
-                )
-                attention_mask = attention_mask.reshape(-1)
+            attention_mask = self.model.get_attention_mask(
+                input_ids, cu_seqlen_prefill, self.dtype, bool_mask=True
+            )
+            min_dtype = torch.finfo(self.dtype).min
+            attention_mask_forward = torch.where(attention_mask, 0, min_dtype).to(
+                input_ids.device
+            )
+            attention_mask = attention_mask.reshape(-1)
 
         # Try to find an associated cuda graph
         bs = input_ids.shape[0]

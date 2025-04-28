@@ -947,6 +947,7 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
 
     def forward(
         self,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -960,7 +961,6 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
         image_indices=None,
-        inputs_embeds: Optional[torch.Tensor] = None,
     ):
         hidden_states = self.text_model(
             inputs_embeds=inputs_embeds,
