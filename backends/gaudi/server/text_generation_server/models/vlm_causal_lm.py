@@ -1017,7 +1017,12 @@ class VlmCausalLM(Model):
         if load_to_meta:
             # model loaded to meta is managed differently
             checkpoints_json = tempfile.NamedTemporaryFile(suffix=".json", mode="+w")
-            checkpoint_files = [str(f) for f in weight_files(model_id, revision=revision, extension=".safetensors")]
+            checkpoint_files = [
+                str(f)
+                for f in weight_files(
+                    model_id, revision=revision, extension=".safetensors"
+                )
+            ]
             data = {"type": "ds_model", "checkpoints": checkpoint_files, "version": 1.0}
             json.dump(data, checkpoints_json)
             checkpoints_json.flush()
