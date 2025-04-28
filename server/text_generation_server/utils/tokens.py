@@ -66,7 +66,6 @@ class NextTokenChooser:
             else None
         )
         self.tokenizer = tokenizer
-        self.logit_bias = logit_bias
 
         has_warpers = (
             (temperature is not None and temperature != 1.0)
@@ -136,7 +135,7 @@ class NextTokenChooser:
             tokenizer=tokenizer,
             grammar=pb.grammar,
             grammar_type=pb.grammar_type,
-            logit_bias=dict(pb.logit_bias) if pb.logit_bias else None,
+            logit_bias=pb.logit_bias,
         )
 
 
@@ -264,10 +263,6 @@ class HeterogeneousNextTokenChooser:
     ):
         warpers = []
 
-        # Initialize with empty logit biases if none provided
-        if logit_biases is None:
-            logit_biases = [None] * len(do_sample)
-
         self.watermark_processor = (
             HeterogeneousProcessorWrapper(
                 {
@@ -306,7 +301,7 @@ class HeterogeneousNextTokenChooser:
 
         self.logit_bias_processor = (
             HeterogeneousLogitBiasProcessor(logit_biases, tokenizer, device)
-            if any([bias is not None and len(bias) > 0 for bias in logit_biases])
+            if any([logit_bias is not None for logit_bias in logit_biases])
             else None
         )
 
@@ -530,9 +525,7 @@ class HeterogeneousNextTokenChooser:
             fsm_grammar_states=(
                 fsm_grammar_states if fsm_grammar_states else [0] * len(pb)
             ),
-            logit_biases=[
-                dict(pb_.logit_bias) if pb_.logit_bias else None for pb_ in pb
-            ],
+            logit_biases=[pb_.logit_bias for pb_ in pb],
         )
 
 

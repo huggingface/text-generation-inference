@@ -34,6 +34,7 @@ pub struct Validation {
     max_input_length: usize,
     max_total_tokens: usize,
     disable_grammar_support: bool,
+    vocab_size: u32,
     /// Channel to communicate with the background tokenization task
     sender: mpsc::UnboundedSender<TokenizerRequest>,
 }
@@ -88,6 +89,19 @@ impl Validation {
             validation_sender
         };
 
+        let vocab_size = match &tokenizer {
+            Tokenizer::Python { tokenizer_name, .. } => {
+                warn!(
+                    "Tokenizer {} is not supported for validation",
+                    tokenizer_name
+                );
+                0
+            }
+            Tokenizer::Rust(tokenizer) => tokenizer.get_vocab_size(false),
+        }
+        .try_into()
+        .unwrap_or(0);
+
         Self {
             max_best_of,
             sender,
@@ -96,6 +110,7 @@ impl Validation {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            vocab_size,
         }
     }
 
@@ -409,6 +424,35 @@ impl Validation {
             None => None,
         };
 
+        let logit_bias = match &request.parameters.logit_bias {
+            Some(bias) if !bias.is_empty() => {
+                for (token_str, _) in bias.iter() {
+                    let token_id = token_str.parse::<u32>().map_err(|_| {
+                        ValidationError::LogitBiasInvalid(format!(
+                            "Token ID {} is not a valid number.",
+                            token_str
+                        ))
+                    })?;
+
+                    if token_id >= self.vocab_size {
+                        return Err(ValidationError::LogitBiasInvalid(format!(
+                            "Token ID {} is out of range. Must be between 0 and {}.",
+                            token_id,
+                            self.vocab_size - 1
+                        )));
+                    }
+                }
+
+                // Transform into the required format
+                Some(
+                    bias.iter()
+                        .map(|(k, v)| (k.parse::<u32>().unwrap(), *v as f32))
+                        .collect(),
+                )
+            }
+            _ => None,
+        };
+
         let parameters = ValidParameters {
             temperature,
             repetition_penalty,
@@ -420,18 +464,7 @@ impl Validation {
             seed,
             watermark,
             grammar,
-            logit_bias: Some(
-                request
-                    .parameters
-                    .logit_bias
-                    .iter()
-                    .flat_map(|bias| {
-                        bias.iter()
-                            .map(|(k, v)| (k.parse::<u32>().unwrap(), *v as f32))
-                            .collect::<Vec<_>>()
-                    })
-                    .collect(),
-            ),
+            logit_bias,
         };
         let stopping_parameters = ValidStoppingParameters {
             max_new_tokens,
@@ -1011,6 +1044,8 @@ pub enum ValidationError {
     FailedFetchImage(#[from] reqwest::Error),
     #[error("{0} modality is not supported")]
     UnsupportedModality(&'static str),
+    #[error("logit_bias is not valid: {0}")]
+    LogitBiasInvalid(String),
 }
 
 #[cfg(test)]
