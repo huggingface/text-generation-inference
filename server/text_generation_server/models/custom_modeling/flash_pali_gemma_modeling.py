@@ -77,9 +77,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
             image_outputs.last_hidden_state
         )
         image_features = self.multi_modal_projector(last_hidden_state)
-        image_features = image_features.view(
-            image_features.shape[0], image_features.shape[1], -1
-        )
+        image_features = image_features.view(-1, image_features.shape[-1])
         return image_features
 
     def get_inputs_embeds(

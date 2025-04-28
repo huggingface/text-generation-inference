@@ -1064,8 +1064,6 @@ class VlmCausalLM(FlashCausalLM):
                 )
                 if batch.prefill_cache_indices is not None:
                     batch.prefill_cache_indices = None
-                if batch.pixel_values is not None:
-                    batch.pixel_values = None
                 batch.free_encoder_cache()
                 return logits, speculative_logits
 
