@@ -33,20 +33,13 @@ from text_generation_server.layers.attention import (
     Seqlen,
     attention,
     paged_attention,
-    reshape_and_cache,
+    HPUPagedAttentionMetadata,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import KVCache, get_kv_scales
 from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_mscale
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils.weights import Weights
-
-if SYSTEM == "rocm":
-    try:
-        from vllm import _custom_C
-    except Exception as e:
-        raise ImportError(f"Could not load `vllm._custom_C`. Full error: {e}")
 
 
 class DeepseekV2Config(PretrainedConfig):
@@ -232,6 +225,8 @@ class DeepseekV2Attention(torch.nn.Module):
             ),
         )
 
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
+
         self.kv_a_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.kv_a_layernorm", weights=weights, eps=config.rms_norm_eps
         )
@@ -260,11 +255,10 @@ class DeepseekV2Attention(torch.nn.Module):
         cos: torch.Tensor,
         sin: torch.Tensor,
         cu_seqlen_prefill: torch.Tensor,
-        kv_cache: Tuple[torch.Tensor, torch.Tensor],
-        block_tables: torch.Tensor,
+        kv_cache: KVCache,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         if self.q_lora_rank is None:
             query = self.q_proj(hidden_states)
@@ -321,30 +315,35 @@ class DeepseekV2Attention(torch.nn.Module):
             value, (0, self.head_pad_size - self.value_head_size), value=0
         )
 
-        reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(
+            key=key,
+            value=value,
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else key,
-                kv_cache[1] if PREFILL_IN_KV_CACHE else value,
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=key,
+                value=value,
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         # Remove padding.
@@ -387,27 +386,11 @@ class DeepseekV2MLP(nn.Module):
         self.quantize = config.quantize
 
     def forward(self, hidden_states: torch.Tensor, reduce: bool = True):
-        if (
-            SYSTEM == "rocm"
-            and self.hidden_act == "silu"
-            and hidden_states.dtype == torch.float16
-            and hidden_states.shape[0] == 1
-            and not self.quantize
-        ):
-            out = torch.empty(
-                hidden_states.shape[0],
-                self.intermediate_size,
-                dtype=hidden_states.dtype,
-                device="cuda",
-            )
-            _custom_C.LLMM_Silu(self.gate_up_proj.linear.weight, hidden_states, out, 8)
-            return self.down_proj(out, reduce=reduce)
-        else:
-            gate_up_states = self.gate_up_proj(hidden_states)
-            gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
-            return self.down_proj(
-                self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], reduce=reduce
-            )
+        gate_up_states = self.gate_up_proj(hidden_states)
+        gate_up_states = gate_up_states.view(-1, 2, self.intermediate_size)
+        return self.down_proj(
+            self.act(gate_up_states[:, 0]) * gate_up_states[:, 1], reduce=reduce
+        )
 
 
 class DeepseekV2MoE(nn.Module):
@@ -520,10 +503,9 @@ class DeepseekV2Layer(nn.Module):
         sin: torch.Tensor,
         cu_seqlen_prefill: torch.Tensor,
         kv_cache,
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         normed_hidden_states, residual = self.input_layernorm(hidden_states, residual)
 
@@ -534,10 +516,9 @@ class DeepseekV2Layer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
 
         # faster post attention rms norm
@@ -583,18 +564,15 @@ class DeepseekV2Model(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.layers):
@@ -605,10 +583,9 @@ class DeepseekV2Model(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -635,11 +612,9 @@ class FlashDeepseekV2ForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -648,10 +623,9 @@ class FlashDeepseekV2ForCausalLM(torch.nn.Module):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

@@ -7,6 +7,7 @@ use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
     kserve_model_metadata, kserve_model_metadata_ready,
 };
+use crate::logging::trace_context_middleware;
 use crate::sagemaker::{
     sagemaker_compatibility, SagemakerRequest, SagemakerResponse, SagemakerStreamResponse,
     __path_sagemaker_compatibility,
@@ -63,6 +64,7 @@ use tokio::sync::oneshot;
 use tokio::time::Instant;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -74,11 +76,8 @@ fn encoding_to_tokens(encoding: &tokenizers::Encoding, input: &str) -> Vec<Simpl
             .iter()
             .zip(offsets)
             .map(|(&id, &(start, stop))| {
-                let text = input
-                    .chars()
-                    .skip(start)
-                    .take(stop - start)
-                    .collect::<String>();
+                let text: Vec<u8> = input.bytes().skip(start).take(stop - start).collect();
+                let text: String = String::from_utf8_lossy(&text).to_string();
                 SimpleToken {
                     id,
                     text,
@@ -128,6 +127,7 @@ pub(crate) async fn compat_generate(
     Extension(default_return_full_text): Extension<bool>,
     infer: Extension<Infer>,
     compute_type: Extension<ComputeType>,
+    context: Extension<Option<opentelemetry::Context>>,
     Json(mut req): Json<CompatGenerateRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     // default return_full_text given the pipeline_tag
@@ -137,11 +137,14 @@ pub(crate) async fn compat_generate(
 
     // switch on stream
     if req.stream {
-        Ok(generate_stream(infer, compute_type, Json(req.into()))
-            .await
-            .into_response())
+        Ok(
+            generate_stream(infer, compute_type, context, Json(req.into()))
+                .await
+                .into_response(),
+        )
     } else {
-        let (headers, Json(generation)) = generate(infer, compute_type, Json(req.into())).await?;
+        let (headers, Json(generation)) =
+            generate(infer, compute_type, context, Json(req.into())).await?;
         // wrap generation inside a Vec to match api-inference
         Ok((headers, Json(vec![generation])).into_response())
     }
@@ -270,9 +273,14 @@ seed,
 async fn generate(
     infer: Extension<Infer>,
     Extension(ComputeType(compute_type)): Extension<ComputeType>,
+    Extension(context): Extension<Option<opentelemetry::Context>>,
     Json(req): Json<GenerateRequest>,
 ) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
+    if let Some(context) = context {
+        span.set_parent(context);
+    }
+
     let (headers, _, response) =
         generate_internal(infer, ComputeType(compute_type), Json(req), span).await?;
     Ok((headers, response))
@@ -468,12 +476,17 @@ seed,
 async fn generate_stream(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
+    Extension(context): Extension<Option<opentelemetry::Context>>,
     Json(req): Json<GenerateRequest>,
 ) -> (
     HeaderMap,
     Sse<impl Stream<Item = Result<Event, Infallible>>>,
 ) {
     let span = tracing::Span::current();
+    if let Some(context) = context {
+        span.set_parent(context);
+    }
+
     let (headers, response_stream) =
         generate_stream_internal(infer, compute_type, Json(req), span).await;
 
@@ -703,9 +716,14 @@ pub(crate) async fn completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
+    Extension(context): Extension<Option<opentelemetry::Context>>,
     Json(req): Json<CompletionRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
+    if let Some(context) = context {
+        span.set_parent(context);
+    }
+
     metrics::counter!("tgi_request_count").increment(1);
 
     let CompletionRequest {
@@ -1151,9 +1169,14 @@ pub(crate) async fn chat_completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
+    Extension(context): Extension<Option<opentelemetry::Context>>,
     Json(mut chat): Json<ChatRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
+    if let Some(context) = context {
+        span.set_parent(context);
+    }
+
     metrics::counter!("tgi_request_count").increment(1);
     let ChatRequest {
         model,
@@ -1499,6 +1522,7 @@ pub async fn run(
     max_client_batch_size: usize,
     usage_stats_level: usage_stats::UsageStatsLevel,
     payload_limit: usize,
+    prometheus_port: u16,
 ) -> Result<(), WebServerError> {
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
@@ -1802,6 +1826,7 @@ pub async fn run(
         compat_return_full_text,
         allow_origin,
         payload_limit,
+        prometheus_port,
     )
     .await;
 
@@ -1863,6 +1888,7 @@ async fn start(
     compat_return_full_text: bool,
     allow_origin: Option<AllowOrigin>,
     payload_limit: usize,
+    prometheus_port: u16,
 ) -> Result<(), WebServerError> {
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
@@ -1936,8 +1962,12 @@ async fn start(
     // let skipped_matcher = Matcher::Full(String::from("tgi_request_skipped_tokens"));
     // let skipped_buckets: Vec<f64> = (0..shard_info.speculate + 1).map(|x| x as f64).collect();
 
+    let mut p_addr = addr;
+    p_addr.set_port(prometheus_port);
+
     // Prometheus handler
     let builder = PrometheusBuilder::new()
+        .with_http_listener(p_addr)
         .set_buckets_for_metric(duration_matcher, &duration_buckets)
         .unwrap()
         .set_buckets_for_metric(input_length_matcher, &input_length_buckets)
@@ -2261,6 +2291,7 @@ async fn start(
         .layer(Extension(prom_handle.clone()))
         .layer(OtelAxumLayer::default())
         .layer(DefaultBodyLimit::max(payload_limit))
+        .layer(axum::middleware::from_fn(trace_context_middleware))
         .layer(cors_layer);
 
     tracing::info!("Connected");

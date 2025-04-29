@@ -119,6 +119,9 @@ struct Args {
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
 
+    #[clap(default_value = "9000", long, short, env)]
+    prometheus_port: u16,
+
     /// Enable JSON output format.
     #[clap(long, env)]
     json_output: bool,
@@ -317,6 +320,7 @@ async fn main() -> Result<(), RouterError> {
         args.max_client_batch_size,
         args.usage_stats,
         args.payload_limit,
+        args.prometheus_port,
     )
     .await?;
     Ok(())

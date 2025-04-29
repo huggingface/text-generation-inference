@@ -2,7 +2,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::radix::RadixAllocator;
-
+use text_generation_router::usage_stats::Env;
 #[derive(Debug, Clone)]
 pub struct BlockAllocation {
     pub allocation_id: u64,
@@ -141,6 +141,7 @@ pub struct SimpleAllocator {
     free_blocks: Vec<u32>,
     block_size: u32,
     window_size: Option<u32>,
+    is_hpu_device: bool,
 }
 
 impl SimpleAllocator {
@@ -150,6 +151,7 @@ impl SimpleAllocator {
             // Block 0 is reserved for health checks
             free_blocks: (1..blocks).collect(),
             window_size,
+            is_hpu_device: Env::new().is_hpu_device(),
         }
     }
 }
@@ -175,13 +177,21 @@ impl Allocator for SimpleAllocator {
             (required_blocks, repeats)
         };
 
-        let tokens = tokens as usize;
+        let mut tokens = tokens as usize;
         if required_blocks > self.free_blocks.len() as u32 {
             None
         } else {
-            let blocks = self
+            if self.is_hpu_device {
+                self.free_blocks.sort_by(|a, b| b.cmp(a));
+            }
+            let mut blocks = self
                 .free_blocks
                 .split_off(self.free_blocks.len() - required_blocks as usize);
+            if self.is_hpu_device {
+                blocks.sort();
+                // need 1 slot for ping-pong optimization
+                tokens += 1;
+            }
             let mut slots =
                 Vec::with_capacity((required_blocks * self.block_size * repeats as u32) as usize);
 

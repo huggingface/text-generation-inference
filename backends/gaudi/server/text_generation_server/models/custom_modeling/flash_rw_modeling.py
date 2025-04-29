@@ -12,14 +12,14 @@ from text_generation_server.layers import (
     TensorParallelRowLinear,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.layernorm import FastLayerNorm
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.attention import (
     attention,
     paged_attention,
-    reshape_and_cache,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
 
 
@@ -79,6 +79,7 @@ class RWConfig(PretrainedConfig):
         self.alibi = False
         self.rotary = True
         self.rope_theta = rope_theta
+        self.max_position_embeddings = 2048
 
         self.vocab_size = vocab_size
         # Backward compatibility with n_embed kwarg
@@ -160,6 +161,7 @@ class FlashRWAttention(torch.nn.Module):
             weights=weights,
             bias=config.bias,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
@@ -180,10 +182,9 @@ class FlashRWAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
 
@@ -200,30 +201,35 @@ class FlashRWAttention(torch.nn.Module):
         # Inplace rotary
         self.rotary_emb(query, torch.select(kv, dim=1, index=0), cos, sin)
 
-        reshape_and_cache(kv[:, 0], kv[:, 1], kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(
+            key=kv[:, 0],
+            value=kv[:, 1],
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # flash attention
+            # sdpa
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, 0],
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, 1],
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, 0],
+                value=kv[:, 1],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.dense(attn_output.view(-1, self.num_heads * self.head_size))
@@ -278,6 +284,7 @@ class FlashRWLargeAttention(torch.nn.Module):
             weights=weights,
             bias=config.bias,
         )
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
         self.dense = load_row(
             config, prefix=f"{prefix}.dense", weights=weights, bias=config.bias
         )
@@ -293,10 +300,9 @@ class FlashRWLargeAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
         qkv = qkv.view(-1, self.num_groups, self.num_heads + 2, self.head_size)
@@ -312,36 +318,35 @@ class FlashRWLargeAttention(torch.nn.Module):
         # Inplace rotary
         self.rotary_emb(query, torch.select(kv, dim=2, index=0), cos, sin)
 
-        reshape_and_cache(
-            kv[:, :, 0].contiguous(),
-            kv[:, :, 1].contiguous(),
-            kv_cache[0],
-            kv_cache[1],
-            slots,
+        kv_cache.store(
+            key=kv[:, :, 0].contiguous(),
+            value=kv[:, :, 1].contiguous(),
+            slots=slots,
+            kv_scales=self.kv_scales,
         )
 
         # Prefill
         if cu_seqlen_prefill is not None:
             # flash attention
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else kv[:, :, 0].contiguous(),
-                kv_cache[1] if PREFILL_IN_KV_CACHE else kv[:, :, 1].contiguous(),
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=kv[:, :, 0],
+                value=kv[:, :, 1],
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.dense(
@@ -424,10 +429,9 @@ class FlashRWLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         if self.parallel_attn:
             ln_hidden_states, residual = self.input_layernorm(hidden_states, residual)
@@ -438,10 +442,9 @@ class FlashRWLayer(nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache,
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
             mlp_output = self.mlp(ln_hidden_states)
@@ -460,10 +463,9 @@ class FlashRWLayer(nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache,
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
             if self.post_attention_layernorm is not None:
@@ -547,10 +549,9 @@ class FlashRWLargeLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         # Layer norm.
         ln_attn, ln_mlp, residual = self.ln_layer(hidden_states, residual)
@@ -562,10 +563,9 @@ class FlashRWLargeLayer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
 
         # MLP.
@@ -623,18 +623,15 @@ class FlashRWModel(FlashRWPreTrainedModel):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.word_embeddings(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.h[0].self_attention.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.h[0].self_attention.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
         for i, layer in enumerate(self.h):
@@ -645,10 +642,9 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
@@ -675,11 +671,9 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
@@ -688,10 +682,9 @@ class FlashRWForCausalLM(FlashRWPreTrainedModel):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

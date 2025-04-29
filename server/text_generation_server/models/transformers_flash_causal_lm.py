@@ -12,7 +12,7 @@ from text_generation_server.utils import initialize_torch_distributed
 from text_generation_server.layers.attention import paged_attention, attention, Seqlen
 from text_generation_server.layers.attention.kv_cache import KVScales, KVCache
 from text_generation_server.models.globals import ATTENTION
-
+from text_generation_server.utils.import_utils import SYSTEM
 
 tracer = trace.get_tracer(__name__)
 
@@ -36,6 +36,7 @@ def tgi_flash_attention_forward(
     softcap: Optional[float] = None,
     **kwargs,  # This is needed to "absorb" other args passed by Transformers modeling
 ):
+
     kv_cache = kv_cache[module.layer_idx]
     query_states = query_states.transpose(1, 2).squeeze(dim=0)
     key_states = key_states.transpose(1, 2).squeeze(dim=0)
@@ -72,6 +73,7 @@ def tgi_flash_attention_forward(
             max_s,
             kv_scales=kv_scales,
             softcap=softcap,
+            window_size_left=sliding_window,
         )
 
     attn_output = attn_output.view(-1, num_heads * head_dim)
@@ -113,8 +115,11 @@ class TransformersFlashCausalLM(FlashCausalLM):
         if torch.cuda.is_available():
             device = torch.device(f"cuda:{rank}")
             dtype = default_dtype if dtype is None else dtype
-        elif hasattr(torch, "xpu") and torch.xpu.is_available():
-            device = torch.device("xpu")
+        elif SYSTEM == "ipex":
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                device = torch.device(f"xpu:{rank}")
+            else:
+                device = torch.device("cpu")
             dtype = default_dtype if dtype is None else dtype
         else:
             raise ValueError(
@@ -157,7 +162,14 @@ class TransformersFlashCausalLM(FlashCausalLM):
         self.num_layers = model.config.num_hidden_layers
         self.num_heads = model.config.num_attention_heads
         self.num_kv_heads = model.config.num_key_value_heads
-        self.head_size = model.config.hidden_size // model.config.num_attention_heads
+        # Some models use GQA and different sizes for o_proj
+        # and q_proj, that allows for that.
+        if hasattr(model.config, "head_dim"):
+            self.head_size = model.config.head_dim
+        else:
+            self.head_size = (
+                model.config.hidden_size // model.config.num_attention_heads
+            )
 
         # Skip it for models in the exception list
         if model.config.model_type not in REPLICATED_ATTENTION_MODELS:

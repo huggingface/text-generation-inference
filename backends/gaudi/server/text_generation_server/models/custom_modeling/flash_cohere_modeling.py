@@ -28,10 +28,10 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
-    reshape_and_cache,
     Seqlen,
+    HPUPagedAttentionMetadata,
 )
-from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
@@ -39,7 +39,6 @@ from text_generation_server.layers import (
     SpeculativeHead,
     get_linear,
 )
-from text_generation_server.layers.attention import PREFILL_IN_KV_CACHE
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
@@ -47,11 +46,10 @@ from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
 from text_generation_server.utils.weights import UnquantizedWeight
-
-if SYSTEM == "cuda":
-    import dropout_layer_norm
-else:
-    dropout_layer_norm = None
+from habana_frameworks.torch.hpex.kernels import (
+    RotaryPosEmbeddingMode,
+    apply_rotary_pos_emb,
+)
 
 
 class CohereRotary(PositionRotaryEmbedding):
@@ -63,38 +61,25 @@ class CohereRotary(PositionRotaryEmbedding):
         sin: torch.Tensor,
     ):
         # Such controlflows may add some overhead.
-        if SYSTEM == "cuda":
-            import rotary_emb
+        num_tokens = query.shape[0]
+        head_size = query.shape[-1]
+        rope_mode = RotaryPosEmbeddingMode.PAIRWISE
+        sin = torch.repeat_interleave(sin, 2, dim=-1)
+        cos = torch.repeat_interleave(cos, 2, dim=-1)
+        rotary_dim = cos.shape[-1]
+        query_shape = query.shape
+        query = query.view(num_tokens, -1, head_size)
+        query_rot = query[..., :rotary_dim]
+        query_pass = query[..., rotary_dim:]
+        query_rot = apply_rotary_pos_emb(query_rot, cos, sin, None, 0, rope_mode)
+        query.copy_(torch.cat((query_rot, query_pass), dim=-1).reshape(query_shape))
 
-            q1 = query[..., ::2]
-            q2 = query[..., 1::2]
-
-            rotary_emb.apply_rotary(q1, q2, cos, sin, q1, q2, False)
-
-            k1 = key[..., ::2]
-            k2 = key[..., 1::2]
-
-            rotary_emb.apply_rotary(k1, k2, cos, sin, k1, k2, False)
-        elif SYSTEM == "rocm":
-            from vllm._C import ops
-
-            # NOTE: On RoCm systems, we use a ROPE implementatation adapted from VLLM which launches a single kernel for both query/key, contrary to flash-attn implementation used on NVIDIA systems.
-            # Compiling flash-attn rotary on RoCm, it appears hipcc is unable to unroll loops, resulting in an even slower inference compared to eager: https://github.com/pytorch/pytorch/issues/113773
-
-            head_size = query.shape[-1]
-
-            # Inplace operation, updating query and key.
-            ops.rotary_embedding(query, key, head_size, cos, sin, False)
-        elif SYSTEM == "ipex":
-            import intel_extension_for_pytorch as ipex
-
-            ipex.llm.functional.rotary_embedding(
-                query, key, sin, cos, query.size(-1), False
-            )
-        else:
-            raise ValueError(
-                "Your system seem to be not supported. Please check your install or open an issue at https://github.com/huggingface/text-generation-inference/issues with a clear reproduction."
-            )
+        key_shape = key.shape
+        key = key.view(num_tokens, -1, head_size)
+        key_rot = key[..., :rotary_dim]
+        key_pass = key[..., rotary_dim:]
+        key_rot = apply_rotary_pos_emb(key_rot, cos, sin, None, 0, rope_mode)
+        key.copy_(torch.cat((key_rot, key_pass), dim=-1).reshape(key_shape))
 
 
 class CohereLayerNorm(nn.Module):
@@ -107,49 +92,18 @@ class CohereLayerNorm(nn.Module):
         self.eps = eps
 
     def forward(self, hidden_states):
-        if hidden_states.shape[-1] > 8192 or SYSTEM != "cuda":
-            hidden_states = hidden_states.reshape(
-                -1, self.weight.shape[0], self.weight.shape[1]
-            )
-            input_dtype = hidden_states.dtype
-            hidden_states = hidden_states.to(torch.float32)
-            mean = hidden_states.mean(-1, keepdim=True)
-            hidden_states_minus_mean = hidden_states - mean
-            variance = hidden_states_minus_mean.pow(2).mean(-1, keepdim=True)
-            hidden_states = hidden_states_minus_mean * torch.rsqrt(variance + self.eps)
-            hidden_states = self.weight.to(torch.float32) * hidden_states
-            hidden_states = hidden_states.view(-1, self.weight.shape[1])
-            return hidden_states.to(input_dtype)
-
-        (
-            hidden_states,
-            *rest,
-        ) = dropout_layer_norm.dropout_add_ln_fwd(
-            hidden_states,
-            None,
-            self.ones,
-            None,
-            None,
-            None,
-            None,
-            None,
-            0.0,
-            self.eps,
-            1.0,
-            0,
-            None,
-            False,
-            False,
-        )
-
-        # Required to apply one weight matrix per head
-        hidden_states = hidden_states.view(
+        hidden_states = hidden_states.reshape(
             -1, self.weight.shape[0], self.weight.shape[1]
         )
-        hidden_states = self.weight * hidden_states
+        input_dtype = hidden_states.dtype
+        hidden_states = hidden_states.to(torch.float32)
+        mean = hidden_states.mean(-1, keepdim=True)
+        hidden_states_minus_mean = hidden_states - mean
+        variance = hidden_states_minus_mean.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states_minus_mean * torch.rsqrt(variance + self.eps)
+        hidden_states = self.weight.to(torch.float32) * hidden_states
         hidden_states = hidden_states.view(-1, self.weight.shape[1])
-
-        return hidden_states
+        return hidden_states.to(input_dtype)
 
 
 def load_attention(config, prefix, weights):
@@ -229,6 +183,7 @@ class FlashCohereAttention(torch.nn.Module):
         )
 
         self.query_key_value = load_attention(config, prefix, weights)
+        self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
         self.use_qk_norm = config.use_qk_norm
         if self.use_qk_norm:
@@ -264,10 +219,9 @@ class FlashCohereAttention(torch.nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         qkv = self.query_key_value(hidden_states)
         query, key, value = qkv.split(
@@ -291,30 +245,35 @@ class FlashCohereAttention(torch.nn.Module):
 
         self.rotary_emb(query, key, cos, sin)
 
-        reshape_and_cache(key, value, kv_cache[0], kv_cache[1], slots)
+        kv_cache.store(
+            key=key,
+            value=value,
+            slots=slots,
+            kv_scales=self.kv_scales,
+        )
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            # flash attention
+            # sdpa
             attn_output = attention(
-                query,
-                kv_cache[0] if PREFILL_IN_KV_CACHE else key,
-                kv_cache[1] if PREFILL_IN_KV_CACHE else value,
-                seqlen,
-                block_tables,
-                self.softmax_scale,
+                query=query,
+                key=key,
+                value=value,
+                kv_cache=kv_cache,
+                kv_scales=self.kv_scales,
+                seqlen=seqlen,
+                softmax_scale=self.softmax_scale,
             )
         # Decode
         else:
             attn_output = paged_attention(
                 query,
-                kv_cache[0],
-                kv_cache[1],
+                kv_cache,
                 self.kv_head_mapping,
                 self.softmax_scale,
-                block_tables,
                 seqlen,
-                max_s,
+                kv_scales=self.kv_scales,
+                hpu_attention_meta=hpu_attention_meta,
             )
 
         return self.o_proj(
@@ -386,10 +345,9 @@ class FlashCohereLayer(nn.Module):
         sin,
         cu_seqlen_prefill,
         kv_cache,
-        block_tables,
         slots,
         seqlen,
-        max_s,
+        hpu_attention_meta,
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
 
@@ -400,10 +358,9 @@ class FlashCohereLayer(nn.Module):
             sin,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
 
         mlp_output = self.mlp(normed_hidden_states)
@@ -452,18 +409,15 @@ class FlashCohereModel(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: torch.Tensor,
-        max_s: int,
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
-        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
-            position_ids, max_s, hidden_states.dtype
-        )
+        cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
 
@@ -475,10 +429,9 @@ class FlashCohereModel(torch.nn.Module):
                 sin,
                 cu_seqlen_prefill,
                 kv_cache[i],
-                block_tables,
                 slots,
                 seqlen,
-                max_s,
+                hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
@@ -516,11 +469,9 @@ class FlashCohereForCausalLM(torch.nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
@@ -529,10 +480,9 @@ class FlashCohereForCausalLM(torch.nn.Module):
             position_ids,
             cu_seqlen_prefill,
             kv_cache,
-            block_tables,
             slots,
             seqlen,
-            max_s,
+            hpu_attention_meta,
         )
         if lm_head_indices is not None:
             hidden_states = hidden_states[lm_head_indices]

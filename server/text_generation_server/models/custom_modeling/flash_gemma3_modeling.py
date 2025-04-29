@@ -45,6 +45,7 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
+from text_generation_server.models.globals import ATTENTION
 from text_generation_server.utils.weights import UnquantizedWeight
 from transformers.activations import ACT2FN
 from text_generation_server.layers.attention import (
@@ -248,7 +249,7 @@ class FlashGemma3Attention(torch.nn.Module):
 
         # Prefill
         if cu_seqlen_prefill is not None:
-            if attention_mask is None:
+            if attention_mask is None or ATTENTION == "flashinfer":
                 # flash attention
                 attn_output = attention(
                     query=query,
@@ -701,8 +702,16 @@ class Gemma3ForConditionalGeneration(nn.Module):
         )
 
     def get_attention_mask(
-        self, input_ids, max_s, cu_seqlen_prefill, dtype, image_token_mask
+        self,
+        input_ids: torch.Tensor,
+        cu_seqlen_prefill: Optional[torch.Tensor],
+        dtype: torch.dtype,
+        bool_mask: bool = False,
     ):
+        image_token_mask = (input_ids == self.config.image_token_index).to(
+            input_ids.device
+        )
+
         device = input_ids.device
         min_dtype = torch.finfo(dtype).min
 
@@ -748,9 +757,10 @@ class Gemma3ForConditionalGeneration(nn.Module):
         )
         full_attention_mask[:, :, :, :sequence_length] = combined_mask
 
-        final_attention_mask = torch.where(full_attention_mask, 0, min_dtype).to(device)
-
-        return final_attention_mask
+        if bool_mask:
+            return full_attention_mask
+        else:
+            return torch.where(full_attention_mask, 0, min_dtype).to(device)
 
     def forward(
         self,
@@ -793,10 +803,8 @@ class Gemma3ForConditionalGeneration(nn.Module):
             )
             attention_mask = self.get_attention_mask(
                 input_ids,
-                max_s,
                 cu_seqlen_prefill,
                 inputs_embeds.dtype,
-                image_token_mask,
             )
         # Use flash attention for text-only input
         # else:

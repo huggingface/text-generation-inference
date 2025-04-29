@@ -25,7 +25,7 @@ from transformers.activations import ACT2FN
 from text_generation_server.models.custom_modeling.vlm import (
     load_text_model,
 )
-from text_generation_server.layers.attention import Seqlen
+from text_generation_server.layers.attention import Seqlen, HPUPagedAttentionMetadata
 from transformers.modeling_attn_mask_utils import _prepare_4d_attention_mask
 
 from text_generation_server.layers import (
@@ -728,7 +728,8 @@ class Idefics2ForConditionalGeneration(nn.Module):
     ):
         """In place merges in vision_embeddings with inputs_embeds."""
         # mask = input_ids == self.config.image_token_index
-        mask = input_ids == self.config.image_token_id
+        #  - replace `==` with torch.where to fix the issue in hpu graph
+        mask = torch.where(input_ids == self.config.image_token_id)
         # Let's pray we have enabled enough slots !
         inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
         return inputs_embeds
@@ -739,17 +740,16 @@ class Idefics2ForConditionalGeneration(nn.Module):
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
-        block_tables: torch.Tensor,
         slots: torch.Tensor,
         seqlen: Seqlen,
-        max_s: int,
-        prefill_cache_indices: Optional[torch.Tensor],
+        hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
         pixel_values: torch.FloatTensor = None,
         pixel_attention_mask: Optional[torch.BoolTensor] = None,
         # Unused here
         image_sizes: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
     ):
         inputs_embeds = self.text_model.embed_tokens(input_ids)
         if pixel_values is not None:
@@ -793,6 +793,7 @@ class Idefics2ForConditionalGeneration(nn.Module):
                     ].contiguous()
 
                 patch_size = self.config.vision_config.patch_size
+                """
                 patches_subgrid = pixel_attention_mask.unfold(
                     dimension=1, size=patch_size, step=patch_size
                 )
@@ -800,6 +801,21 @@ class Idefics2ForConditionalGeneration(nn.Module):
                     dimension=2, size=patch_size, step=patch_size
                 )
                 patch_attention_mask = (patches_subgrid.sum(dim=(-1, -2)) > 0).bool()
+                """
+                # hpu does none support unfold
+                conv_kernel = torch.ones(
+                    [1, 1, patch_size, patch_size],
+                    dtype=pixel_values.dtype,
+                    device=pixel_values.device,
+                )
+                patches_subgrid = torch.nn.functional.conv2d(
+                    pixel_attention_mask.unsqueeze(1).to(conv_kernel.dtype),
+                    conv_kernel,
+                    stride=patch_size,
+                ).squeeze(1)
+                patch_attention_mask = torch.eq(
+                    patches_subgrid, (patch_size * patch_size)
+                )
 
                 # Get sequence from the vision encoder
                 image_hidden_states = self.vision_model(
@@ -825,12 +841,9 @@ class Idefics2ForConditionalGeneration(nn.Module):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
             kv_cache=kv_cache,
-            block_tables=block_tables,
             slots=slots,
             seqlen=seqlen,
-            max_s=max_s,
-            true_max_s=max_s,
-            prefill_cache_indices=None,
+            hpu_attention_meta=hpu_attention_meta,
             adapter_data=adapter_data,
         )
         if lm_head_indices is not None:

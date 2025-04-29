@@ -10,7 +10,6 @@ from transformers import (
     AutoConfig,
 )
 from typing import Optional, Tuple, List, Type, Dict
-from text_generation_server.utils.import_utils import SYSTEM
 from text_generation_server.utils import (
     initialize_torch_distributed,
     weight_files,
@@ -555,20 +554,9 @@ class Seq2SeqLM(Model):
     ):
         self.quantize = quantize
         self.process_group, rank, world_size = initialize_torch_distributed()
-        if torch.cuda.is_available():
-            device = torch.device(f"cuda:{rank}")
-            dtype = default_dtype if dtype is None else dtype
-        elif SYSTEM == "ipex":
-            if hasattr(torch, "xpu") and torch.xpu.is_available():
-                device = torch.device(f"xpu:{rank}")
-                dtype = default_dtype if dtype is None else dtype
-            else:
-                device = torch.device("cpu")
-                # Float16 doesn't exist on target.
-                dtype = torch.bfloat16 if dtype is None else dtype
-        else:
-            device = torch.device("cpu")
-            dtype = torch.float32 if dtype is None else dtype
+
+        device = torch.device("hpu")
+        dtype = torch.bfloat16 if dtype is None else dtype
 
         config = config_class.from_pretrained(
             model_id,
@@ -600,7 +588,7 @@ class Seq2SeqLM(Model):
             aliases=aliases,
             weights_loader=weights_loader,
         )
-        if config.quantize in ["awq", "exl2", "gptq", "marlin"]:
+        if config.quantize in ["awq", "gptq"]:
             weights._set_gptq_params(model_id, revision)
 
         model = model_class(config, weights)

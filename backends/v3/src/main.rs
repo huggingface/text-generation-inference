@@ -36,6 +36,8 @@ struct Args {
     hostname: String,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
+    #[clap(default_value = "9000", long, short, env)]
+    prometheus_port: u16,
     #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
     master_shard_uds_path: String,
     #[clap(default_value = "bigscience/bloom", long, env)]
@@ -99,6 +101,7 @@ async fn main() -> Result<(), RouterError> {
         max_batch_size,
         hostname,
         port,
+        prometheus_port,
         master_shard_uds_path,
         tokenizer_name,
         tokenizer_config_path,
@@ -214,6 +217,7 @@ async fn main() -> Result<(), RouterError> {
         max_client_batch_size,
         usage_stats,
         payload_limit,
+        prometheus_port,
     )
     .await?;
     Ok(())

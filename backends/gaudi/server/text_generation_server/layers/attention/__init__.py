@@ -1,43 +1,28 @@
-from text_generation_server.utils.import_utils import SYSTEM
-import os
+from .common import (
+    Seqlen,
+    HPUPagedAttentionMetadata,
+    trim_attn_metadata,
+    trim_seqlen_metadata,
+)
 
-from .common import Seqlen
+from .hpu import (
+    SUPPORTS_WINDOWING,
+    attention,
+    paged_attention,
+)
 
-if os.getenv("USE_FLASH_ATTENTION", "true").lower() == "false":
-    raise ImportError("`USE_FLASH_ATTENTION` is false.")
-if SYSTEM == "cuda":
-    from .cuda import (
-        attention,
-        paged_attention,
-        reshape_and_cache,
-        SUPPORTS_WINDOWING,
-        PREFILL_IN_KV_CACHE,
-    )
-elif SYSTEM == "rocm":
-    from .rocm import (
-        attention,
-        paged_attention,
-        reshape_and_cache,
-        PREFILL_IN_KV_CACHE,
-        SUPPORTS_WINDOWING,
-    )
-elif SYSTEM == "ipex":
-    from .ipex import (
-        attention,
-        paged_attention,
-        reshape_and_cache,
-        PREFILL_IN_KV_CACHE,
-        SUPPORTS_WINDOWING,
-    )
-else:
-    raise ImportError(f"System {SYSTEM} doesn't support flash/paged attention")
 
+# KVCache needs `reshape_and_cache`, so ensure that it is defined already.
+from .kv_cache import KVCache, get_kv_scales
 
 __all__ = [
     "attention",
+    "get_kv_scales",
     "paged_attention",
-    "reshape_and_cache",
-    "PREFILL_IN_KV_CACHE",
     "SUPPORTS_WINDOWING",
+    "KVCache",
     "Seqlen",
+    "HPUPagedAttentionMetadata",
+    "trim_seqlen_metadata",
+    "trim_attn_metadata",
 ]

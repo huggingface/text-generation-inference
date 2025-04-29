@@ -37,6 +37,8 @@ struct Args {
     hostname: String,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
+    #[clap(default_value = "9000", long, short, env)]
+    prometheus_port: u16,
     #[clap(long, env, required = true)]
     tokenizer_name: String,
     #[clap(long, env)]
@@ -227,6 +229,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         max_batch_total_tokens,
         hostname,
         port,
+        prometheus_port,
         tokenizer_name,
         tokenizer_config_path,
         revision,
@@ -322,6 +325,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
                 max_client_batch_size,
                 usage_stats,
                 payload_limit,
+                prometheus_port,
             )
             .await?;
             Ok(())

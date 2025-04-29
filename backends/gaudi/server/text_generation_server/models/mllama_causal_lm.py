@@ -1,28 +1,39 @@
-from io import BytesIO
-from PIL import Image
 import torch
+
+import numpy as np
+
 from typing import Iterable, Optional, Tuple, List, Dict
 from text_generation_server.pb.generate_pb2 import Request
-
+from io import BytesIO
+from PIL import Image
 from dataclasses import dataclass
 from opentelemetry import trace
 from transformers import (
     PreTrainedTokenizerBase,
 )
-from text_generation_server.models.vlm_causal_lm import VlmCausalLMBatch, VlmCausalLM
-from text_generation_server.pb import generate_pb2
 from text_generation_server.models.flash_causal_lm import (
-    block_tables_to_ragged,
+    prepare_for_decode,
 )
-from text_generation_server.models.globals import PREFIX_CACHING, ATTENTION
-from text_generation_server.layers.attention import Seqlen
-
+from text_generation_server.models.flash_vlm_causal_lm import (
+    FlashVlmCausalLMBatch,
+    FlashVlmCausalLM,
+)
+from text_generation_server.pb import generate_pb2
+from text_generation_server.layers.attention import Seqlen, trim_seqlen_metadata
+import habana_frameworks.torch as htorch
+from loguru import logger
+from text_generation_server.models.globals import BLOCK_SIZE
+from text_generation_server.utils.import_utils import (
+    synchronize,
+)
+import torch.nn.functional as F
+from text_generation_server.utils.log import log_master
 
 tracer = trace.get_tracer(__name__)
 
 
 @dataclass
-class MllamaCausalLMBatch(VlmCausalLMBatch):
+class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
     image_indices: List[int] = 42
     aspect_ratio_ids: Optional[torch.Tensor] = None
     aspect_ratio_mask: Optional[torch.Tensor] = None
@@ -158,7 +169,7 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         config,
         dtype: torch.dtype,
         device: torch.device,
-    ) -> "VlmCausalLMBatch":
+    ) -> "FlashVlmCausalLMBatch":
         batch_tokenized_inputs, image_inputs = cls.batch_tokenized_inputs(
             pb.requests, tokenizer, processor, config
         )
@@ -167,6 +178,13 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         batch.all_input_ids_tensor = batch.all_input_ids_tensor.clamp(
             max=config.text_config.vocab_size - 1
         )
+        if isinstance(batch.input_ids, list):
+            if len(batch) > 1:
+                input_ids = np.concatenate(batch.input_ids, dtype=np.int64)
+            else:
+                input_ids = batch.input_ids[0]
+            batch.input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
+
         batch.input_ids = batch.input_ids.clamp(max=config.text_config.vocab_size - 1)
 
         if image_inputs is not None:
@@ -187,10 +205,181 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
         return batch
 
 
-class MllamaCausalLM(VlmCausalLM):
+def generate_cross_attention_states(
+    cross_attention_states, image_indices, seqlen, pad_seq_len, prefilling
+):
+    if cross_attention_states is None:
+        return None, None, None
+    device = cross_attention_states.device
+    indices_list = []
+    if prefilling:
+        for i in image_indices:
+            indices_list.append(
+                torch.arange(pad_seq_len * i, pad_seq_len * (i + 1), device=device)
+            )
+        indices = torch.cat(indices_list, dim=0)
+    else:
+        indices = image_indices[:]
+    return indices, seqlen.input_lengths.index_select(0, image_indices)
+
+
+class FlashMllamaCausalLM(FlashVlmCausalLM):
+    def warmup_decode(
+        self, batch_size: int, block_num: int, batch: FlashMllamaCausalLMBatch
+    ):
+        input_ids = torch.zeros(
+            batch_size, dtype=batch.input_ids.dtype, device=self.device
+        )
+        position_ids = torch.arange(
+            batch_size, dtype=batch.position_ids.dtype, device=self.device
+        )
+        blocks = [block_num // batch_size for _ in range(batch_size)]
+        blocks[0] += block_num % batch_size
+        past_len = []
+        block_tables = []
+        slots = []
+        start_idx = 0
+
+        # fetch the last blocked to warmup block num
+        for i in range(batch_size):
+            block_array = list(range(start_idx, start_idx + blocks[i]))
+            slots.append(BLOCK_SIZE * block_array[-1] + BLOCK_SIZE - 1)
+            block_tables.append(block_array)
+            past_len.append(blocks[i] * BLOCK_SIZE - 1)
+            start_idx += blocks[i]
+        input_lengths = torch.ones(batch_size, dtype=torch.int32, device=self.device)
+        cache_lengths_tensor = torch.tensor(
+            past_len, dtype=torch.int32, device=self.device
+        )
+        cu_seqlen_prefill = torch.zeros(
+            batch_size + 1, device=self.device, dtype=torch.int32
+        )
+        torch.cumsum(input_lengths, -1, out=cu_seqlen_prefill[1:])
+
+        seqlen = Seqlen(
+            input_lengths=input_lengths,
+            cache_lengths=cache_lengths_tensor,
+            cu_seqlen_q=cu_seqlen_prefill,
+        )
+
+        hpu_attention_meta = prepare_for_decode(
+            self.dtype,
+            self.use_contiguous_pa,
+            self.device,
+            slots,
+            block_tables,
+            batch_size,
+            bucketing_ctx=None,
+        )
+        # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
+        image_indices = torch.tensor(batch.image_indices, device=self.device)
+        image_indices = image_indices.repeat(batch_size)
+        cross_attention_states = batch.cross_attention_states.repeat(batch_size, 1, 1)
+        indices, cross_attention_len = generate_cross_attention_states(
+            cross_attention_states, image_indices, seqlen, 1, False
+        )
+        slots_tensor = torch.tensor(slots, dtype=batch.slots.dtype, device=self.device)
+        self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=None,
+            kv_cache=self.kv_cache,
+            slots=slots_tensor,
+            seqlen=trim_seqlen_metadata(seqlen),
+            hpu_attention_meta=hpu_attention_meta,
+            lm_head_indices=None,
+            adapter_data=None,
+            cross_attention_states=cross_attention_states,
+            indices=indices,
+            cross_attention_len=cross_attention_len,
+        )
+
+    def warmup_prefill(
+        self, prompt_len: int, batch_size: int, batch: FlashMllamaCausalLMBatch
+    ):
+        input_ids = torch.zeros(
+            prompt_len, dtype=batch.input_ids.dtype, device=self.device
+        ).repeat(batch_size)
+        position_ids = torch.arange(
+            prompt_len, dtype=batch.position_ids.dtype, device=self.device
+        ).repeat(batch_size)
+        max_bt = (prompt_len // BLOCK_SIZE + 1) * batch_size
+        block_tables = torch.arange(
+            max_bt, dtype=torch.int32, device=self.device
+        ).reshape(batch_size, -1)
+        slot_acc = []
+        for i in range(batch_size):
+            slots = []
+            for b in block_tables[i]:
+                slots.extend(range(b * BLOCK_SIZE, (b + 1) * BLOCK_SIZE))
+            slot_acc.extend(slots[:prompt_len])
+        slots = torch.tensor(slot_acc, dtype=batch.slots.dtype, device=self.device)
+
+        input_lengths = (
+            torch.ones(batch_size, dtype=torch.int32, device=self.device) * prompt_len
+        )
+        cache_lengths_tensor = torch.zeros(
+            batch_size, dtype=torch.int32, device=self.device
+        )
+        cu_seqlen_prefill = torch.zeros(
+            batch_size + 1, device=self.device, dtype=torch.int32
+        )
+        torch.cumsum(input_lengths, -1, out=cu_seqlen_prefill[1:])
+
+        seqlen = Seqlen(
+            input_lengths=input_lengths,
+            cache_lengths=cache_lengths_tensor,
+            cu_seqlen_q=cu_seqlen_prefill,
+        )
+        lm_head_indices = input_lengths - 1
+
+        # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
+        image_indices = torch.tensor(batch.image_indices, device=self.device)
+        image_indices = image_indices.repeat(batch_size)
+        cross_attention_states = batch.cross_attention_states.repeat(batch_size, 1, 1)
+        indices, cross_attention_len = generate_cross_attention_states(
+            cross_attention_states, image_indices, seqlen, prompt_len, True
+        )
+        self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=cu_seqlen_prefill,
+            kv_cache=self.kv_cache,
+            slots=slots,
+            seqlen=trim_seqlen_metadata(seqlen),
+            hpu_attention_meta=None,
+            lm_head_indices=lm_head_indices,
+            adapter_data=None,
+            cross_attention_states=cross_attention_states,
+            indices=indices,
+            cross_attention_len=cross_attention_len,
+        )
+
+    def warmup_hpu_graph(self, batch: FlashMllamaCausalLMBatch):
+        warmup_times = 3
+        self.bucketing_ctx.generate_prompt_buckets()
+        for i, (batch_size, seq_len) in enumerate(
+            reversed(self.bucketing_ctx.prompt_buckets)
+        ):
+            log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
+            for index in range(warmup_times):
+                self.warmup_prefill(seq_len, batch_size, batch)
+        self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
+        for i, (batch_size, block_num) in enumerate(
+            reversed(self.bucketing_ctx.decode_buckets)
+        ):
+            if batch_size > block_num:
+                continue
+            log_master(
+                logger.info, f"warmup decode bs {batch_size} block_num {block_num}"
+            )
+            for index in range(warmup_times):
+                self.warmup_decode(batch_size, block_num, batch)
+        synchronize(self.device)
+
     def forward(
         self,
-        batch: VlmCausalLMBatch,
+        batch: FlashMllamaCausalLMBatch,
         adapter_data: Optional[Dict[str, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # Model Forward
@@ -202,7 +391,7 @@ class MllamaCausalLM(VlmCausalLM):
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
-            max_s = batch.max_seqlen
+            max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
             speculative_ids = batch.speculative_ids
@@ -221,8 +410,8 @@ class MllamaCausalLM(VlmCausalLM):
             input_lengths = (
                 input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int
             ).view(-1)
-            prefix_lens_tensor = (
-                batch.prefix_lens_tensor.unsqueeze(-1).expand(B, new_length)
+            cache_lengths_tensor = (
+                batch.cache_lengths_tensor.unsqueeze(-1).expand(B, new_length)
             ).reshape(-1)
 
             # Add Copy the block tables for all members
@@ -244,8 +433,8 @@ class MllamaCausalLM(VlmCausalLM):
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
-            prefix_lens_tensor = batch.prefix_lens_tensor
-            max_s = batch.max_seqlen
+            cache_lengths_tensor = batch.cache_lengths_tensor
+            max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
         if cu_seqlen_prefill is None and self.max_past() is not None:
@@ -254,104 +443,112 @@ class MllamaCausalLM(VlmCausalLM):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
 
-        bs = input_ids.shape[0]
-        # Try to find an associated cuda graph
-        bs = input_ids.shape[0]
-        sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
-        if sorted_padded_bs:
-            # Get associated cuda graph
-            cuda_graph = self.cuda_graphs[sorted_padded_bs[0]]
-        else:
-            cuda_graph = None
-        if (
-            cu_seqlen_prefill is not None
-            or cuda_graph is None
-            # Only run cuda graphs when there's no images.
-            or batch.cross_attention_states is not None
-        ):
-            input_lengths = input_lengths + prefix_lens_tensor
-            if PREFIX_CACHING:
-                block_tables = block_tables_to_ragged(
-                    block_tables=block_tables,
-                    input_lengths=batch.input_lengths,
-                    prefix_lens=batch.prefix_lens,
-                )
-            with self._forward_context(
-                block_tables=block_tables,
-                cu_seqlen_prefill=cu_seqlen_prefill,
-                input_lengths_tensor=input_lengths,
-                prefix_lens_tensor=prefix_lens_tensor,
-            ):
-                max_k = (input_lengths + prefix_lens_tensor).max().item()
-                seqlen = Seqlen(
-                    input_lengths=input_lengths,
-                    prefix_lengths=prefix_lens_tensor,
-                    cu_seqlen_q=cu_seqlen_prefill,
-                    max_q=max_s,
-                    max_k=max_k,
-                )
-
-                if batch.pixel_values is not None:
-                    cross_attention_states = self.model.vision_forward(
-                        pixel_values=batch.pixel_values,
-                        aspect_ratio_ids=batch.aspect_ratio_ids,
-                        aspect_ratio_mask=batch.aspect_ratio_mask,
-                    )
-                    batch.cross_attention_states = cross_attention_states
-
-                cross_attention_states = batch.cross_attention_states
-
-                logits, speculative_logits = self.model.forward(
-                    input_ids=input_ids,
-                    position_ids=position_ids,
-                    cu_seqlen_prefill=cu_seqlen_prefill,
-                    kv_cache=kv_cache,
-                    block_tables=block_tables,
-                    slots=slots,
-                    seqlen=seqlen,
-                    max_s=max_s,
-                    prefill_cache_indices=batch.prefill_cache_indices,
-                    lm_head_indices=lm_head_indices,
-                    cross_attention_states=cross_attention_states,
-                    adapter_data=adapter_data,
-                    image_indices=batch.image_indices[:],
-                )
-                if batch.prefill_cache_indices is not None:
-                    batch.prefill_cache_indices = None
-                if batch.pixel_values is not None:
-                    batch.pixel_values = None
-                return logits, speculative_logits
-
-        # Copy inputs to the static inputs of the cuda graph
-        # Static inputs are potentially padded
-        cuda_graph["input_ids"][: input_ids.shape[0]] = input_ids
-        cuda_graph["position_ids"][: position_ids.shape[0]] = position_ids
-        if ATTENTION == "flashinfer":
-            block_tables = block_tables_to_ragged(
-                block_tables=block_tables,
-                input_lengths=batch.input_lengths,
-                prefix_lens=batch.prefix_lens,
+        if batch.pixel_values is not None:
+            cross_attention_states = self.model.vision_forward(
+                pixel_values=batch.pixel_values,
+                aspect_ratio_ids=batch.aspect_ratio_ids,
+                aspect_ratio_mask=batch.aspect_ratio_mask,
             )
-            cuda_graph["block_tables"][: block_tables.shape[0]] = block_tables
+            batch.cross_attention_states = cross_attention_states
+
+        cross_attention_states = batch.cross_attention_states
+
+        kwargs = {}
+        if htorch.utils.internal.is_lazy():
+            kwargs["bypass_hpu_graphs"] = batch.prefilling
+        if batch.prefill_cache_indices is not None:
+            slots_pad = torch.zeros_like(input_ids)
+            slots_pad[batch.prefill_cache_indices] = slots
+            slots = slots_pad
+
+        if self.bucketing_ctx is not None:
+            if batch.prefilling:
+                padded_bs = self.bucketing_ctx.get_padded_prompt_batch_size(
+                    input_lengths.shape[0]
+                )
+            else:
+                padded_bs = self.bucketing_ctx.get_padded_decode_batch_size(
+                    input_lengths.shape[0]
+                )
         else:
-            cuda_graph["block_tables"][
-                : block_tables.shape[0], : block_tables.shape[1]
-            ] = block_tables
-        cuda_graph["slots"].fill_(0)
-        cuda_graph["slots"][: slots.shape[0]] = slots
-        cuda_graph["input_lengths"].zero_()
-        cuda_graph["input_lengths"][: input_lengths.shape[0]] = (
-            input_lengths + prefix_lens_tensor
-        )
+            padded_bs = input_lengths.shape[0]
+        orig_bs = input_lengths.shape[0]
+        padded_input_len = input_ids.view(orig_bs, -1).shape[-1]
+        image_indices = torch.tensor(batch.image_indices, device=self.device)
+        if padded_bs != input_lengths.shape[0]:
+            padded_input_lengths = F.pad(
+                input_lengths,
+                (0, padded_bs - orig_bs),
+                value=0,
+            )
+            padded_cache_lengths_tensor = F.pad(
+                cache_lengths_tensor,
+                (0, padded_bs - orig_bs),
+                value=0,
+            )
+            if cu_seqlen_prefill is not None:
+                cu_seqlen_prefill = torch.zeros(
+                    padded_bs + 1, device=self.device, dtype=torch.int32
+                )
+                torch.cumsum(padded_input_lengths, -1, out=cu_seqlen_prefill[1:])
+            seqlen = Seqlen(
+                input_lengths=padded_input_lengths,
+                cache_lengths=padded_cache_lengths_tensor,
+                cu_seqlen_q=cu_seqlen_prefill,
+            )
 
-        # Replay the graph
-        cuda_graph["graph"].replay()
+            input_ids = F.pad(
+                input_ids, (0, (padded_bs - orig_bs) * padded_input_len), value=0
+            )
+            position_ids = F.pad(
+                position_ids, (0, (padded_bs - orig_bs) * padded_input_len), value=1
+            )
+            slots = F.pad(slots, (0, (padded_bs - orig_bs) * padded_input_len), value=0)
+            if lm_head_indices is not None:
+                lm_head_indices = F.pad(
+                    lm_head_indices, (0, padded_bs - orig_bs), value=0
+                )
+            if cross_attention_states is not None:
+                cross_attention_states = F.pad(
+                    cross_attention_states,
+                    (0, 0, 0, 0, 0, (padded_bs - orig_bs)),
+                    value=0,
+                )
+            if len(image_indices) != 0:
+                pad_indices = torch.arange(orig_bs, padded_bs, device=self.device)
+                image_indices = torch.cat((image_indices, pad_indices), dim=0)
+        else:
+            seqlen = Seqlen(
+                input_lengths=input_lengths,
+                cache_lengths=cache_lengths_tensor,
+                cu_seqlen_q=cu_seqlen_prefill,
+            )
 
-        # Slice output to the correct shape
-        speculative_logits = (
-            cuda_graph["speculative_logits"][:bs]
-            if cuda_graph["speculative_logits"] is not None
-            else None
+        indices, cross_attention_len = generate_cross_attention_states(
+            cross_attention_states,
+            image_indices,
+            seqlen,
+            padded_input_len,
+            batch.prefilling,
         )
-        logits = cuda_graph["logits"][:bs]
-        return logits, speculative_logits
+        logits, speculative_logits = self.model.forward(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            cu_seqlen_prefill=cu_seqlen_prefill,
+            kv_cache=kv_cache,
+            slots=slots,
+            seqlen=trim_seqlen_metadata(seqlen),
+            hpu_attention_meta=batch.hpu_attn_meta,
+            lm_head_indices=lm_head_indices,
+            # TODO list
+            adapter_data=None,
+            cross_attention_states=cross_attention_states,
+            indices=indices,
+            cross_attention_len=cross_attention_len,
+            **kwargs,
+        )
+        if batch.pixel_values is not None:
+            batch.pixel_values = None
+        return logits[:orig_bs], (
+            speculative_logits[:orig_bs] if speculative_logits is not None else None
+        )

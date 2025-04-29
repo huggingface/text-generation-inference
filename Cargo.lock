@@ -4650,7 +4650,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-backends-trtllm"
-version = "3.2.1-dev0"
+version = "3.2.3-dev0"
 dependencies = [
  "async-trait",
  "clap 4.5.32",
@@ -4671,7 +4671,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-benchmark"
-version = "3.2.1-dev0"
+version = "3.2.3-dev0"
 dependencies = [
  "average",
  "clap 4.5.32",
@@ -4691,7 +4691,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-client"
-version = "3.2.1-dev0"
+version = "3.2.3-dev0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4709,7 +4709,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-launcher"
-version = "3.2.1-dev0"
+version = "3.2.3-dev0"
 dependencies = [
  "clap 4.5.32",
  "ctrlc",
@@ -4730,7 +4730,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router"
-version = "3.2.1-dev0"
+version = "3.2.3-dev0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -4782,7 +4782,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router-llamacpp"
-version = "3.2.1-dev0"
+version = "3.2.3-dev0"
 dependencies = [
  "async-trait",
  "bindgen 0.71.1",
@@ -4800,7 +4800,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router-v2"
-version = "3.2.1-dev0"
+version = "3.2.3-dev0"
 dependencies = [
  "async-stream",
  "async-trait",
@@ -4849,7 +4849,7 @@ dependencies = [
 
 [[package]]
 name = "text-generation-router-v3"
-version = "3.2.1-dev0"
+version = "3.2.3-dev0"
 dependencies = [
  "async-stream",
  "async-trait",
