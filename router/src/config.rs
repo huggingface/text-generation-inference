@@ -414,6 +414,7 @@ pub enum Config {
     T5,
     DeepseekV2,
     DeepseekV3,
+    Qwen3,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

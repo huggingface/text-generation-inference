@@ -41,6 +41,10 @@ impl ChatTemplate {
             "messages[0]['content'][0]['text']",
             "messages[0]['content']",
         );
+        //  Hack to fix Qwen3 templating.
+        //  It uses python notation to reverse lists, which do not exist in minijinja
+        //  so we're using the reverse filter instead.
+        let mutated_template = mutated_template.replace("[::-1]", "|reverse");
 
         let template_str = mutated_template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
