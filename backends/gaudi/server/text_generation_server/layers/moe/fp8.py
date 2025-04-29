@@ -9,12 +9,11 @@ from text_generation_server.layers.fp8 import (
     fp8_quantize,
     quant_dtype,
     normalize_e4m3fn_to_native_float8,
+    dynamic_quant,
+    dequant_block_fp8_weight_naive,
 )
-
-try:
-    from .unquantized import fused_moe
-except Exception:
-    fused_moe = None
+from text_generation_server.layers.moe.fused_moe import select_experts
+import habana_frameworks.torch as htorch
 
 
 class FP8SparseMoELayer(nn.Module):
@@ -68,27 +67,78 @@ class FP8SparseMoELayer(nn.Module):
                 weights=weights,
             )
         )
+        if self.weight_block_size is not None:
+            self.gate_up_proj, self.gate_up_proj_weight_scale = dynamic_quant(
+                dequant_block_fp8_weight_naive(
+                    self.gate_up_proj,
+                    self.gate_up_proj_weight_scale,
+                    self.weight_block_size,
+                )
+            )
+            self.down_proj, self.down_proj_weight_scale = dynamic_quant(
+                dequant_block_fp8_weight_naive(
+                    self.down_proj, self.down_proj_weight_scale, self.weight_block_size
+                )
+            )
+            self.gate_up_proj_weight_scale, self.down_proj_weight_scale = (
+                self.gate_up_proj_weight_scale.squeeze(-1),
+                self.down_proj_weight_scale.squeeze(-1),
+            )
 
     def forward(self, x: torch.Tensor, *, gating_output: torch.Tensor) -> torch.Tensor:
-        return fused_moe(
-            x,
-            w1=self.gate_up_proj,
-            w2=self.down_proj,
-            gating_output=gating_output,
-            topk=self.topk,
-            renormalize=self.renormalize,
-            inplace=True,
+        topk_weights, topk_ids = select_experts(
+            hidden_states=x,
+            router_logits=gating_output,
             use_grouped_topk=self.n_expert_group is not None,
-            num_expert_group=self.n_expert_group,
+            top_k=self.topk,
+            renormalize=self.renormalize,
             topk_group=self.topk_group,
+            num_expert_group=self.n_expert_group,
             scoring_func=self.scoring_func,
             e_score_correction_bias=self.e_score_correction_bias,
-            use_fp8_w8a8=True,
-            w1_scale=self.gate_up_proj_weight_scale,
-            w2_scale=self.down_proj_weight_scale,
-            a1_scale=self.gate_up_proj_input_scale,
-            a2_scale=self.down_proj_input_scale,
         )
+        total_num_experts = gating_output.size(-1)
+        x_fp8, x_scale = dynamic_quant(x, single_scale=True)
+        moe_n_slice = (total_num_experts + 31) // 32
+        n_expert_slice = (total_num_experts + moe_n_slice - 1) // moe_n_slice
+        for i in range(moe_n_slice):
+            min_expert = i * n_expert_slice
+            max_expert = min((i + 1) * n_expert_slice, total_num_experts)
+            w13_list_slice = [
+                self.gate_up_proj[j, ...] for j in range(min_expert, max_expert)
+            ]
+            w2_list_slice = [
+                self.down_proj[j, ...] for j in range(min_expert, max_expert)
+            ]
+            w13_weight_scale = [
+                self.gate_up_proj_weight_scale[j, ...]
+                for j in range(min_expert, max_expert)
+            ]
+            w2_weight_scale = [
+                self.down_proj_weight_scale[j, ...]
+                for j in range(min_expert, max_expert)
+            ]
+
+            current_hidden_states = torch.ops.hpu.mixture_of_experts(
+                hidden_states=x_fp8,
+                expert_routing_table=topk_ids.to(torch.int64),
+                router_weights=topk_weights.to(x.dtype),
+                w12=w13_list_slice,
+                w3=w2_list_slice,
+                d_scale_hidden_states=x_scale,
+                d_scale_w12=w13_weight_scale,
+                d_scale_w3=w2_weight_scale,
+                permuted_weights=True,
+                activation="silu",
+                experts_min=min_expert,
+                experts_max=max_expert - 1,
+            )
+            htorch.core.mark_step()
+            if i == 0:
+                final_hidden_states = current_hidden_states
+            else:
+                final_hidden_states.add_(current_hidden_states)
+        return final_hidden_states
 
 
 def _load_expert_weights(
