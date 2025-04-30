@@ -73,7 +73,10 @@ async def test_grammar_response_format_llama_json(llama_grammar, response_snapsh
     assert called == '{ "unit": "fahrenheit", "temperature": [ 72, 79, 88 ] }'
     assert chat_completion == response_snapshot
 
-    json_payload["response_format"]["type"] = "json_schema"
+    json_payload["response_format"] = {
+        "type": "json_schema",
+        "value": {"name": "weather", "strict": True, "schema": Weather.schema()},
+    }
     response = requests.post(
         f"{llama_grammar.base_url}/v1/chat/completions",
         headers=llama_grammar.headers,
