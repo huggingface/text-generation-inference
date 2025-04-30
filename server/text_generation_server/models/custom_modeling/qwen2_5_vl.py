@@ -940,7 +940,7 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
         inputs_embeds = self.embed_tokens(input_ids)
 
         # apply the visual model to the pixel values if they are provided
-        if vision_embeds is not None and len(vision_embeds) > 0:
+        if vision_embeds is not None:
             inputs_embeds[input_ids == self.image_token_id] = vision_embeds
 
         return inputs_embeds

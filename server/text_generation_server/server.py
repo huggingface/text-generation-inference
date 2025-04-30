@@ -18,7 +18,6 @@ from text_generation_server.utils.adapter import AdapterInfo
 from text_generation_server.utils.prefill_chunking import set_max_prefill_tokens
 
 try:
-    from text_generation_server.models.pali_gemma import PaliGemmaBatch
     from text_generation_server.models.vlm_causal_lm import (
         VlmCausalLMBatch,
     )
@@ -26,7 +25,6 @@ try:
     from text_generation_server.models.mllama_causal_lm import MllamaCausalLMBatch
 
     VLM_BATCH_TYPES = {
-        PaliGemmaBatch,
         VlmCausalLMBatch,
         IdeficsCausalLMBatch,
         MllamaCausalLMBatch,

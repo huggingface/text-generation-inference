@@ -202,7 +202,7 @@ def preprocess_image(config, img):
 
     if model_type in {"qwen2_vl", "qwen2_5_vl"} and img.width <= 20:
         img = img.resize((img.width * 2, img.height * 2))
-    elif model_type == "paligemma":
+    if model_type == "paligemma":
         img = img.convert("RGB")
 
     if model_type not in {"llava_next", "gemma3", "llama4"}:
@@ -432,7 +432,9 @@ class VlmCausalLMBatch(FlashCausalLMBatch):
                 full_text,
                 truncation=True,
                 max_length=r.truncate,
-                add_special_tokens=r.add_special_tokens,
+                add_special_tokens=(
+                    r.add_special_tokens if config.model_type != "paligemma" else False
+                ),
             )["input_ids"]
             max_length = max(max_length, len(input_ids))
 

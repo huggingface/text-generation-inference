@@ -89,7 +89,7 @@ class PaliGemmaForConditionalGeneration(nn.Module):
 
         if vision_embeds is not None:
             mask = input_ids == self.config.image_token_index
-            inputs_embeds[mask] = vision_embeds.view(-1, vision_embeds.shape[-1])
+            inputs_embeds[mask] = vision_embeds
 
         return inputs_embeds
 
