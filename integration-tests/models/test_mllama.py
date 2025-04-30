@@ -48,7 +48,7 @@ async def test_mllama_simpl(mllama, response_snapshot):
     }
     assert (
         response.choices[0].message.content
-        == "A chicken sits on a pile of money, looking"
+        == "A chicken stands on a pile of money, looking"
     )
     assert response == response_snapshot
 
