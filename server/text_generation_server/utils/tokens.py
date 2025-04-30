@@ -301,7 +301,7 @@ class HeterogeneousNextTokenChooser:
 
         self.logit_bias_processor = (
             HeterogeneousLogitBiasProcessor(logit_biases, tokenizer, device)
-            if any([logit_bias is not None for logit_bias in logit_biases])
+            if any(logit_bias for logit_bias in logit_biases)
             else None
         )
 
