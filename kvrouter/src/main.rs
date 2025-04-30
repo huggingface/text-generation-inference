@@ -9,15 +9,12 @@ async fn main() {
     // List of backend servers
     let backends = vec![
         "http://localhost:8000".to_string(),
-        // "http://localhost:8001".to_string(),
+        "http://localhost:8001".to_string(),
         // "http://localhost:8002".to_string(),
         // "http://localhost:8003".to_string(),
     ];
 
     // Create a new instance of the RoundRobinRouter
-
-    println!("Using Content aware");
-    // Create the Axum router
 
     let (sx, rx) = tokio::sync::mpsc::channel(100);
     let communicator = Communicator::new(sx);
@@ -28,6 +25,9 @@ async fn main() {
             let mut router = OverloadHandler::new(lb, backends, rx);
             router.run().await;
         } else {
+            println!("Using Content aware");
+            // Create the Axum router
+
             let lb = ContentAware::new();
             let mut router = OverloadHandler::new(lb, backends, rx);
             router.run().await;

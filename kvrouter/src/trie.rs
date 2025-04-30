@@ -124,6 +124,7 @@ impl Node {
     }
 
     #[cfg(debug_assertions)]
+    #[allow(dead_code)]
     fn remove(&mut self, data: &[u8]) -> Result<(), Error> {
         // TODO reclaim the nodes too.
         let mismatch = mismatch(data, &self.content);
@@ -155,7 +156,7 @@ impl Trie {
         self.root.insert(data)
     }
 
-    // TODO
+    #[cfg(debug_assertions)]
     #[allow(dead_code)]
     pub fn remove(&mut self, data: &[u8]) -> Result<(), Error> {
         self.root.remove(data)
