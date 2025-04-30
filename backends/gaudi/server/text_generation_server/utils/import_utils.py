@@ -1,5 +1,6 @@
 import torch
 from loguru import logger
+from text_generation_server.utils.log import log_master
 
 
 def get_hpu_free_memory(device, memory_fraction):
@@ -7,7 +8,7 @@ def get_hpu_free_memory(device, memory_fraction):
 
     device_id = device.index
     mem_stats = memory_stats(device_id)
-    logger.info(f"mem_stats: {mem_stats}")
+    log_master(logger.debug, f"mem_stats: {mem_stats}")
     total_free_memory = mem_stats["Limit"] - mem_stats["MaxInUse"]
     free_memory = max(
         0, int(total_free_memory - (1 - memory_fraction) * mem_stats["Limit"])

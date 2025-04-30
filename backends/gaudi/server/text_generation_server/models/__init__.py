@@ -16,9 +16,9 @@ import enum
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
-from text_generation_server.models.causal_lm import CausalLM
-from text_generation_server.models.bloom import BLOOM
-from text_generation_server.models.starcoder import StarCoder
+#from text_generation_server.models.causal_lm import CausalLM
+#from text_generation_server.models.bloom import BLOOM
+#from text_generation_server.models.starcoder import StarCoder
 from text_generation_server.models.custom_modeling.flash_phi_moe_modeling import (
     PhiMoEConfig,
 )
@@ -32,7 +32,7 @@ from text_generation_server.utils.adapter import (
 from text_generation_server.adapters.lora import LoraWeights
 
 from text_generation_server.utils.log import log_master
-from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+#from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 
 __all__ = [
     "Model",
@@ -47,7 +47,7 @@ FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 FLASH_ATTENTION = False
 if ATTENTION == "paged":
     FLASH_ATTENTION = True
-
+print(f"Flash Attention enabled models: {FLASH_ATTENTION}")
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
     from text_generation_server.models.flash_vlm_causal_lm import FlashVlmCausalLM
@@ -62,6 +62,9 @@ try:
     )
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_llama4_modeling import (
+        Llama4ForConditionalGeneration,
     )
     from text_generation_server.models.custom_modeling.flash_cohere_modeling import (
         FlashCohereForCausalLM,
@@ -177,6 +180,11 @@ class ModelType(enum.Enum):
     LLAMA = {
         "type": "llama",
         "name": "Llama",
+        "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
+    }
+    LLAMA4 = {
+        "type": "llama4",
+        "name": "Llama4",
         "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
     }
     PHI3 = {
@@ -451,7 +459,9 @@ def get_model(
 
     kv_cache_dtype = dtype
 
+    print(f"Model type: {model_type}")
     if FLASH_ATTENTION:
+        print(f"Flash Attention enabled models: {model_type}")
         if model_type == DEEPSEEK_V2:
             head_size = max(
                 config_dict.get("qk_nope_dim", 128)
@@ -586,6 +596,19 @@ def get_model(
                 speculator=speculator,
                 dtype=dtype,
                 kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif model_type == LLAMA4:
+            print(f"Llama4 model detected: {model_id}")
+            return FlashVlmCausalLM(
+                model_id=model_id,
+                model_class=Llama4ForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
@@ -823,6 +846,7 @@ def get_model(
                 trust_remote_code=trust_remote_code,
             )
 
+    from text_generation_server.models.causal_lm import CausalLM
     from text_generation_server.models.vlm_causal_lm import VlmCausalLM
     from text_generation_server.models.custom_modeling.mllama import (
         MllamaForConditionalGeneration,
@@ -831,12 +855,15 @@ def get_model(
         LlavaNextForConditionalGeneration,
     )
 
+    from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
     adapt_transformers_to_gaudi()
     if SDP_ON_BF16 == 1:
         torch._C._set_math_sdp_allow_fp16_bf16_reduction(True)
     if model_type == "gpt_bigcode":
+        from text_generation_server.models.starcoder import StarCoder
         return StarCoder(model_id=model_id, revision=revision, dtype=dtype)
     if model_type == "bloom":
+        from text_generation_server.models.bloom import BLOOM
         return BLOOM(
             model_id=model_id,
             revision=revision,

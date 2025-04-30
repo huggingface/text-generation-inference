@@ -25,6 +25,7 @@ class FastLinear(torch.nn.Module):
         return cls(weight, bias)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
+        print(f"input.shape={input.shape}, self.weight={self.weight.shape}")
         return F.linear(input, self.weight, self.bias)
 
 
