@@ -47,9 +47,8 @@ impl ChatTemplate {
         let mutated_template = mutated_template.replace("[::-1]", "|reverse");
         // TODO: replace with a better solution
         // Hack to remove the {% generation %} and {% endgeneration %} statements from
-        // Phi4 Reasoning chat templates, as those are required when generating a mask
-        // for the assistant generated tokens, not natively handled yet
-        // Reference from Transformers at https://github.com/huggingface/transformers/blob/7a3e208892c06a5e278144eaf38c8599a42f53e7/src/transformers/processing_utils.py#L382-L385
+        // the Jinja2 chat templates if there, since those are only using for assistant
+        // masking during training, and should be ignored during inference
         let mutated_template = mutated_template.replace("{% generation %}", "");
         let mutated_template = mutated_template.replace("{% endgeneration %}", "");
 
