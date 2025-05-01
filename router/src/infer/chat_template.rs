@@ -45,6 +45,13 @@ impl ChatTemplate {
         //  It uses python notation to reverse lists, which do not exist in minijinja
         //  so we're using the reverse filter instead.
         let mutated_template = mutated_template.replace("[::-1]", "|reverse");
+        // TODO: replace with a better solution
+        // Hack to remove the {% generation %} and {% endgeneration %} statements from
+        // Phi4 Reasoning chat templates, as those are required when generating a mask
+        // for the assistant generated tokens, not natively handled yet
+        // Reference from Transformers at https://github.com/huggingface/transformers/blob/7a3e208892c06a5e278144eaf38c8599a42f53e7/src/transformers/processing_utils.py#L382-L385
+        let mutated_template = mutated_template.replace("{% generation %}", "");
+        let mutated_template = mutated_template.replace("{% endgeneration %}", "");
 
         let template_str = mutated_template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
