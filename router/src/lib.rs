@@ -224,6 +224,17 @@ impl HubProcessorConfig {
 
 #[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
 #[cfg_attr(test, derive(PartialEq))]
+struct JsonSchemaConfig {
+    /// Optional name identifier for the schema
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+
+    /// The actual JSON schema definition
+    schema: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
+#[cfg_attr(test, derive(PartialEq))]
 #[serde(tag = "type", content = "value")]
 pub(crate) enum GrammarType {
     /// A string that represents a [JSON Schema](https://json-schema.org/).
@@ -234,8 +245,16 @@ pub(crate) enum GrammarType {
     #[serde(alias = "json_object")]
     #[schema(example = json ! ({"properties": {"location":{"type": "string"}}}))]
     Json(serde_json::Value),
+
     #[serde(rename = "regex")]
     Regex(String),
+
+    /// A JSON Schema specification with additional metadata.
+    ///
+    /// Includes an optional name for the schema, an optional strict flag, and the required schema definition.
+    #[serde(rename = "json_schema")]
+    #[schema(example = json ! ({"schema": {"properties": {"name": {"type": "string"}, "age": {"type": "integer"}}}, "name": "person_info", "strict": true}))]
+    JsonSchema(JsonSchemaConfig),
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
