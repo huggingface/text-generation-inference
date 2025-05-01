@@ -45,6 +45,12 @@ impl ChatTemplate {
         //  It uses python notation to reverse lists, which do not exist in minijinja
         //  so we're using the reverse filter instead.
         let mutated_template = mutated_template.replace("[::-1]", "|reverse");
+        // TODO: replace with a better solution
+        // Hack to remove the {% generation %} and {% endgeneration %} statements from
+        // the Jinja2 chat templates if there, since those are only using for assistant
+        // masking during training, and should be ignored during inference
+        let mutated_template = mutated_template.replace("{% generation %}", "");
+        let mutated_template = mutated_template.replace("{% endgeneration %}", "");
 
         let template_str = mutated_template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
