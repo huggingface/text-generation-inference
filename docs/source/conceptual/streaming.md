@@ -134,9 +134,9 @@ Whether you use Inference Providers (our serverless API), or Inference Endpoints
 
 
 ```js
-import { InferenceEndpoint } from '@huggingface/inference';
+import { InferenceClient } from '@huggingface/inference';
 
-const client = new InferenceEndpoint('hf_YOUR_TOKEN', { endpointUrl: 'https://YOUR_ENDPOINT.endpoints.huggingface.cloud' });
+const client = new InferenceClient('hf_YOUR_TOKEN', { endpointUrl: 'https://YOUR_ENDPOINT.endpoints.huggingface.cloud' });
 
 // prompt
 const prompt = 'What can you do in Nuremberg, Germany? Give me 3 Tips';

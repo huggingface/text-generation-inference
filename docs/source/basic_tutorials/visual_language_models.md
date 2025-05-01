@@ -139,12 +139,12 @@ npm install @huggingface/inference
 
 Whether you use Inference Providers (our serverless API), or Inference Endpoints, you can call `InferenceClient`.
 
-We can create a `HfInferenceEndpoint` providing our endpoint URL and We can create a `HfInferenceEndpoint` providing our endpoint URL and [Hugging Face access token](https://huggingface.co/settings/tokens).
+We can create a `InferenceClient` providing our endpoint URL and [Hugging Face access token](https://huggingface.co/settings/tokens).
 
 ```js
-import { HfInferenceEndpoint } from "@huggingface/inference";
+import { InferenceClient } from "@huggingface/inference";
 
-const client = new InferenceEndpoint('hf_YOUR_TOKEN', { endpointUrl: 'https://YOUR_ENDPOINT.endpoints.huggingface.cloud' });
+const client = new InferenceClient('hf_YOUR_TOKEN', { endpointUrl: 'https://YOUR_ENDPOINT.endpoints.huggingface.cloud' });
 
 const prompt =
   "![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)What is this a picture of?\n\n";
