@@ -2,7 +2,6 @@
 target
 router/tokenizer.json
 *__pycache__*
-.DS_Store
 
 backends/v2/src/client/pb
 backends/v3/src/client/pb
