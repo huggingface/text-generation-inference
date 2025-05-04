@@ -409,6 +409,66 @@ class HybridFP8UnquantLoader(WeightsLoader):
 
         return UnquantizedWeight(w)
 
+    def get_multi_weights(self, weights: "Weights", prefixes: List[str], dim: int):
+        # FIXME: Force to_device to false as fp8 weights do not support torch.cat on device yet
+        w = [weights.get_tensor(f"{p}.weight", to_device=False) for p in prefixes]
+        shapes = [x.shape for x in w]
+
+        # Concat then send to the device
+        w = torch.cat(w, dim=dim).to(weights.device)
+
+        # FP8 branch
+        if w.dtype == torch.float8_e4m3fn:
+            if self.weight_block_size is not None:
+                scale = [
+                    weights.get_tensor(f"{p}.weight_scale_inv", to_device=False)
+                    for p in prefixes
+                ]
+                scale = torch.cat(scale, dim=dim)
+                scale = scale.to(weights.device)
+                return Fp8Weight(
+                    weight=w,
+                    weight_scale=scale,
+                    activation_scale_ub=self.activation_scale_ub,
+                    dtype=weights.dtype,
+                    weight_block_size=self.weight_block_size,
+                )
+
+            scale = [
+                weights.get_tensor(f"{p}.weight_scale", to_dtype=False).reshape(-1)
+                for p in prefixes
+            ]
+            scale = torch.cat(scale, dim=0).reshape(-1)
+
+            input_scale = [
+                weights.get_tensor(f"{p}.input_scale", to_dtype=False).reshape(-1)
+                for p in prefixes
+                if weights.has_tensor(f"{p}.input_scale")
+            ]
+            assert len(input_scale) == 0 or len(input_scale) == len(prefixes)
+            input_scale = (
+                torch.cat(input_scale, dim=0).reshape(-1).max()
+                if len(input_scale) != 0
+                else None
+            )
+
+            logical_widths = [x[0] for x in shapes]
+            w, scale = requantize_with_max_scale(
+                w, scale.to(weights.device), logical_widths, weights.dtype
+            )
+
+            return Fp8Weight(
+                weight=w,
+                weight_scale=scale,
+                input_scale=input_scale,
+                activation_scale_ub=self.activation_scale_ub,
+                dtype=weights.dtype,
+            )
+        if self.to_fp8:
+            return Fp8Weight(weight=w, dtype=weights.dtype)
+
+        return UnquantizedWeight(w)
+
     def get_weights_row(self, weights: "Weights", prefix: str):
         w = weights.get_sharded(f"{prefix}.weight", dim=1)
         # FP8 branch

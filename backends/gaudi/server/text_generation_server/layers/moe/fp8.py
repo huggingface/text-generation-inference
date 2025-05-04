@@ -2,6 +2,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+import os
 
 from text_generation_server.utils.weights import Weights
 from text_generation_server.layers.fp8 import (
@@ -46,6 +47,16 @@ class FP8SparseMoELayer(nn.Module):
         self.weight_block_size = weights.weights_loader.weight_block_size
         self.scoring_func = scoring_func
         self.e_score_correction_bias = e_score_correction_bias
+        self.world_size = weights.process_group.size()
+        self.rank = weights.process_group.rank()
+        self.ep_rank = self.rank
+        self.use_ep = os.getenv("USE_EXPERT_PARALLEL", "true").lower() == "true"
+
+        if self.use_ep:
+            n_experts = (n_experts + self.world_size - 1) // self.world_size
+            self.ep_offset = self.ep_rank * n_experts
+        else:
+            self.ep_offset = 0
 
         (
             self.gate_up_proj,
@@ -57,6 +68,8 @@ class FP8SparseMoELayer(nn.Module):
             gate_proj_name=gate_proj_name,
             up_proj_name=up_proj_name,
             weights=weights,
+            use_ep=self.use_ep,
+            ep_offset=self.ep_offset,
         )
 
         self.down_proj, self.down_proj_weight_scale, self.down_proj_input_scale = (
@@ -65,6 +78,8 @@ class FP8SparseMoELayer(nn.Module):
                 n_experts=n_experts,
                 name=down_proj_name,
                 weights=weights,
+                use_ep=self.use_ep,
+                ep_offset=self.ep_offset,
             )
         )
         if self.weight_block_size is not None:
@@ -99,8 +114,15 @@ class FP8SparseMoELayer(nn.Module):
         )
         total_num_experts = gating_output.size(-1)
         x_fp8, x_scale = dynamic_quant(x, single_scale=True)
-        moe_n_slice = (total_num_experts + 31) // 32
-        n_expert_slice = (total_num_experts + moe_n_slice - 1) // moe_n_slice
+
+        if self.use_ep:
+            moe_n_slice = 1
+            n_expert_slice = (
+                total_num_experts + self.world_size - 1
+            ) // self.world_size
+        else:
+            moe_n_slice = 1
+            n_expert_slice = (total_num_experts + moe_n_slice - 1) // moe_n_slice
         for i in range(moe_n_slice):
             min_expert = i * n_expert_slice
             max_expert = min((i + 1) * n_expert_slice, total_num_experts)
@@ -130,8 +152,8 @@ class FP8SparseMoELayer(nn.Module):
                 d_scale_w3=w2_weight_scale,
                 permuted_weights=True,
                 activation="silu",
-                experts_min=min_expert,
-                experts_max=max_expert - 1,
+                experts_min=min_expert + self.ep_offset,
+                experts_max=max_expert + self.ep_offset - 1,
             )
             htorch.core.mark_step()
             if i == 0:
@@ -148,13 +170,14 @@ def _load_expert_weights(
     n_experts: int,
     name: str,
     weights: Weights,
+    ep_offset: int = 0,
 ) -> torch.Tensor:
     all_weight = None
     all_weight_scales = None
     max_input_scale = None
 
     for i in range(n_experts):
-        weight = get_weight_fn(prefix, i, name, weights)
+        weight = get_weight_fn(prefix, i + ep_offset, name, weights)
 
         assert isinstance(weight, Fp8Weight)
 
@@ -197,14 +220,26 @@ def _load_expert_multi_weights_col(
     gate_proj_name: str,
     up_proj_name: str,
     weights: Weights,
+    use_ep: bool = False,
+    ep_offset: int = 0,
 ) -> torch.Tensor:
-    def get_weight_fn(prefix, i, name, weights):
+    def get_weight_fn_sharded(prefix, i, name, weights):
         return weights.get_multi_weights_col(
             [f"{prefix}.{i}.{gate_proj_name}", f"{prefix}.{i}.{up_proj_name}"], 0
         )
 
+    def get_weight_fn(prefix, i, name, weights):
+        return weights.get_multi_weights(
+            [f"{prefix}.{i}.{gate_proj_name}", f"{prefix}.{i}.{up_proj_name}"], 0
+        )
+
     return _load_expert_weights(
-        get_weight_fn, prefix=prefix, n_experts=n_experts, name=None, weights=weights
+        get_weight_fn if use_ep else get_weight_fn_sharded,
+        prefix=prefix,
+        n_experts=n_experts,
+        name=None,
+        weights=weights,
+        ep_offset=ep_offset if use_ep else 0,
     )
 
 
@@ -214,10 +249,20 @@ def _load_expert_weights_row(
     n_experts: int,
     name: str,
     weights: Weights,
+    use_ep: bool = False,
+    ep_offset: int = 0,
 ) -> torch.Tensor:
-    def get_weight_fn(prefix, i, name, weights):
+    def get_weight_fn_sharded(prefix, i, name, weights):
         return weights.get_weights_row(f"{prefix}.{i}.{name}")
 
+    def get_weight_fn(prefix, i, name, weights):
+        return weights.get_weights(f"{prefix}.{i}.{name}")
+
     return _load_expert_weights(
-        get_weight_fn, prefix=prefix, n_experts=n_experts, name=name, weights=weights
+        get_weight_fn if use_ep else get_weight_fn_sharded,
+        prefix=prefix,
+        n_experts=n_experts,
+        name=name,
+        weights=weights,
+        ep_offset=ep_offset if use_ep else 0,
     )
