@@ -37,7 +37,6 @@ class UnquantizedSparseMoELayer(nn.Module):
         self.weight_block_size = weights.weights_loader.weight_block_size
         self.scoring_func = scoring_func
         self.e_score_correction_bias = e_score_correction_bias
-
         self.gate_up_proj = _load_expert_multi_weights_col(
             prefix=prefix,
             n_experts=n_experts,
@@ -52,7 +51,6 @@ class UnquantizedSparseMoELayer(nn.Module):
             name=down_proj_name,
             weights=weights,
         )
-
         self.hpu_fused_moe = DynamicFusedMOE(n_experts)
         for i in range(n_experts):
             self.hpu_fused_moe.MoeOp.w13_list[i].set_weight(self.gate_up_proj[i])

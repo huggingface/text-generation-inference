@@ -31,6 +31,7 @@ from text_generation_server.layers.attention import (
     KVCache,
     get_kv_scales,
 )
+from text_generation_server.utils.log import log_master
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -46,6 +47,7 @@ from text_generation_server.layers import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
+from loguru import logger
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -633,7 +635,14 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         adapter_data: Optional[torch.Tensor] = None,
         cross_attention_states=None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        
+        
+        log_master(
+            logger.debug,
+            f"input_ids: {input_ids}, input_ids.shape={input_ids.shape}, input_ids={input_ids[:-20]}"
+        )  
         inputs_embeds = self.embed_tokens(input_ids)
+        print(f"111111111 inputs_embeds: {inputs_embeds}")
         hidden_states = self.model(
             inputs_embeds,
             position_ids,
