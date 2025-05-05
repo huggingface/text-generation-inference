@@ -1520,6 +1520,10 @@ class FlashCausalLM(Model):
         if os.getenv("VLLM_SKIP_WARMUP", "false").lower() == "true":
             logger.info("skip warmup hpu graph, not recommmended")
             del _batch, batch
+            print(f"max_input_tokens: {max_input_tokens}")
+            print(f"max_total_tokens: {max_total_tokens}")
+            print(f"num_blocks: {num_blocks}")
+            print(f"BLOCK_SIZE: {BLOCK_SIZE}")
             return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
 
         self.warmup_hpu_graph(batch)
