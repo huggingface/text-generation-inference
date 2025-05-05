@@ -1267,6 +1267,15 @@ class FlashCausalLM(Model):
 
         prefix = None
         model = model_class(prefix, config, weights)
+
+        if model.config.vocab_size != tokenizer.vocab_size:
+            logger.warning(
+                f"Tokenizer vocab size {tokenizer.vocab_size} does not match model vocab size {model.config.vocab_size}. Updating tokenizer vocab size."
+            )
+            # TODO: HUGE HACK! This is a workaround for the fact that Qwen2TokenizerFast
+            # returns the incorrect vocab size for the 2B model.
+            tokenizer._vocab_size = model.config.vocab_size
+
         torch.distributed.barrier(group=self.process_group)
 
         # VLM models define the config we care about in their text_config

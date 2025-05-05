@@ -641,7 +641,8 @@ class LogitBiasProcessor(LogitsProcessor):
     ):
         assert logit_biases, "LogitBiasProcessor requires non-empty logit_biases"
 
-        vocab_size = len(tokenizer)
+        # use _vocab_size or fallback to tokenizer.vocab_size if not available
+        self.vocab_size = getattr(tokenizer, "_vocab_size", tokenizer.vocab_size)
 
         # Convert keys to integers and values to a list
         token_ids = torch.tensor(
@@ -650,7 +651,7 @@ class LogitBiasProcessor(LogitsProcessor):
         bias_values = torch.tensor(list(logit_biases.values()), dtype=torch.float)
 
         # Create a tensor and directly copy bias values at the corresponding indices
-        self.bias_tensor = torch.zeros(vocab_size, dtype=torch.float)
+        self.bias_tensor = torch.zeros(self.vocab_size, dtype=torch.float)
         self.bias_tensor.index_put_((token_ids,), bias_values, accumulate=True)
 
     def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
@@ -669,10 +670,13 @@ class HeterogeneousLogitBiasProcessor(LogitsProcessor):
         tokenizer: PreTrainedTokenizerBase,
         device: torch.device,
     ):
+        assert logit_biases, "LogitBiasProcessor requires non-empty logit_biases"
+
         self.tokenizer = tokenizer
         self.logit_biases = logit_biases
-        # import ipdb; ipdb.set_trace()
-        self.vocab_size = len(tokenizer)
+
+        # use _vocab_size or fallback to tokenizer.vocab_size if not available
+        self.vocab_size = getattr(tokenizer, "_vocab_size", tokenizer.vocab_size)
 
         # Create batch_size x vocab_size bias matrix
         self.bias_matrix = torch.zeros(
