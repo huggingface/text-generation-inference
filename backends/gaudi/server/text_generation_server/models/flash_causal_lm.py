@@ -1438,6 +1438,7 @@ class FlashCausalLM(Model):
         self.kv_cache = []
         self.kv_cache_dtype = dtype if kv_cache_dtype is None else kv_cache_dtype
         self.bucketing_ctx = None
+        htorch.core.hpu_set_env()
         if htorch.utils.internal.is_lazy():
             htorch.hpu.wrap_in_hpu_graph(model, disable_tensor_cache=True)
         environment.set_model_config(self.config)

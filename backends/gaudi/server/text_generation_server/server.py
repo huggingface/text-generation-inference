@@ -224,6 +224,7 @@ def serve(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[str],
+    kv_cache_dtype: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
     max_input_tokens: int,
@@ -236,6 +237,7 @@ def serve(
         quantize: Optional[str] = None,
         speculate: Optional[int] = None,
         dtype: Optional[str] = None,
+        kv_cache_dtype: Optional[str] = None,
         trust_remote_code: bool = False,
     ):
         if not is_driver_compatible():
@@ -279,6 +281,7 @@ def serve(
                 quantize,
                 speculate,
                 data_type,
+                kv_cache_dtype,
                 trust_remote_code,
                 max_input_tokens,
                 adapter_to_index,
@@ -326,6 +329,7 @@ def serve(
             quantize,
             speculate,
             dtype,
+            kv_cache_dtype,
             trust_remote_code,
         )
     )

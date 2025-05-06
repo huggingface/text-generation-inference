@@ -50,6 +50,8 @@ class KVCache:
     ):
         """Construct the key-value cache for a layer."""
         ## TODO FP8 kv cache support
+        if dtype is torch.float8_e5m2:
+            raise ValueError("torch.float8_e5m2 is not supported in hpu. ")
 
         self.kv_cache = (
             torch.zeros(
@@ -101,8 +103,8 @@ class KVCache:
             key_cache,
             value_cache,
             slots,
-            kv_scales.key_scale_cpu,
-            kv_scales.value_scale_cpu,
+            kv_scales.key_scale,
+            kv_scales.value_scale,
         )
 
 
@@ -112,11 +114,18 @@ def paged_reshape_and_cache(
     key_cache: torch.Tensor,
     value_cache: torch.Tensor,
     slots: torch.Tensor,
-    k_scale: float = 1.0,
-    v_scale: float = 1.0,
+    k_scale: torch.Tensor,
+    v_scale: torch.Tensor,
 ):
     block_idx = slots // BLOCK_SIZE
     block_offset = slots % BLOCK_SIZE
+    if key_cache.dtype == torch.float8_e4m3fn:
+        key = torch.ops.hpu.cast_to_fp8_v2(
+            key, k_scale, False, False, torch.float8_e4m3fn
+        )[0]
+        value = torch.ops.hpu.cast_to_fp8_v2(
+            value, v_scale, False, False, torch.float8_e4m3fn
+        )[0]
     cache_ops.insert_or_update_cache(key, key_cache, block_idx, block_offset)
     cache_ops.insert_or_update_cache(value, value_cache, block_idx, block_offset)
 
