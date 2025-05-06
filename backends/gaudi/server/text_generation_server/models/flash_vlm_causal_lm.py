@@ -17,12 +17,15 @@ from text_generation_server.models.globals import PREFIX_CACHING, BLOCK_SIZE
 from loguru import logger
 from text_generation_server.utils.log import log_master
 from transformers import AutoProcessor
-from text_generation_server.layers.attention import Seqlen, trim_seqlen_metadata
+from text_generation_server.layers.attention import (
+    Seqlen,
+    trim_seqlen_metadata,
+    _async_h2d_tensor_copy,
+)
 import habana_frameworks.torch as htorch
 from text_generation_server.utils.import_utils import (
     synchronize,
 )
-import torch.nn.functional as F
 
 tracer = trace.get_tracer(__name__)
 
@@ -383,12 +386,8 @@ class FlashVlmCausalLM(FlashCausalLM):
     def warmup_decode(
         self, batch_size: int, block_num: int, batch: FlashVlmCausalLMBatch
     ):
-        input_ids = torch.zeros(
-            batch_size, dtype=batch.input_ids.dtype, device=self.device
-        )
-        position_ids = torch.arange(
-            batch_size, dtype=batch.position_ids.dtype, device=self.device
-        )
+        input_ids = torch.zeros(batch_size, dtype=batch.input_ids.dtype)
+        position_ids = torch.arange(batch_size, dtype=batch.position_ids.dtype)
         if batch.position_ids is not None and batch.position_ids.dim() == 2:
             # qwen2_vl and qwen2_5_vl case
             position_ids = position_ids.unsqueeze(-1).repeat(
@@ -408,19 +407,10 @@ class FlashVlmCausalLM(FlashCausalLM):
             block_tables.append(block_array)
             past_len.append(blocks[i] * BLOCK_SIZE - 1)
             start_idx += blocks[i]
-        input_lengths = torch.ones(batch_size, dtype=torch.int32, device=self.device)
-        cache_lengths_tensor = torch.tensor(
-            past_len, dtype=torch.int32, device=self.device
-        )
-        cu_seqlen_prefill = torch.zeros(
-            batch_size + 1, device=self.device, dtype=torch.int32
-        )
-        torch.cumsum(input_lengths, -1, out=cu_seqlen_prefill[1:])
+        input_lengths = torch.ones(batch_size, dtype=torch.int32)
 
         seqlen = Seqlen(
-            input_lengths=input_lengths,
-            cache_lengths=cache_lengths_tensor,
-            cu_seqlen_q=cu_seqlen_prefill,
+            input_lengths=_async_h2d_tensor_copy(input_lengths),
         )
 
         hpu_attention_meta = prepare_for_decode(
@@ -432,14 +422,14 @@ class FlashVlmCausalLM(FlashCausalLM):
             batch_size,
             bucketing_ctx=None,
         )
-        slots_tensor = torch.tensor(slots, dtype=batch.slots.dtype, device=self.device)
+        slots_tensor = torch.tensor(slots, dtype=batch.slots.dtype)
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
-            input_ids=input_ids,
-            position_ids=position_ids,
+            input_ids=_async_h2d_tensor_copy(input_ids),
+            position_ids=_async_h2d_tensor_copy(position_ids),
             cu_seqlen_prefill=None,
             kv_cache=self.kv_cache,
-            slots=slots_tensor,
+            slots=_async_h2d_tensor_copy(slots_tensor),
             seqlen=trim_seqlen_metadata(seqlen),
             hpu_attention_meta=hpu_attention_meta,
             lm_head_indices=None,
@@ -498,9 +488,6 @@ class FlashVlmCausalLM(FlashCausalLM):
             input_lengths = (
                 input_lengths.unsqueeze(-1).expand(B, new_length) + arange_int
             ).view(-1)
-            cache_lengths_tensor = (
-                batch.cache_lengths_tensor.unsqueeze(-1).expand(B, new_length)
-            ).reshape(-1)
 
             # Add Copy the block tables for all members
             block_tables = (
@@ -521,7 +508,6 @@ class FlashVlmCausalLM(FlashCausalLM):
             block_tables = batch.block_tables_tensor
             slots = batch.slots[batch.slot_indices]
             input_lengths = batch.input_lengths_tensor
-            cache_lengths_tensor = batch.cache_lengths_tensor
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
@@ -546,78 +532,23 @@ class FlashVlmCausalLM(FlashCausalLM):
             slots_pad = torch.zeros_like(input_ids)
             slots_pad[batch.prefill_cache_indices] = slots
             slots = slots_pad
-        if self.bucketing_ctx is not None:
-            if batch.prefilling:
-                padded_bs = self.bucketing_ctx.get_padded_prompt_batch_size(
-                    input_lengths.shape[0]
-                )
-            else:
-                padded_bs = self.bucketing_ctx.get_padded_decode_batch_size(
-                    input_lengths.shape[0]
-                )
         else:
-            padded_bs = input_lengths.shape[0]
-        orig_bs = input_lengths.shape[0]
-        if padded_bs != input_lengths.shape[0]:
-            padded_input_lengths = F.pad(
-                input_lengths,
-                (0, padded_bs - orig_bs),
-                value=0,
-            )
-            padded_cache_lengths_tensor = F.pad(
-                cache_lengths_tensor,
-                (0, padded_bs - orig_bs),
-                value=0,
-            )
-            if cu_seqlen_prefill is not None:
-                cu_seqlen_prefill = torch.zeros(
-                    padded_bs + 1, device=self.device, dtype=torch.int32
-                )
-                torch.cumsum(padded_input_lengths, -1, out=cu_seqlen_prefill[1:])
-            seqlen = Seqlen(
-                input_lengths=padded_input_lengths,
-                cache_lengths=padded_cache_lengths_tensor,
-                cu_seqlen_q=cu_seqlen_prefill,
-            )
-            input_seq = input_ids.view(orig_bs, -1)
-            input_ids = F.pad(
-                input_ids, (0, (padded_bs - orig_bs) * input_seq.shape[-1]), value=0
-            )
-            if position_ids.dim() == 2:
-                # qwen2_vl and qwen2_5_vl case
-                position_ids = F.pad(
-                    position_ids,
-                    (0, 0, 0, (padded_bs - orig_bs) * input_seq.shape[-1]),
-                    value=1,
-                )
-            else:
-                position_ids = F.pad(
-                    position_ids,
-                    (0, (padded_bs - orig_bs) * input_seq.shape[-1]),
-                    value=1,
-                )
-            slots = F.pad(
-                slots, (0, (padded_bs - orig_bs) * input_seq.shape[-1]), value=0
-            )
-            if lm_head_indices is not None:
-                lm_head_indices = F.pad(
-                    lm_head_indices, (0, padded_bs - orig_bs), value=0
-                )
-        else:
-            seqlen = Seqlen(
-                input_lengths=input_lengths,
-                cache_lengths=cache_lengths_tensor,
-                cu_seqlen_q=cu_seqlen_prefill,
-            )
+            slots_pad = torch.zeros_like(input_ids)
+            slots_pad[: slots.shape[0]] = slots
+            slots = slots_pad
+
+        seqlen = Seqlen(
+            input_lengths=_async_h2d_tensor_copy(input_lengths),
+        )
         logits, speculative_logits = self.model.forward(
-            input_ids=input_ids,
-            position_ids=position_ids,
-            cu_seqlen_prefill=cu_seqlen_prefill,
+            input_ids=_async_h2d_tensor_copy(input_ids),
+            position_ids=_async_h2d_tensor_copy(position_ids),
+            cu_seqlen_prefill=_async_h2d_tensor_copy(cu_seqlen_prefill),
             kv_cache=kv_cache,
-            slots=slots,
+            slots=_async_h2d_tensor_copy(slots),
             seqlen=trim_seqlen_metadata(seqlen),
             hpu_attention_meta=batch.hpu_attn_meta,
-            lm_head_indices=lm_head_indices,
+            lm_head_indices=_async_h2d_tensor_copy(lm_head_indices),
             pixel_values=batch.pixel_values,
             pixel_attention_mask=batch.pixel_attention_mask,
             image_sizes=batch.image_sizes,
@@ -632,6 +563,4 @@ class FlashVlmCausalLM(FlashCausalLM):
             batch.image_sizes = None
         if batch.image_grid_thw is not None:
             batch.image_grid_thw = None
-        return logits[:orig_bs], (
-            speculative_logits[:orig_bs] if speculative_logits is not None else None
-        )
+        return logits, speculative_logits

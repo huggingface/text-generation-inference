@@ -552,8 +552,13 @@ def pad_next_token_chooser_parameters(
 
 class Sampling:
     def __init__(self, seed: int, device: str = "cpu"):
-        self.generator = torch.Generator("cpu")
-        self.generator.manual_seed(seed)
+        if device in ["hpu", torch.device("hpu")]:
+            import habana_frameworks.torch.hpu.random as htrandom
+
+            self.generator = htrandom.default_generators[0].manual_seed(seed)
+        else:
+            self.generator = torch.Generator("cpu")
+            self.generator.manual_seed(seed)
         self.seed = seed
 
     def __call__(self, logits):
