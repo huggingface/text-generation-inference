@@ -1,17 +1,19 @@
 import torch
 from loguru import logger
+import habana_frameworks.torch as htorch
+import os
 
 
 def get_hpu_free_memory(device, memory_fraction):
-    from habana_frameworks.torch.hpu import memory_stats
-
-    device_id = device.index
-    mem_stats = memory_stats(device_id)
-    logger.info(f"mem_stats: {mem_stats}")
-    total_free_memory = mem_stats["Limit"] - mem_stats["MaxInUse"]
-    free_memory = max(
-        0, int(total_free_memory - (1 - memory_fraction) * mem_stats["Limit"])
+    graph_reserved_mem = (
+        float(os.environ.get("TGI_GRAPH_RESERVED_MEM", "0.1"))
+        if htorch.utils.internal.is_lazy()
+        else 0
     )
+    free_memory = int(
+        torch.hpu.mem_get_info()[0] * memory_fraction * (1 - graph_reserved_mem)
+    )
+    logger.info(f"Free memory on device {device}: {free_memory} bytes, ")
     return free_memory
 
 

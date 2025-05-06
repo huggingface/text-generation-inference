@@ -1445,9 +1445,10 @@ class FlashCausalLM(Model):
         self.use_contiguous_pa = (
             os.environ.get("VLLM_CONTIGUOUS_PA", "true").lower() == "true"
         )
-        self.limit_hpu_graphs = (
-            os.environ.get("LIMIT_HPU_GRAPHS", "false").lower() == "true"
+        self.limit_hpu_graph = (
+            os.environ.get("LIMIT_HPU_GRAPH", "true").lower() == "true"
         )
+        self.max_seq_len_to_capture = 8192
         super().__init__(
             model_id=model_id,
             model=model,
@@ -1564,6 +1565,7 @@ class FlashCausalLM(Model):
             self.kv_cache_dtype,
             self.device,
         )
+        self.max_batch_prefill_tokens = max_input_tokens * len(batch)
 
         max_num_seqs = int(os.getenv("MAX_BATCH_SIZE", 128))
         if os.getenv("VLLM_PROMPT_SEQ_BUCKET_MAX") is None:
@@ -1592,15 +1594,23 @@ class FlashCausalLM(Model):
 
         return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
 
+    def bypass_hpu_graphs(self, prefill, max_seq_len_to_capture):
+        if self.limit_hpu_graph:
+            return prefill and max_seq_len_to_capture > self.max_seq_len_to_capture
+        return False
+
     def warmup_hpu_graph(self, batch):
         warmup_times = 3
         self.bucketing_ctx.generate_prompt_buckets()
         for i, (batch_size, seq_len) in enumerate(
             reversed(self.bucketing_ctx.prompt_buckets)
         ):
+            if batch_size * seq_len > self.max_batch_prefill_tokens:
+                continue
             log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
             for index in range(warmup_times):
                 self.warmup_prefill(seq_len, batch_size, batch)
+                synchronize(self.device)
 
         self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
         for i, (batch_size, block_num) in enumerate(
@@ -1613,7 +1623,7 @@ class FlashCausalLM(Model):
             )
             for index in range(warmup_times):
                 self.warmup_decode(batch_size, block_num, batch)
-        synchronize(self.device)
+                synchronize(self.device)
 
     def warmup_prefill(
         self, prompt_len: int, batch_size: int, batch: FlashCausalLMBatch
@@ -1644,7 +1654,9 @@ class FlashCausalLM(Model):
         lm_head_indices = input_lengths - 1
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = self.limit_hpu_graphs
+            kwargs["bypass_hpu_graphs"] = self.bypass_hpu_graphs(
+                True, input_ids.shape[0]
+            )
 
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
@@ -1793,8 +1805,8 @@ class FlashCausalLM(Model):
 
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = (
-                batch.prefilling if self.limit_hpu_graphs else False
+            kwargs["bypass_hpu_graphs"] = self.bypass_hpu_graphs(
+                batch.prefilling, input_ids.shape[0]
             )
 
         logits, speculative_logits = self.model.forward(

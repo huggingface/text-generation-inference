@@ -325,7 +325,9 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         )
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = self.limit_hpu_graphs
+            kwargs["bypass_hpu_graphs"] = self.bypass_hpu_graphs(
+                True, input_ids.shape[0]
+            )
         self.model.forward(
             input_ids=_async_h2d_tensor_copy(input_ids),
             position_ids=_async_h2d_tensor_copy(position_ids),
@@ -348,9 +350,12 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         for i, (batch_size, seq_len) in enumerate(
             reversed(self.bucketing_ctx.prompt_buckets)
         ):
+            if batch_size * seq_len > self.max_batch_prefill_tokens:
+                continue
             log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
             for index in range(warmup_times):
                 self.warmup_prefill(seq_len, batch_size, batch)
+                synchronize(self.device)
         self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
         for i, (batch_size, block_num) in enumerate(
             reversed(self.bucketing_ctx.decode_buckets)
@@ -362,7 +367,7 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             )
             for index in range(warmup_times):
                 self.warmup_decode(batch_size, block_num, batch)
-        synchronize(self.device)
+                synchronize(self.device)
 
     def forward(
         self,
@@ -438,8 +443,8 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
 
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = (
-                batch.prefilling if self.limit_hpu_graphs else False
+            kwargs["bypass_hpu_graphs"] = self.bypass_hpu_graphs(
+                batch.prefilling, input_ids.shape[0]
             )
         if batch.prefill_cache_indices is not None:
             slots_pad = torch.zeros_like(input_ids)
