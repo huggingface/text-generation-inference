@@ -244,7 +244,7 @@ class SparseMoELayer(nn.Module):
 
         log_once(
             logger.info,
-            "Using MoE layer wih fused gemm",
+            "Using MoE layer with fused gemm",
         )
 
         self.moe = cls(

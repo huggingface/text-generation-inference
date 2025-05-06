@@ -34,7 +34,7 @@ class WNA16Int24Loader(WeightsLoader):
 
     def get_weights(self, weights: Weights, prefix: str):
         """
-        Get weights at the given prefix and apply without tensor paralllism.
+        Get weights at the given prefix and apply without tensor parallelism.
         """
         weight_packed = weights.get_tensor(f"{prefix}.weight_packed")
         meta = weights.get_tensor(f"{prefix}.meta")

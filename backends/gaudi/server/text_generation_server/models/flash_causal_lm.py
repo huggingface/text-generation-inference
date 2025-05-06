@@ -1518,7 +1518,7 @@ class FlashCausalLM(Model):
         )
         self.bucketing_ctx.num_hpu_blocks = num_blocks
         if os.getenv("VLLM_SKIP_WARMUP", "false").lower() == "true":
-            logger.info("skip warmup hpu graph, not recommmended")
+            logger.info("skip warmup hpu graph, not recommended")
             del _batch, batch
             return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
 
