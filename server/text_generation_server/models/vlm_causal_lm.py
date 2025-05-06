@@ -418,7 +418,7 @@ class VlmCausalLM(FlashCausalLM):
             logger.warning(
                 f"Tokenizer vocab size {self.tokenizer.vocab_size} does not match model vocab size {self.config.vocab_size}. Updating tokenizer vocab size."
             )
-            # TODO: HUGE HACK! This is a workaround to update the vocab size 
+            # TODO: HUGE HACK! This is a workaround to update the vocab size
             # in the tokenizer. When the tokenizer is updated within the model
             # the vocab size is not updated in the tokenizer.
             self.tokenizer._vocab_size = self.config.vocab_size
