@@ -500,9 +500,32 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         )
         return position_ids
 
-    def forward(
+    def get_vision_embeds(
+        self,
+        pixel_values: torch.FloatTensor,
+        pixel_attention_mask: Optional[torch.FloatTensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
+    ):
+        image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw).squeeze(0)
+        return image_embeds
+
+    def get_inputs_embeds(
         self,
         input_ids: torch.Tensor,
+        vision_embeds: torch.Tensor = None,
+    ):
+        inputs_embeds = self.embed_tokens(input_ids)
+
+        # apply the visual model to the pixel values if they are provided
+        if vision_embeds is not None:
+            inputs_embeds[input_ids == self.image_token_id] = vision_embeds
+
+        return inputs_embeds
+
+    def forward(
+        self,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -512,25 +535,10 @@ class Qwen2VLForConditionalGeneration(nn.Module):
         max_s: int,
         prefill_cache_indices: Optional[torch.Tensor],
         lm_head_indices: Optional[torch.Tensor],
-        pixel_values: torch.FloatTensor = None,
-        image_grid_thw: Optional[torch.LongTensor] = None,
-        video_grid_thw: Optional[torch.LongTensor] = None,
-        pixel_attention_mask=None,
-        image_sizes: Optional[torch.LongTensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
-        cross_attention_states: Optional[torch.Tensor] = None,
         image_indices=None,
+        attention_mask=None,
     ):
-        inputs_embeds = self.embed_tokens(input_ids)
-
-        # apply the visual model to the pixel values if they are provided
-        if pixel_values is not None and len(pixel_values) > 0:
-            if pixel_values is not None:
-                image_embeds = self.visual(
-                    pixel_values, grid_thw=image_grid_thw
-                ).squeeze(0)
-                inputs_embeds[input_ids == self.image_token_id] = image_embeds
-
         hidden_states = self.text_model(
             inputs_embeds=inputs_embeds,
             position_ids=position_ids,

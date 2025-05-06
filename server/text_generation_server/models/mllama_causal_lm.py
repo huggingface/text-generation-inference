@@ -29,10 +29,13 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
     aspect_ratio_mask: Optional[torch.Tensor] = None
     cross_attention_states: Optional[torch.Tensor] = None
 
+    def prepare_for_prefill(self):
+        super(VlmCausalLMBatch, self).prepare_for_prefill()
+
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches):
-        batch = super().concatenate(batches)
+        batch = super(VlmCausalLMBatch, cls).concatenate(batches)
         batch.pixel_values = None
         batch.pixel_attention_mask = None
 
@@ -196,6 +199,13 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
 
 
 class MllamaCausalLM(VlmCausalLM):
+    def set_inputs_embeds(self, batch):
+        # Set the input embeddings to None, as we are using the input_ids for the model
+        batch.inputs_embeds = None
+
+    def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
+        super(VlmCausalLM, self).cuda_graph_warmup(bs, max_s, max_bt)
+
     def forward(
         self,
         batch: MllamaCausalLMBatch,

@@ -163,6 +163,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
         processor_kwargs=None,
         kv_cache_dtype: Optional[torch.dtype] = None,
         batch_class=VlmCausalLMBatch,
+        support_chunking: bool = True,
     ):
         self.batch_class = batch_class
         self.quantize = quantize
@@ -304,6 +305,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
             device=device,
             rank=rank,
             world_size=world_size,
+            support_chunking=support_chunking,
         )
 
         # Monkey patch of `self.model.forward` to match `FlashCausalLM`. It avoids duplicating a lot of code
@@ -338,6 +340,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
         trust_remote_code: bool = False,
         batch_class: Optional[type] = VlmCausalLMBatch,
         processor_kwargs: Optional[dict] = None,
+        support_chunking: bool = True,
     ):
         return cls(
             model_id=model_id,
@@ -349,6 +352,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
             trust_remote_code=trust_remote_code,
             batch_class=batch_class,
             processor_kwargs=processor_kwargs,
+            support_chunking=support_chunking,
         )
 
     def _model_forward(
@@ -368,6 +372,7 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
         image_grid_thw: Optional[torch.LongTensor] = None,
         pixel_attention_mask=None,
         image_sizes: Optional[torch.LongTensor] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
     ):
         # A value of `None` (i.e. no logit slicing) translates to `0` in Transformers
         logits_to_keep = lm_head_indices if lm_head_indices is not None else 0
@@ -377,9 +382,12 @@ class TransformersFlashVlmCausalLM(VlmCausalLM):
             position_ids=position_ids,
             cu_seqlen_prefill=cu_seqlen_prefill,
         )
+        inputs["input_ids"] = None
+
         # This is equivalent to `self.model.forward`, see the monkey patch in __init__
         logits = self.model.original_forward(
             input_ids=inputs["input_ids"],
+            inputs_embeds=inputs_embeds.unsqueeze(0),
             position_ids=inputs["position_ids"],
             past_key_values=None,  # we use self.kv_cache instead of transformers cache object
             use_cache=False,  # we use self.kv_cache instead of transformers cache object
@@ -568,3 +576,48 @@ class TransformersLlama4VlmCausalLM(TransformersFlashVlmCausalLM):
         inputs["cache_position"] = position_ids
         inputs["attention_mask"] = torch.zeros((1, 1, 1, 1), device=input_ids.device)
         return inputs
+
+    def get_vision_embeds(
+        self,
+        pixel_values: torch.FloatTensor,
+        pixel_attention_mask: Optional[torch.FloatTensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
+    ):
+        image_features = self.model.get_image_features(
+            pixel_values=pixel_values,
+            vision_feature_layer=self.model.config.vision_config.vision_feature_layer,
+            vision_feature_select_strategy=self.model.config.vision_config.vision_feature_select_strategy,
+            image_sizes=image_sizes,
+        )
+
+        vision_flat = image_features.view(-1, image_features.size(-1))
+        projected_vision_flat = self.model.multi_modal_projector(vision_flat)
+        return projected_vision_flat
+
+    def get_inputs_embeds(self, input_ids, vision_embeds=None):
+        inputs_embeds = self.model.get_input_embeddings()(input_ids)
+
+        if vision_embeds is not None:
+            original_inputs_embeds_shape = inputs_embeds.shape
+            special_image_mask = (input_ids == self.config.image_token_index).unsqueeze(
+                -1
+            )
+            final_mask = special_image_mask.to(inputs_embeds.device)
+            inputs_embeds = inputs_embeds.view(-1, inputs_embeds.size(-1))
+
+            final_mask_1d = final_mask[..., 0].reshape(-1)
+            num_tokens_to_fill = final_mask_1d.sum()
+
+            if num_tokens_to_fill != vision_embeds.size(0):
+                raise ValueError(
+                    f"Mismatch: final_mask wants {num_tokens_to_fill} embeddings, "
+                    f"but multi_modal_projector returned {vision_embeds.size(0)}"
+                )
+
+            expanded_mask = final_mask_1d.unsqueeze(-1).expand(
+                -1, inputs_embeds.size(-1)
+            )
+            inputs_embeds = inputs_embeds.masked_scatter(expanded_mask, vision_embeds)
+            inputs_embeds = inputs_embeds.view(original_inputs_embeds_shape)
+        return inputs_embeds

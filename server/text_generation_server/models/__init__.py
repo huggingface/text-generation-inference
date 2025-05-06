@@ -128,9 +128,6 @@ try:
     from text_generation_server.models.custom_modeling.flash_neox_modeling import (
         FlashGPTNeoXForCausalLM,
     )
-    from text_generation_server.models.pali_gemma import (
-        PaliGemmaBatch,
-    )
     from text_generation_server.models.custom_modeling.flash_pali_gemma_modeling import (
         PaliGemmaForConditionalGeneration,
     )
@@ -1196,6 +1193,7 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                support_chunking=False,
             )
         elif FLASH_TRANSFORMERS_BACKEND:
             from transformers import Gemma3ForConditionalGeneration as Gemma3Model
@@ -1208,6 +1206,7 @@ def get_model(
                 speculator=speculator,
                 dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
+                support_chunking=False,
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Gemma3"))
@@ -1523,6 +1522,8 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
             )
         # TODO: Uncomment when transformers is refactored
         # elif FLASH_TRANSFORMERS_BACKEND:
@@ -1554,6 +1555,8 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=Qwen2_5_VLConfig,
                 processor_class=Qwen2_5_VLProcessor,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
             )
         # TODO: Uncomment when transformers is refactored
         # elif FLASH_TRANSFORMERS_BACKEND:
@@ -1583,6 +1586,7 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                support_chunking=False,
             )
         # TODO: Uncomment when transformers is refactored and cross attn is added
         # elif FLASH_TRANSFORMERS_BACKEND:
@@ -1676,7 +1680,6 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
-                batch_class=PaliGemmaBatch,
             )
         elif FLASH_TRANSFORMERS_BACKEND:
             from transformers import PaliGemmaForConditionalGeneration as PaliGemmaModel
@@ -1689,7 +1692,6 @@ def get_model(
                 speculator=speculator,
                 dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
-                batch_class=PaliGemmaBatch,
             )
         else:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("PaliGemma"))
