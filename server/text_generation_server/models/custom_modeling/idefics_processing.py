@@ -282,7 +282,7 @@ class IdeficsProcessor(ProcessorMixin):
 
         """
 
-        # if the value isn't overriden by the user, check if the tokenizer was trained with this token and then use it
+        # if the value isn't overridden by the user, check if the tokenizer was trained with this token and then use it
         if add_end_of_utterance_token is None:
             add_end_of_utterance_token = (
                 self.tokenizer_was_trained_with_end_of_utterance_token

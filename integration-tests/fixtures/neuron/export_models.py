@@ -238,7 +238,7 @@ def neuron_model_config(request):
 
     For each exposed model, the local directory is maintained for the duration of the
     test session and cleaned up afterwards.
-    The hub model artifacts are never cleaned up and persist accross sessions.
+    The hub model artifacts are never cleaned up and persist across sessions.
     They must be cleaned up manually when the optimum-neuron version changes.
 
     """

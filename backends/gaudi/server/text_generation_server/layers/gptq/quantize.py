@@ -598,7 +598,7 @@ def get_loaders(
 
 def find_layers(module, layers=(nn.Conv2d, nn.Linear), name=""):
     # Skip last lm_head linear
-    # Need isintance Falcon is inheriting Linear.
+    # Need isinstance Falcon is inheriting Linear.
     if isinstance(module, layers) and "lm_head" not in name:
         return {name: module}
     res = {}

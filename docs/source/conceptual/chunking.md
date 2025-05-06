@@ -5,13 +5,13 @@
 Performance leap: TGI processes 3x more tokens, 13x faster than vLLM on long prompts. Zero config !
 
 ### 3x more tokens.
-By reducing our memory footprint, we’re able to ingest many more tokens and more dynamically than before. A single L4 (24GB) can handle 30k tokens on llama 3.1-8B, while vLLM gets barely 10k. A lot of work went into reducing the footprint of the runtime and its effect are best seen on smaller constrained environments.
+By reducing our memory footprint, we’re able to ingest many more tokens and more dynamically than before. A single L4 (24GB) can handle 30k tokens on llama 3.1-8B, while vLLM gets barely 10k. A lot of work went into reducing the footprint of the runtime and its effects are best seen on smaller constrained environments.
 
 ### 13x faster
 On long prompts (200k+ tokens) conversation replies take 27.5s in vLLM, while it takes only 2s in TGI. How so ? We keep the initial conversation around, so when a new reply comes in, we can answer almost instantly. The overhead of the lookup is ~5us. Thanks @Daniël de Kok for the beast data structure.
 
 ### Zero config
-That’s it. Remove all the flags your are using and you’re likely to get the best performance. By evaluating the hardware and model, TGI carefully selects automatic values to give best performance. In production, we don’t have any flags anymore in our deployments. We kept all existing flags around, they may come in handy in niche scenarios.
+That’s it. Remove all the flags you are using and you’re likely to get the best performance. By evaluating the hardware and model, TGI carefully selects automatic values to give best performance. In production, we don’t have any flags anymore in our deployments. We kept all existing flags around, they may come in handy in niche scenarios.
 
 
 
@@ -37,7 +37,7 @@ For more details on benchmarking in general we recommend the documentation of k6
 We selected a handful of scenarios to simplify the picture, they seem to accurately reflect a larger trend.
 
 1. **Small scenario**: This scenario consists of the first 200 requests from the orca datasets being prompted to the model. The 200 requests total 8k tokens together and are representative of conversation starters. Prefix caching has very limited impact in that scenario and we feel it's a relatively balanced benchmark for simple use cases.
-2. **Long scenario**: This scenario consists of 20 requests totalling 200k prompt tokens which are essentially asking for summaries of large chunks for text. In practical scenarios this is really useful when you are feeding large chunks of code, large chunks of business data or documents repeatedly and ask simple questions about them (summarization, classification, or where to find some data). This scenario is the one closest to what a lot of professional use cases seem to be doing by including a lot of information in the prompt itself. Those very long conversations are the ones that benefit the most for our recent changes since we are enable ever larger prompts and ever faster caching.
+2. **Long scenario**: This scenario consists of 20 requests totalling 200k prompt tokens which are essentially asking for summaries of large chunks for text. In practical scenarios this is really useful when you are feeding large chunks of code, large chunks of business data or documents repeatedly and ask simple questions about them (summarization, classification, or where to find some data). This scenario is the one closest to what a lot of professional use cases seem to be doing by including a lot of information in the prompt itself. Those very long conversations are the ones that benefit the most for our recent changes since we are enabling even larger prompts and even faster caching.
 
    ### Hardware
 
@@ -119,7 +119,7 @@ Our performance gains can be attributed to several key factors:
 While we've made significant progress, there are still opportunities for improvement:
 
 1.  **Special models**: All LLMs come with the aforementioned improvements. Some specific set of features might not (some quantizations, speculation or VLMs for instance are harder to optimize for with the same level of detail).
-2.  **KV-Cache Long-Term Retention**: Addressing KV-cache long-term retention is a challenge. There are several solutions envisionned like shared KV-cache (like redis or memcached) solutions or innovative storage approaches. It is an area of ongoing research of ours.
+2.  **KV-Cache Long-Term Retention**: Addressing KV-cache long-term retention is a challenge. There are several solutions envisioned like shared KV-cache (like redis or memcached) solutions or innovative storage approaches. It is an area of ongoing research of ours.
 3.  **Multimodal models**: We are also investigating quite a lot other kind of models, like audio-to-audio, image/video generation, and other hybrids, where we see a lot of potential of applying the same principles we've applied in TGI to maximize performance.
 
 By sharing our benchmarking methodology, results, and technical insights, we aim to contribute to the ongoing development of more efficient and effective LLMs.

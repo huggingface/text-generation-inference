@@ -26,7 +26,7 @@ class MarlinWeightsLoader(WeightsLoader):
 
     def get_weights(self, weights: "Weights", prefix: str):
         """
-        Get weights at the given prefix and apply without tensor paralllism.
+        Get weights at the given prefix and apply without tensor parallelism.
         """
         is_marlin_24 = getattr(self, "gptq_checkpoint_format", None) == "marlin_24"
         if is_marlin_24:

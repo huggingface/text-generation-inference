@@ -295,7 +295,7 @@ class Gemma3Config(PretrainedConfig):
         else:
             vision_config = SiglipVisionConfig()
             logger.info(
-                "vision_config is None or incompatible with Gemma3VisionConfig intialization. Gemma3 will be limited "
+                "vision_config is None or incompatible with Gemma3VisionConfig initialization. Gemma3 will be limited "
                 "to text tasks."
             )
 
