@@ -6,20 +6,32 @@ use crate::queue::{Entry, Queue};
 use async_trait::async_trait;
 use nohash_hasher::IntMap;
 use std::sync::Arc;
-use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStreamResponse};
+use text_generation_router::infer::{
+    Backend, EngineState, GeneratedText, InferError, InferStreamResponse,
+};
 use text_generation_router::validation::ValidGenerateRequest;
 use text_generation_router::{FinishReason, PrefillToken, Token};
+use tokio::sync::broadcast::{channel, Receiver as BroadcastReceiver, Sender as BroadcastSender};
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{mpsc, Notify, RwLock};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{info_span, instrument, Instrument, Span};
 
+
 pub struct BackendV3 {
+    /// Internal batching state exposing info for the proxy
+    state: Arc<RwLock<EngineState>>,
+
     /// Request queue
     queue: Queue,
+
+    /// Events streaming channel
+    state_events: (BroadcastSender<EngineState>, BroadcastReceiver<EngineState>),
+
     /// Notify batcher on queue appends
     batching_task_notifier: Arc<Notify>,
+
     /// Client clone, used for health checks to skip the queue
     client: ShardedClient,
 }
@@ -41,6 +53,12 @@ impl BackendV3 {
 
         let block_size = shard_info.block_size;
 
+        let state_events = channel(1);
+        let state = Arc::new(RwLock::new(EngineState::new(
+            max_batch_total_tokens,
+            2 * max_batch_total_tokens,
+        )));
+
         let queue = Queue::new(
             shard_info.requires_padding,
             block_size,
@@ -49,6 +67,8 @@ impl BackendV3 {
             shard_info.speculate,
             max_batch_total_tokens,
             shard_info.support_chunking,
+            Arc::clone(&state),
+            state_events.0.clone(),
         );
         let batching_task_notifier = Arc::new(Notify::new());
 
@@ -62,10 +82,14 @@ impl BackendV3 {
             max_batch_size,
             shard_info.support_chunking,
             queue.clone(),
+            state.clone(),
+            state_events.0.clone(),
             batching_task_notifier.clone(),
         ));
 
         Self {
+            state,
+            state_events,
             queue,
             batching_task_notifier,
             client,
@@ -112,6 +136,10 @@ impl Backend for BackendV3 {
         .is_ok()
     }
 
+    fn events(&self) -> BroadcastReceiver<EngineState> {
+        self.state_events.0.subscribe()
+    }
+
     fn start_health(&self) -> bool {
         true
     }
@@ -135,6 +163,8 @@ pub(crate) async fn batching_task(
     max_batch_size: Option<usize>,
     support_chunking: bool,
     queue: Queue,
+    engine_state: Arc<RwLock<EngineState>>,
+    batch_events: BroadcastSender<EngineState>,
     notifier: Arc<Notify>,
 ) {
     // Infinite loop
@@ -169,6 +199,22 @@ pub(crate) async fn batching_task(
                 let mut batches = vec![batch];
                 metrics::gauge!("tgi_batch_current_size").set(batch_size as f64);
                 metrics::gauge!("tgi_batch_current_max_tokens").set(batch_max_tokens as f64);
+
+                // Dispatch new state to the proxy
+                {
+                    // Critical section, doing as little as possible here
+                    {
+                        let mut engine_state = engine_state.write().await;
+                        engine_state.in_flight = batch_max_tokens;
+                    }
+
+                    // Send new state to the channel for broadcasting
+                    if let Err(err) = batch_events.send(*engine_state.read().await) {
+                        tracing::warn!(
+                            "Failed to send BatchEvent::BatchChanged({batch_max_tokens}): {err}"
+                        )
+                    }
+                }
 
                 let token_budget = max_batch_total_tokens.saturating_sub(batch_max_tokens);
 

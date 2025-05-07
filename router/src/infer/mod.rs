@@ -19,11 +19,42 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::broadcast::Receiver;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use tokio::time::Instant;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tracing::instrument;
+
+/// Store real-time information about batch engine usage (expressed in tokens)
+#[cfg(feature = "engine-state")]
+#[derive(Debug, Copy, Clone, Serialize)]
+pub struct EngineState {
+    /// Number of tokens currently participating in current batch
+    pub in_flight: u32,
+
+    /// Maximum number of tokens which can participate in a batch
+    pub in_flight_max: u32,
+
+    /// Number of tokens currently waiting in the queue for future batching
+    pub in_queue: u32,
+
+    /// Maximum number of tokens which can wait in the queue for future batching
+    pub in_queue_max: u32,
+}
+
+#[cfg(feature = "engine-state")]
+impl EngineState {
+    #[inline]
+    pub fn new(in_flight_max: u32, in_queue_max: u32) -> Self {
+        EngineState {
+            in_flight: 0,
+            in_flight_max,
+            in_queue: 0,
+            in_queue_max,
+        }
+    }
+}
 
 #[async_trait]
 pub trait Backend {
@@ -33,6 +64,11 @@ pub trait Backend {
     ) -> Result<UnboundedReceiverStream<Result<InferStreamResponse, InferError>>, InferError>;
 
     async fn health(&self, current_health: bool) -> bool;
+
+    /// Gets a reference to receiving-side channel generating events about the current internal
+    /// batching engine state
+    #[cfg(feature = "engine-state")]
+    fn events(&self) -> Receiver<EngineState>;
 
     /// The state of the health on startup
     /// Typically false, or true if the backend includes
@@ -93,6 +129,12 @@ impl Infer {
             limit_concurrent_requests: semaphore,
             backend_health,
         }
+    }
+
+    #[cfg(feature = "engine-state")]
+    #[inline]
+    pub(crate) fn events(&self) -> Receiver<EngineState> {
+        self.backend.events()
     }
 
     /// Add a new request to the queue and return a stream of InferStreamResponse
