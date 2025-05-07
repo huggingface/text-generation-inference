@@ -1446,7 +1446,7 @@ class FlashCausalLM(Model):
             os.environ.get("VLLM_CONTIGUOUS_PA", "true").lower() == "true"
         )
         self.limit_hpu_graph = (
-            os.environ.get("LIMIT_HPU_GRAPH", "true").lower() == "true"
+            os.environ.get("LIMIT_HPU_GRAPH", "false").lower() == "true"
         )
         self.max_seq_len_to_capture = 8192
         super().__init__(
@@ -1596,8 +1596,9 @@ class FlashCausalLM(Model):
 
     def bypass_hpu_graphs(self, prefill, max_seq_len_to_capture):
         if self.limit_hpu_graph:
+            return prefill
+        else:
             return prefill and max_seq_len_to_capture > self.max_seq_len_to_capture
-        return False
 
     def warmup_hpu_graph(self, batch):
         warmup_times = 3
