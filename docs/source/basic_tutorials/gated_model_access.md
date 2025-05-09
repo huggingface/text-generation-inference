@@ -19,6 +19,6 @@ docker run --gpus all \
     --shm-size 1g \
     -e HF_TOKEN=$token \
     -p 8080:80 \
-    -v $volume:/data ghcr.io/huggingface/text-generation-inference:3.2.3 \
+    -v $volume:/data ghcr.io/huggingface/text-generation-inference:3.3.0 \
     --model-id $model
 ```
