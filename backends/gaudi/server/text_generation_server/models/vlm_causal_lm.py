@@ -1511,9 +1511,16 @@ class VlmCausalLM(Model):
         DECODE_WARMUP_BATCH_SIZE_LIST = []
         prefill_batch = None
         decode_batch = None
+        logger.info(
+            f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}"
+            f"Prefill sequence length list:{PREFILL_WARMUP_SEQLEN_LIST}"
+        )
         try:
             for batch_size in PREFILL_WARMUP_BATCH_SIZE_LIST:
                 for seq_len in PREFILL_WARMUP_SEQLEN_LIST:
+                    logger.info(
+                        f"Prefill warmup for `batch_size={batch_size}` and `sequence_length={seq_len}`, this may take a while..."
+                    )
                     batch = self.generate_warmup_batch(
                         request, seq_len, batch_size, is_warmup=True
                     )
@@ -1528,23 +1535,18 @@ class VlmCausalLM(Model):
         except Exception:
             raise RuntimeError(
                 f"Not enough memory to handle following prefill and decode warmup."
-                f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}"
-                f"Prefill sequence length list:{PREFILL_WARMUP_SEQLEN_LIST}"
-                f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}"
                 f"You need to decrease `--max-batch-prefill-tokens`"
             )
 
         mem_stats = get_hpu_memory_stats(self.device)
         logger.info(
-            f"\nFollowing prefill and decode warmup successfully.\n"
-            f"Prefill batch size list:{PREFILL_WARMUP_BATCH_SIZE_LIST}\n"
-            f"Prefill sequence length list:{PREFILL_WARMUP_SEQLEN_LIST}\n"
-            f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}\n"
+            f"Prefill warmup successful.\n"
             f"Memory stats: {mem_stats} "
         )
 
         max_decode_batch_size = MAX_BATCH_SIZE
         batch_size = max_prefill_batch_size * 2
+        logger.info(f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}\n")
         # Decode warmup with bigger batch_size
         try:
             if (
@@ -1554,6 +1556,7 @@ class VlmCausalLM(Model):
                 batches = []
                 while batch_size <= max_decode_batch_size:
                     for i in range(int(batch_size / max_prefill_batch_size)):
+                        logger.info(f"Decode warmup for `batch_size={batch_size}`, this may take a while...")
                         batch = self.generate_warmup_batch(
                             request,
                             PREFILL_WARMUP_SEQLEN_LIST[0] - 1,
@@ -1597,8 +1600,7 @@ class VlmCausalLM(Model):
 
         mem_stats = get_hpu_memory_stats(self.device)
         logger.info(
-            f"\nFollowing decode warmup successfully.\n"
-            f"Decode batch size list:{DECODE_WARMUP_BATCH_SIZE_LIST}\n"
+            f"Decode warmup successful.\n"
             f"Memory stats: {mem_stats}"
         )
 
