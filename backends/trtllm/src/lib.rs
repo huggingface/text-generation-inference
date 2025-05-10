@@ -24,6 +24,14 @@ mod ffi {
         /// The request finished because the maximum number of tokens was reached.
         #[cxx_name = "kLENGTH"]
         MaxLength = 3u8,
+
+        #[cxx_name = "kTIMED_OUT"]
+        /// The request finished because it got timed out (via the mAllotedTime parameter)
+        TimedOut = 4u8,
+
+        #[cxx_name = "kCANCELLED"]
+        /// The request was cancelled by calling cancelRequest.
+        Cancelled = 5u8,
     }
 
     /// Struct used as shared type between rust and C++ to represent the result
