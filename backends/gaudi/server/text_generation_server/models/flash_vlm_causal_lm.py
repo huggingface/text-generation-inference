@@ -453,7 +453,7 @@ class FlashVlmCausalLM(FlashCausalLM):
             )
             for index in range(warmup_times):
                 self.warmup_decode(batch_size, block_num, batch)
-        synchronize(self.device)
+                synchronize(self.device)
 
     def forward(
         self,

@@ -470,9 +470,6 @@ class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
         mscale_all_dim: float,
     ):
         inv_freq = _create_inv_freq(dim, base, device)
-        super().__init__(
-            inv_freq, scaling_factor, max_position_embeddings * self.scaling_factor
-        )
         self.dim = dim
         self.max_position_embeddings = max_position_embeddings
         self.base = base
@@ -487,6 +484,7 @@ class YarnPositionRotaryEmbedding(PositionRotaryEmbedding):
             / get_mscale(self.scaling_factor, mscale_all_dim)
             * self.attn_factor
         )  # Get n-d magnitude scaling corrected for interpolation
+        super().__init__(inv_freq, scaling_factor, max_position_embeddings)
 
     def _update_cos_sin_cache(self, dtype, device, seqlen):
         # Reset the tables if the sequence length has changed,
