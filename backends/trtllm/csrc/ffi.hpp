@@ -42,6 +42,10 @@ namespace huggingface::tgi::backends::trtllm {
                 return finish_reason_t::kEND_ID;
             case tle::FinishReason::kLENGTH:
                 return finish_reason_t::kLENGTH;
+            case tle::FinishReason::kTIMED_OUT:
+                return finish_reason_t::kTIMED_OUT;
+            case tle::FinishReason::kCANCELLED:
+                return finish_reason_t::kCANCELLED;
             default:
                 std::unreachable();
         }
