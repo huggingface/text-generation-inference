@@ -1367,9 +1367,16 @@ class CausalLM(Model):
         prefill_seqlen_list.append(max_input_tokens)
         prefill_batch_size_list.sort(reverse=True)
         prefill_seqlen_list.sort(reverse=True)
+        logger.info(
+            f"Prefill batch size list:{prefill_batch_size_list}\n"
+            f"Prefill sequence length list:{prefill_seqlen_list}\n"
+        )
         try:
             for batch_size in prefill_batch_size_list:
                 for seq_len in prefill_seqlen_list:
+                    logger.info(
+                        f"Prefill warmup for `batch_size={batch_size}` and `sequence_length={seq_len}`, this may take a while..."
+                    )
                     batch = self.generate_warmup_batch(request, seq_len - 1, batch_size)
                     _, prefill_batch, _ = self.generate_token([batch])
         except Exception:
@@ -1384,12 +1391,7 @@ class CausalLM(Model):
         prefill_seqlen_list.sort()
         prefill_batch_size_list.sort()
         mem_stats = get_hpu_memory_stats(self.device)
-        logger.info(
-            f"\nFollowing prefill warmup successfully.\n"
-            f"Prefill batch size list:{prefill_batch_size_list}\n"
-            f"Prefill sequence length list:{prefill_seqlen_list}\n"
-            f"Memory stats: {mem_stats} "
-        )
+        logger.info(f"Prefill warmup successful.\n" f"Memory stats: {mem_stats} ")
 
         max_decode_batch_size = math.floor(MAX_BATCH_TOTAL_TOKENS / MAX_TOTAL_TOKENS)
         max_exp = math.ceil(math.log(max_decode_batch_size, BATCH_SIZE_EXPONENT_BASE))
@@ -1397,9 +1399,13 @@ class CausalLM(Model):
             BATCH_SIZE_EXPONENT_BASE**exp for exp in range(0, max_exp + 1)
         ]
         decode_batch_size_list.sort(reverse=True)
+        logger.info(f"Decode batch size list:{decode_batch_size_list}\n")
 
         try:
             for batch_size in decode_batch_size_list:
+                logger.info(
+                    f"Decode warmup for `batch_size={batch_size}`, this may take a while..."
+                )
                 batches = []
                 iters = math.floor(batch_size / max_prefill_batch_size)
                 for i in range(iters):
@@ -1432,11 +1438,7 @@ class CausalLM(Model):
         decode_batch_size_list.sort()
         max_supported_total_tokens = MAX_TOTAL_TOKENS * decode_batch_size_list[-1]
         mem_stats = get_hpu_memory_stats(self.device)
-        logger.info(
-            f"\nFollowing decode warmup successfully.\n"
-            f"Decode batch size list:{decode_batch_size_list}\n"
-            f"Memory stats: {mem_stats} "
-        )
+        logger.info(f"Decode warmup successful.\n" f"Memory stats: {mem_stats} ")
 
         max_input_tokens = max_input_tokens
         max_total_tokens = MAX_TOTAL_TOKENS
