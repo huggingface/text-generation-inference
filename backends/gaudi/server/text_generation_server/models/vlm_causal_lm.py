@@ -1539,10 +1539,7 @@ class VlmCausalLM(Model):
             )
 
         mem_stats = get_hpu_memory_stats(self.device)
-        logger.info(
-            f"Prefill warmup successful.\n"
-            f"Memory stats: {mem_stats} "
-        )
+        logger.info(f"Prefill warmup successful.\n" f"Memory stats: {mem_stats} ")
 
         max_decode_batch_size = MAX_BATCH_SIZE
         batch_size = max_prefill_batch_size * 2
@@ -1556,7 +1553,9 @@ class VlmCausalLM(Model):
                 batches = []
                 while batch_size <= max_decode_batch_size:
                     for i in range(int(batch_size / max_prefill_batch_size)):
-                        logger.info(f"Decode warmup for `batch_size={batch_size}`, this may take a while...")
+                        logger.info(
+                            f"Decode warmup for `batch_size={batch_size}`, this may take a while..."
+                        )
                         batch = self.generate_warmup_batch(
                             request,
                             PREFILL_WARMUP_SEQLEN_LIST[0] - 1,
@@ -1599,10 +1598,7 @@ class VlmCausalLM(Model):
             )
 
         mem_stats = get_hpu_memory_stats(self.device)
-        logger.info(
-            f"Decode warmup successful.\n"
-            f"Memory stats: {mem_stats}"
-        )
+        logger.info(f"Decode warmup successful.\n" f"Memory stats: {mem_stats}")
 
         max_supported_total_tokens = MAX_BATCH_SIZE * MAX_TOTAL_TOKENS
         max_input_tokens = max_input_tokens
