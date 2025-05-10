@@ -232,7 +232,7 @@ class VlmCausalLMBatch(CausalLMBatch):
         self.prefilling = prefilling
 
     @property
-    def token_idx(self):
+    def token_idx(self):  # noqa: F811
         if self.prefilling:
             # no right padding for prefill
             token_idx_scalar = self.attention_mask.shape[-1] - 1
@@ -1534,8 +1534,8 @@ class VlmCausalLM(Model):
 
         except Exception:
             raise RuntimeError(
-                f"Not enough memory to handle following prefill and decode warmup."
-                f"You need to decrease `--max-batch-prefill-tokens`"
+                "Not enough memory to handle following prefill and decode warmup."
+                "You need to decrease `--max-batch-prefill-tokens`"
             )
 
         mem_stats = get_hpu_memory_stats(self.device)
