@@ -338,6 +338,9 @@ class FlashVlmCausalLMBatch(FlashCausalLMBatch):
                     image_id += 1
 
             full_text = image_text_replacement_fixup(config, full_text)
+            log_master(
+                logger.debug,   f"full_text: {full_text}"
+            )
             input_ids = tokenizer(
                 full_text,
                 truncation=True,
