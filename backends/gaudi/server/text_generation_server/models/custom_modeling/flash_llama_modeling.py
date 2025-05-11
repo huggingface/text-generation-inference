@@ -31,7 +31,6 @@ from text_generation_server.layers.attention import (
     KVCache,
     get_kv_scales,
 )
-from text_generation_server.utils.log import log_master
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.attention import (
     paged_attention,
@@ -47,7 +46,6 @@ from text_generation_server.layers import (
     TensorParallelMultiAdapterLinear,
     TensorParallelAdapterRowLinear,
 )
-from loguru import logger
 from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -60,11 +58,6 @@ from text_generation_server.utils.weights import (
     Weights,
 )
 from text_generation_server.layers.fp8 import HybridFP8UnquantLoader
-
-def torch_save(tensor, name):
-    # Only save on the main process (rank 0) when using distributed training
-    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-        torch.save(tensor, name)
 
 
 def load_attention(config, prefix: str, weights, layer_id):
@@ -382,7 +375,7 @@ class LlamaMLP(nn.Module):
 class FlashLlamaLayer(nn.Module):
     def __init__(self, index, prefix, config, weights):
         super().__init__()
-        self.index = index
+
         with no_fp8(weights):
             self.self_attn = FlashLlamaAttention(
                 index=index,
@@ -443,7 +436,6 @@ class FlashLlamaLayer(nn.Module):
         seqlen,
         adapter_data,
         cross_attention_states,
-        run_index,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         normed_hidden_states, res = self.input_layernorm(hidden_states, residual)
@@ -460,10 +452,6 @@ class FlashLlamaLayer(nn.Module):
             adapter_data,
             hpu_attention_meta=hpu_attention_meta,
         )
-        
-        if run_index != -1:
-            torch_save(attn_output, f"trans.{run_index}.Llama4TextDecoderLayer.{self.index}.attention.attention_states.pt")
-
         if self.residual_multiplier is not None:
             attn_output *= self.residual_multiplier
 
@@ -472,10 +460,6 @@ class FlashLlamaLayer(nn.Module):
         )
 
         mlp_output = self.mlp(normed_attn_res_output, adapter_data)
-        if run_index != -1:
-            torch_save(mlp_output, f"trans.{run_index}.Llama4TextDecoderLayer.{self.index}.mlp.pt")
-
-
         if self.residual_multiplier is not None:
             mlp_output *= self.residual_multiplier
 
@@ -485,7 +469,6 @@ class FlashLlamaLayer(nn.Module):
 class FlashLlamaModel(torch.nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
-        self.run_index = -1
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
@@ -582,12 +565,11 @@ class FlashLlamaModel(torch.nn.Module):
                 seqlen,
                 adapter_data,
                 cross_attention_states,
-                self.run_index,
                 hpu_attention_meta=hpu_attention_meta,
             )
 
         hidden_states, _ = self.norm(hidden_states, residual)
-        self.run_index += 1
+
         return hidden_states
 
 
@@ -650,14 +632,7 @@ class FlashLlamaForCausalLM(torch.nn.Module):
         adapter_data: Optional[torch.Tensor] = None,
         cross_attention_states=None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        
-        
-        log_master(
-            logger.debug,
-            f"input_ids: {input_ids}, input_ids.shape={input_ids.shape}, input_ids={input_ids[:-20]}"
-        )  
         inputs_embeds = self.embed_tokens(input_ids)
-        print(f"111111111 inputs_embeds: {inputs_embeds}")
         hidden_states = self.model(
             inputs_embeds,
             position_ids,

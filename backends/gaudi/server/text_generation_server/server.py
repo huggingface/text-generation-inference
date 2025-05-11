@@ -24,25 +24,25 @@ from text_generation_server.utils.adapter import AdapterInfo
 from text_generation_server.utils.tokens import make_tokenizer_optional
 from text_generation_server.utils.prefill_chunking import set_max_prefill_tokens
 
-#try:
-from text_generation_server.models.pali_gemma import PaliGemmaBatch
-from text_generation_server.models.mllama_causal_lm import FlashMllamaCausalLMBatch
-# from text_generation_server.models.vlm_causal_lm import (
-#     VlmCausalLMBatch,
-# )
-from text_generation_server.models.flash_vlm_causal_lm import (
-    FlashVlmCausalLMBatch,
-)
+try:
+    from text_generation_server.models.pali_gemma import PaliGemmaBatch
+    from text_generation_server.models.mllama_causal_lm import FlashMllamaCausalLMBatch
+    from text_generation_server.models.vlm_causal_lm import (
+        VlmCausalLMBatch,
+    )
+    from text_generation_server.models.flash_vlm_causal_lm import (
+        FlashVlmCausalLMBatch,
+    )
 
-VLM_BATCH_TYPES = {
-    PaliGemmaBatch,
-    FlashVlmCausalLMBatch,
-    FlashMllamaCausalLMBatch,
-}
-#except (ImportError, NotImplementedError):
+    VLM_BATCH_TYPES = {
+        PaliGemmaBatch,
+        FlashVlmCausalLMBatch,
+        FlashMllamaCausalLMBatch,
+    }
+except (ImportError, NotImplementedError):
     # These imports can fail on CPU/Non flash.
-    # print(f"importError: {ImportError}")
-    # VLM_BATCH_TYPES = set()
+    VLM_BATCH_TYPES = set()
+
 from text_generation_server.utils.version import (
     is_driver_compatible,
     MIN_TGI_GAUDI_SYNAPSE_VERSION,
@@ -110,7 +110,6 @@ class TextGenerationService(generate_pb2_grpc.TextGenerationServiceServicer):
     async def Warmup(self, request, context):
         if ATTENTION == "paged":
             set_max_prefill_tokens(request.max_prefill_tokens)
-            print(f"VLM_BATCH_TYPES: {VLM_BATCH_TYPES}")
             if (
                 self.model.batch_type in VLM_BATCH_TYPES
             ):  # Hack, i would rather use kwargs in the `from_pb` call

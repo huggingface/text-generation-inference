@@ -16,9 +16,6 @@ import enum
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
-#from text_generation_server.models.causal_lm import CausalLM
-#from text_generation_server.models.bloom import BLOOM
-#from text_generation_server.models.starcoder import StarCoder
 from text_generation_server.models.custom_modeling.flash_phi_moe_modeling import (
     PhiMoEConfig,
 )
@@ -32,7 +29,6 @@ from text_generation_server.utils.adapter import (
 from text_generation_server.adapters.lora import LoraWeights
 
 from text_generation_server.utils.log import log_master
-#from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 
 __all__ = [
     "Model",
@@ -47,7 +43,7 @@ FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 FLASH_ATTENTION = False
 if ATTENTION == "paged":
     FLASH_ATTENTION = True
-print(f"Flash Attention enabled models: {FLASH_ATTENTION}")
+
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
     from text_generation_server.models.flash_vlm_causal_lm import FlashVlmCausalLM
@@ -459,9 +455,7 @@ def get_model(
 
     kv_cache_dtype = dtype
 
-    print(f"Model type: {model_type}")
     if FLASH_ATTENTION:
-        print(f"Flash Attention enabled models: {model_type}")
         if model_type == DEEPSEEK_V2:
             head_size = max(
                 config_dict.get("qk_nope_dim", 128)

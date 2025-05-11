@@ -1520,10 +1520,6 @@ class FlashCausalLM(Model):
         if os.getenv("VLLM_SKIP_WARMUP", "false").lower() == "true":
             logger.info("skip warmup hpu graph, not recommmended")
             del _batch, batch
-            print(f"max_input_tokens: {max_input_tokens}")
-            print(f"max_total_tokens: {max_total_tokens}")
-            print(f"num_blocks: {num_blocks}")
-            print(f"BLOCK_SIZE: {BLOCK_SIZE}")
             return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
 
         self.warmup_hpu_graph(batch)
@@ -1796,7 +1792,7 @@ class FlashCausalLM(Model):
         kwargs = {}
         if htorch.utils.internal.is_lazy():
             kwargs["bypass_hpu_graphs"] = batch.prefilling
-        print(f"11111111111111111111input_ids: {input_ids.shape}")
+
         logits, speculative_logits = self.model.forward(
             input_ids=input_ids,
             position_ids=position_ids,
