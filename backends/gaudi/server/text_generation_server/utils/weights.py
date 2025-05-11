@@ -315,7 +315,6 @@ class Weights:
             tensors_slices += range(block_offset + start, block_offset + stop)
             block_offset += block_size
 
-        
         if dim == 0:
             tensor = slice_[tensors_slices, ...]
         elif dim == 1 or dim == -2:

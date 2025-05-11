@@ -850,14 +850,17 @@ def get_model(
     )
 
     from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+
     adapt_transformers_to_gaudi()
     if SDP_ON_BF16 == 1:
         torch._C._set_math_sdp_allow_fp16_bf16_reduction(True)
     if model_type == "gpt_bigcode":
         from text_generation_server.models.starcoder import StarCoder
+
         return StarCoder(model_id=model_id, revision=revision, dtype=dtype)
     if model_type == "bloom":
         from text_generation_server.models.bloom import BLOOM
+
         return BLOOM(
             model_id=model_id,
             revision=revision,
