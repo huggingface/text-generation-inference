@@ -139,9 +139,20 @@ except ImportError as e:
     log_master(logger.warning, f"Could not import Flash Attention enabled models: {e}")
     SUPPORTS_WINDOWING = False
     FLASH_ATTENTION = False
+    VLM_BATCH_TYPES = set()
 
 if FLASH_ATTENTION:
     __all__.append(FlashCausalLM)
+
+    from text_generation_server.models.flash_vlm_causal_lm import (
+        FlashVlmCausalLMBatch,
+    )
+
+    VLM_BATCH_TYPES = {
+        PaliGemmaBatch,
+        FlashVlmCausalLMBatch,
+        FlashMllamaCausalLMBatch,
+    }
 
 
 class ModelType(enum.Enum):
@@ -848,6 +859,11 @@ def get_model(
     from text_generation_server.models.custom_modeling.llava_next import (
         LlavaNextForConditionalGeneration,
     )
+    from text_generation_server.models.vlm_causal_lm import (
+        VlmCausalLMBatch,
+    )
+
+    VLM_BATCH_TYPES.add(VlmCausalLMBatch)
 
     from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 

@@ -22,7 +22,6 @@ import torch.utils.checkpoint
 from torch import nn
 import torch.nn.functional as F
 
-from transformers import Llama4TextConfig
 from transformers.cache_utils import Cache
 from transformers.activations import ACT2FN
 from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
@@ -106,7 +105,7 @@ def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
 
 
 class Llama4TextExperts(nn.Module):
-    def __init__(self, prefix, config: Llama4TextConfig, weights):
+    def __init__(self, prefix, config, weights):
         super().__init__()
         self.process_group = weights.process_group
         self.num_experts = config.num_local_experts
@@ -263,7 +262,7 @@ class Llama4TextMoe(nn.Module):
 
 
 class Llama4TextRotaryEmbedding(nn.Module):
-    def __init__(self, config: Llama4TextConfig, device=None):
+    def __init__(self, config, device=None):
         super().__init__()
         # BC: "rope_type" was originally "type"
         self.rope_type = "llama3" if config.rope_scaling is not None else "default"
