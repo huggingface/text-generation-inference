@@ -469,6 +469,7 @@ class FlashLlamaLayer(nn.Module):
 class FlashLlamaModel(torch.nn.Module):
     def __init__(self, prefix, config, weights):
         super().__init__()
+
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
