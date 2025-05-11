@@ -38,6 +38,7 @@ __all__ = [
 ]
 from text_generation_server.models.globals import ATTENTION
 
+VLM_BATCH_TYPES = set()
 FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
 FLASH_ATTENTION = False
@@ -153,6 +154,9 @@ if FLASH_ATTENTION:
         FlashVlmCausalLMBatch,
         FlashMllamaCausalLMBatch,
     }
+
+
+__all__.append(VLM_BATCH_TYPES)
 
 
 class ModelType(enum.Enum):
