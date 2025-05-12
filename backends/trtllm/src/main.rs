@@ -37,7 +37,7 @@ struct Args {
     hostname: String,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
-    #[clap(default_value = "9000", long, short, env)]
+    #[clap(default_value = "9000", long, env)]
     prometheus_port: u16,
     #[clap(long, env, required = true)]
     tokenizer_name: String,
