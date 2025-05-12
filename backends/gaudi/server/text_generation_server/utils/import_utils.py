@@ -13,7 +13,7 @@ def get_hpu_free_memory(device, memory_fraction):
     free_memory = int(
         torch.hpu.mem_get_info()[0] * memory_fraction * (1 - graph_reserved_mem)
     )
-    logger.info(f"Free memory on device {device}: {free_memory} bytes, ")
+    logger.info(f"Free memory on device {device}: {free_memory} bytes.")
     return free_memory
 
 
