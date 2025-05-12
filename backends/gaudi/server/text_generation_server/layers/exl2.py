@@ -36,7 +36,7 @@ class Exl2WeightsLoader(WeightsLoader):
 
     def get_weights(self, weights: "Weights", prefix: str):
         """
-        Get weights at the given prefix and apply without tensor paralllism.
+        Get weights at the given prefix and apply without tensor parallelism.
         """
         try:
             q_weight = weights.get_tensor(f"{prefix}.q_weight")

@@ -152,7 +152,7 @@ std::tuple<at::Tensor, std::optional<std::vector<at::Tensor>>, at::Tensor> forwa
     auto query_scaled = query_view * inv_norm_factor;
     auto attention_scores = at::bmm(query_scaled, key_view);
 
-    // Computing `optionally_cast_fp16_to_fp32 + masked_fill + softmax + cast_to_intial_dtype`
+    // Computing `optionally_cast_fp16_to_fp32 + masked_fill + softmax + cast_to_initial_dtype`
     at::Tensor attention_probs;
     if (true) {
         // TODO @thomasw21: it's easier to think of attention_scores as 2D tensors
@@ -182,7 +182,7 @@ std::tuple<at::Tensor, std::optional<std::vector<at::Tensor>>, at::Tensor> forwa
             */
 
             /*
-            * We should split [batch_size_times_num_heads_block, q_length] in seperate blocks and [batch_size_times_num_heads_block_size, kv_length] a single block
+            * We should split [batch_size_times_num_heads_block, q_length] in separate blocks and [batch_size_times_num_heads_block_size, kv_length] a single block
             * with multiple threads as we need to `sync_threads` to run exponential sum.
             * We maximise the usage of threads within a single block
             */

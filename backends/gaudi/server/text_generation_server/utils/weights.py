@@ -22,7 +22,7 @@ class WeightsLoader(ABC):
     @abstractmethod
     def get_weights(self, weights: "Weights", prefix: str):
         """
-        Get weights at the given prefix and apply without tensor paralllism.
+        Get weights at the given prefix and apply without tensor parallelism.
         """
         ...
 
@@ -50,7 +50,7 @@ class WeightsLoader(ABC):
     def get_weights_col(self, weights: "Weights", prefix: str):
         """
         Get weights at the given prefix and apply column-splitting for tensor
-        paralllism.
+        parallelism.
         """
         return weights.get_multi_weights_col([prefix], 0)
 
