@@ -9,6 +9,8 @@ authors = [
   {name = "Nicolas Patry", email = "nicolas@huggingface.co"},
 ]
 dependencies = [
+    # Remove explicit click dependency once typer/click are compatible again.
+    "click<8.2.0",
     "einops>=0.8.0",
     "grpc-interceptor>=0.15.4",
     "grpcio>=1.67.0",

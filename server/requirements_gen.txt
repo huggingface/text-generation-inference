@@ -4,8 +4,10 @@ certifi==2025.4.26
     # via requests
 charset-normalizer==3.4.2
     # via requests
-click==8.2.0
-    # via typer
+click==8.1.8
+    # via
+    #   text-generation-server (pyproject.toml)
+    #   typer
 deprecated==1.2.18
     # via
     #   opentelemetry-api
