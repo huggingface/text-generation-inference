@@ -73,7 +73,7 @@ def torch_compile_for_eager(func):
 
 
 def round_up_seq(number, k, base):
-    exponent = math.ceil(math.log(number / k, base))
+    exponent = max(0, math.ceil(math.log(number / k, base)))
     return int(k * (base**exponent))
 
 
