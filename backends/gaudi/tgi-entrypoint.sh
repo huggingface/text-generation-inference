@@ -12,7 +12,7 @@ if [[ "$ATTENTION" == "paged" ]]; then
   # Check if Llama-4 is in the command line arguments
   if [[ "$*" == *"Llama-4"* ]]; then
     echo 'ATTENTION=paged and Llama-4 detected'
-    pip install git+https://github.com/yuanwu2017/transformers.git@0425
+    pip install git+https://github.com/huggingface/transformers.git@29338949
   fi
 fi
 
