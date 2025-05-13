@@ -53,6 +53,7 @@ from text_generation_server.models.globals import (
 )
 from text_generation_server.layers.attention import (
     KVCache,
+    KVCompressCache,
     Seqlen,
     HPUPagedAttentionMetadata,
     trim_attn_metadata,
@@ -68,7 +69,9 @@ from text_generation_server.utils.import_utils import (
     synchronize,
     get_free_memory,
 )
-
+from text_generation_server.utils.prefill_chunking import (
+    get_max_prefill_tokens,
+)
 import vllm_hpu_extension.environment as environment
 import habana_frameworks.torch as htorch
 import itertools
@@ -1482,16 +1485,27 @@ class FlashCausalLM(Model):
     ):
         self.kv_cache = []
         empty_cache()
-        self.kv_cache = [
-            KVCache(
-                num_blocks=num_blocks,
-                num_heads=num_heads,
-                head_size=head_size,
-                dtype=dtype,
-                device=device,
-            )
-            for _ in range(num_layers)
-        ]
+        if self.config.model_type == "deepseek_v3":
+            self.kv_cache = [
+                KVCompressCache(
+                    num_blocks=num_blocks,
+                    head_size=self.config.kv_lora_rank + self.config.qk_rope_head_dim,
+                    dtype=dtype,
+                    device=device,
+                )
+                for _ in range(num_layers)
+            ]
+        else:
+            self.kv_cache = [
+                KVCache(
+                    num_blocks=num_blocks,
+                    num_heads=num_heads,
+                    head_size=head_size,
+                    dtype=dtype,
+                    device=device,
+                )
+                for _ in range(num_layers)
+            ]
 
     def warmup(
         self,
@@ -1511,8 +1525,14 @@ class FlashCausalLM(Model):
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
         dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
-        cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
-        total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
+        if self.config.model_type == "deepseek_v3":
+            cache_block_size = BLOCK_SIZE * (
+                self.config.kv_lora_rank + self.config.qk_rope_head_dim
+            )
+        else:
+            cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
+            cache_block_size = cache_block_size * 2
+        total_cache_size = self.num_layers * cache_block_size * dtype_size
 
         try:
             self.init_kv_cache(
@@ -1572,7 +1592,7 @@ class FlashCausalLM(Model):
             self.kv_cache_dtype,
             self.device,
         )
-        self.max_batch_prefill_tokens = max_input_tokens * len(batch)
+        self.max_batch_prefill_tokens = get_max_prefill_tokens()
         max_num_seqs = int(os.getenv("MAX_BATCH_SIZE"))
         HPUBucketingContext = get_bucketing_context()
         max_total_tokens_aligned = math.ceil(max_total_tokens / BLOCK_SIZE) * BLOCK_SIZE
@@ -1589,7 +1609,7 @@ class FlashCausalLM(Model):
         max_blocks = max(
             BLOCK_SIZE, max_num_seqs * max_total_tokens_aligned // BLOCK_SIZE
         )
-        self.bucketing_ctx.num_hpu_blocks = max_blocks
+        self.bucketing_ctx.num_hpu_blocks = min(max_blocks, num_blocks)
         if os.getenv("VLLM_SKIP_WARMUP", "false").lower() == "true":
             self.bucketing_ctx.generate_prompt_buckets()
             self.bucketing_ctx.generate_decode_buckets(
@@ -1616,6 +1636,8 @@ class FlashCausalLM(Model):
         for i, (batch_size, seq_len) in enumerate(
             reversed(self.bucketing_ctx.prompt_buckets)
         ):
+            if batch_size * seq_len > self.max_batch_prefill_tokens:
+                continue
             log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
             for index in range(warmup_times):
                 self.warmup_prefill(seq_len, batch_size, batch)

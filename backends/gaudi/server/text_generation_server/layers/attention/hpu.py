@@ -117,7 +117,7 @@ def paged_attention(
     hpu_attention_meta: HPUPagedAttentionMetadata,
 ):
     batch_size, head_num, head_size = query.shape
-    fp8_kv = kv_cache.key.dtype == torch.float8_e4m3fn
+    fp8_kv = kv_cache.dtype == torch.float8_e4m3fn
     output = ops.flat_pa(
         query=query.view(batch_size, 1, head_num * head_size),
         key_cache=kv_cache.key,
@@ -138,8 +138,39 @@ def paged_attention(
     return output.view(batch_size, head_num, head_size)
 
 
-__all__ = [
-    "SUPPORTS_WINDOWING",
-    "attention",
-    "paged_attention",
-]
+def paged_attention_mla(
+    query: torch.Tensor,
+    kv_cache: KVCache,
+    kv_head_mapping: torch.Tensor,
+    softmax_scale: float,
+    seqlen: Seqlen,
+    *,
+    kv_scales: KVScales,
+    softcap: Optional[float] = None,
+    hpu_attention_meta: HPUPagedAttentionMetadata,
+    kv_lora_rank: int = 0,
+):
+    batch_size, head_num, head_size = query.shape
+    fp8_kv = kv_cache.dtype == torch.float8_e4m3fn
+    output = ops.flat_pa_mla(
+        query=query,
+        key_cache=kv_cache.key,
+        value_cache=None,
+        block_list=hpu_attention_meta.block_list,
+        block_mapping=hpu_attention_meta.block_mapping,
+        block_bias=hpu_attention_meta.attn_bias,
+        block_groups=hpu_attention_meta.block_groups,
+        scale=softmax_scale,
+        matmul_qk_op=FP8Matmul(kv_scales.key_scale) if fp8_kv else Matmul(),
+        matmul_av_op=FP8Matmul(kv_scales.value_scale) if fp8_kv else Matmul(),
+        batch2block_matmul_op=Matmul(),
+        block2batch_matmul_op=Matmul(),
+        keys_fetch_func=FetchFromCache(1.0 / kv_scales.key_scale_cpu),
+        values_fetch_func=None,
+        kv_lora_rank=kv_lora_rank,
+    )
+    # Reshape the output tensor.
+    return output.view(batch_size, head_num, -1)
+
+
+__all__ = ["SUPPORTS_WINDOWING", "attention", "paged_attention", "paged_attention_mla"]

@@ -108,6 +108,69 @@ class KVCache:
         )
 
 
+class KVCompressCache(KVCache):
+    """
+    Key-value cache for attention layers.
+    """
+
+    kv_cache: torch.Tensor
+
+    def __init__(
+        self,
+        *,
+        num_blocks: int,
+        head_size: int,
+        dtype: torch.dtype,
+        device: torch.device,
+    ):
+        """Construct the key-value cache for a layer."""
+        ## TODO FP8 kv cache support
+        if dtype is torch.float8_e5m2:
+            raise ValueError("torch.float8_e5m2 is not supported in hpu. ")
+
+        self.kv_cache = torch.zeros(
+            (num_blocks, BLOCK_SIZE, 1, head_size),
+            dtype=dtype,
+            device=device,
+        )
+
+    @property
+    def dtype(self):
+        """Get the data type of the cache."""
+        return self.kv_cache.dtype
+
+    @property
+    def key(self):
+        """Get the key cache."""
+
+        return self.kv_cache
+
+    @property
+    def value(self):
+        """Get the value cache."""
+
+        return self.kv_cache
+
+    def store(
+        self,
+        *,
+        key: torch.Tensor,
+        value: torch.Tensor,
+        slots: torch.Tensor,
+        kv_scales: KVScales,
+    ):
+        """Store the key and value at the given slots."""
+        ## TODO FP8 kv cache support
+
+        block_idx = slots // BLOCK_SIZE
+        block_offset = slots % BLOCK_SIZE
+        if self.kv_cache.dtype == torch.float8_e4m3fn:
+            key = torch.ops.hpu.cast_to_fp8_v2(
+                key, kv_scales.key_scale, False, False, torch.float8_e4m3fn
+            )[0]
+        cache_ops.insert_or_update_cache(key, self.kv_cache, block_idx, block_offset)
+
+
 def paged_reshape_and_cache(
     key: torch.Tensor,
     value: torch.Tensor,

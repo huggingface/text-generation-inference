@@ -350,6 +350,8 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         for i, (batch_size, seq_len) in enumerate(
             reversed(self.bucketing_ctx.prompt_buckets)
         ):
+            if batch_size * seq_len > self.max_batch_prefill_tokens:
+                continue
             log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
             for index in range(warmup_times):
                 self.warmup_prefill(seq_len, batch_size, batch)

@@ -8,6 +8,7 @@ use std::cmp::max;
 use std::collections::VecDeque;
 use text_generation_router::infer::InferError;
 use text_generation_router::infer::InferStreamResponse;
+use text_generation_router::usage_stats::Env;
 use text_generation_router::validation::{
     Chunk, ChunksToString, ValidGenerateRequest, ValidGrammar, ValidParameters,
     ValidStoppingParameters,
@@ -15,7 +16,6 @@ use text_generation_router::validation::{
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Instrument, Span};
-
 /// Queue entry
 #[derive(Debug)]
 pub(crate) struct Entry {
@@ -185,6 +185,9 @@ struct State {
 
     /// Paged Attention Block Allocation
     block_allocator: Option<BlockAllocator>,
+
+    /// indicate if it's hpu device, the hpu device needs padding to generate first token.
+    is_hpu_device: bool,
 }
 
 impl State {
@@ -214,6 +217,7 @@ impl State {
             speculate,
             support_chunking,
             block_allocator,
+            is_hpu_device: Env::new().is_hpu_device(),
         }
     }
 
@@ -363,6 +367,21 @@ impl State {
                                 "Over budget: prefill_tokens={} > {prefill_token_budget}",
                                 prefill_tokens + postfix_len
                             );
+                            self.entries.push_front((id, entry));
+                            break 'entry_loop;
+                        }
+                    }
+
+                    //HPU padding for the prefill
+                    if self.is_hpu_device {
+                        max_input_length = max_input_length.max(entry.request.input_length);
+                        let actual_prefill_tokens_for_hpu =
+                            (batch.len() + 1) as u32 * max_input_length;
+
+                        if actual_prefill_tokens_for_hpu > prefill_token_budget {
+                            // Entry is over budget
+                            // Add it back to the front
+                            tracing::debug!("Over budget: prefill_tokens={actual_prefill_tokens_for_hpu} > {prefill_token_budget}");
                             self.entries.push_front((id, entry));
                             break 'entry_loop;
                         }
