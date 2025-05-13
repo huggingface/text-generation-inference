@@ -57,7 +57,7 @@ def serve(
         ), "MASTER_PORT must be set when sharded is True"
 
     # Remove default handler
-    logger.remove()
+    # logger.remove()
     logger.add(
         sys.stdout,
         format="{message}",
@@ -193,7 +193,7 @@ def download_weights(
     merge_lora: bool = False,
 ):
     # Remove default handler
-    logger.remove()
+    # logger.remove()
     logger.add(
         sys.stdout,
         format="{message}",
