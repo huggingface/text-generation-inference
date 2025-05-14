@@ -14,9 +14,9 @@
         "usage": null
       }
     ],
-    "created": 1746054921,
+    "created": 1747230173,
     "id": "",
-    "model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+    "model": "unsloth/Llama-3.2-11B-Vision-Instruct",
     "object": "chat.completion",
     "system_fingerprint": "3.3.0-dev0-native",
     "usage": {
@@ -40,9 +40,9 @@
         "usage": null
       }
     ],
-    "created": 1746054921,
+    "created": 1747230173,
     "id": "",
-    "model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+    "model": "unsloth/Llama-3.2-11B-Vision-Instruct",
     "object": "chat.completion",
     "system_fingerprint": "3.3.0-dev0-native",
     "usage": {
