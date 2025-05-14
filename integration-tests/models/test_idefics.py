@@ -39,7 +39,7 @@ async def test_idefics_two_images(idefics, response_snapshot, chicken, cow_beach
         max_new_tokens=20,
     )
     assert (
-        response.generated_text == " The cow and chicken are on a beach."
+        response.generated_text == " The cow and chicken are standing on a beach."
     ), f"{repr(response.generated_text)}"
     assert response == response_snapshot
 

@@ -8,121 +8,121 @@
     "tokens": [
       {
         "id": 108,
-        "logprob": -0.73046875,
+        "logprob": -0.48046875,
         "special": false,
         "text": "\n"
       },
       {
         "id": 30234,
-        "logprob": -2.265625,
+        "logprob": -2.21875,
         "special": false,
         "text": "Brown"
       },
       {
         "id": 108,
-        "logprob": -0.123535156,
+        "logprob": -0.119140625,
         "special": false,
         "text": "\n"
       },
       {
         "id": 3726,
-        "logprob": -1.7109375,
+        "logprob": -1.703125,
         "special": false,
         "text": "Car"
       },
       {
         "id": 108,
-        "logprob": -0.036132812,
+        "logprob": -0.0390625,
         "special": false,
         "text": "\n"
       },
       {
         "id": 2915,
-        "logprob": -1.765625,
+        "logprob": -1.8203125,
         "special": false,
         "text": "Color"
       },
       {
         "id": 108,
-        "logprob": -0.044433594,
+        "logprob": -0.035888672,
         "special": false,
         "text": "\n"
       },
       {
         "id": 19178,
-        "logprob": -2.0,
+        "logprob": -2.015625,
         "special": false,
         "text": "Cool"
       },
       {
         "id": 108,
-        "logprob": -0.080566406,
+        "logprob": -0.08105469,
         "special": false,
         "text": "\n"
       },
       {
         "id": 40544,
-        "logprob": -2.125,
+        "logprob": -2.09375,
         "special": false,
         "text": "Decor"
       },
       {
         "id": 108,
-        "logprob": -0.033935547,
+        "logprob": -0.038330078,
         "special": false,
         "text": "\n"
       },
       {
         "id": 108,
-        "logprob": -1.625,
+        "logprob": -1.515625,
         "special": false,
         "text": "\n"
       },
       {
         "id": 108,
-        "logprob": -1.921875,
+        "logprob": -1.8671875,
         "special": false,
         "text": "\n"
       },
       {
         "id": 108,
-        "logprob": -1.5546875,
+        "logprob": -1.6328125,
         "special": false,
         "text": "\n"
       },
       {
         "id": 108,
-        "logprob": -1.2265625,
+        "logprob": -1.265625,
         "special": false,
         "text": "\n"
       },
       {
         "id": 108,
-        "logprob": -0.94921875,
+        "logprob": -1.0078125,
         "special": false,
         "text": "\n"
       },
       {
         "id": 108,
-        "logprob": -1.078125,
+        "logprob": -1.03125,
         "special": false,
         "text": "\n"
       },
       {
         "id": 235336,
-        "logprob": -1.2265625,
+        "logprob": -1.2109375,
         "special": false,
         "text": "?"
       },
       {
         "id": 108,
-        "logprob": -0.3203125,
+        "logprob": -0.29101562,
         "special": false,
         "text": "\n"
       },
       {
         "id": 235336,
-        "logprob": -0.07861328,
+        "logprob": -0.08935547,
         "special": false,
         "text": "?"
       }
