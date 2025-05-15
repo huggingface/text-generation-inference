@@ -7,5 +7,13 @@ if [[ "$*" == *"--sharded true"* ]]; then
   echo 'setting PT_HPU_ENABLE_LAZY_COLLECTIVES=1 for sharding'
   export PT_HPU_ENABLE_LAZY_COLLECTIVES=1
 fi
+# Check if ATTENTION environment variable is set to paged
+if [[ "$ATTENTION" == "paged" ]]; then
+  # Check if Llama-4 is in the command line arguments
+  if [[ "$*" == *"Llama-4"* ]]; then
+    echo 'ATTENTION=paged and Llama-4 detected'
+    pip install git+https://github.com/huggingface/transformers.git@29338949
+  fi
+fi
 
 text-generation-launcher $@

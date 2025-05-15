@@ -303,7 +303,7 @@ class Weights:
         world_size = self.process_group.size()
         rank = self.process_group.rank()
 
-        tensors = []
+        tensors_slices = []
         block_offset = 0
         for block_size in block_sizes:
             assert (
@@ -312,15 +312,18 @@ class Weights:
             shard_block_size = block_size // world_size
             start = rank * shard_block_size
             stop = (rank + 1) * shard_block_size
-            if dim == 0:
-                tensor = slice_[block_offset + start : block_offset + stop]
-            elif dim == 1:
-                tensor = slice_[:, block_offset + start : block_offset + stop]
-            else:
-                raise NotImplementedError("Currently only dim=0 or dim=1 is supported")
-            tensors.append(tensor)
+            tensors_slices += range(block_offset + start, block_offset + stop)
             block_offset += block_size
-        tensor = torch.cat(tensors, dim=dim)
+
+        if dim == 0:
+            tensor = slice_[tensors_slices, ...]
+        elif dim == 1 or dim == -2:
+            tensor = slice_[:, tensors_slices, ...]
+        elif dim == 2 or dim == -1:
+            tensor = slice_[..., tensors_slices]
+        else:
+            raise ValueError(f"Unsupported dim {dim}, only dim 0, 1 or 2 are supported")
+
         tensor = tensor.to(device=self.device)
 
         # Avoid casting quantizer dtypes.

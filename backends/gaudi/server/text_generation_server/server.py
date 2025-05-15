@@ -23,26 +23,8 @@ from text_generation_server.models.globals import set_adapter_to_index
 from text_generation_server.utils.adapter import AdapterInfo
 from text_generation_server.utils.tokens import make_tokenizer_optional
 from text_generation_server.utils.prefill_chunking import set_max_prefill_tokens
+from text_generation_server.models import VLM_BATCH_TYPES
 
-try:
-    from text_generation_server.models.pali_gemma import PaliGemmaBatch
-    from text_generation_server.models.mllama_causal_lm import FlashMllamaCausalLMBatch
-    from text_generation_server.models.vlm_causal_lm import (
-        VlmCausalLMBatch,
-    )
-    from text_generation_server.models.flash_vlm_causal_lm import (
-        FlashVlmCausalLMBatch,
-    )
-
-    VLM_BATCH_TYPES = {
-        PaliGemmaBatch,
-        VlmCausalLMBatch,
-        FlashVlmCausalLMBatch,
-        FlashMllamaCausalLMBatch,
-    }
-except (ImportError, NotImplementedError):
-    # These imports can fail on CPU/Non flash.
-    VLM_BATCH_TYPES = set()
 from text_generation_server.utils.version import (
     is_driver_compatible,
     MIN_TGI_GAUDI_SYNAPSE_VERSION,

@@ -37,6 +37,33 @@ IDEFICS3_FAKE_IMAGE_TOKEN = "<fake_token_around_image>"
 IDEFICS3_GLOBAL_IMG_TOKEN = "<global-img>"
 
 
+def prompt_split_image_llama4(aspect_ratio, num_patches_per_chunk):
+    """
+    Create a structured string representation of image tokens
+
+    Args:
+       num_patches: Number of patches in the image
+
+    Returns:
+        String with appropriate image tokens
+    """
+    img_string = "<|image_start|>"
+    ratio_h, ratio_w = aspect_ratio
+    if ratio_h * ratio_w > 1:
+        for yy in range(ratio_h):
+            for xx in range(ratio_w):
+                img_string += "<|patch|>" * num_patches_per_chunk
+                if xx < ratio_w - 1:
+                    img_string += "<|tile_x_separator|>"
+
+            img_string += "<|tile_y_separator|>"
+    img_string += "<|image|>"
+    img_string += "<|patch|>" * num_patches_per_chunk
+    img_string += "<|image_end|>"
+
+    return img_string
+
+
 # copied from: https://github.com/huggingface/transformers/blob/02ed609285c2448b3b54c31e362f2c389fa952ab/src/transformers/models/idefics3/processing_idefics3.py#L44-L60
 def _prompt_split_image(
     *,
@@ -142,6 +169,23 @@ def image_text_replacement(processor, image_input, config, image_id: int) -> str
         num_pads = 256
         padding = "<image_soft_token>" * num_pads
         return f"\n\n<start_of_image>{padding}<end_of_image>\n\n"
+    elif config.model_type == "llama4":
+        patch_size = config.vision_config.patch_size
+        pixel_shuffle_ratio = config.vision_config.pixel_shuffle_ratio
+        downsample_ratio = int(round(1.0 / (pixel_shuffle_ratio**2)))
+        aspect_ratios = image_input["aspect_ratios"][image_id]
+        image_height, image_width = image_input["pixel_values"][image_id].shape[-2:]
+
+        num_patches_per_chunk = int(
+            (image_height // patch_size)
+            * (image_width // patch_size)
+            // downsample_ratio
+        )
+        tokens_for_this_image = prompt_split_image_llama4(
+            aspect_ratios, num_patches_per_chunk
+        )
+
+        return tokens_for_this_image
     else:
         raise RuntimeError(f"Unknown config {config.model_type} for multimodal")
 
@@ -259,6 +303,8 @@ class FlashVlmCausalLMBatch(FlashCausalLMBatch):
                     if config.model_type == "llava_next":
                         images.append(image)
                     elif config.model_type == "gemma3":
+                        images.append(image)
+                    elif config.model_type == "llama4":
                         images.append(image)
                     else:
                         images.append([image])
