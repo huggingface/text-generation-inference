@@ -9,6 +9,8 @@ authors = [
   {name = "Nicolas Patry", email = "nicolas@huggingface.co"},
 ]
 dependencies = [
+    # Remove explicit click dependency once typer/click are compatible again.
+    "click<8.2.0",
     "einops>=0.8.0",
     "grpc-interceptor>=0.15.4",
     "grpcio>=1.67.0",
@@ -37,16 +39,16 @@ dependencies = [
 ]
 
 [[tool.uv.index]]
-name = "pytorch-cu124"
-url = "https://download.pytorch.org/whl/cu124"
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cu124", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 torchvision = [
-  { index = "pytorch-cu124", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
 
 [build-system]
@@ -92,8 +94,8 @@ gen = [
     "mypy-protobuf>=3.6.0",
 ]
 torch = [
-    "torch==2.6.0",
-    "torchvision==0.21.0",
+    "torch==2.7.0",
+    "torchvision==0.22.0",
 ]
 
 [tool.pytest.ini_options]

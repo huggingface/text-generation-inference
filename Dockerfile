@@ -48,7 +48,7 @@ FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS pytorch-install
 WORKDIR /usr/src/
 
 # NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
-ARG PYTORCH_VERSION=2.6
+ARG PYTORCH_VERSION=2.7
 ARG PYTHON_VERSION=3.11
 
 # Keep in sync with `server/pyproject.toml

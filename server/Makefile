@@ -38,7 +38,7 @@ install: install-cuda
 	echo "Installed server"
 
 install-cuda: install-server install-flash-attention-v2-cuda install-flash-attention
-	uv sync --inexact --extra attention --extra bnb --extra marlin --extra moe --active
+	uv sync --inexact --extra attention --extra bnb --active
 	uv pip install nvidia-nccl-cu12==2.22.3
 	kernels download .
 
@@ -46,6 +46,6 @@ install-rocm: install-server install-flash-attention-v2-rocm  install-vllm-rocm
 
 export-requirements:
 	uv pip compile pyproject.toml --extra gen -o requirements_gen.txt --python-version 3.11
-	uv pip compile pyproject.toml --extra attention --extra bnb --extra accelerate --extra compressed-tensors --extra marlin --extra moe --extra quantize --extra peft --extra outlines -o requirements_cuda.txt --python-version 3.11
+	uv pip compile pyproject.toml --extra bnb --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines -o requirements_cuda.txt --python-version 3.11
 	uv pip compile pyproject.toml --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines -o requirements_intel.txt --python-version 3.11
 	uv pip compile pyproject.toml --extra accelerate --extra compressed-tensors --extra quantize --extra peft --extra outlines -o requirements_rocm.txt --python-version 3.11
