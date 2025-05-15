@@ -1596,13 +1596,17 @@ class FlashCausalLM(Model):
         max_num_seqs = int(os.getenv("MAX_BATCH_SIZE"))
         HPUBucketingContext = get_bucketing_context()
         max_total_tokens_aligned = math.ceil(max_total_tokens / BLOCK_SIZE) * BLOCK_SIZE
+        model_max_length = self.tokenizer.model_max_length
+        max_position_embeddings = getattr(
+            self.config, "max_position_embeddings", model_max_length
+        )
         self.bucketing_ctx = HPUBucketingContext(
             max_num_seqs,
             max_num_seqs,  # self.max_num_prefill_seqs, #TODO
             BLOCK_SIZE,
             max_num_seqs * max_total_tokens_aligned,
             False,
-            self.tokenizer.model_max_length,
+            min(model_max_length, max_position_embeddings),
             max_input_tokens,
             max_total_tokens_aligned,
         )
@@ -1631,30 +1635,48 @@ class FlashCausalLM(Model):
             return prefill and max_seq_len_to_capture > self.max_seq_len_to_capture
 
     def warmup_hpu_graph(self, batch):
+        start_time = time.time()
+        warmup_shape_count = 0
         warmup_times = 3
         self.bucketing_ctx.generate_prompt_buckets()
-        for i, (batch_size, seq_len) in enumerate(
-            reversed(self.bucketing_ctx.prompt_buckets)
-        ):
+
+        def ordering_function_min_tokens(b):
+            return (b[0] * b[1], b[1], b[0])
+
+        buckets = list(
+            sorted(self.bucketing_ctx.prompt_buckets, key=ordering_function_min_tokens)
+        )
+
+        for i, (batch_size, seq_len) in enumerate(buckets):
             if batch_size * seq_len > self.max_batch_prefill_tokens:
                 continue
+            warmup_shape_count += 1
             log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
             for index in range(warmup_times):
                 self.warmup_prefill(seq_len, batch_size, batch)
                 synchronize(self.device)
 
+        def ordering_function_max_bs(b):
+            return (-b[0], b[1])
+
         self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
-        for i, (batch_size, block_num) in enumerate(
-            reversed(self.bucketing_ctx.decode_buckets)
-        ):
+        buckets = list(
+            sorted(self.bucketing_ctx.decode_buckets, key=ordering_function_max_bs)
+        )
+        for i, (batch_size, block_num) in enumerate(buckets):
             if batch_size > block_num:
                 continue
+            warmup_shape_count += 1
             log_master(
                 logger.info, f"warmup decode bs {batch_size} block_num {block_num}"
             )
             for index in range(warmup_times):
                 self.warmup_decode(batch_size, block_num, batch)
                 synchronize(self.device)
+        log_master(
+            logger.info,
+            f"warmup hpu graph time {int(time.time() - start_time)}s warmup shape count {warmup_shape_count}",
+        )
 
     def warmup_prefill(
         self, prompt_len: int, batch_size: int, batch: FlashCausalLMBatch

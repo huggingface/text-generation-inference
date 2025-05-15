@@ -41,6 +41,7 @@ from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_mscale
 from text_generation_server.utils.weights import Weights
+import habana_frameworks.torch as htorch
 
 
 def get_and_maybe_dequant_weights(layer: torch.nn.Module) -> torch.Tensor:
@@ -651,6 +652,9 @@ class DeepseekV3Model(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -663,6 +667,8 @@ class DeepseekV3Model(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
