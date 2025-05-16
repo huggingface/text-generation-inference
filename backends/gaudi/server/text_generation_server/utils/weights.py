@@ -63,6 +63,14 @@ class WeightsLoader(ABC):
         ...
 
     @abstractmethod
+    def get_multi_weights(self, weights: "Weights", prefixes: List[str], dim: int):
+        """
+        Get the weights at the given prefixes, column-split them for tensor
+        parallelim, and then concatenate the weights along the given dimension.
+        """
+        ...
+
+    @abstractmethod
     def get_weights_row(self, weights: "Weights", prefix: str):
         """
         Get the weights at the given prefix and apply row-splitting for tensor
@@ -129,6 +137,10 @@ class DefaultWeightsLoader(WeightsLoader):
         return self.weight_class(
             weights.get_sharded(f"{prefix}.weight", dim=1),
         )
+
+    def get_multi_weights(self, weights: "Weights", prefixes: List[str], dim: int):
+        w = [weights.get_tensor(f"{p}.weight") for p in prefixes]
+        return self.weight_class(torch.cat(w, dim=dim))
 
 
 class Weights:
@@ -392,6 +404,9 @@ class Weights:
 
     def get_weights_row(self, prefix: str):
         return self.weights_loader.get_weights_row(self, prefix)
+
+    def get_multi_weights(self, prefixes: List[str], dim: int):
+        return self.weights_loader.get_multi_weights(self, prefixes, dim)
 
     @contextmanager
     def use_loader(self, weights_loader: WeightsLoader):

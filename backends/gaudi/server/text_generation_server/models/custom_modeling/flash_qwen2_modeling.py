@@ -22,6 +22,7 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
+import habana_frameworks.torch as htorch
 
 
 def load_attention(config, prefix, weights):
@@ -294,6 +295,9 @@ class Qwen2Model(torch.nn.Module):
         )
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states = layer(
                 hidden_states,
@@ -306,6 +310,8 @@ class Qwen2Model(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states)
 

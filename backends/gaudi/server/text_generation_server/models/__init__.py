@@ -343,6 +343,7 @@ def get_model(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[torch.dtype],
+    kv_cache_dtype: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
 ) -> Model:
@@ -468,7 +469,12 @@ def get_model(
 
     model_type = config_dict["model_type"]
 
-    kv_cache_dtype = dtype
+    if kv_cache_dtype == "fp8_e4m3fn":
+        kv_cache_dtype = torch.float8_e4m3fn
+    elif kv_cache_dtype == "fp8_e5m2":
+        kv_cache_dtype = torch.float8_e5m2
+    else:
+        kv_cache_dtype = dtype
 
     if FLASH_ATTENTION:
         if model_type == DEEPSEEK_V2:
@@ -934,6 +940,7 @@ def get_model_with_lora_adapters(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[torch.dtype],
+    kv_cache_dtype: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
     adapter_to_index: Dict[str, int],
@@ -947,6 +954,7 @@ def get_model_with_lora_adapters(
         quantize,
         speculate,
         dtype,
+        kv_cache_dtype,
         trust_remote_code,
         max_input_tokens,
     )

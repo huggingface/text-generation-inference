@@ -26,7 +26,7 @@ import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
-
+import habana_frameworks.torch as htorch
 from text_generation_server.layers.attention import (
     KVCache,
     get_kv_scales,
@@ -554,6 +554,9 @@ class FlashLlamaModel(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -568,6 +571,8 @@ class FlashLlamaModel(torch.nn.Module):
                 cross_attention_states,
                 hpu_attention_meta=hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states, residual)
 

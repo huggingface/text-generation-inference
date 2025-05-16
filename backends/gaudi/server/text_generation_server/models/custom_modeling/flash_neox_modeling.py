@@ -47,6 +47,7 @@ from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
 from text_generation_server.utils.weights import UnquantizedWeight
+import habana_frameworks.torch as htorch
 
 
 class GPTNeoXConfig(TransformersGPTNeoXConfig):
@@ -360,6 +361,9 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
         cos, sin = self.layers[0].attention.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -372,6 +376,8 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.final_layer_norm(hidden_states, residual)
 

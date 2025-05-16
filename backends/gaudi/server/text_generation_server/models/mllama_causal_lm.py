@@ -32,6 +32,7 @@ from text_generation_server.utils.import_utils import (
 )
 import torch.nn.functional as F
 from text_generation_server.utils.log import log_master
+import time
 
 tracer = trace.get_tracer(__name__)
 
@@ -325,7 +326,9 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         )
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = self.limit_hpu_graphs
+            kwargs["bypass_hpu_graphs"] = self.bypass_hpu_graphs(
+                True, input_ids.shape[0]
+            )
         self.model.forward(
             input_ids=_async_h2d_tensor_copy(input_ids),
             position_ids=_async_h2d_tensor_copy(position_ids),
@@ -343,26 +346,47 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         )
 
     def warmup_hpu_graph(self, batch: FlashMllamaCausalLMBatch):
+        start_time = time.time()
+        warmup_shape_count = 0
         warmup_times = 3
         self.bucketing_ctx.generate_prompt_buckets()
-        for i, (batch_size, seq_len) in enumerate(
-            reversed(self.bucketing_ctx.prompt_buckets)
-        ):
+
+        def ordering_function_min_tokens(b):
+            return (b[0] * b[1], b[1], b[0])
+
+        buckets = list(
+            sorted(self.bucketing_ctx.prompt_buckets, key=ordering_function_min_tokens)
+        )
+        for i, (batch_size, seq_len) in enumerate(buckets):
+            if batch_size * seq_len > self.max_batch_prefill_tokens:
+                continue
+            warmup_shape_count += 1
             log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
             for index in range(warmup_times):
                 self.warmup_prefill(seq_len, batch_size, batch)
+                synchronize(self.device)
+
+        def ordering_function_max_bs(b):
+            return (-b[0], b[1])
+
         self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
-        for i, (batch_size, block_num) in enumerate(
-            reversed(self.bucketing_ctx.decode_buckets)
-        ):
+        buckets = list(
+            sorted(self.bucketing_ctx.decode_buckets, key=ordering_function_max_bs)
+        )
+        for i, (batch_size, block_num) in enumerate(buckets):
             if batch_size > block_num:
                 continue
+            warmup_shape_count += 1
             log_master(
                 logger.info, f"warmup decode bs {batch_size} block_num {block_num}"
             )
             for index in range(warmup_times):
                 self.warmup_decode(batch_size, block_num, batch)
-        synchronize(self.device)
+                synchronize(self.device)
+        log_master(
+            logger.info,
+            f"warmup hpu graph time {int(time.time() - start_time)}s warmup shape count {warmup_shape_count}",
+        )
 
     def forward(
         self,
@@ -438,8 +462,8 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
 
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = (
-                batch.prefilling if self.limit_hpu_graphs else False
+            kwargs["bypass_hpu_graphs"] = self.bypass_hpu_graphs(
+                batch.prefilling, input_ids.shape[0]
             )
         if batch.prefill_cache_indices is not None:
             slots_pad = torch.zeros_like(input_ids)

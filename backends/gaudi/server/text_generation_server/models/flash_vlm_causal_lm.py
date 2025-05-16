@@ -23,6 +23,7 @@ from text_generation_server.layers.attention import (
     _async_h2d_tensor_copy,
 )
 import habana_frameworks.torch as htorch
+import time
 from text_generation_server.utils.import_utils import (
     synchronize,
 )
@@ -486,20 +487,32 @@ class FlashVlmCausalLM(FlashCausalLM):
         )
 
     def warmup_hpu_graph(self, batch: FlashVlmCausalLMBatch):
+        start_time = time.time()
+        warmup_shape_count = 0
         warmup_times = 3
+
         # only warmup decode, for prefill, image pixal size may change, make the warmup useless
+        def ordering_function_max_bs(b):
+            return (-b[0], b[1])
+
         self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
-        for i, (batch_size, block_num) in enumerate(
-            reversed(self.bucketing_ctx.decode_buckets)
-        ):
+        buckets = list(
+            sorted(self.bucketing_ctx.decode_buckets, key=ordering_function_max_bs)
+        )
+        for i, (batch_size, block_num) in enumerate(buckets):
             if batch_size > block_num:
                 continue
+            warmup_shape_count += 1
             log_master(
                 logger.info, f"warmup decode bs {batch_size} block_num {block_num}"
             )
             for index in range(warmup_times):
                 self.warmup_decode(batch_size, block_num, batch)
-        synchronize(self.device)
+                synchronize(self.device)
+        log_master(
+            logger.info,
+            f"warmup hpu graph time {int(time.time() - start_time)}s warmup shape count {warmup_shape_count}",
+        )
 
     def forward(
         self,

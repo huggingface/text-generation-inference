@@ -44,6 +44,7 @@ from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
 from vllm_hpu_extension.ops import DynamicFusedMOE
+import habana_frameworks.torch as htorch
 
 
 class DbrxAttentionConfig(PretrainedConfig):
@@ -682,8 +683,10 @@ class DbrxModel(torch.nn.Module):
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
         cos, sin = self.layers[0].attn.self_attn.rotary_emb.get_cos_sin(position_ids)
-
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -696,6 +699,8 @@ class DbrxModel(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
