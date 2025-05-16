@@ -16,6 +16,7 @@ use text_generation_router::validation::{
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::Instant;
 use tracing::{info_span, instrument, Instrument, Span};
+
 /// Queue entry
 #[derive(Debug)]
 pub(crate) struct Entry {
@@ -372,8 +373,8 @@ impl State {
                         }
                     }
 
-                    //HPU padding for the prefill
                     if self.is_hpu_device {
+                        //HPU needs to pad for the prefill
                         max_input_length = max_input_length.max(entry.request.input_length);
                         let actual_prefill_tokens_for_hpu =
                             (batch.len() + 1) as u32 * max_input_length;
