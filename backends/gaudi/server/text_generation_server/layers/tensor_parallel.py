@@ -155,6 +155,7 @@ class TensorParallelColumnLinear(SuperLayer):
 
     @classmethod
     def load_multi(cls, config, prefixes: List[str], weights, bias: bool, dim: int):
+        print(f"bias: {bias}")
         if config.quantize == "exl2":
             linears = []
             for prefix in prefixes:

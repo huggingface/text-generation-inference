@@ -1391,6 +1391,7 @@ class FlashCausalLM(Model):
             aliases=aliases,
             weights_loader=weights_loader,
         )
+        print(f"weights: {weights}")
 
         prefix = None
         model = model_class(prefix, config, weights)

@@ -109,6 +109,9 @@ try:
     from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
         Qwen2ForCausalLM,
     )
+    from text_generation_server.models.custom_modeling.flash_qwen3_modeling import (
+        Qwen3ForCausalLM,
+    )
     from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
         FlashMistralForCausalLM,
     )
@@ -293,6 +296,12 @@ class ModelType(enum.Enum):
         "name": "Qwen 2.5 VL",
         "url": "https://huggingface.co/collections/Qwen/qwen25-66e81a666513e518adb90d9e",
     }
+    QWEN3 = {
+        "type": "qwen3",
+        "name": "Qwen 3",
+        "url": "https://huggingface.co/collections/Qwen/qwen3-67dd247413f0e2e4f653967f",
+    }
+
     GALACTICA = {
         "type": "galactica",
         "name": "Galactica",
@@ -784,6 +793,18 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=Qwen2_5_VLConfig,
                 processor_class=Qwen2_5_VLProcessor,
+            )
+        elif model_type == QWEN3:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=Qwen3ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif model_type == MLLAMA:
             return FlashMllamaCausalLM(
