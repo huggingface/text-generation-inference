@@ -65,6 +65,7 @@ class Qwen3Attention(nn.Module):
                 f"and `num_shards`: {weights.process_group.size()}"
             )
         self.num_heads = self.num_heads // weights.process_group.size()
+        # self.num_key_value_heads = config.num_key_value_heads
         self.num_key_value_heads = (
             config.num_key_value_heads // weights.process_group.size()
         )
