@@ -49,16 +49,28 @@ impl<'step> TryFrom<&'step GenerationStep> for DecodedToken {
     type Error = InferError;
 
     fn try_from(step: &'step GenerationStep) -> Result<Self, Self::Error> {
-        if !step.has_error {
-            Ok(Self {
-                id: step.token_id,
-                log_prob: step.log_prob,
-                is_final: step.is_final,
-                finish_reason: step.finish_reason,
-            })
-        } else {
-            Err(GenerationError(step.error_msg.clone()))
+        if step.has_error {
+            return Err(GenerationError(step.error_msg.clone()));
         }
+
+        if !step.token_id_valid {
+            return Err(GenerationError(
+                "GenerationStep contains no token_id".to_string(),
+            ));
+        }
+
+        if !step.log_prob_valid {
+            return Err(GenerationError(
+                "GenerationStep contains no log_prob".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            id: step.token_id,
+            log_prob: step.log_prob,
+            is_final: step.is_final,
+            finish_reason: step.finish_reason,
+        })
     }
 }
 
@@ -151,7 +163,16 @@ fn executor_status_looper(
                                 let _ = in_flights.remove(&step.request_id);
                             }
                         } else {
-                            warn!("Untracked request {}", step.request_id,);
+                            match step.finish_reason {
+                                FinishReason::Cancelled => {
+                                    // The client has canceled the request, so this should not generate a
+                                    // warning.
+                                    debug!("Cancelled request {}", step.request_id);
+                                }
+                                _ => {
+                                    warn!("Untracked request {}", step.request_id);
+                                }
+                            }
                         }
                     }
                 }
