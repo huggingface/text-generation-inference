@@ -3,7 +3,7 @@ use cxx::UniquePtr;
 use hashbrown::HashMap;
 use std::hint;
 use std::ops::Deref;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::TryAcquireError;
@@ -278,6 +278,26 @@ fn ensure_paths_exist<P: AsRef<Path>, PP: AsRef<Path>>(
     // Ensure the engine folder exists
     if !engine_folder.exists() {
         let err = TensorRtLlmBackendError::EngineFolderDoesntExists(engine_folder.to_path_buf());
+
+        error!("Path validation failed: {}", err,);
+        return Err(err);
+    }
+
+    let mut config_path = PathBuf::from(engine_folder);
+    config_path.push("config.json");
+
+    if !config_path.exists() {
+        let err = TensorRtLlmBackendError::ConfigNotFound(engine_folder.to_path_buf());
+
+        error!("Path validation failed: {}", err,);
+        return Err(err);
+    }
+
+    let mut generation_config_path = PathBuf::from(engine_folder);
+    generation_config_path.push("generation_config.json");
+
+    if !generation_config_path.exists() {
+        let err = TensorRtLlmBackendError::GenerationConfigNotFound(engine_folder.to_path_buf());
 
         error!("Path validation failed: {}", err,);
         return Err(err);
