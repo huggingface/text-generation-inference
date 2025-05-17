@@ -55,13 +55,24 @@ namespace huggingface::tgi::backends::trtllm {
         const auto reqId = r.getRequestId();
         if (!r.hasError()) [[likely]] {
             const auto result = r.getResult();
-            const auto logits = result.logProbs.value()[0];
+            std::optional<uint32_t> token_id = std::nullopt;
+            if (!result.outputTokenIds.empty() && !result.outputTokenIds[0].empty()) {
+                token_id = static_cast<uint32_t>(result.outputTokenIds[0][0]);
+            }
+
+            std::optional<float> log_prob = std::nullopt;
+            if (result.logProbs && !result.logProbs->empty() && !result.logProbs.value()[0].empty()) {
+                log_prob = result.logProbs.value()[0].back();
+            }
+
             return generation_step_t{
                     reqId,
-                    static_cast<uint32_t>(result.outputTokenIds[0][0]),
-                    logits.back(),
+                    token_id.value_or(0),
+                    log_prob.value_or(0.0),
                     result.isFinal,
                     as_finish_reason_t(result.finishReasons[0]),
+                    token_id.has_value(),
+                    log_prob.has_value(),
                     false,
                     std::string()
             };
@@ -72,6 +83,8 @@ namespace huggingface::tgi::backends::trtllm {
                     0.0,
                     true,
                     finish_reason_t::kNOT_FINISHED,
+                    false,
+                    false,
                     true,
                     std::move(r.getErrorMsg())
             };

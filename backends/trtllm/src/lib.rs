@@ -44,6 +44,8 @@ mod ffi {
         log_prob: f32,
         is_final: bool,
         finish_reason: FinishReason,
+        token_id_valid: bool,
+        log_prob_valid: bool,
         has_error: bool,
         error_msg: String,
     }
