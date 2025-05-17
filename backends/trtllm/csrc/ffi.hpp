@@ -1,6 +1,7 @@
 #ifndef TGI_BACKEND_TRTLLM_FFI
 #define TGI_BACKEND_TRTLLM_FFI
 
+#include <exception>
 #include <memory>
 #include <thread>
 
@@ -17,7 +18,7 @@ namespace rust::behavior {
     template<typename Try, typename Fail>
     static void trycatch(Try &&func, Fail &&fail) noexcept try {
         func();
-    } catch (tensorrt_llm::common::TllmException &e) {
+    } catch (const std::exception &e) {
         fail(e.what());
     }
 }
