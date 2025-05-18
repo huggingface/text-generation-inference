@@ -98,12 +98,17 @@ fn executor_status_looper(
                 let generation_params = &request.parameters;
                 let stopping_params = &request.stopping_parameters;
                 let input_ids = request.input_ids.as_deref();
+                let top_k = if generation_params.do_sample {
+                    generation_params.top_k
+                } else {
+                    1
+                };
 
                 // Submit to the TensorRT-LLM executor for scheduling
                 match backend.pin_mut().submit(
                     &input_ids.unwrap(), // This is checked beforehand in validate()
                     stopping_params.max_new_tokens,
-                    generation_params.top_k,
+                    top_k,
                     generation_params.top_p,
                     generation_params.temperature,
                     generation_params.repetition_penalty,
