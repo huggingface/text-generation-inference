@@ -1610,8 +1610,8 @@ class FlashCausalLM(Model):
             max_input_tokens,
             max_total_tokens_aligned,
         )
-        max_blocks = max(
-            BLOCK_SIZE, max_num_seqs * max_total_tokens_aligned // BLOCK_SIZE
+        max_blocks = (
+            max(BLOCK_SIZE, max_num_seqs * max_total_tokens_aligned // BLOCK_SIZE) + 1
         )
         self.bucketing_ctx.num_hpu_blocks = min(max_blocks, num_blocks)
         if os.getenv("VLLM_SKIP_WARMUP", "false").lower() == "true":
