@@ -1603,7 +1603,11 @@ class FlashCausalLM(Model):
         self.max_batch_prefill_tokens = get_max_prefill_tokens()
         max_num_seqs = int(os.getenv("MAX_BATCH_SIZE"))
         HPUBucketingContext = get_bucketing_context()
-        max_total_tokens_aligned = math.ceil(max_total_tokens / BLOCK_SIZE) * BLOCK_SIZE
+        # need to warmup one more step since block is allocated from 1
+        block_step = os.getenv("VLLM_DECODE_BLOCK_BUCKET_STEP", BLOCK_SIZE)
+        max_total_tokens_aligned = math.ceil(
+            max_total_tokens / BLOCK_SIZE
+        ) * BLOCK_SIZE + math.ceil(block_step * BLOCK_SIZE / max_num_seqs)
         model_max_length = self.tokenizer.model_max_length
         max_position_embeddings = getattr(
             self.config, "max_position_embeddings", model_max_length
@@ -1619,8 +1623,8 @@ class FlashCausalLM(Model):
             max_input_tokens,
             max_total_tokens_aligned,
         )
-        max_blocks = (
-            max(BLOCK_SIZE, max_num_seqs * max_total_tokens_aligned // BLOCK_SIZE) + 1
+        max_blocks = max(
+            BLOCK_SIZE, max_num_seqs * max_total_tokens_aligned // BLOCK_SIZE
         )
         self.bucketing_ctx.num_hpu_blocks = min(max_blocks, num_blocks)
         synchronize(self.device)
@@ -1683,8 +1687,7 @@ class FlashCausalLM(Model):
             f"Using {format_bytes(graph_free_mem)}"
             f"/{format_bytes(free_mem)} "
             "of free device memory for HPUGraphs, "
-            f"{format_bytes(prompt_available_memory)} \
-                for prompt and "
+            f"{format_bytes(prompt_available_memory)} for prompt and "
             f"{format_bytes(decode_available_memory)} for decode "
             f"(VLLM_GRAPH_PROMPT_RATIO={prompt_graph_mem_ratio})"
         )

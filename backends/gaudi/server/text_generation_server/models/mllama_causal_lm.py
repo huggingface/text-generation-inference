@@ -366,8 +366,7 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             f"Using {format_bytes(graph_free_mem)}"
             f"/{format_bytes(free_mem)} "
             "of free device memory for HPUGraphs, "
-            f"{format_bytes(prompt_available_memory)} \
-                for prompt and "
+            f"{format_bytes(prompt_available_memory)} for prompt and "
             f"{format_bytes(decode_available_memory)} for decode "
             f"(VLLM_GRAPH_PROMPT_RATIO={prompt_graph_mem_ratio})"
         )
