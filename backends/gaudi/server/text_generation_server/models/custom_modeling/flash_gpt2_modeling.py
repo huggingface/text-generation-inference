@@ -38,6 +38,7 @@ from text_generation_server.layers import (
     get_linear,
 )
 from text_generation_server.layers.attention.kv_cache import get_kv_scales
+import habana_frameworks.torch as htorch
 
 
 def load_qkv(config, prefix: str, weights, head_size, num_heads):
@@ -385,6 +386,10 @@ class FlashGPT2Model(torch.nn.Module):
         hidden_states = inputs_embeds
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
+
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -395,6 +400,8 @@ class FlashGPT2Model(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states = self.norm(hidden_states)
 

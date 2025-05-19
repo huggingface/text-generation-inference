@@ -23,6 +23,7 @@ from text_generation_server.layers.gptq import GPTQWeightsLoader
 from text_generation_server.layers.layernorm import (
     FastLayerNorm,
 )
+import habana_frameworks.torch as htorch
 
 
 def load_multi_mqa(
@@ -442,6 +443,9 @@ class FlashSantacoderModel(nn.Module):
             torch.distributed.all_reduce(hidden_states, group=self.process_group)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -452,6 +456,8 @@ class FlashSantacoderModel(nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
 

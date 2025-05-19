@@ -44,6 +44,7 @@ from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
 from text_generation_server.utils.weights import UnquantizedWeight
+import habana_frameworks.torch as htorch
 
 
 class GemmaConfig(PretrainedConfig):
@@ -394,6 +395,9 @@ class FlashGemmaModel(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -406,6 +410,8 @@ class FlashGemmaModel(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
