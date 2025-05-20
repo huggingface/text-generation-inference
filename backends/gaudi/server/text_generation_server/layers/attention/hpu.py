@@ -18,6 +18,20 @@ def fetch_from_cache(cache, blocks):
         return cache.index_select(0, blocks)
 
 
+def repeat_kv(hidden_states: torch.Tensor, n_rep: int) -> torch.Tensor:
+    """
+    This is the equivalent of torch.repeat_interleave(x, dim=1, repeats=n_rep). The hidden states go from (batch,
+    num_key_value_heads, seqlen, head_dim) to (batch, num_attention_heads, seqlen, head_dim)
+    """
+    batch, num_key_value_heads, slen, head_dim = hidden_states.shape
+    if n_rep == 1:
+        return hidden_states
+    hidden_states = hidden_states[:, :, None, :, :].expand(
+        batch, num_key_value_heads, n_rep, slen, head_dim
+    )
+    return hidden_states.reshape(batch, num_key_value_heads * n_rep, slen, head_dim)
+
+
 def attention(
     *,
     query: torch.Tensor,
@@ -30,6 +44,7 @@ def attention(
     window_size_left: int = -1,
     causal: bool = True,
     softcap: Optional[float] = None,
+    num_key_value_groups: int = 1,
 ):
     fsdpa_op = ModuleFusedSDPA(FusedSDPA)
     bs = seqlen.input_lengths.shape[0]
@@ -38,6 +53,8 @@ def attention(
     query = query.view(bs, -1, head_num, head_size).transpose(1, 2)
     key = key.view(bs, -1, kv_head_num, head_size).transpose(1, 2)
     value = value.view(bs, -1, kv_head_num, head_size).transpose(1, 2)
+    key = repeat_kv(key, num_key_value_groups)
+    value = repeat_kv(value, num_key_value_groups)
     attn_output = fsdpa_op(
         query,
         key,

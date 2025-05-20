@@ -26,7 +26,14 @@ from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     SpeculativeHead,
+    FastLinear,
 )
+from text_generation_server.utils.import_utils import (
+    synchronize,
+    get_free_memory,
+)
+from loguru import logger
+from text_generation_server.utils.log import log_master
 
 
 from text_generation_server.layers.layernorm import (
@@ -76,13 +83,57 @@ class Qwen3Attention(nn.Module):
         else:
             self.num_key_value_heads = config.num_key_value_heads
 
-        self.query_key_value = TensorParallelColumnLinear.load_multi(
+        self.query_proj = TensorParallelColumnLinear.load(
             config,
-            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-            dim=0,
+            prefix=f"{prefix}.q_proj",
             weights=weights,
             bias=False,
         )
+        if self.num_key_value_heads != config.num_key_value_heads:
+            self.key_proj = TensorParallelColumnLinear.load(
+                config,
+                prefix=f"{prefix}.k_proj",
+                weights=weights,
+                bias=False,
+            )
+            self.value_proj = TensorParallelColumnLinear.load(
+                config,
+                prefix=f"{prefix}.v_proj",
+                weights=weights,
+                bias=False,
+            )
+        else:
+            self.key_proj = FastLinear.load(
+                config,
+                prefix=f"{prefix}.k_proj",
+                weights=weights,
+                bias=False,
+            )
+            self.value_proj = FastLinear.load(
+                config,
+                prefix=f"{prefix}.v_proj",
+                weights=weights,
+                bias=False,
+            )
+        # self.key_proj = TensorParallelColumnLinear.load(
+        #     config,
+        #     prefix=f"{prefix}.k_proj",
+        #     weights=weights,
+        #     bias=False,
+        # )
+        # self.value_proj = TensorParallelColumnLinear.load(
+        #     config,
+        #     prefix=f"{prefix}.v_proj",
+        #     weights=weights,
+        #     bias=False,
+        # )
+        # self.query_key_value = TensorParallelColumnLinear.load_multi(
+        #     config,
+        #     prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+        #     dim=0,
+        #     weights=weights,
+        #     bias=False,
+        # )
 
         self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
@@ -131,25 +182,45 @@ class Qwen3Attention(nn.Module):
         seqlen,
         hpu_attention_meta,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        print(f"hidden_states shape: {hidden_states.shape}")
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
-        qkv = self.query_key_value(hidden_states)
-        print(f"qkv shape: {qkv.shape}")
-        print(f"self.head_dim: {self.head_dim}")
-        print(f"self.num_heads: {self.num_heads}")
-        print(f"self.num_key_value_heads: {self.num_key_value_heads}")
-        query_states, key_states, value_states = qkv.split(
-            [
-                self.head_dim * self.num_heads,
-                self.head_dim * self.num_key_value_heads,
-                self.head_dim * self.num_key_value_heads,
-            ],
-            dim=1,
+        # qkv = self.query_key_value(hidden_states)
+        # print(f"qkv shape: {qkv.shape}")
+        # print(f"self.head_dim: {self.head_dim}")
+        # print(f"self.num_heads: {self.num_heads}")
+        # print(f"self.num_key_value_heads: {self.num_key_value_heads}")
+        # query_states, key_states, value_states = qkv.split(
+        #     [
+        #         self.head_dim * self.num_heads,
+        #         self.head_dim * self.num_key_value_heads,
+        #         self.head_dim * self.num_key_value_heads,
+        #     ],
+        #     dim=1,
+        # )
+        synchronize(hidden_states.device)
+        real_free_memory = get_free_memory(hidden_states.device, 1)
+        log_master(
+            logger.debug,
+            f"Attention forward1 Free memory real: {real_free_memory / 1e9:.2f}GB",
         )
 
+        query_states = self.query_proj(hidden_states)
+        key_states = self.key_proj(hidden_states)
+        value_states = self.value_proj(hidden_states)
         query_states, _ = self.q_norm(query_states.view(hidden_shape))
         key_states, _ = self.k_norm(key_states.view(hidden_shape))
         value_states = value_states.view(hidden_shape)
+        print(f"query_states shape: {query_states.shape}")
+        print(f"key_states shape: {key_states.shape}")
+        print(f"value_states shape: {value_states.shape}")
+        synchronize(hidden_states.device)
+        real_free_memory = get_free_memory(hidden_states.device, 1)
+        log_master(
+            logger.debug,
+            f"Attention forward2 Free memory real: {real_free_memory / 1e9:.2f}GB",
+        )
+
         self.rotary_emb(query_states, key_states, cos, sin)
 
         kv_cache.store(
@@ -171,6 +242,7 @@ class Qwen3Attention(nn.Module):
                 seqlen=seqlen,
                 softmax_scale=self.softmax_scale,
                 window_size_left=self.max_past,
+                num_key_value_groups=self.num_key_value_groups,
             )
         # Decode
         else:
@@ -185,6 +257,7 @@ class Qwen3Attention(nn.Module):
             )
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
+        print(f"attn_output shape: {attn_output.shape}")
         return self.o_proj(attn_output)
 
 
