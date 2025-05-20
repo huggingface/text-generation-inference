@@ -1,5 +1,5 @@
 # Those arguments are required to build the image
-ARG HABANA_VERSION=1.20.0
+ARG HABANA_VERSION=1.21.0
 ARG PYTORCH_VERSION=2.6.0
 
 # Rust builder
