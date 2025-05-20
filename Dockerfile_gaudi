@@ -1,5 +1,5 @@
 # Those arguments are required to build the image
-ARG HABANA_VERSION=1.20.0
+ARG HABANA_VERSION=1.21.0
 ARG PYTORCH_VERSION=2.6.0
 
 # Rust builder
@@ -62,6 +62,7 @@ ENV PREFIX_CACHING=0
 ENV PREFILL_CHUNKING=0
 ENV PT_HPU_LAZY_MODE=1
 ENV PT_HPU_WEIGHT_SHARING=0
+ENV VLLM_EXPONENTIAL_BUCKETING=true
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \

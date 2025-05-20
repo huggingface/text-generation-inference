@@ -7,7 +7,7 @@ from loguru import logger
 # Tensor Parallelism settings
 RANK = int(os.getenv("RANK", "0"))
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", "1"))
-MEMORY_FRACTION = float(os.getenv("HPU_MEMORY_FRACTION", "0.9"))
+MEMORY_FRACTION = float(os.getenv("HPU_MEMORY_FRACTION", "0.8"))
 
 
 class FakeBarrier:
