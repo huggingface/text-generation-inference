@@ -718,16 +718,16 @@
     },
     "nixpkgs_6": {
       "locked": {
-        "lastModified": 1737453259,
-        "narHash": "sha256-5LaFI9SQwCZmJDasMoYMdzNouWXNk3BvjKcO19tq1Rs=",
+        "lastModified": 1746711195,
+        "narHash": "sha256-bSpM2ySq12PBOVN7jZdzXsc99iRoYOyolh5wz43+CjQ=",
         "owner": "danieldk",
         "repo": "nixpkgs",
-        "rev": "e0372dbcfd19ddd783b7c3b3868f19322f83318e",
+        "rev": "6b7a66b06ccb09ac95872ac6ddf952e0660672ab",
         "type": "github"
       },
       "original": {
         "owner": "danieldk",
-        "ref": "outlines-v0.1.4-tgi",
+        "ref": "kernel-builder-cuda-12.9.0",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -978,16 +978,16 @@
         "nixpkgs": "nixpkgs_6"
       },
       "locked": {
-        "lastModified": 1746795305,
-        "narHash": "sha256-4fpUT4j4w0NDKF22KvG7iGmwQTBPM5SrPEqt+N3fqF0=",
+        "lastModified": 1747733488,
+        "narHash": "sha256-LYov4H9zvqXXlFKdytcVcDioH416c+LWfyw/HWta0qw=",
         "owner": "huggingface",
         "repo": "text-generation-inference-nix",
-        "rev": "359cd25f31f0f2ad2cadfbf4e180780a7a06e3c5",
+        "rev": "61c730990efa58e64c652bf15253aae47dd0f7dd",
         "type": "github"
       },
       "original": {
         "owner": "huggingface",
-        "ref": "torch-2.7",
+        "ref": "merge-with-kernel-builder",
         "repo": "text-generation-inference-nix",
         "type": "github"
       }
