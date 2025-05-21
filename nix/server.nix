@@ -31,7 +31,7 @@
   peft,
   pillow,
   prometheus-client,
-  punica-kernels,
+  punica-sgmv,
   py-cpuinfo,
   pydantic,
   quantization,
@@ -107,7 +107,7 @@ buildPythonPackage {
     peft
     pillow
     prometheus-client
-    punica-kernels
+    punica-sgmv
     py-cpuinfo
     pydantic
     quantization

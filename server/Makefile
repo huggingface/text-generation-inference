@@ -3,7 +3,6 @@ include Makefile-flash-att-v2
 include Makefile-vllm
 include Makefile-awq
 include Makefile-selective-scan
-include Makefile-lorax-punica
 include Makefile-exllamav2
 include Makefile-flashinfer
 

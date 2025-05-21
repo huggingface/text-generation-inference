@@ -164,6 +164,64 @@
     }
   },
   {
+    "repo_id": "kernels-community/punica-sgmv",
+    "sha": "9ae1b469cb39c33df9ddd61657c6359acc423714",
+    "variants": {
+      "torch26-cxx11-cu118-x86_64-linux": {
+        "hash": "sha256-766062cd845bdebbe4e4391fda6f2663bebc2c110cbc2642d09c8c09ccf3f1d4",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch26-cxx11-cu124-x86_64-linux": {
+        "hash": "sha256-c9cd76df7c84851aa566deb1c0d04ebddc1b1908a29df218344f2b3d53c4e683",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch26-cxx11-cu126-aarch64-linux": {
+        "hash": "sha256-ae444bf53be3d469d4c9c58faef7d61a92e873e6104afe5aed2b2a1397333e99",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch26-cxx11-cu126-x86_64-linux": {
+        "hash": "sha256-0706cc5ccf9cedae0bb6a938acdf2d5599a7b8f8b1fe46118b6ad61c0f3432af",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch26-cxx98-cu118-x86_64-linux": {
+        "hash": "sha256-42cf390c6ae48b18041e201d4c67b4bf820b9f9cafe49a12c505f7920bae56ae",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch26-cxx98-cu124-x86_64-linux": {
+        "hash": "sha256-75c97c23bfe32f65830341420d093a07df051828f385cbc5357b073c635f442f",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch26-cxx98-cu126-aarch64-linux": {
+        "hash": "sha256-2ff5590ff6c298220c6e06142c971b08a686b98abb8d7dd1e6eb4539fa115cba",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch26-cxx98-cu126-x86_64-linux": {
+        "hash": "sha256-70bcf04490865df6518c9d6a4c7eb2fee76b14642651f04a061c20ffa6fdb283",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch27-cxx11-cu118-x86_64-linux": {
+        "hash": "sha256-727b8f5b22e4e91b956516235f26c39013a87ac6e196a0ce5f1897c2d959e69d",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch27-cxx11-cu126-aarch64-linux": {
+        "hash": "sha256-bfddd19db7c9268a83e3cc5e281b007de80ab0fe611b3856ffd1691b400eca46",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch27-cxx11-cu126-x86_64-linux": {
+        "hash": "sha256-940c68f5d4d8a2391b1eb3c7c5a56623428862f428aa5c6c1f7e62588c0e36fb",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch27-cxx11-cu128-aarch64-linux": {
+        "hash": "sha256-781259a371b67bfbf744431c88a6ee847ab48459e73cb57264590de2728d6b3a",
+        "hash_type": "git_lfs_concat"
+      },
+      "torch27-cxx11-cu128-x86_64-linux": {
+        "hash": "sha256-8977a33d7884bebb9fb5e3d7daf157119206f0f18a22edb2b96ec593d5c81ae1",
+        "hash_type": "git_lfs_concat"
+      }
+    }
+  },
+  {
     "repo_id": "kernels-community/quantization",
     "sha": "6470f9b005797e00279eb9103463dfe0f8b7da00",
     "variants": {
