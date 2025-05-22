@@ -4,8 +4,8 @@ import torch
 import torch.distributed
 from torch import nn
 from torch.distributed import ProcessGroup
-
 from text_generation_server.utils.import_utils import SYSTEM
+
 from text_generation_server.utils.kernels import load_kernel
 
 if SYSTEM == "cuda":
@@ -119,6 +119,91 @@ class LoraLinear(nn.Module):
                         lora_b_ptr,
                         rank_segments.indices,
                         self.layer_id,
+                    )
+
+            if end_idx - start_idx != result.shape[1]:
+                result[:, start_idx:end_idx] += proj
+        elif SYSTEM == "ipex" and data is not None:
+            from intel_extension_for_pytorch.llm.functional import (
+                bgmv_expand,
+                bgmv_shrink,
+                sgmv_expand,
+                sgmv_shrink,
+            )
+
+            # In IPEX, we provide the same API for sgmv and bgmv
+            if end_idx - start_idx != result.shape[1]:
+                proj = torch.zeros_like(result[:, start_idx:end_idx])
+            else:
+                proj = result
+
+            for r, rank_segments in data.rank_data.items():
+                lora_a_ptr = rank_segments.lora_a_ptr[:, self.layer_id, :].contiguous()
+                lora_b_ptr = rank_segments.lora_b_ptr[:, self.layer_id, :].contiguous()
+
+                if lora_a_ptr is None or lora_b_ptr is None:
+                    raise ValueError("LoRA data is missing")
+
+                if data.use_sgmv:
+                    # Use SGMV for prefill
+                    seq_len_tensor = (
+                        rank_segments.segment_ends - rank_segments.segment_starts
+                    ).to(torch.int64)
+                    b_seq_start_loc = rank_segments.segment_starts.to(torch.int64)
+                    total_tokens = seq_len_tensor.sum()
+                    v = torch.zeros(
+                        (total_tokens, r), dtype=input.dtype, device=input.device
+                    )
+                    bs = seq_len_tensor.shape[0]
+                    sgmv_shrink(
+                        input,
+                        lora_a_ptr,
+                        v,
+                        b_seq_start_loc,
+                        seq_len_tensor,
+                        rank_segments.indices,
+                        bs,
+                        seq_len_tensor.max().item(),
+                        1.0,
+                    )
+
+                    if self.process_group.size() > 1:
+                        v = self.collect_lora_a(v)
+
+                    sgmv_expand(
+                        v,
+                        lora_b_ptr,
+                        proj,
+                        b_seq_start_loc,
+                        seq_len_tensor,
+                        rank_segments.indices,
+                        bs,
+                        seq_len_tensor.max().item(),
+                        add_inputs=True,
+                    )
+                else:
+                    # Use BGMV for decode
+                    v = torch.zeros(
+                        (input.size(0), r), dtype=input.dtype, device=input.device
+                    )
+                    # TODO: error with [-1, 0], but not [0, -1]
+                    bgmv_shrink(
+                        input,
+                        lora_a_ptr,
+                        v,
+                        rank_segments.indices,
+                        1.0,
+                    )
+
+                    if self.process_group.size() > 1:
+                        v = self.collect_lora_a(v)
+
+                    bgmv_expand(
+                        v,
+                        lora_b_ptr,
+                        proj,
+                        rank_segments.indices,
+                        add_inputs=True,
                     )
 
             if end_idx - start_idx != result.shape[1]:
