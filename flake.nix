@@ -5,7 +5,7 @@
       inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
     };
     nix-filter.url = "github:numtide/nix-filter";
-    tgi-nix.url = "github:huggingface/text-generation-inference-nix/torch-2.7";
+    tgi-nix.url = "github:huggingface/text-generation-inference-nix/merge-with-kernel-builder";
     nixpkgs.follows = "tgi-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {

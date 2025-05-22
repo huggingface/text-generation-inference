@@ -53,15 +53,10 @@ class FastRMSNorm(nn.Module):
         return cls(weight, eps)
 
     def forward(self, hidden_states, residual=None):
-        from vllm_hpu_extension.kernels import rms_norm
-
-        orig_shape = hidden_states.shape
         if residual is not None:
-            residual += hidden_states.view(residual.shape)
-        else:
-            residual = hidden_states
-        # Note: HPUFusedRMSNorm requires 3D tensors as inputs
-        if len(orig_shape) == 2:
-            residual = residual.unsqueeze(0)
-        x = rms_norm().apply(residual, self.weight, self.variance_epsilon)
-        return x.view(orig_shape), residual.view(orig_shape)
+            hidden_states += residual
+        residual = hidden_states
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        return self.weight * hidden_states.to(self.weight.dtype), residual

@@ -31,6 +31,7 @@ def main(args):
         trust_remote_code=args.trust_remote_code,
         uds_path=args.uds_path,
         max_input_tokens=args.max_input_tokens,
+        kv_cache_dtype="auto",
     )
 
 

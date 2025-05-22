@@ -5,14 +5,16 @@ import torch.distributed
 from torch import nn
 from torch.distributed import ProcessGroup
 
-from text_generation_server.utils.sgmv import (
-    add_lora_a_bgmv,
-    add_lora_b_bgmv,
-    has_sgmv,
-    lora_a_sgmv_cutlass,
-    lora_b_sgmv_cutlass,
-    orient_for_rank,
-)
+from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
+
+if SYSTEM == "cuda":
+    punica_sgmv = load_kernel(
+        module="punica_sgmv", repo_id="kernels-community/punica-sgmv"
+    )
+else:
+    punica_sgmv = None
+
 
 if TYPE_CHECKING:
     from text_generation_server.adapters import AdapterBatchData
@@ -41,7 +43,11 @@ class LoraLinear(nn.Module):
             return result
         data: Optional["BatchLoraWeights"] = adapter_data.data.get(layer_type)
 
-        if has_sgmv() and data is not None and data.can_vectorize(self.process_group):
+        if (
+            punica_sgmv is not None
+            and data is not None
+            and data.can_vectorize(self.process_group)
+        ):
             # In tensor-parallel configurations, each GPU processes a specific segment of the output.
             # The 'result' tensor represents the full output, which can vary in size based on
             # the layer type (e.g., attention vs. feed-forward layers). We define the current
@@ -68,7 +74,7 @@ class LoraLinear(nn.Module):
 
                 if data.use_sgmv:
                     # Use SGMV for prefill
-                    v = lora_a_sgmv_cutlass(
+                    v = punica_sgmv.lora_a_sgmv_cutlass(
                         input,
                         rank_segments.tmp_shrink,
                         lora_a_ptr,
@@ -81,7 +87,7 @@ class LoraLinear(nn.Module):
                     if self.process_group.size() > 1:
                         v = self.collect_lora_a(v)
 
-                    lora_b_sgmv_cutlass(
+                    punica_sgmv.lora_b_sgmv_cutlass(
                         proj,
                         v,
                         rank_segments.tmp_expand,
@@ -96,7 +102,7 @@ class LoraLinear(nn.Module):
                         (input.size(0), r), dtype=input.dtype, device=input.device
                     )
                     # TODO: error with [-1, 0], but not [0, -1]
-                    add_lora_a_bgmv(
+                    punica_sgmv.add_lora_a_bgmv(
                         v,
                         input,
                         lora_a_ptr,
@@ -107,7 +113,7 @@ class LoraLinear(nn.Module):
                     if self.process_group.size() > 1:
                         v = self.collect_lora_a(v)
 
-                    add_lora_b_bgmv(
+                    punica_sgmv.add_lora_b_bgmv(
                         proj,
                         v,
                         lora_b_ptr,
@@ -142,7 +148,7 @@ class LoraLinear(nn.Module):
         lora_a = data.lora_a[adapter_index][self.layer_id, :, :]
         lora_b = data.lora_b[adapter_index][self.layer_id, :, :]
 
-        lora_a = orient_for_rank(lora_a, lora_b.size(0))
+        lora_a = punica_sgmv.orient_for_rank(lora_a, lora_b.size(0))
 
         a_out = input @ lora_a
         if self.process_group.size() > 1:
