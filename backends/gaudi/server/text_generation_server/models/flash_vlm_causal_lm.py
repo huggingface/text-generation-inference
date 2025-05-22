@@ -627,11 +627,11 @@ class FlashVlmCausalLM(FlashCausalLM):
                 batch.prefilling, seqlen, batch_size
             )
         if batch.prefill_cache_indices is not None:
-            slots_pad = torch.zeros_like(input_ids)
+            slots_pad = torch.zeros_like(input_ids, device=slots.device)
             slots_pad[batch.prefill_cache_indices] = slots
             slots = slots_pad
         else:
-            slots_pad = torch.zeros_like(input_ids)
+            slots_pad = torch.zeros_like(input_ids, device=slots.device)
             slots_pad[: slots.shape[0]] = slots
             slots = slots_pad
 
@@ -639,7 +639,7 @@ class FlashVlmCausalLM(FlashCausalLM):
             input_lengths=_async_h2d_tensor_copy(input_lengths),
         )
         logits, speculative_logits = self.model.forward(
-            input_ids=_async_h2d_tensor_copy(input_ids),
+            input_ids=input_ids,
             position_ids=_async_h2d_tensor_copy(position_ids),
             cu_seqlen_prefill=_async_h2d_tensor_copy(cu_seqlen_prefill),
             kv_cache=kv_cache,
