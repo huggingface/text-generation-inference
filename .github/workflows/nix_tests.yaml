@@ -25,7 +25,7 @@ jobs:
         nix_path: nixpkgs=channel:nixos-unstable
     - uses: cachix/cachix-action@v14
       with:
-        name: text-generation-inference
+        name: huggingface
         # If you chose signing key for write access
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       env:

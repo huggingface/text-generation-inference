@@ -256,7 +256,7 @@ Another option is to install `text-generation-inference` locally using [Nix](htt
 we only support Nix on x86_64 Linux with CUDA GPUs. When using Nix, all dependencies can
 be pulled from a binary cache, removing the need to build them locally.
 
-First follow the instructions to [install Cachix and enable the TGI cache](https://app.cachix.org/cache/text-generation-inference).
+First follow the instructions to [install Cachix and enable the Hugging Face cache](https://app.cachix.org/cache/huggingface).
 Setting up the cache is important, otherwise Nix will build many of the dependencies
 locally, which can take hours.
 
