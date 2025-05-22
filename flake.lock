@@ -102,7 +102,7 @@
         "flake-parts": "flake-parts_3",
         "nix-test-runner": "nix-test-runner_3",
         "nixpkgs": [
-          "tgi-nix",
+          "hf-nix",
           "nixpkgs"
         ],
         "pre-commit-hooks": "pre-commit-hooks_3"
@@ -579,6 +579,26 @@
         "type": "github"
       }
     },
+    "hf-nix": {
+      "inputs": {
+        "flake-compat": "flake-compat_4",
+        "flake-utils": "flake-utils_7",
+        "nixpkgs": "nixpkgs_6"
+      },
+      "locked": {
+        "lastModified": 1747919133,
+        "narHash": "sha256-VvF1naQOvv7yulQ5/cDiaxkNxlh1Y84QMZnderv1szk=",
+        "owner": "huggingface",
+        "repo": "hf-nix",
+        "rev": "9c71e026d6c7c8588ef85a5f7c77f57d598e038c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "huggingface",
+        "repo": "hf-nix",
+        "type": "github"
+      }
+    },
     "nix-filter": {
       "locked": {
         "lastModified": 1731533336,
@@ -718,16 +738,16 @@
     },
     "nixpkgs_6": {
       "locked": {
-        "lastModified": 1746711195,
-        "narHash": "sha256-bSpM2ySq12PBOVN7jZdzXsc99iRoYOyolh5wz43+CjQ=",
+        "lastModified": 1747820358,
+        "narHash": "sha256-fTqsZsUX6M3yeEvgyQvXcbGmT2CaRVyVwsi8eK29Oj4=",
         "owner": "danieldk",
         "repo": "nixpkgs",
-        "rev": "6b7a66b06ccb09ac95872ac6ddf952e0660672ab",
+        "rev": "d3c1681180717528068082103bf323147de6ab0b",
         "type": "github"
       },
       "original": {
         "owner": "danieldk",
-        "ref": "kernel-builder-cuda-12.9.0",
+        "ref": "cudatoolkit-12.9-kernel-builder",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -836,19 +856,19 @@
       "inputs": {
         "crate2nix": "crate2nix",
         "flake-utils": "flake-utils_6",
+        "hf-nix": "hf-nix",
         "nix-filter": "nix-filter",
         "nixpkgs": [
-          "tgi-nix",
+          "hf-nix",
           "nixpkgs"
         ],
-        "rust-overlay": "rust-overlay",
-        "tgi-nix": "tgi-nix"
+        "rust-overlay": "rust-overlay"
       }
     },
     "rust-overlay": {
       "inputs": {
         "nixpkgs": [
-          "tgi-nix",
+          "hf-nix",
           "nixpkgs"
         ]
       },
@@ -968,27 +988,6 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
-        "type": "github"
-      }
-    },
-    "tgi-nix": {
-      "inputs": {
-        "flake-compat": "flake-compat_4",
-        "flake-utils": "flake-utils_7",
-        "nixpkgs": "nixpkgs_6"
-      },
-      "locked": {
-        "lastModified": 1747733488,
-        "narHash": "sha256-LYov4H9zvqXXlFKdytcVcDioH416c+LWfyw/HWta0qw=",
-        "owner": "huggingface",
-        "repo": "text-generation-inference-nix",
-        "rev": "61c730990efa58e64c652bf15253aae47dd0f7dd",
-        "type": "github"
-      },
-      "original": {
-        "owner": "huggingface",
-        "ref": "merge-with-kernel-builder",
-        "repo": "text-generation-inference-nix",
         "type": "github"
       }
     }
