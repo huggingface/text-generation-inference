@@ -142,7 +142,8 @@ RUN pip3 install ./optimum-neuron
 # TGI base env
 ENV HUGGINGFACE_HUB_CACHE=/tmp \
     HF_HUB_ENABLE_HF_TRANSFER=1 \
-    PORT=80
+    PORT=80 \
+    OPTIMUM_NEURON_PRIORITIZE_NXD_BACKEND=1
 
 # Disable color logs as they are not supported by CloudWatch
 ENV LOGURU_COLORIZE=NO
