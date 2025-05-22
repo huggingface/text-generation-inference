@@ -7,6 +7,7 @@ from vllm_hpu_extension.utils import Matmul
 from habana_frameworks.torch.hpex.kernels import FusedSDPA
 from vllm_hpu_extension.utils import ModuleFusedSDPA
 import os
+from text_generation_server.models.globals import BLOCK_SIZE
 
 SUPPORTS_WINDOWING = False
 
@@ -126,6 +127,7 @@ def paged_attention(
         block_mapping=hpu_attention_meta.block_mapping,
         block_bias=hpu_attention_meta.attn_bias,
         block_groups=hpu_attention_meta.block_groups,
+        block_size=BLOCK_SIZE,
         scale=softmax_scale,
         matmul_qk_op=FP8Matmul(kv_scales.key_scale) if fp8_kv else Matmul(),
         matmul_av_op=FP8Matmul(kv_scales.value_scale) if fp8_kv else Matmul(),
@@ -160,6 +162,7 @@ def paged_attention_mla(
         block_mapping=hpu_attention_meta.block_mapping,
         block_bias=hpu_attention_meta.attn_bias,
         block_groups=hpu_attention_meta.block_groups,
+        block_size=BLOCK_SIZE,
         scale=softmax_scale,
         matmul_qk_op=FP8Matmul(kv_scales.key_scale) if fp8_kv else Matmul(),
         matmul_av_op=FP8Matmul(kv_scales.value_scale) if fp8_kv else Matmul(),
