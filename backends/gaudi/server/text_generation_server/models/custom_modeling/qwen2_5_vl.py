@@ -49,8 +49,7 @@ from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
 # Copied from: https://github.com/huggingface/transformers/blob/main/src/transformers/models/qwen2_5_vl/processing_qwen2_5_vl.py
 from typing import Union
 from transformers.feature_extraction_utils import BatchFeature
-from transformers.image_utils import ImageInput
-from transformers.video_utils import VideoInput
+from transformers.image_utils import ImageInput, VideoInput
 from transformers.processing_utils import (
     ProcessingKwargs,
     ProcessorMixin,
