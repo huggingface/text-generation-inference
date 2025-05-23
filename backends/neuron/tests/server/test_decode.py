@@ -40,19 +40,15 @@ def _test_decode(config_name, generator, do_sample):
     assert output.finish_reason == 0
     if do_sample:
         expected_text = {
-            "gpt2": " The sun was set",
-            "llama": "George Orwell, 1984",
-            "mistral": "The sky was",
-            "qwen2": " A young woman with",
+            "llama": " In the stillness of the morning",
+            "qwen2": " The air was so still",
             "granite": "1984, George Orwell",
         }[config_name]
         assert expected_text in output.text
     else:
         print(output.text)
         expected_text = {
-            "gpt2": '\n\n"I\'m going to go to bed," I said.\n\n"I\'m going',
-            "llama": " George Orwell’s classic dystopian novel, 1984, begins with this ominous sentence. The story",
-            "mistral": "\nThe clocks were striking thirteen.\nThe clocks were striking thirteen.",
+            "llama": " The world was holding its breath as the world's top scientists and engineers gathered at the secret underground facility",
             "qwen2": " I was sitting in my room, staring at the ceiling, when the door opened and in came a",
             "granite": "\n\nThis opening line from George Orwell's dystopian novel \"198",
         }[config_name]
