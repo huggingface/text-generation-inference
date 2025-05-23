@@ -99,6 +99,7 @@ RUN cd server && \
     BUILD_CUDA_EXT=0 pip install git+https://github.com/AutoGPTQ/AutoGPTQ.git@097dd04e --no-build-isolation && \
     pip install . --no-cache-dir
 RUN pip install git+https://github.com/sywangyi/vllm-hpu-extension.git@bmax_fix
+RUN pip install compressed-tensors==0.9.1
 
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
