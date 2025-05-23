@@ -9,7 +9,7 @@ from loguru import logger
 from transformers import AutoConfig
 
 from optimum.neuron import NeuronModelForCausalLM
-from optimum.neuron.utils import get_hub_cached_entries
+from optimum.neuron.cache import get_hub_cached_entries
 
 
 def get_export_kwargs_from_env():
