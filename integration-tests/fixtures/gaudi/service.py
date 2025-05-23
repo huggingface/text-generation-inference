@@ -14,15 +14,23 @@ import docker
 import pytest
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
-from loguru import logger
-from test_model import TEST_CONFIGS
+import logging
+from gaudi.test_gaudi_generate import TEST_CONFIGS
 from text_generation import AsyncClient
 from text_generation.types import Response
+import huggingface_hub
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+    stream=sys.stdout,
+)
+logger = logging.getLogger(__file__)
 
 # Use the latest image from the local docker build
 DOCKER_IMAGE = os.getenv("DOCKER_IMAGE", "tgi-gaudi")
 DOCKER_VOLUME = os.getenv("DOCKER_VOLUME", None)
-HF_TOKEN = os.getenv("HF_TOKEN", None)
+HF_TOKEN = huggingface_hub.get_token()
 
 assert (
     HF_TOKEN is not None
@@ -47,12 +55,6 @@ HABANA_RUN_ARGS = {
     "ipc_mode": "host",
     "cap_add": ["sys_nice"],
 }
-
-logger.add(
-    sys.stderr,
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-    level="INFO",
-)
 
 
 def stream_container_logs(container, test_name):
@@ -151,7 +153,7 @@ def data_volume():
 
 
 @pytest.fixture(scope="module")
-def launcher(data_volume):
+def gaudi_launcher(event_loop):
     @contextlib.contextmanager
     def docker_launcher(
         model_id: str,
@@ -188,11 +190,7 @@ def launcher(data_volume):
         except Exception as e:
             logger.error(f"Error handling existing container: {str(e)}")
 
-        model_name = next(
-            name for name, cfg in TEST_CONFIGS.items() if cfg["model_id"] == model_id
-        )
-
-        tgi_args = TEST_CONFIGS[model_name]["args"].copy()
+        tgi_args = TEST_CONFIGS[test_name]["args"].copy()
 
         env = BASE_ENV.copy()
 
@@ -200,14 +198,19 @@ def launcher(data_volume):
         env["MODEL_ID"] = model_id
 
         # Add env config that is definied in the fixture parameter
-        if "env_config" in TEST_CONFIGS[model_name]:
-            env.update(TEST_CONFIGS[model_name]["env_config"].copy())
+        if "env_config" in TEST_CONFIGS[test_name]:
+            env.update(TEST_CONFIGS[test_name]["env_config"].copy())
 
         volumes = [f"{DOCKER_VOLUME}:/data"]
         logger.debug(f"Using volume {volumes}")
 
         try:
+            logger.debug(f"Using command {tgi_args}")
             logger.info(f"Creating container with name {container_name}")
+
+            logger.debug(f"Using environment {env}")
+            logger.debug(f"Using volumes {volumes}")
+            logger.debug(f"HABANA_RUN_ARGS {HABANA_RUN_ARGS}")
 
             # Log equivalent docker run command for debugging, this is not actually executed
             container = client.containers.run(
@@ -271,7 +274,7 @@ def launcher(data_volume):
 
 
 @pytest.fixture(scope="module")
-def generate_load():
+def gaudi_generate_load():
     async def generate_load_inner(
         client: AsyncClient, prompt: str, max_new_tokens: int, n: int
     ) -> List[Response]:
