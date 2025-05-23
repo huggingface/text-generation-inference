@@ -9,7 +9,7 @@ def test_prefill(neuron_model_config):
     neuron_model_path = neuron_model_config["neuron_model_path"]
     generator = NeuronGenerator.from_pretrained(neuron_model_path)
     max_batch_size = 4
-    assert generator.model.batch_size >= max_batch_size
+    assert generator.model.neuron_config.batch_size >= max_batch_size
     for num_requests in [1, max_batch_size]:
         for do_sample in [True, False]:
             mode = "sample" if do_sample else "greedy"
@@ -34,7 +34,7 @@ def _test_prefill(config_name, generator, batch_size, do_sample):
             )
         )
     # Let's be pessimistic when estimating max_tokens
-    max_length = generator.model.max_length
+    max_length = generator.max_prefill_length()
     batch = Batch(
         id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length
     )
@@ -70,7 +70,7 @@ def test_prefill_truncate(neuron_model_config):
     config_name = neuron_model_config["name"]
     neuron_model_path = neuron_model_config["neuron_model_path"]
     generator = NeuronGenerator.from_pretrained(neuron_model_path)
-    batch_size = generator.model.batch_size
+    batch_size = generator.model.neuron_config.batch_size
     # We apply truncation to all requests but the first one
     truncate = [
         None,
@@ -83,7 +83,7 @@ def test_prefill_truncate(neuron_model_config):
     requests = []
     for i in range(batch_size):
         requests.append(create_request(id=i, inputs=input_text, truncate=truncate[i]))
-    max_length = generator.model.max_length
+    max_length = generator.max_prefill_length()
     batch = Batch(
         id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length
     )

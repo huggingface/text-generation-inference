@@ -344,7 +344,9 @@ class NeuronGenerator(Generator):
         tokenizer.truncation_side = "left"
         self.tokenizer = tokenizer
         self.special_tokens = self.tokenizer.all_special_ids
-        self.slots = [Slot(i, tokenizer) for i in range(self.model.batch_size)]
+        self.slots = [
+            Slot(i, tokenizer) for i in range(self.model.neuron_config.batch_size)
+        ]
         self.batch_id = 0
 
     @property
@@ -368,14 +370,22 @@ class NeuronGenerator(Generator):
             The maximum number of tokens the model supports.
         """
         # Just check that the warmup request parameters match the model capacity
-        batch_size = self.model.batch_size
+        batch_size = self.model.neuron_config.batch_size
         if len(batch.requests) > batch_size:
             raise ValueError(
-                f"Inconsistent batch_size configuration: Please make sure the batch_size in the compiled model (currently {batch_size}) matches the batch_size passed to TGI.  The compiled model batch_size is usually in the neuron section of the model config.json file. You may also have passed it into optimum-cli during the compilation process.  The batch size for TGI is usually set in the environment as MAX_BATCH_SIZE."
+                f"Inconsistent batch_size configuration: Please make sure the batch_size in the compiled model (currently {batch_size}) matches the batch_size passed to TGI.  The compiled model.neuron_config.batch_size is usually in the neuron section of the model config.json file. You may also have passed it into optimum-cli during the compilation process.  The batch size for TGI is usually set in the environment as MAX_BATCH_SIZE."
             )
         self.prefill(batch)
         self.clear()
-        return self.model.batch_size * self.model.max_length
+        return (
+            self.model.neuron_config.batch_size
+            * self.model.neuron_config.sequence_length
+        )
+
+    def max_prefill_length(self) -> int:
+        if hasattr(self.model.neuron_config, "max_context_length"):
+            return self.model.neuron_config.max_context_length
+        return self.model.neuron_config.sequence_length
 
     def prefill(self, batch: Batch) -> Tuple[List[Generation], CachedBatch]:
         """Prefill new requests.
@@ -395,7 +405,7 @@ class NeuronGenerator(Generator):
         if len(empty_slots) < len(batch.requests):
             raise ValueError(
                 f"Cannot prefill {len(batch.requests)} new request(s) with only {len(empty_slots)} empty slots."
-                f" Please align max_batch_size with the static batch size: {self.model.batch_size}."
+                f" Please align max_batch_size with the static batch size: {self.model.neuron_config.batch_size}."
             )
         # Assign each request to an empty slot
         logger.debug(
@@ -422,8 +432,10 @@ class NeuronGenerator(Generator):
             inputs.append(slot.cached_text)
             # Apply truncation, making sure we fit into static dimensions
             if slot.truncate == 0:
-                max_length = self.model.max_length
-            elif slot.truncate > max_length and slot.truncate < self.model.max_length:
+                max_length = self.max_prefill_length()
+            elif (
+                slot.truncate > max_length and slot.truncate < self.max_prefill_length()
+            ):
                 max_length = slot.truncate
         # Tokenize with padding and truncation
         padded_inputs = self.tokenizer(
@@ -451,7 +463,7 @@ class NeuronGenerator(Generator):
                     slot_input_ids,
                     slot.generation_config,
                     self.model,
-                    self.model.max_length,
+                    self.model.neuron_config.sequence_length,
                     tokenizer=self.tokenizer,
                     seed=slot.seed,
                 )
@@ -602,7 +614,7 @@ class NeuronGenerator(Generator):
 
     def _cached_batch(self, batch_id: int, request_ids: List):
         size = len(request_ids)
-        max_tokens = size * self.model.max_length
+        max_tokens = size * self.model.neuron_config.sequence_length
         return CachedBatch(
             id=batch_id, request_ids=request_ids, size=size, max_tokens=max_tokens
         )
