@@ -23,7 +23,7 @@ def _test_decode(config_name, generator, do_sample):
     request = create_request(
         id=0, inputs=input_text, max_new_tokens=max_new_tokens, do_sample=do_sample
     )
-    max_length = generator.model.max_length
+    max_length = generator.model.neuron_config.sequence_length
     batch = Batch(id=0, requests=[request], size=1, max_tokens=max_length)
     generations, next_batch = generator.prefill(batch)
     # We already generated one token: call decode max_new_tokens - 1 times
