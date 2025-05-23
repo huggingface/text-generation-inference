@@ -10,6 +10,7 @@ from transformers import AutoConfig
 
 from optimum.neuron import NeuronModelForCausalLM
 from optimum.neuron.cache import get_hub_cached_entries
+from optimum.neuron.configuration_utils import NeuronConfig
 
 
 def get_export_kwargs_from_env():
@@ -87,8 +88,16 @@ def fetch_model(
         revision = None
     # Download the model from the Hub (HUGGING_FACE_HUB_TOKEN must be set for a private or gated model)
     # Note that the model may already be present in the cache.
-    config = AutoConfig.from_pretrained(model_id, revision=revision)
-    neuron_config = getattr(config, "neuron", None)
+    try:
+        neuron_config = NeuronConfig.from_pretrained(model_id, revision=revision)
+    except Exception as e:
+        logger.debug(
+            "NeuronConfig.from_pretrained failed for model %s, revision %s: %s",
+            model_id,
+            revision,
+            e,
+        )
+        neuron_config = None
     if neuron_config is not None:
         if os.path.isdir(model_id):
             return model_id
@@ -100,6 +109,7 @@ def fetch_model(
         return snapshot_download(model_id, revision=revision, ignore_patterns="*.bin")
     # Model needs to be exported: look for compatible cached entries on the hub
     export_kwargs = get_export_kwargs_from_env()
+    config = AutoConfig.from_pretrained(model_id, revision=revision)
     export_config = NeuronModelForCausalLM.get_export_config(
         model_id, config, revision=revision, **export_kwargs
     )

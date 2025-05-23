@@ -7,7 +7,8 @@ from typing import List, Optional, Tuple
 
 import torch
 from loguru import logger
-from transformers import AutoConfig, AutoTokenizer, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, PreTrainedTokenizerBase
+from optimum.neuron.configuration_utils import NeuronConfig
 from transformers.generation import GenerationConfig
 
 from optimum.neuron import NeuronModelForCausalLM
@@ -663,8 +664,16 @@ class NeuronGenerator(Generator):
         Returns:
             A NeuronGenerator.
         """
-        config = AutoConfig.from_pretrained(model_id)
-        neuron_config = getattr(config, "neuron", None)
+        try:
+            neuron_config = NeuronConfig.from_pretrained(model_id, revision=revision)
+        except Exception as e:
+            logger.debug(
+                "NeuronConfig.from_pretrained failed for model %s, revision %s: %s",
+                model_id,
+                revision,
+                e,
+            )
+            neuron_config = None
         start = time.time()
         if neuron_config is None:
             export_kwargs = get_export_kwargs_from_env()

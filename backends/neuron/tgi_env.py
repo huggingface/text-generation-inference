@@ -7,10 +7,10 @@ import sys
 from typing import Any, Dict, List, Optional
 
 from huggingface_hub import constants
-from transformers import AutoConfig
 
 from optimum.neuron.modeling_decoder import get_available_cores
 from optimum.neuron.cache import get_hub_cached_entries
+from optimum.neuron.configuration_utils import NeuronConfig
 from optimum.neuron.utils.version_utils import get_neuronxcc_version
 
 
@@ -238,8 +238,18 @@ def main():
 
     logger.info("Cache dir %s, model %s", cache_dir, args.model_id)
 
-    config = AutoConfig.from_pretrained(args.model_id, revision=args.revision)
-    neuron_config = getattr(config, "neuron", None)
+    try:
+        neuron_config = NeuronConfig.from_pretrained(
+            args.model_id, revision=args.revision
+        )
+    except Exception as e:
+        logger.debug(
+            "NeuronConfig.from_pretrained failed for model %s, revision %s: %s",
+            args.model_id,
+            args.revision,
+            e,
+        )
+        neuron_config = None
     if neuron_config is not None:
         compatible = check_env_and_neuron_config_compatibility(
             neuron_config, check_compiler_version=False
