@@ -21,6 +21,7 @@ from text_generation_server.layers.attention import (
     Seqlen,
     HPUPagedAttentionMetadata,
 )
+import habana_frameworks.torch as htorch
 
 
 def load_row(config, prefix: str, weights, bias: bool):
@@ -634,6 +635,9 @@ class FlashRWModel(FlashRWPreTrainedModel):
         cos, sin = self.h[0].self_attention.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.h):
             hidden_states, residual = layer(
                 hidden_states,
@@ -646,6 +650,8 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
 

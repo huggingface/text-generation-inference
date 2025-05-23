@@ -2,7 +2,7 @@ mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 mkfile_dir := $(dir $(mkfile_path))
 root_dir := ${mkfile_dir}/../..
 
-HABANA_VERSION := 1.20.0
+HABANA_VERSION := 1.21.0
 PYTORCH_VERSION := 2.6.0
 
 .PHONY:	image run-local-dev-container install-dependencies install-server install-router install-launcher local-dev-install

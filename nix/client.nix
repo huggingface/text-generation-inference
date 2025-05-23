@@ -1,6 +1,7 @@
 {
   buildPythonPackage,
   poetry-core,
+  aiohttp,
   huggingface-hub,
   pydantic,
 }:
@@ -15,6 +16,7 @@ buildPythonPackage {
   build-system = [ poetry-core ];
 
   dependencies = [
+    aiohttp
     huggingface-hub
     pydantic
   ];

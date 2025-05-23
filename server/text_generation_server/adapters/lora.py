@@ -13,21 +13,20 @@ from torch.distributed import ProcessGroup
 from text_generation_server.utils.log import log_master
 
 from text_generation_server.adapters.config import AdapterConfig, ModuleMap
-
+from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.adapters.weights import (
     AdapterBatchMetadata,
     AdapterWeights,
     BatchAdapterWeights,
 )
-from text_generation_server.utils.sgmv import (
-    BGMV_MAX_RANK,
-    MAX_RANK_CUSTOM,
-    get_tmp_tensors,
-    orient_for_rank,
-    pad_rank,
-    use_cutlass_shrink,
-    has_sgmv,
-)
+
+if SYSTEM == "cuda":
+    punica_sgmv = load_kernel(
+        module="punica_sgmv", repo_id="kernels-community/punica-sgmv"
+    )
+else:
+    punica_sgmv = None
 
 
 def get_start_stop_idxs_for_rank(offset, size, rank, world_size):
@@ -129,11 +128,13 @@ class LoraWeights(AdapterWeights):
         self.lora_a_r = weights_a[0].size(1) if len(weights_a) > 0 else 1
         self.lora_b_r = weights_b[0].size(0) if len(weights_a) > 0 else 1
 
-        self._use_cutlass_shrink = use_cutlass_shrink(self.lora_a_r)
+        self._use_cutlass_shrink = punica_sgmv.use_cutlass_shrink(self.lora_a_r)
         self._is_transposed = False
 
         # [num_layers, hidden_size, r]
-        weights_a = [orient_for_rank(w, w.size(1)).contiguous() for w in weights_a]
+        weights_a = [
+            punica_sgmv.orient_for_rank(w, w.size(1)).contiguous() for w in weights_a
+        ]
         self._weights_a = torch.stack(weights_a)
 
         # [num_layers, r, hidden_size]
@@ -244,8 +245,12 @@ class LoraWeights(AdapterWeights):
             lora_b_list[layer_id] = lora_b.transpose(0, 1) * scale
 
         # pad lora ranks to be compatible with sgmv
-        lora_a_list = [pad_rank(w, dim=1, world_size=world_size) for w in lora_a_list]
-        lora_b_list = [pad_rank(w, dim=0, world_size=world_size) for w in lora_b_list]
+        lora_a_list = [
+            punica_sgmv.pad_rank(w, dim=1, world_size=world_size) for w in lora_a_list
+        ]
+        lora_b_list = [
+            punica_sgmv.pad_rank(w, dim=0, world_size=world_size) for w in lora_b_list
+        ]
 
         if lora_a_list:
             # update rank if it was padded
@@ -293,7 +298,7 @@ class BatchLoraWeights(BatchAdapterWeights):
 
     def can_vectorize(self, pg: ProcessGroup) -> bool:
         return all(
-            rank_data.rank // pg.size() <= MAX_RANK_CUSTOM
+            rank_data.rank // pg.size() <= punica_sgmv.MAX_RANK_CUSTOM
             for rank_data in self.rank_data.values()
         )
 
@@ -337,8 +342,8 @@ class BatchLoraWeights(BatchAdapterWeights):
         )
 
         use_sgmv = False
-        if prefill or max_rank > BGMV_MAX_RANK:
-            if has_sgmv():
+        if prefill or max_rank > punica_sgmv.BGMV_MAX_RANK:
+            if punica_sgmv is not None:
                 use_sgmv = True
             lora_a_ptr = torch.tensor(
                 [
@@ -425,7 +430,7 @@ class BatchLoraWeights(BatchAdapterWeights):
 
             if use_sgmv:
                 lora_a_ptr_indices = lora_a_ptr[indices]
-                tmp_shrink, tmp_expand = get_tmp_tensors(
+                tmp_shrink, tmp_expand = punica_sgmv.get_tmp_tensors(
                     lora_a_ptr_indices.size(0), rank, device
                 )
                 segment_starts = meta.adapter_segments[indices]

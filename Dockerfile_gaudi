@@ -1,5 +1,5 @@
 # Those arguments are required to build the image
-ARG HABANA_VERSION=1.20.0
+ARG HABANA_VERSION=1.21.0
 ARG PYTORCH_VERSION=2.6.0
 
 # Rust builder
@@ -60,6 +60,9 @@ FROM vault.habana.ai/gaudi-docker/${HABANA_VERSION}/ubuntu22.04/habanalabs/pytor
 ENV ATTENTION=default
 ENV PREFIX_CACHING=0
 ENV PREFILL_CHUNKING=0
+ENV PT_HPU_LAZY_MODE=1
+ENV PT_HPU_WEIGHT_SHARING=0
+ENV VLLM_EXPONENTIAL_BUCKETING=true
 
 # Text Generation Inference base env
 ENV HF_HOME=/data \
@@ -95,7 +98,8 @@ RUN cd server && \
     pip install "git+https://github.com/HabanaAI/DeepSpeed.git@${HABANA_VERSION}" && \
     BUILD_CUDA_EXT=0 pip install git+https://github.com/AutoGPTQ/AutoGPTQ.git@097dd04e --no-build-isolation && \
     pip install . --no-cache-dir
-RUN pip install git+https://github.com/sywangyi/vllm-hpu-extension.git
+RUN pip install git+https://github.com/sywangyi/vllm-hpu-extension.git@bmax_fix
+
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router

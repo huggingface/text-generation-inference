@@ -32,6 +32,9 @@ from text_generation_server.utils.import_utils import (
 )
 import torch.nn.functional as F
 from text_generation_server.utils.log import log_master
+import time
+import os
+from vllm_hpu_extension.profiler import HabanaMemoryProfiler, format_bytes
 
 tracer = trace.get_tracer(__name__)
 
@@ -187,7 +190,7 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
                 input_ids = np.concatenate(batch.input_ids, dtype=np.int64)
             else:
                 input_ids = batch.input_ids[0]
-            batch.input_ids = torch.tensor(input_ids, dtype=torch.int64)
+            batch.input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
 
         batch.input_ids = batch.input_ids.clamp(max=config.text_config.vocab_size - 1)
 
@@ -267,6 +270,11 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             cross_attention_states, image_indices, input_lengths, 1, False
         )
         slots_tensor = torch.tensor(slots, dtype=batch.slots.dtype)
+        kwargs = {}
+        if htorch.utils.internal.is_lazy():
+            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
+                False, hpu_attention_meta.block_list.shape[0], batch_size
+            )
         self.model.forward(
             input_ids=_async_h2d_tensor_copy(input_ids),
             position_ids=_async_h2d_tensor_copy(position_ids),
@@ -280,6 +288,7 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             cross_attention_states=cross_attention_states,
             indices=_async_h2d_tensor_copy(indices),
             cross_attention_len=_async_h2d_tensor_copy(cross_attention_len),
+            **kwargs,
         )
 
     def warmup_prefill(
@@ -325,7 +334,9 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         )
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = self.limit_hpu_graphs
+            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
+                True, prompt_len, batch_size
+            )
         self.model.forward(
             input_ids=_async_h2d_tensor_copy(input_ids),
             position_ids=_async_h2d_tensor_copy(position_ids),
@@ -343,26 +354,103 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
         )
 
     def warmup_hpu_graph(self, batch: FlashMllamaCausalLMBatch):
+        prompt_graph_mem_ratio = float(os.environ.get("VLLM_GRAPH_PROMPT_RATIO", "0.3"))
+        free_mem = HabanaMemoryProfiler.current_free_device_memory()
+        graph_free_mem = free_mem - self.mem_reserved
+        graph_free_mem = self.align_workers(
+            graph_free_mem, torch.distributed.ReduceOp.MIN
+        )
+        prompt_available_memory = prompt_graph_mem_ratio * graph_free_mem
+        decode_available_memory = graph_free_mem - prompt_available_memory
+        msg = (
+            f"Using {format_bytes(graph_free_mem)}"
+            f"/{format_bytes(free_mem)} "
+            "of free device memory for HPUGraphs, "
+            f"{format_bytes(prompt_available_memory)} for prompt and "
+            f"{format_bytes(decode_available_memory)} for decode "
+            f"(VLLM_GRAPH_PROMPT_RATIO={prompt_graph_mem_ratio})"
+        )
+        log_master(logger.info, msg)
+        start_time = time.time()
+        warmup_shape_count = 0
         warmup_times = 3
         self.bucketing_ctx.generate_prompt_buckets()
-        for i, (batch_size, seq_len) in enumerate(
-            reversed(self.bucketing_ctx.prompt_buckets)
-        ):
-            log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
-            for index in range(warmup_times):
-                self.warmup_prefill(seq_len, batch_size, batch)
+
+        def ordering_function_min_tokens(b):
+            return (b[0] * b[1], b[1], b[0])
+
+        buckets = list(
+            sorted(self.bucketing_ctx.prompt_buckets, key=ordering_function_min_tokens)
+        )
+        graph_free_mem
+        total_batch_seq = 0.001
+        total_mem = 0
+        available_mem = prompt_available_memory
+        for i, (batch_size, seq_len) in enumerate(buckets):
+            if batch_size * seq_len > self.max_batch_prefill_tokens:
+                continue
+            # Graph memory usage is proportional to seq dimension in a batch
+            batch_seq = batch_size * seq_len
+            mem_estimate = batch_seq / total_batch_seq * total_mem
+            graphed_bucket = (batch_size, seq_len, True)
+            if not (
+                mem_estimate >= available_mem or batch_seq > self.max_seq_len_to_capture
+            ):
+                if graphed_bucket not in self.graphed_buckets:
+                    self.graphed_buckets.add(graphed_bucket)
+            warmup_shape_count += 1
+            self.log_warmup(True, i, len(buckets), batch_size, seq_len)
+            with HabanaMemoryProfiler() as mem_prof:
+                for index in range(warmup_times):
+                    self.warmup_prefill(seq_len, batch_size, batch)
+                    synchronize(self.device)
+            used_mem = self.align_workers(
+                mem_prof.consumed_device_memory, torch.distributed.ReduceOp.MAX
+            )
+            if graphed_bucket in self.graphed_buckets:
+                available_mem -= used_mem
+                total_mem += used_mem
+                total_batch_seq += batch_seq
+
+        def ordering_function_max_bs(b):
+            return (-b[0], b[1])
+
         self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
-        for i, (batch_size, block_num) in enumerate(
-            reversed(self.bucketing_ctx.decode_buckets)
-        ):
+        buckets = list(
+            sorted(self.bucketing_ctx.decode_buckets, key=ordering_function_max_bs)
+        )
+        free_mem = HabanaMemoryProfiler.current_free_device_memory()
+        total_batch_seq = 0.001
+        total_mem = 0
+        available_mem = free_mem - self.mem_reserved
+        for i, (batch_size, block_num) in enumerate(buckets):
             if batch_size > block_num:
                 continue
-            log_master(
-                logger.info, f"warmup decode bs {batch_size} block_num {block_num}"
+            # Graph memory usage is proportional to seq dimension in a batch
+            batch_seq = batch_size
+            mem_estimate = batch_seq / total_batch_seq * total_mem
+            graphed_bucket = (batch_size, block_num, False)
+            if not mem_estimate >= available_mem:
+                if graphed_bucket not in self.graphed_buckets:
+                    self.graphed_buckets.add(graphed_bucket)
+            warmup_shape_count += 1
+            self.log_warmup(False, i, len(buckets), batch_size, block_num)
+            with HabanaMemoryProfiler() as mem_prof:
+                for index in range(warmup_times):
+                    self.warmup_decode(batch_size, block_num, batch)
+                    synchronize(self.device)
+            used_mem = self.align_workers(
+                mem_prof.consumed_device_memory, torch.distributed.ReduceOp.MAX
             )
-            for index in range(warmup_times):
-                self.warmup_decode(batch_size, block_num, batch)
-        synchronize(self.device)
+            if graphed_bucket in self.graphed_buckets:
+                available_mem -= used_mem
+                total_mem += used_mem
+                total_batch_seq += batch_seq
+
+        log_master(
+            logger.info,
+            f"warmup hpu graph time {int(time.time() - start_time)}s warmup shape count {warmup_shape_count}",
+        )
 
     def forward(
         self,
@@ -438,15 +526,22 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
 
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = (
-                batch.prefilling if self.limit_hpu_graphs else False
+            batch_size = input_lengths.shape[0]
+            seqlen = (
+                input_ids.shape[0] // batch_size
+                if batch.prefilling
+                else batch.hpu_attn_meta.block_list.shape[0]
             )
+            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
+                batch.prefilling, seqlen, batch_size
+            )
+
         if batch.prefill_cache_indices is not None:
-            slots_pad = torch.zeros_like(input_ids)
+            slots_pad = torch.zeros_like(input_ids, device=slots.device)
             slots_pad[batch.prefill_cache_indices] = slots
             slots = slots_pad
         else:
-            slots_pad = torch.zeros_like(input_ids)
+            slots_pad = torch.zeros_like(input_ids, device=slots.device)
             slots_pad[: slots.shape[0]] = slots
             slots = slots_pad
         orig_bs = len(batch)
@@ -475,7 +570,7 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             input_lengths=_async_h2d_tensor_copy(input_lengths),
         )
         logits, speculative_logits = self.model.forward(
-            input_ids=_async_h2d_tensor_copy(input_ids),
+            input_ids=input_ids,
             position_ids=_async_h2d_tensor_copy(position_ids),
             cu_seqlen_prefill=_async_h2d_tensor_copy(cu_seqlen_prefill),
             kv_cache=kv_cache,
