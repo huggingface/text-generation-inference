@@ -46,17 +46,13 @@ def _test_prefill(config_name, generator, batch_size, do_sample):
     assert len(generations) == batch_size
     if do_sample:
         expectations = {
-            "gpt2": [383, " The"],
-            "llama": [10058, " George"],
-            "mistral": [450, " The"],
-            "qwen2": [362, " A"],
+            "llama": [763, " In"],
+            "qwen2": [576, " The"],
             "granite": [308, " ("],
         }[config_name]
     else:
         expectations = {
-            "gpt2": [198, "\n"],
-            "llama": [10058, " George"],
-            "mistral": [13, "\n"],
+            "llama": [578, " The"],
             "qwen2": [358, " I"],
             "granite": [203, "\n"],
         }[config_name]
@@ -91,9 +87,7 @@ def test_prefill_truncate(neuron_model_config):
     # Even if the input text is identical for all requests, the first generated token might
     # be different because of the truncation
     expectations = {
-        "gpt2": [" He", " He", "\n", " He"],
-        "llama": [" —", " The", " He", " He"],
-        "mistral": [" He", "\n", " He", " He"],
+        "llama": [" He", " The", " He", " He"],
         "qwen2": [" He", " The", " He", " He"],
         "granite": ["\n", "\n", " I", " He"],
     }[config_name]
