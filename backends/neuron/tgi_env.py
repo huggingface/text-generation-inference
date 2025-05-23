@@ -10,7 +10,7 @@ from huggingface_hub import constants
 from transformers import AutoConfig
 
 from optimum.neuron.modeling_decoder import get_available_cores
-from optimum.neuron.utils import get_hub_cached_entries
+from optimum.neuron.cache import get_hub_cached_entries
 from optimum.neuron.utils.version_utils import get_neuronxcc_version
 
 
