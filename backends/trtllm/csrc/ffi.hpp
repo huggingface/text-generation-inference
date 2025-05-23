@@ -1,6 +1,7 @@
 #ifndef TGI_BACKEND_TRTLLM_FFI
 #define TGI_BACKEND_TRTLLM_FFI
 
+#include <exception>
 #include <memory>
 #include <thread>
 
@@ -17,7 +18,7 @@ namespace rust::behavior {
     template<typename Try, typename Fail>
     static void trycatch(Try &&func, Fail &&fail) noexcept try {
         func();
-    } catch (tensorrt_llm::common::TllmException &e) {
+    } catch (const std::exception &e) {
         fail(e.what());
     }
 }
@@ -42,6 +43,10 @@ namespace huggingface::tgi::backends::trtllm {
                 return finish_reason_t::kEND_ID;
             case tle::FinishReason::kLENGTH:
                 return finish_reason_t::kLENGTH;
+            case tle::FinishReason::kTIMED_OUT:
+                return finish_reason_t::kTIMED_OUT;
+            case tle::FinishReason::kCANCELLED:
+                return finish_reason_t::kCANCELLED;
             default:
                 std::unreachable();
         }
@@ -51,13 +56,24 @@ namespace huggingface::tgi::backends::trtllm {
         const auto reqId = r.getRequestId();
         if (!r.hasError()) [[likely]] {
             const auto result = r.getResult();
-            const auto logits = result.logProbs.value()[0];
+            std::optional<uint32_t> token_id = std::nullopt;
+            if (!result.outputTokenIds.empty() && !result.outputTokenIds[0].empty()) {
+                token_id = static_cast<uint32_t>(result.outputTokenIds[0][0]);
+            }
+
+            std::optional<float> log_prob = std::nullopt;
+            if (result.logProbs && !result.logProbs->empty() && !result.logProbs.value()[0].empty()) {
+                log_prob = result.logProbs.value()[0].back();
+            }
+
             return generation_step_t{
                     reqId,
-                    static_cast<uint32_t>(result.outputTokenIds[0][0]),
-                    logits.back(),
+                    token_id.value_or(0),
+                    log_prob.value_or(0.0),
                     result.isFinal,
                     as_finish_reason_t(result.finishReasons[0]),
+                    token_id.has_value(),
+                    log_prob.has_value(),
                     false,
                     std::string()
             };
@@ -68,6 +84,8 @@ namespace huggingface::tgi::backends::trtllm {
                     0.0,
                     true,
                     finish_reason_t::kNOT_FINISHED,
+                    false,
+                    false,
                     true,
                     std::move(r.getErrorMsg())
             };

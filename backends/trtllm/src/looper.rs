@@ -3,7 +3,7 @@ use cxx::UniquePtr;
 use hashbrown::HashMap;
 use std::hint;
 use std::ops::Deref;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::TryAcquireError;
@@ -35,6 +35,9 @@ struct GenerationContext {
     tokens: Vec<u32>,
     start: Option<Instant>,
     queued: Instant,
+
+    /// output_buffer stores the output for detecting stop sequences
+    output_buffer: Option<String>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -49,16 +52,28 @@ impl<'step> TryFrom<&'step GenerationStep> for DecodedToken {
     type Error = InferError;
 
     fn try_from(step: &'step GenerationStep) -> Result<Self, Self::Error> {
-        if !step.has_error {
-            Ok(Self {
-                id: step.token_id,
-                log_prob: step.log_prob,
-                is_final: step.is_final,
-                finish_reason: step.finish_reason,
-            })
-        } else {
-            Err(GenerationError(step.error_msg.clone()))
+        if step.has_error {
+            return Err(GenerationError(step.error_msg.clone()));
         }
+
+        if !step.token_id_valid {
+            return Err(GenerationError(
+                "GenerationStep contains no token_id".to_string(),
+            ));
+        }
+
+        if !step.log_prob_valid {
+            return Err(GenerationError(
+                "GenerationStep contains no log_prob".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            id: step.token_id,
+            log_prob: step.log_prob,
+            is_final: step.is_final,
+            finish_reason: step.finish_reason,
+        })
     }
 }
 
@@ -151,7 +166,16 @@ fn executor_status_looper(
                                 let _ = in_flights.remove(&step.request_id);
                             }
                         } else {
-                            warn!("Untracked request {}", step.request_id,);
+                            match step.finish_reason {
+                                FinishReason::Cancelled => {
+                                    // The client has canceled the request, so this should not generate a
+                                    // warning.
+                                    debug!("Cancelled request {}", step.request_id);
+                                }
+                                _ => {
+                                    warn!("Untracked request {}", step.request_id);
+                                }
+                            }
                         }
                     }
                 }
@@ -170,11 +194,39 @@ fn executor_status_looper(
 fn post_process_decoded_token(
     tokenizer: &Tokenizer,
     ctx: &mut GenerationContext,
-    decoded_token: DecodedToken,
+    mut decoded_token: DecodedToken,
 ) -> InferResult<InferStreamResponse> {
     match tokenizer.decode(&[decoded_token.id], false) {
         Ok(text) => {
             let is_special = tokenizer.get_added_vocabulary().is_special_token(&text);
+
+            if let Some(buf) = ctx.output_buffer.as_mut() {
+                if buf.len() + text.len() > buf.capacity() {
+                    let mut start = buf.len() + text.len() - buf.capacity();
+                    while start <= buf.len() && !buf.is_char_boundary(start) {
+                        start += 1;
+                    }
+                    buf.drain(..start);
+                }
+                buf.push_str(&text);
+
+                for stop_seq in &ctx.request.stopping_parameters.stop_sequences {
+                    let start = if 1 + buf.len() > text.len() + stop_seq.len() {
+                        let mut start = 1 + buf.len() - text.len() - stop_seq.len();
+                        while start > 0 && !buf.is_char_boundary(start) {
+                            start -= 1;
+                        }
+                        start
+                    } else {
+                        0
+                    };
+                    if buf[start..].contains(stop_seq) {
+                        decoded_token.is_final = true;
+                        decoded_token.finish_reason = FinishReason::StopWords;
+                    }
+                }
+            }
+
             let token = Token {
                 id: decoded_token.id,
                 text,
@@ -226,6 +278,26 @@ fn ensure_paths_exist<P: AsRef<Path>, PP: AsRef<Path>>(
     // Ensure the engine folder exists
     if !engine_folder.exists() {
         let err = TensorRtLlmBackendError::EngineFolderDoesntExists(engine_folder.to_path_buf());
+
+        error!("Path validation failed: {}", err,);
+        return Err(err);
+    }
+
+    let mut config_path = PathBuf::from(engine_folder);
+    config_path.push("config.json");
+
+    if !config_path.exists() {
+        let err = TensorRtLlmBackendError::ConfigNotFound(engine_folder.to_path_buf());
+
+        error!("Path validation failed: {}", err,);
+        return Err(err);
+    }
+
+    let mut generation_config_path = PathBuf::from(engine_folder);
+    generation_config_path.push("generation_config.json");
+
+    if !generation_config_path.exists() {
+        let err = TensorRtLlmBackendError::GenerationConfigNotFound(engine_folder.to_path_buf());
 
         error!("Path validation failed: {}", err,);
         return Err(err);
@@ -323,12 +395,20 @@ impl Backend for TensorRtLlmBackendV2 {
 
         // Send the context to the executor for scheduling
         let queued = Instant::now();
+        let output_buffer = request
+            .stopping_parameters
+            .stop_sequences
+            .iter()
+            .map(|x| x.len())
+            .max()
+            .map(|m| String::with_capacity(m + 32)); // TODO: is this number enough?
         match self.0.send(GenerationContext {
             request,
             streamer,
             tokens: Vec::with_capacity(256),
             start: None,
             queued,
+            output_buffer,
         }) {
             Ok(_) => Ok(UnboundedReceiverStream::new(receiver)),
             Err(_) => Err(GenerationError(
