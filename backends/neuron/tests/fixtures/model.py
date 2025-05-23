@@ -9,7 +9,7 @@ import pytest
 from transformers import AutoTokenizer
 
 from optimum.neuron import NeuronModelForCausalLM
-from optimum.neuron.utils import synchronize_hub_cache
+from optimum.neuron.cache import synchronize_hub_cache
 from optimum.neuron.version import __sdk_version__ as sdk_version
 from optimum.neuron.version import __version__ as version
 
