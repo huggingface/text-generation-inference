@@ -122,6 +122,13 @@ def _get_quantizer_config(model_id, revision):
 def get_loader(
     quantize: Optional[str], model_id: str, revision: Optional[str]
 ) -> WeightsLoader:
+    if quantize == "compressed-tensors":
+        config = _get_config_json(model_id, revision, "config.json")
+        from text_generation_server.layers.compressed_tensors import (
+            CompressedTensorsLoader,
+        )
+
+        return CompressedTensorsLoader(config)
     quantizer_config = _get_quantizer_config(model_id, revision)
     if quantize in {"awq", "gptq"}:
         from text_generation_server.layers.gptq import GPTQWeightsLoader

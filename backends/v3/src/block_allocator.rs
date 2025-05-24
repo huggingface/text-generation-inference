@@ -162,6 +162,11 @@ impl Allocator for SimpleAllocator {
         tokens: u32,
         _prefill_tokens: Option<Arc<Vec<u32>>>,
     ) -> Option<BlockAllocation> {
+        let mut tokens = tokens;
+        if self.is_hpu_device {
+            // need 1 slot for ping-pong optimization
+            tokens += 1;
+        }
         // Apply window size
         let (required_blocks, repeats) = {
             let (tokens, repeats) = match self.window_size {
@@ -176,8 +181,7 @@ impl Allocator for SimpleAllocator {
             let required_blocks = tokens.div_ceil(self.block_size);
             (required_blocks, repeats)
         };
-
-        let mut tokens = tokens as usize;
+        let tokens = tokens as usize;
         if required_blocks > self.free_blocks.len() as u32 {
             None
         } else {
@@ -189,8 +193,6 @@ impl Allocator for SimpleAllocator {
                 .split_off(self.free_blocks.len() - required_blocks as usize);
             if self.is_hpu_device {
                 blocks.sort();
-                // need 1 slot for ping-pong optimization
-                tokens += 1;
             }
             let mut slots =
                 Vec::with_capacity((required_blocks * self.block_size * repeats as u32) as usize);

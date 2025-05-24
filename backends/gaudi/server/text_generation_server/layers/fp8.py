@@ -207,7 +207,7 @@ def requantize_with_max_scale(
     for idx, logical_width in enumerate(logical_widths):
         end = start + logical_width
         weight_dq = per_tensor_dequantize(
-            weight[start:end, :], weight_scale[idx], dtype
+            weight[start:end, :], weight_scale[start:end, :], dtype
         )
         weight[start:end, :], max_w_scale_normalized = fp8_quantize(
             weight_dq, max_w_scale
@@ -270,6 +270,11 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 )
             # FP8 branch
             scale = weights.get_tensor(f"{prefix}.weight_scale", to_dtype=False)
+            scale = scale.reshape(-1).expand(w.shape[0])
+            logical_widths = [w.shape[0]]
+            w, scale = requantize_with_max_scale(
+                w, scale.unsqueeze(-1).to(weights.device), logical_widths, weights.dtype
+            )
 
             input_scale = None
             if weights.has_tensor(f"{prefix}.input_scale"):
@@ -278,10 +283,6 @@ class HybridFP8UnquantLoader(WeightsLoader):
                     .reshape(-1)
                     .max()
                 )
-            logical_widths = [w.shape[0]]
-            w, scale = requantize_with_max_scale(
-                w, scale.unsqueeze(0), logical_widths, weights.dtype
-            )
 
             return Fp8Weight(
                 weight=w,
@@ -316,6 +317,11 @@ class HybridFP8UnquantLoader(WeightsLoader):
                     block_sizes=block_sizes,
                     to_dtype=False,
                 )
+            scale = scale.reshape(-1).expand(w.shape[0])
+            logical_widths = [w.shape[0]]
+            w, scale = requantize_with_max_scale(
+                w, scale.unsqueeze(-1).to(weights.device), logical_widths, weights.dtype
+            )
 
             input_scale = None
             if weights.has_tensor(f"{prefix}.input_scale"):
@@ -330,10 +336,6 @@ class HybridFP8UnquantLoader(WeightsLoader):
                         to_dtype=False,
                     )
                 input_scale = input_scale.reshape(-1).max()
-            logical_widths = [w.shape[0]]
-            w, scale = requantize_with_max_scale(
-                w, scale.unsqueeze(0), logical_widths, weights.dtype
-            )
 
             return Fp8Weight(
                 weight=w,
@@ -380,6 +382,11 @@ class HybridFP8UnquantLoader(WeightsLoader):
             ]
             scale = torch.cat(scale, dim=0).reshape(-1)
 
+            logical_widths = [x[0] for x in shapes]
+            w, scale = requantize_with_max_scale(
+                w, scale.unsqueeze(-1).to(weights.device), logical_widths, weights.dtype
+            )
+
             input_scale = [
                 _load_scalar_or_matrix_scale(weights, f"{p}.input_scale", shape)
                 for p, shape in zip(prefixes, shapes)
@@ -390,11 +397,6 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 torch.cat(input_scale, dim=0).reshape(-1).max()
                 if len(input_scale) != 0
                 else None
-            )
-
-            logical_widths = [x[0] for x in shapes]
-            w, scale = requantize_with_max_scale(
-                w, scale.to(weights.device), logical_widths, weights.dtype
             )
 
             return Fp8Weight(
@@ -435,10 +437,17 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 )
 
             scale = [
-                weights.get_tensor(f"{p}.weight_scale", to_dtype=False).reshape(-1)
-                for p in prefixes
+                weights.get_tensor(f"{p}.weight_scale", to_dtype=False)
+                .reshape(-1)
+                .expand(shape[0])
+                for p, shape in zip(prefixes, shapes)
             ]
             scale = torch.cat(scale, dim=0).reshape(-1)
+
+            logical_widths = [x[0] for x in shapes]
+            w, scale = requantize_with_max_scale(
+                w, scale.unsqueeze(-1).to(weights.device), logical_widths, weights.dtype
+            )
 
             input_scale = [
                 weights.get_tensor(f"{p}.input_scale", to_dtype=False).reshape(-1)
@@ -450,11 +459,6 @@ class HybridFP8UnquantLoader(WeightsLoader):
                 torch.cat(input_scale, dim=0).reshape(-1).max()
                 if len(input_scale) != 0
                 else None
-            )
-
-            logical_widths = [x[0] for x in shapes]
-            w, scale = requantize_with_max_scale(
-                w, scale.to(weights.device), logical_widths, weights.dtype
             )
 
             return Fp8Weight(
@@ -485,7 +489,15 @@ class HybridFP8UnquantLoader(WeightsLoader):
                     weight_block_size=self.weight_block_size,
                 )
 
-            scale = weights.get_tensor(f"{prefix}.weight_scale", to_dtype=False)
+            scale = (
+                weights.get_tensor(f"{prefix}.weight_scale", to_dtype=False)
+                .reshape(-1)
+                .expand(w.shape[0])
+            )
+            logical_widths = [w.shape[0]]
+            w, scale = requantize_with_max_scale(
+                w, scale.unsqueeze(-1).to(weights.device), logical_widths, weights.dtype
+            )
 
             input_scale = None
             if weights.has_tensor(f"{prefix}.input_scale"):
@@ -494,10 +506,7 @@ class HybridFP8UnquantLoader(WeightsLoader):
                     .reshape(-1)
                     .max()
                 )
-            logical_widths = [w.shape[0]]
-            w, scale = requantize_with_max_scale(
-                w, scale.unsqueeze(0), logical_widths, weights.dtype
-            )
+
             return Fp8Weight(
                 weight=w,
                 weight_scale=scale,
@@ -615,40 +624,27 @@ class Fp8Linear(torch.nn.Module):
             weight_block_size=weight_block_size,
         )
 
-    @classmethod
-    def get_shared_device_identity(cls, device):
-        # Input scaling factors are no longer optional in _scaled_mm starting
-        # from pytorch 2.5. Allocating a dummy tensor to pass as input_scale
-        if device not in cls._device_identity_cache:
-            cls._device_identity_cache[device] = torch.ones(1, device=device)
-        return cls._device_identity_cache[device]
-
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        if self.weight_block_size is not None:
+        if self.weight_block_size is not None or self.input_scale is None:
             return apply_block_fp8_linear_hpu_dynamic(
                 input, self.qweight, self.scale, self.input_scale, self.bias
             )
 
-        qinput, scale = fp8_quantize(
-            input,
-            self.input_scale,
-            scale_upper_bound=self.scale_upper_bound,
-            scalar=True,
-        )
-
-        output = torch._scaled_mm(
-            qinput,
-            self.qweight.t(),
-            out_dtype=self.dtype,
-            scale_a=scale,
-            scale_b=self.scale,
+        x_fp8 = torch.ops.hpu.cast_to_fp8_v2(
+            input, 1.0 / self.input_scale, False, False, torch.float8_e4m3fn
+        )[0]
+        return torch.ops.hpu.fp8_gemm_v2(
+            A=x_fp8,
+            trans_A=False,
+            B=self.qweight,
+            trans_B=True,
+            D=None,
+            out_dtype=input.dtype,
+            A_scale_inv=self.input_scale,
+            B_scale_inv=self.scale,
             bias=self.bias,
+            accumulate=False,
         )
-
-        if isinstance(output, tuple) and len(output) == 2:
-            output = output[0]
-
-        return output
 
 
 def _load_scalar_or_matrix_scale(weights: Weights, prefix: str, shape: torch.Size):
@@ -656,4 +652,4 @@ def _load_scalar_or_matrix_scale(weights: Weights, prefix: str, shape: torch.Siz
 
     if scale.numel() > 1:
         scale = weights.get_sharded(prefix, dim=0, to_dtype=False)
-    return scale.reshape(-1)
+    return scale.reshape(-1).expand(shape[0])
