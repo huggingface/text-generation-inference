@@ -90,7 +90,12 @@ fn executor_status_looper(
 
     'scheduler: loop {
         // Is there any request pending to be scheduled?
-        let awaiting_requests = backlog.len();
+        let mut awaiting_requests = backlog.len();
+        if awaiting_requests == 0 && in_flights.is_empty() {
+            // Wait for 1 request if we are not waiting for any response,
+            // so that the loop blocks at receive from backlog.
+            awaiting_requests += 1;
+        }
         for _ in 0..awaiting_requests {
             // Retrieve all the requests
             if let Some(ctx) = backlog.blocking_recv() {
