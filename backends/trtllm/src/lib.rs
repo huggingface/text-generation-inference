@@ -42,10 +42,14 @@ mod ffi {
         request_id: u64,
         token_id: u32,
         log_prob: f32,
+
+        /// The time of first schedule since the creation of the backend
+        first_scheduled_time_ns: i64,
         is_final: bool,
         finish_reason: FinishReason,
         token_id_valid: bool,
         log_prob_valid: bool,
+        first_scheduled_time_ns_valid: bool,
         has_error: bool,
         error_msg: String,
     }

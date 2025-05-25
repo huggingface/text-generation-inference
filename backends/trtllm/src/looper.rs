@@ -8,7 +8,7 @@ use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::TryAcquireError;
 use tokio::task::spawn_blocking;
-use tokio::time::Instant;
+use tokio::time::{Duration, Instant};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, error, warn};
 
@@ -82,6 +82,7 @@ fn executor_status_looper(
     tokenizer: Tokenizer,
     mut backend: UniquePtr<TensorRtLlmBackendImpl>,
     mut backlog: UnboundedReceiver<GenerationContext>,
+    created_time: Instant,
 ) {
     // Track the tuple (request_id, stream) for each request
     let mut in_flights =
@@ -144,12 +145,22 @@ fn executor_status_looper(
                     for step in responses.deref() {
                         if let Some(ctx) = in_flights.get_mut(&step.request_id) {
                             // Update the starting timestamp if not set
-                            // This value might not be the actual real starting time of the request
-                            // on the executor side - Need to expose more info from the executor to
-                            // retrieve this value
-                            // TODO : Expose actual real starting time for a request on FFI layer
                             if ctx.start.is_none() {
-                                ctx.start = Some(Instant::now());
+                                if step.first_scheduled_time_ns_valid {
+                                    if step.first_scheduled_time_ns >= 0 {
+                                        ctx.start = created_time.checked_add(Duration::from_nanos(
+                                            step.first_scheduled_time_ns as u64,
+                                        ));
+                                    } else {
+                                        ctx.start = created_time.checked_sub(Duration::from_nanos(
+                                            -step.first_scheduled_time_ns as u64,
+                                        ));
+                                    }
+                                }
+
+                                if ctx.start.is_none() {
+                                    ctx.start = Some(Instant::now());
+                                }
                             }
 
                             // Try to map the generation step to a DecodedToken
@@ -348,13 +359,23 @@ impl TensorRtLlmBackendV2 {
         // Allocate the IPC layer to communicate with the backend
         let (executor_sender, executor_receiver) = unbounded_channel();
 
+        // This is a reference point to convert time from c++ time_point
+        // to rust Instant.
+        let created_time = Instant::now();
+
         // Create the FFI backend
         let backend = create_backend_from_engine_folder(&engine_folder, &executor_worker_path)
             .map_err(|e| TensorRtLlmBackendError::Runtime(first_line(e.what(), "Unknown error")))?;
 
         // Executor looper is responsible for scheduling and pulling requests state at regular interval
         spawn_blocking(move || {
-            executor_status_looper(max_inflight_requests, tokenizer, backend, executor_receiver)
+            executor_status_looper(
+                max_inflight_requests,
+                tokenizer,
+                backend,
+                executor_receiver,
+                created_time,
+            )
         });
 
         Ok(TensorRtLlmBackendV2(executor_sender))
