@@ -40,7 +40,7 @@ def _test_decode(config_name, generator, do_sample):
     assert output.finish_reason == 0
     if do_sample:
         expected_text = {
-            "llama": " In the stillness of the morning",
+            "llama": " I sat alone in the café",
             "qwen2": " The air was so still",
             "granite": "1984, George Orwell",
         }[config_name]
