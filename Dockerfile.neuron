@@ -159,7 +159,7 @@ RUN pip install dist/text_generation_server*.tar.gz
 # Final image
 FROM neuron
 
-COPY backends/neuron/tgi_env.py /tgi_env.py
+COPY backends/neuron/tgi_entry_point.py /tgi_entry_point.py
 COPY backends/neuron/tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 

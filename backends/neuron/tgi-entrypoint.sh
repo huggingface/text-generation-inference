@@ -9,7 +9,7 @@ touch $ENV_FILEPATH
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-${SCRIPT_DIR}/tgi_env.py $@
+${SCRIPT_DIR}/tgi_entry_point.py $@
 
 source $ENV_FILEPATH
 
