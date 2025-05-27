@@ -176,6 +176,12 @@ class Slot:
                 self._generation_config.top_p = request.parameters.top_p
             if request.parameters.typical_p != 0:
                 self._generation_config.typical_p = request.parameters.typical_p
+        else:
+            # Set the sampling parameters to emulate greedy decoding when using on-device sampling
+            self._generation_config.temperature = 1.0
+            self._generation_config.top_k = 1
+            self._generation_config.top_p = 1.0
+            self._generation_config.typical_p = 1.0
         if request.parameters.repetition_penalty != 0:
             self._generation_config.repetition_penalty = (
                 request.parameters.repetition_penalty
