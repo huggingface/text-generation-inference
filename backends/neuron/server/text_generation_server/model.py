@@ -6,11 +6,12 @@ from typing import Optional
 from huggingface_hub import snapshot_download
 from huggingface_hub.constants import HF_HUB_CACHE
 from loguru import logger
-from transformers import AutoConfig
 
-from optimum.neuron import NeuronModelForCausalLM
 from optimum.neuron.cache import get_hub_cached_entries
 from optimum.neuron.configuration_utils import NeuronConfig
+
+
+from .tgi_env import check_env_and_neuron_config_compatibility
 
 
 def get_export_kwargs_from_env():
@@ -25,7 +26,6 @@ def get_export_kwargs_from_env():
         num_cores = int(num_cores)
     auto_cast_type = os.environ.get("HF_AUTO_CAST_TYPE", None)
     return {
-        "task": "text-generation",
         "batch_size": batch_size,
         "sequence_length": sequence_length,
         "num_cores": num_cores,
@@ -33,20 +33,15 @@ def get_export_kwargs_from_env():
     }
 
 
-def is_cached(model_id, neuron_config):
+def is_cached(model_id):
     # Look for cached entries for the specified model
     in_cache = False
-    entries = get_hub_cached_entries(model_id, "inference")
+    entries = get_hub_cached_entries(model_id)
     # Look for compatible entries
     for entry in entries:
-        compatible = True
-        for key, value in neuron_config.items():
-            # Only weights can be different
-            if key in ["checkpoint_id", "checkpoint_revision"]:
-                continue
-            if entry[key] != value:
-                compatible = False
-        if compatible:
+        if check_env_and_neuron_config_compatibility(
+            entry, check_compiler_version=True
+        ):
             in_cache = True
             break
     return in_cache
@@ -108,17 +103,11 @@ def fetch_model(
         log_cache_size()
         return snapshot_download(model_id, revision=revision, ignore_patterns="*.bin")
     # Model needs to be exported: look for compatible cached entries on the hub
-    export_kwargs = get_export_kwargs_from_env()
-    config = AutoConfig.from_pretrained(model_id, revision=revision)
-    export_config = NeuronModelForCausalLM.get_export_config(
-        model_id, config, revision=revision, **export_kwargs
-    )
-    neuron_config = export_config.neuron
-    if not is_cached(model_id, neuron_config):
+    if not is_cached(model_id):
         hub_cache_url = "https://huggingface.co/aws-neuron/optimum-neuron-cache"
         neuron_export_url = "https://huggingface.co/docs/optimum-neuron/main/en/guides/export_model#exporting-neuron-models-using-neuronx-tgi"
         error_msg = (
-            f"No cached version found for {model_id} with {neuron_config}."
+            f"No cached version found for {model_id} with {get_export_kwargs_from_env()}."
             f"You can start a discussion to request it on {hub_cache_url}"
             f"Alternatively, you can export your own neuron model as explained in {neuron_export_url}"
         )
@@ -131,8 +120,10 @@ def fetch_model(
     # Prefetch weights, tokenizer and generation config so that they are in cache
     log_cache_size()
     start = time.time()
-    snapshot_download(model_id, revision=revision, ignore_patterns="*.bin")
+    snapshot_path = snapshot_download(
+        model_id, revision=revision, ignore_patterns="*.bin"
+    )
     end = time.time()
     logger.info(f"Model weights fetched in {end - start:.2f} s.")
     log_cache_size()
-    return model_id
+    return snapshot_path
