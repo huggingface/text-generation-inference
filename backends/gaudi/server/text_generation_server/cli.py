@@ -19,6 +19,7 @@ class Quantization(str, Enum):
     gptq = "gptq"
     awq = "awq"
     fp8 = "fp8"
+    compressed_tensors = "compressed-tensors"
 
 
 class Dtype(str, Enum):
@@ -109,6 +110,7 @@ def serve(
         "gptq",
         "awq",
         "fp8",
+        "compressed-tensors",
     }:
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
