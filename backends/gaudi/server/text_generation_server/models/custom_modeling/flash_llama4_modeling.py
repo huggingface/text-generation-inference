@@ -48,7 +48,6 @@ from text_generation_server.layers.attention import (
 )
 from text_generation_server.models.custom_modeling.flash_llama_modeling import (
     FlashLlamaAttention,
-    LlamaMLP,
 )
 
 
@@ -444,7 +443,7 @@ class Llama4TextDecoderLayer(nn.Module):
         if self.is_moe_layer:  # the 128E model interleaves dense / sparse
             self.feed_forward = Llama4TextMoe(f"{prefix}.feed_forward", config, weights)
         else:
-            self.feed_forward = LlamaMLP(f"{prefix}.feed_forward", config, weights)
+            self.feed_forward = Llama4TextMLP(f"{prefix}.feed_forward", config, weights)
 
         self.input_layernorm = FastRMSNorm.load(
             prefix=f"{prefix}.input_layernorm",
