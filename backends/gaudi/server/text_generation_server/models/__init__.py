@@ -309,7 +309,6 @@ class ModelType(enum.Enum):
         "name": "Qwen 3 Moe",
         "url": "https://huggingface.co/collections/Qwen/qwen3-67dd247413f0e2e4f653967f",
     }
-
     GALACTICA = {
         "type": "galactica",
         "name": "Galactica",
@@ -832,7 +831,6 @@ def get_model(
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
             )
-
         elif model_type == MLLAMA:
             return FlashMllamaCausalLM(
                 model_id=model_id,

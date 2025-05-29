@@ -14,6 +14,7 @@ from typing import Optional, Tuple, List
 
 import torch
 from torch import nn
+import habana_frameworks.torch as htorch
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
@@ -26,14 +27,7 @@ from text_generation_server.layers import (
     TensorParallelRowLinear,
     TensorParallelColumnLinear,
     SpeculativeHead,
-    FastLinear,
 )
-from text_generation_server.utils.import_utils import (
-    synchronize,
-    get_free_memory,
-)
-from loguru import logger
-from text_generation_server.utils.log import log_master
 
 
 from text_generation_server.layers.layernorm import (
@@ -53,12 +47,9 @@ class Qwen3Attention(nn.Module):
         self.head_dim = getattr(
             config, "head_dim", config.hidden_size // config.num_attention_heads
         )
-        config.num_key_value_heads = getattr(
-            config, "num_key_value_heads", config.num_attention_heads
+        self.num_key_value_groups = (
+            config.num_attention_heads // config.num_key_value_heads
         )
-        # self.num_key_value_groups = (
-        #     config.num_attention_heads // config.num_key_value_heads
-        # )
         self.num_heads = config.num_attention_heads
         self.attention_dropout = config.attention_dropout
         self.softmax_scale = self.head_dim**-0.5
@@ -75,65 +66,16 @@ class Qwen3Attention(nn.Module):
                 f"and `num_shards`: {weights.process_group.size()}"
             )
         self.num_heads = self.num_heads // weights.process_group.size()
-        # self.num_key_value_heads = config.num_key_value_heads
-        if config.num_key_value_heads > weights.process_group.size():
-            self.num_key_value_heads = (
-                config.num_key_value_heads // weights.process_group.size()
-            )
-        else:
-            self.num_key_value_heads = config.num_key_value_heads
-
-        self.query_proj = TensorParallelColumnLinear.load(
+        self.num_key_value_heads = (
+            config.num_key_value_heads // weights.process_group.size()
+        )
+        self.query_key_value = TensorParallelColumnLinear.load_multi(
             config,
-            prefix=f"{prefix}.q_proj",
+            prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
+            dim=0,
             weights=weights,
             bias=False,
         )
-        if self.num_key_value_heads != config.num_key_value_heads:
-            self.key_proj = TensorParallelColumnLinear.load(
-                config,
-                prefix=f"{prefix}.k_proj",
-                weights=weights,
-                bias=False,
-            )
-            self.value_proj = TensorParallelColumnLinear.load(
-                config,
-                prefix=f"{prefix}.v_proj",
-                weights=weights,
-                bias=False,
-            )
-        else:
-            self.key_proj = FastLinear.load(
-                config,
-                prefix=f"{prefix}.k_proj",
-                weights=weights,
-                bias=False,
-            )
-            self.value_proj = FastLinear.load(
-                config,
-                prefix=f"{prefix}.v_proj",
-                weights=weights,
-                bias=False,
-            )
-        # self.key_proj = TensorParallelColumnLinear.load(
-        #     config,
-        #     prefix=f"{prefix}.k_proj",
-        #     weights=weights,
-        #     bias=False,
-        # )
-        # self.value_proj = TensorParallelColumnLinear.load(
-        #     config,
-        #     prefix=f"{prefix}.v_proj",
-        #     weights=weights,
-        #     bias=False,
-        # )
-        # self.query_key_value = TensorParallelColumnLinear.load_multi(
-        #     config,
-        #     prefixes=[f"{prefix}.q_proj", f"{prefix}.k_proj", f"{prefix}.v_proj"],
-        #     dim=0,
-        #     weights=weights,
-        #     bias=False,
-        # )
 
         self.kv_scales = get_kv_scales(weights, f"{prefix}")
 
@@ -144,10 +86,11 @@ class Qwen3Attention(nn.Module):
             bias=False,
         )
 
-        self.num_key_value_groups = self.num_heads // self.num_key_value_heads
+
+        self.num_groups = self.num_heads // self.num_key_value_heads
         self.kv_head_mapping = torch.arange(
             0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
-        ).repeat_interleave(self.num_key_value_groups)
+        ).repeat_interleave(self.num_groups)
 
         self.max_past = (
             config.sliding_window if config.sliding_window is not None else -1
@@ -182,45 +125,21 @@ class Qwen3Attention(nn.Module):
         seqlen,
         hpu_attention_meta,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        print(f"hidden_states shape: {hidden_states.shape}")
         input_shape = hidden_states.shape[:-1]
         hidden_shape = (*input_shape, -1, self.head_dim)
-        # qkv = self.query_key_value(hidden_states)
-        # print(f"qkv shape: {qkv.shape}")
-        # print(f"self.head_dim: {self.head_dim}")
-        # print(f"self.num_heads: {self.num_heads}")
-        # print(f"self.num_key_value_heads: {self.num_key_value_heads}")
-        # query_states, key_states, value_states = qkv.split(
-        #     [
-        #         self.head_dim * self.num_heads,
-        #         self.head_dim * self.num_key_value_heads,
-        #         self.head_dim * self.num_key_value_heads,
-        #     ],
-        #     dim=1,
-        # )
-        synchronize(hidden_states.device)
-        real_free_memory = get_free_memory(hidden_states.device, 1)
-        log_master(
-            logger.debug,
-            f"Attention forward1 Free memory real: {real_free_memory / 1e9:.2f}GB",
+        qkv = self.query_key_value(hidden_states)
+        query_states, key_states, value_states = qkv.split(
+            [
+                self.head_dim * self.num_heads,
+                self.head_dim * self.num_key_value_heads,
+                self.head_dim * self.num_key_value_heads,
+            ],
+            dim=1,
         )
 
-        query_states = self.query_proj(hidden_states)
-        key_states = self.key_proj(hidden_states)
-        value_states = self.value_proj(hidden_states)
         query_states, _ = self.q_norm(query_states.view(hidden_shape))
         key_states, _ = self.k_norm(key_states.view(hidden_shape))
         value_states = value_states.view(hidden_shape)
-        print(f"query_states shape: {query_states.shape}")
-        print(f"key_states shape: {key_states.shape}")
-        print(f"value_states shape: {value_states.shape}")
-        synchronize(hidden_states.device)
-        real_free_memory = get_free_memory(hidden_states.device, 1)
-        log_master(
-            logger.debug,
-            f"Attention forward2 Free memory real: {real_free_memory / 1e9:.2f}GB",
-        )
-
         self.rotary_emb(query_states, key_states, cos, sin)
 
         kv_cache.store(
@@ -257,7 +176,6 @@ class Qwen3Attention(nn.Module):
             )
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
-        print(f"attn_output shape: {attn_output.shape}")
         return self.o_proj(attn_output)
 
 
@@ -359,6 +277,11 @@ class Qwen3Model(nn.Module):
         )
 
         residual = None
+
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
+
         for i, decoder_layer in enumerate(self.layers):
             hidden_states = decoder_layer(
                 hidden_states,
@@ -371,6 +294,8 @@ class Qwen3Model(nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states)
 
