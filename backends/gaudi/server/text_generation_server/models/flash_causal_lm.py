@@ -1412,6 +1412,7 @@ class FlashCausalLM(Model):
             aliases=aliases,
             weights_loader=weights_loader,
         )
+        print(f"weights: {weights}")
 
         prefix = None
         model = model_class(prefix, config, weights)
@@ -1440,7 +1441,7 @@ class FlashCausalLM(Model):
             raise ValueError("Cannot get the number of key/value heads")
         self.num_kv_heads = (
             num_kv_heads // self.process_group.size()
-            if num_kv_heads > 1
+            if num_kv_heads // self.process_group.size() > 0
             else num_kv_heads
         )
         assert self.num_kv_heads > 0
