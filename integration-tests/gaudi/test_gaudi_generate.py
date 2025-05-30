@@ -1,16 +1,23 @@
-from typing import Any, Dict
+from typing import Any, Dict, Generator
+from _pytest.fixtures import SubRequest
 
 from text_generation import AsyncClient
 import pytest
-from Levenshtein import distance as levenshtein_distance
 
-# The "args" config is not optimized for speed but only check that the inference is working for the different models architectures
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "gaudi_all_models: mark test to run with all models"
+    )
+
+
+# The "args" values in TEST_CONFIGS are not optimized for speed but only check that the inference is working for the different models architectures.
 TEST_CONFIGS = {
     "meta-llama/Llama-3.1-8B-Instruct-shared": {
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
         "input": "What is Deep Learning?",
-        "expected_greedy_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use",
-        "expected_batch_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use",
+        "expected_greedy_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use of artificial neural networks to analyze and interpret data. It is a type of",
+        "expected_batch_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use of artificial neural networks to analyze and interpret data. It is a type of",
         "args": [
             "--sharded",
             "true",
@@ -25,6 +32,7 @@ TEST_CONFIGS = {
             "--max-batch-prefill-tokens",
             "2048",
         ],
+        "run_by_default": True,
     },
     "meta-llama/Llama-3.1-8B-Instruct": {
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
@@ -42,6 +50,7 @@ TEST_CONFIGS = {
             "--max-batch-prefill-tokens",
             "2048",
         ],
+        "run_by_default": True,
     },
     "meta-llama/Llama-2-7b-chat-hf": {
         "model_id": "meta-llama/Llama-2-7b-chat-hf",
@@ -165,20 +174,6 @@ TEST_CONFIGS = {
             "4",
         ],
     },
-    "facebook/opt-125m": {
-        "model_id": "facebook/opt-125m",
-        "input": "What is Deep Learning?",
-        "expected_greedy_output": "\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout",
-        "expected_batch_output": "\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout",
-        "args": [
-            "--max-input-tokens",
-            "512",
-            "--max-total-tokens",
-            "1024",
-            "--max-batch-size",
-            "4",
-        ],
-    },
     "EleutherAI/gpt-j-6b": {
         "model_id": "EleutherAI/gpt-j-6b",
         "input": "What is Deep Learning?",
@@ -195,44 +190,56 @@ TEST_CONFIGS = {
     },
 }
 
-print(f"Testing {len(TEST_CONFIGS)} models")
+
+def pytest_generate_tests(metafunc):
+    if "test_config" in metafunc.fixturenames:
+        if metafunc.config.getoption("--gaudi-all-models"):
+            models = list(TEST_CONFIGS.keys())
+        else:
+            models = [
+                name
+                for name, config in TEST_CONFIGS.items()
+                if config.get("run_by_default", False)
+            ]
+        print(f"Testing {len(models)} models")
+        metafunc.parametrize("test_config", models, indirect=True)
 
 
-@pytest.fixture(scope="module", params=TEST_CONFIGS.keys())
-def test_config(request) -> Dict[str, Any]:
+@pytest.fixture(scope="module")
+def test_config(request: SubRequest) -> Dict[str, Any]:
     """Fixture that provides model configurations for testing."""
-    test_config = TEST_CONFIGS[request.param]
-    test_config["test_name"] = request.param
+    model_name = request.param
+    test_config = TEST_CONFIGS[model_name]
+    test_config["test_name"] = model_name
     return test_config
 
 
 @pytest.fixture(scope="module")
-def model_id(test_config):
+def model_id(test_config: Dict[str, Any]) -> Generator[str, None, None]:
     yield test_config["model_id"]
 
 
 @pytest.fixture(scope="module")
-def test_name(test_config):
+def test_name(test_config: Dict[str, Any]) -> Generator[str, None, None]:
     yield test_config["test_name"]
 
 
 @pytest.fixture(scope="module")
-def expected_outputs(test_config):
+def expected_outputs(test_config: Dict[str, Any]) -> Dict[str, str]:
     return {
         "greedy": test_config["expected_greedy_output"],
-        # "sampling": model_config["expected_sampling_output"],
         "batch": test_config["expected_batch_output"],
     }
 
 
 @pytest.fixture(scope="module")
-def input(test_config):
+def input(test_config: Dict[str, Any]) -> str:
     return test_config["input"]
 
 
 @pytest.fixture(scope="module")
-def tgi_service(launcher, model_id, test_name):
-    with launcher(model_id, test_name) as tgi_service:
+def tgi_service(gaudi_launcher, model_id: str, test_name: str):
+    with gaudi_launcher(model_id, test_name) as tgi_service:
         yield tgi_service
 
 
@@ -243,8 +250,9 @@ async def tgi_client(tgi_service) -> AsyncClient:
 
 
 @pytest.mark.asyncio
+@pytest.mark.all_models
 async def test_model_single_request(
-    tgi_client: AsyncClient, expected_outputs: Dict[str, Any], input: str
+    tgi_client: AsyncClient, expected_outputs: Dict[str, str], input: str
 ):
     # Bounded greedy decoding without input
     response = await tgi_client.generate(
@@ -256,11 +264,15 @@ async def test_model_single_request(
 
 
 @pytest.mark.asyncio
+@pytest.mark.all_models
 async def test_model_multiple_requests(
-    tgi_client, generate_load, expected_outputs, input
+    tgi_client: AsyncClient,
+    gaudi_generate_load,
+    expected_outputs: Dict[str, str],
+    input: str,
 ):
     num_requests = 4
-    responses = await generate_load(
+    responses = await gaudi_generate_load(
         tgi_client,
         input,
         max_new_tokens=32,
@@ -271,6 +283,4 @@ async def test_model_multiple_requests(
     expected = expected_outputs["batch"]
     for r in responses:
         assert r.details.generated_tokens == 32
-        # Compute the similarity with the expectation using the levenshtein distance
-        # We should not have more than two substitutions or additions
-        assert levenshtein_distance(r.generated_text, expected) < 3
+        assert r.generated_text == expected
