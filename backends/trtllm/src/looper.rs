@@ -80,7 +80,7 @@ impl<'step> TryFrom<&'step GenerationStep> for DecodedToken {
 fn executor_status_looper(
     max_inflight_requests: usize,
     tokenizer: Tokenizer,
-    mut backend: UniquePtr<TensorRtLlmBackendImpl>,
+    backend: UniquePtr<TensorRtLlmBackendImpl>,
     mut backlog: UnboundedReceiver<GenerationContext>,
     created_time: Instant,
 ) {
@@ -111,7 +111,7 @@ fn executor_status_looper(
                 };
 
                 // Submit to the TensorRT-LLM executor for scheduling
-                match backend.pin_mut().submit(
+                match backend.submit(
                     &input_ids.unwrap(), // This is checked beforehand in validate()
                     stopping_params.max_new_tokens,
                     top_k,
@@ -143,8 +143,7 @@ fn executor_status_looper(
         }
 
         if backend.num_tokens_ready() > 0 {
-            let mut backend = backend.pin_mut();
-            match backend.as_mut().pull_tokens() {
+            match backend.pull_tokens() {
                 Ok(responses) => {
                     // Iterate through all the decoded token
                     for step in responses.deref() {
@@ -183,7 +182,7 @@ fn executor_status_looper(
                                     "Client dropped - removing request {} from tracked requests",
                                     step.request_id
                                 );
-                                backend.as_mut().cancel(step.request_id);
+                                backend.cancel(step.request_id);
                                 let _ = in_flights.remove(&step.request_id);
                             }
                         } else {

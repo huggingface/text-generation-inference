@@ -107,7 +107,7 @@ namespace huggingface::tgi::backends::trtllm {
 
     class tensorrt_llm_backend_t {
     private:
-        backend_t inner_;
+        mutable backend_t inner_;
 
         // m_created_time is a reference point to convert time from c++ time_point
         // to rust Instant.
@@ -131,7 +131,7 @@ namespace huggingface::tgi::backends::trtllm {
                 float_t repetition_penalty,
                 float_t frequency_penalty,
                 uint64_t seed
-        ) {
+        ) const {
             // This is enabled only if using add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
             SPDLOG_TRACE(FMT_STRING("[FFI] Submitting {:d} prompt tokens to the executor"));
 
@@ -152,7 +152,7 @@ namespace huggingface::tgi::backends::trtllm {
             }
         }
 
-        std::unique_ptr<std::vector<generation_step_t>> pull_tokens() noexcept {
+        std::unique_ptr<std::vector<generation_step_t>> pull_tokens() const noexcept {
             if (num_tokens_ready() > 0) [[likely]] {
                 const auto responses = inner_.pull_tokens();
 
@@ -176,7 +176,7 @@ namespace huggingface::tgi::backends::trtllm {
             }
         }
 
-        void cancel(request_id_t request_id) noexcept {
+        void cancel(request_id_t request_id) const noexcept {
             SPDLOG_DEBUG("[FFI] cancelling request {:d}", request_id);
             inner_.cancel(request_id);
         }

@@ -83,7 +83,7 @@ mod ffi {
         fn num_tokens_ready(self: &TensorRtLlmBackendImpl) -> usize;
 
         fn submit(
-            self: Pin<&mut TensorRtLlmBackendImpl>,
+            self: &TensorRtLlmBackendImpl,
             tokens: &[u32],
             max_new_tokens: u32,
             top_k: u32,
@@ -95,10 +95,10 @@ mod ffi {
         ) -> Result<u64>;
 
         fn pull_tokens(
-            self: Pin<&mut TensorRtLlmBackendImpl>,
+            self: &TensorRtLlmBackendImpl,
         ) -> Result<UniquePtr<CxxVector<GenerationStep>>>;
 
-        fn cancel(self: Pin<&mut TensorRtLlmBackendImpl>, request_id: u64);
+        fn cancel(self: &TensorRtLlmBackendImpl, request_id: u64);
     }
 }
 
