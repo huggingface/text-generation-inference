@@ -176,13 +176,6 @@ namespace huggingface::tgi::backends::trtllm {
                sampling_params_t sampling_params) noexcept;
 
         /**
-         * Query the number of tokens available across all in-flight generations
-         * @return
-         */
-        [[nodiscard("Pulling out the number of tokens")]]
-        size_t num_tokens_ready() const noexcept;
-
-        /**
          * Pull out newly generated tokens from the executor
          * @return
          */

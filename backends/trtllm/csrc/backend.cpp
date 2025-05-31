@@ -46,10 +46,6 @@ namespace huggingface::tgi::backends::trtllm {
     backend_t::backend_t(std::filesystem::path &engines_folder, std::filesystem::path &executor_worker_path)
             : workspace(engines_folder, executor_worker_path), executor_(executor_factory_initializer(workspace)) {}
 
-    size_t backend_t::num_tokens_ready() const noexcept {
-        return executor_.getNumResponsesReady();
-    }
-
     std::expected<request_id_t, backend_error_t>
     backend_t::submit(std::span<const token_id_t> token_ids, const generation_params_t g_params,
                       const sampling_params_t s_params) noexcept {

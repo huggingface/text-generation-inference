@@ -80,8 +80,6 @@ mod ffi {
             executor_worker: &str,
         ) -> Result<UniquePtr<TensorRtLlmBackendImpl>>;
 
-        fn num_tokens_ready(self: &TensorRtLlmBackendImpl) -> usize;
-
         fn submit(
             self: &TensorRtLlmBackendImpl,
             tokens: &[u32],

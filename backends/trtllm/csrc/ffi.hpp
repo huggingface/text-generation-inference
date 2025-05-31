@@ -120,8 +120,6 @@ namespace huggingface::tgi::backends::trtllm {
                   m_created_time {created_time}
         {}
 
-        size_t num_tokens_ready() const noexcept { return inner_.num_tokens_ready(); }
-
         request_id_t submit(
                 rust::Slice<const uint32_t> tokens,
                 uint32_t max_new_tokens,
@@ -153,27 +151,22 @@ namespace huggingface::tgi::backends::trtllm {
         }
 
         std::unique_ptr<std::vector<generation_step_t>> pull_tokens() const noexcept {
-            if (num_tokens_ready() > 0) [[likely]] {
-                const auto responses = inner_.pull_tokens();
+            const auto responses = inner_.pull_tokens();
 
-                SPDLOG_TRACE("[FFI] Successfully pulled out {:d} responses from executor", responses.size());
+            SPDLOG_TRACE("[FFI] Successfully pulled out {:d} responses from executor", responses.size());
 
-                auto f = [this](const tle::Response &r){
-                    return as_generation_step(r, m_created_time);
-                };
-                // Transform tle::Response to generation_step_t
+            auto f = [this](const tle::Response &r){
+                return as_generation_step(r, m_created_time);
+            };
+            auto steps = std::make_unique<std::vector<generation_step_t>>();
+            // Transform tle::Response to generation_step_t
 #ifdef __cpp_lib_ranges_to_container
-                auto steps = responses | std::views::transform(f) | std::ranges::to<std::vector>();
+            *steps = responses | std::views::transform(f) | std::ranges::to<std::vector>();
 #else
-                auto steps = std::vector<generation_step_t>();
-                steps.reserve(responses.size());
-                std::transform(responses.begin(), responses.end(), std::back_inserter(steps), f);
+            steps->reserve(responses.size());
+            std::transform(responses.begin(), responses.end(), std::back_inserter(steps), f);
 #endif
-                return std::make_unique<std::vector<generation_step_t>>(steps);
-
-            } else {
-                return std::make_unique<std::vector<generation_step_t>>();
-            }
+            return steps;
         }
 
         void cancel(request_id_t request_id) const noexcept {

@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 use cxx::UniquePtr;
 use hashbrown::HashMap;
-use std::hint;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tokenizers::Tokenizer;
+use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::TryAcquireError;
 use tokio::task::spawn_blocking;
@@ -77,137 +78,158 @@ impl<'step> TryFrom<&'step GenerationStep> for DecodedToken {
     }
 }
 
-fn executor_status_looper(
+struct InFlightRequest {
+    request_id: u64,
+    ctx: GenerationContext,
+}
+
+/// request_looper reads from the backlog, sends the request to backend,
+/// and then transfer the request context to the response_looper via in_flights.
+fn request_looper(
+    backend: Arc<UniquePtr<TensorRtLlmBackendImpl>>,
+    mut backlog: UnboundedReceiver<GenerationContext>,
+    in_flights: UnboundedSender<InFlightRequest>,
+) {
+    loop {
+        let Some(ctx) = backlog.blocking_recv() else {
+            break;
+        };
+        // Submit all the request to the executor and move the context to the in-flight tracker
+        let request = &ctx.request;
+        let generation_params = &request.parameters;
+        let stopping_params = &request.stopping_parameters;
+        let input_ids = request.input_ids.as_deref();
+        let top_k = if generation_params.do_sample {
+            generation_params.top_k
+        } else {
+            1
+        };
+
+        // Submit to the TensorRT-LLM executor for scheduling
+        match backend.submit(
+            &input_ids.unwrap(), // This is checked beforehand in validate()
+            stopping_params.max_new_tokens,
+            top_k,
+            generation_params.top_p,
+            generation_params.temperature,
+            generation_params.repetition_penalty,
+            generation_params.frequency_penalty,
+            generation_params.seed,
+        ) {
+            Ok(request_id) => {
+                // Insert the context linked to the generated request id in the tracker
+                debug!("[in-flight] Added {}", request_id);
+                if let Err(err) = in_flights.send(InFlightRequest { request_id, ctx }) {
+                    error!("[in-flight] Send failed {}", err);
+                    return;
+                }
+            }
+            Err(e) => {
+                // Return to the caller
+                let what = e.to_string();
+                error!(error = what.as_str(), "Failed to schedule request");
+
+                let err = Err(InferError::Overloaded(TryAcquireError::NoPermits));
+                if let Err(_) = ctx.streamer.send(err) {
+                    error!("Failed to send back error to the client");
+                }
+            }
+        };
+    }
+}
+
+/// response_looper awaits requests from in_flights if there are no active ones
+/// or awaits for tokens from backend. The tokens are processed and sent back.
+fn response_looper(
     max_inflight_requests: usize,
     tokenizer: Tokenizer,
-    backend: UniquePtr<TensorRtLlmBackendImpl>,
-    mut backlog: UnboundedReceiver<GenerationContext>,
     created_time: Instant,
+    backend: Arc<UniquePtr<TensorRtLlmBackendImpl>>,
+    mut in_flight_recv: UnboundedReceiver<InFlightRequest>,
 ) {
-    // Track the tuple (request_id, stream) for each request
+    // // Track the tuple (request_id, stream) for each request
     let mut in_flights =
         HashMap::<u64, GenerationContext>::with_capacity(max_inflight_requests * 2);
-
-    'scheduler: loop {
-        // Is there any request pending to be scheduled?
-        let mut awaiting_requests = backlog.len();
-        if awaiting_requests == 0 && in_flights.is_empty() {
-            // Wait for 1 request if we are not waiting for any response,
-            // so that the loop blocks at receive from backlog.
-            awaiting_requests += 1;
+    loop {
+        if in_flights.is_empty() {
+            // If there are no active requests, block on Rust channel instead of C++ side.
+            let Some(req) = in_flight_recv.blocking_recv() else {
+                return;
+            };
+            in_flights.insert(req.request_id, req.ctx);
         }
-        for _ in 0..awaiting_requests {
-            // Retrieve all the requests
-            if let Some(ctx) = backlog.blocking_recv() {
-                // Submit all the request to the executor and move the context to the in-flight tracker
-                let request = &ctx.request;
-                let generation_params = &request.parameters;
-                let stopping_params = &request.stopping_parameters;
-                let input_ids = request.input_ids.as_deref();
-                let top_k = if generation_params.do_sample {
-                    generation_params.top_k
-                } else {
-                    1
-                };
+        match backend.pull_tokens() {
+            Ok(responses) => {
+                // Fetch all pending requests, in case we are receiving tokens from them.
+                loop {
+                    match in_flight_recv.try_recv() {
+                        Ok(req) => in_flights.insert(req.request_id, req.ctx),
+                        Err(err) => match err {
+                            TryRecvError::Empty => break,
+                            TryRecvError::Disconnected => return,
+                        },
+                    };
+                }
 
-                // Submit to the TensorRT-LLM executor for scheduling
-                match backend.submit(
-                    &input_ids.unwrap(), // This is checked beforehand in validate()
-                    stopping_params.max_new_tokens,
-                    top_k,
-                    generation_params.top_p,
-                    generation_params.temperature,
-                    generation_params.repetition_penalty,
-                    generation_params.frequency_penalty,
-                    generation_params.seed,
-                ) {
-                    Ok(request_id) => {
-                        // Insert the context linked to the generated request id in the tracker
-                        debug!("[in-flight] Added {}", request_id);
-                        in_flights.insert(request_id, ctx);
-                    }
-                    Err(e) => {
-                        // Return to the caller
-                        let what = e.to_string();
-                        error!(error = what.as_str(), "Failed to schedule request");
+                // Iterate through all the decoded token
+                for step in responses.deref() {
+                    if let Some(ctx) = in_flights.get_mut(&step.request_id) {
+                        // Update the starting timestamp if not set
+                        if ctx.start.is_none() {
+                            if step.first_scheduled_time_ns_valid {
+                                if step.first_scheduled_time_ns >= 0 {
+                                    ctx.start = created_time.checked_add(Duration::from_nanos(
+                                        step.first_scheduled_time_ns as u64,
+                                    ));
+                                } else {
+                                    ctx.start = created_time.checked_sub(Duration::from_nanos(
+                                        -step.first_scheduled_time_ns as u64,
+                                    ));
+                                }
+                            }
 
-                        let err = Err(InferError::Overloaded(TryAcquireError::NoPermits));
-                        if let Err(_) = ctx.streamer.send(err) {
-                            error!("Failed to send back error to the client");
-                        }
-                    }
-                };
-            } else {
-                break 'scheduler;
-            }
-        }
-
-        if backend.num_tokens_ready() > 0 {
-            match backend.pull_tokens() {
-                Ok(responses) => {
-                    // Iterate through all the decoded token
-                    for step in responses.deref() {
-                        if let Some(ctx) = in_flights.get_mut(&step.request_id) {
-                            // Update the starting timestamp if not set
                             if ctx.start.is_none() {
-                                if step.first_scheduled_time_ns_valid {
-                                    if step.first_scheduled_time_ns >= 0 {
-                                        ctx.start = created_time.checked_add(Duration::from_nanos(
-                                            step.first_scheduled_time_ns as u64,
-                                        ));
-                                    } else {
-                                        ctx.start = created_time.checked_sub(Duration::from_nanos(
-                                            -step.first_scheduled_time_ns as u64,
-                                        ));
-                                    }
-                                }
-
-                                if ctx.start.is_none() {
-                                    ctx.start = Some(Instant::now());
-                                }
+                                ctx.start = Some(Instant::now());
                             }
+                        }
 
-                            // Try to map the generation step to a DecodedToken
-                            let response = match DecodedToken::try_from(step) {
-                                Ok(decoded_token) => {
-                                    post_process_decoded_token(&tokenizer, ctx, decoded_token)
-                                }
-                                Err(err) => Err(err),
-                            };
-
-                            // Attempt to send back the response to the client
-                            if let Err(_) = ctx.streamer.send(response) {
-                                // Client has dropped, remove from tracked requests
-                                debug!(
-                                    "Client dropped - removing request {} from tracked requests",
-                                    step.request_id
-                                );
-                                backend.cancel(step.request_id);
-                                let _ = in_flights.remove(&step.request_id);
+                        // Try to map the generation step to a DecodedToken
+                        let response = match DecodedToken::try_from(step) {
+                            Ok(decoded_token) => {
+                                post_process_decoded_token(&tokenizer, ctx, decoded_token)
                             }
-                        } else {
-                            match step.finish_reason {
-                                FinishReason::Cancelled => {
-                                    // The client has canceled the request, so this should not generate a
-                                    // warning.
-                                    debug!("Cancelled request {}", step.request_id);
-                                }
-                                _ => {
-                                    warn!("Untracked request {}", step.request_id);
-                                }
+                            Err(err) => Err(err),
+                        };
+
+                        // Attempt to send back the response to the client
+                        if let Err(_) = ctx.streamer.send(response) {
+                            // Client has dropped, remove from tracked requests
+                            debug!(
+                                "Client dropped - removing request {} from tracked requests",
+                                step.request_id
+                            );
+                            backend.cancel(step.request_id);
+                            let _ = in_flights.remove(&step.request_id);
+                        }
+                    } else {
+                        match step.finish_reason {
+                            FinishReason::Cancelled => {
+                                // The client has canceled the request, so this should not generate a
+                                // warning.
+                                debug!("Cancelled request {}", step.request_id);
+                            }
+                            _ => {
+                                warn!("Untracked request {}", step.request_id);
                             }
                         }
                     }
                 }
-                Err(ref err) => {
-                    error!("Failed to get responses from the executor: {}.", err.what());
-                    break 'scheduler;
-                }
+            }
+            Err(ref err) => {
+                error!("Failed to get responses from the executor: {}.", err.what());
+                break;
             }
         }
-
-        // Hint the CPU we are spin-locking
-        hint::spin_loop();
     }
 }
 
@@ -347,6 +369,7 @@ fn ensure_paths_exist<P: AsRef<Path>, PP: AsRef<Path>>(
 }
 
 unsafe impl Send for TensorRtLlmBackendImpl {}
+unsafe impl Sync for TensorRtLlmBackendImpl {}
 
 pub struct TensorRtLlmBackendV2(UnboundedSender<GenerationContext>);
 
@@ -363,6 +386,8 @@ impl TensorRtLlmBackendV2 {
         // Allocate the IPC layer to communicate with the backend
         let (executor_sender, executor_receiver) = unbounded_channel();
 
+        let (in_flight_sender, in_flight_receiver) = unbounded_channel();
+
         // This is a reference point to convert time from c++ time_point
         // to rust Instant.
         let created_time = Instant::now();
@@ -371,14 +396,20 @@ impl TensorRtLlmBackendV2 {
         let backend = create_backend_from_engine_folder(&engine_folder, &executor_worker_path)
             .map_err(|e| TensorRtLlmBackendError::Runtime(first_line(e.what(), "Unknown error")))?;
 
-        // Executor looper is responsible for scheduling and pulling requests state at regular interval
+        let backend = Arc::new(backend);
+        let backend_response = backend.clone();
+
+        // Request looper is responsible for scheduling requests
+        spawn_blocking(move || request_looper(backend, executor_receiver, in_flight_sender));
+
+        // Response looper is responsible for awaiting tokens and send them back
         spawn_blocking(move || {
-            executor_status_looper(
+            response_looper(
                 max_inflight_requests,
                 tokenizer,
-                backend,
-                executor_receiver,
                 created_time,
+                backend_response,
+                in_flight_receiver,
             )
         });
 
