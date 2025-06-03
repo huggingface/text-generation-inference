@@ -30,12 +30,6 @@ from text_generation_server.layers import (
     SpeculativeHead,
     FastLinear,
 )
-from text_generation_server.utils.import_utils import (
-    synchronize,
-    get_free_memory,
-)
-from loguru import logger
-from text_generation_server.utils.log import log_master
 
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
@@ -359,9 +353,6 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
         routing_weights, selected_experts = torch.topk(
             routing_weights, self.top_k, dim=-1
         )
-        print(
-            f"routing_weights: {routing_weights.device}, selected_experts: {selected_experts.device}"
-        )
         if self.norm_topk_prob:  # only diff with mixtral sparse moe block!
             routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
         # we cast back to the input dtype
@@ -376,7 +367,6 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
         expert_mask = torch.nn.functional.one_hot(
             selected_experts, num_classes=self.num_experts
         ).permute(2, 1, 0)
-        print(f"expert_mask: {expert_mask.device}")
         # Loop over all available experts in the model and perform the computation on each expert
         for expert_idx in range(self.num_experts):
             expert_layer = self.experts[expert_idx]
@@ -428,10 +418,6 @@ class Qwen3MoeDecoderLayer(nn.Module):
         self.self_attn = Qwen3Attention(
             config, prefix=f"{prefix}.self_attn", weights=weights, layer_idx=layer_idx
         )
-        moe_layer_cls = (
-            SparseMoELayer if SparseMoELayer.is_supported(weights) else DenseMoELayer
-        )
-
         moe_layer_cls = (
             SparseMoELayer if SparseMoELayer.is_supported(weights) else DenseMoELayer
         )
@@ -515,11 +501,6 @@ class Qwen3MoeModel(nn.Module):
         )
         self.norm = FastRMSNorm.load(
             prefix=f"{prefix}.norm", weights=weights, eps=config.rms_norm_eps
-        )
-        synchronize(weights.device)
-        real_free_memory = get_free_memory(weights.device, 1)
-        log_master(
-            logger.debug, f"init model Free memory real: {real_free_memory / 1e9:.2f}GB"
         )
 
     def forward(
