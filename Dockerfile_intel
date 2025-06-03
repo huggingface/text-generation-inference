@@ -45,7 +45,7 @@ RUN cargo build --profile release-opt --frozen
 
 # Text Generation Inference base image for Intel
 
-FROM intel/oneapi-basekit:2025.0.1-0-devel-ubuntu22.04 AS xpu
+FROM intel/oneapi-basekit:2025.1.3-0-devel-ubuntu22.04 AS xpu
 
 USER root
 
@@ -99,7 +99,8 @@ ENV HF_HOME=/data \
 
 WORKDIR /usr/src
 
-RUN pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/xpu
+#RUN pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/xpu
+RUN pip install --pre torch==2.8.0.dev20250526+xpu torchvision==0.22.0.dev20250526+xpu --index-url https://download.pytorch.org/whl/nightly/xpu
 
 # Install server
 COPY proto proto
@@ -117,8 +118,7 @@ ENV TORCH_LLM_ALLREDUCE=1
 ENV CCL_TOPO_FABRIC_VERTEX_CONNECTION_CHECK=0
 ENV TORCH_DEVICE_BACKEND_AUTOLOAD=0
 
-RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/xpu/oneccl_bind_pt-2.7.0%2Bxpu-cp311-cp311-linux_x86_64.whl
-RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/xpu/intel_extension_for_pytorch-2.7.10%2Bxpu-cp311-cp311-linux_x86_64.whl
+#RUN pip install https://intel-extension-for-pytorch.s3.amazonaws.com/ipex_stable/xpu/intel_extension_for_pytorch-2.7.10%2Bxpu-cp311-cp311-linux_x86_64.whl
 # Install benchmarker
 COPY --from=builder /usr/src/target/release-opt/text-generation-benchmark /usr/local/bin/text-generation-benchmark
 # Install router
