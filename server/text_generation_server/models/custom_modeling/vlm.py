@@ -1,5 +1,5 @@
 def load_text_model(prefix, config, weights, name=None):
-    if config.model_type == "llama":
+    if config.model_type == "llama" or config.model_type == "granite":
         from text_generation_server.models.custom_modeling.flash_llama_modeling import (
             FlashLlamaForCausalLM,
         )
