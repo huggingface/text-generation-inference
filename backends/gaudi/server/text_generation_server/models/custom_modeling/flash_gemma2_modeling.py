@@ -28,6 +28,7 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -466,6 +467,10 @@ class FlashGemma2Model(torch.nn.Module):
         adapter_data: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
         hidden_states = inputs_embeds
 
         # Get rotary cos and sin for this forward

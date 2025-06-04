@@ -153,19 +153,14 @@ def prepare_for_decode(
     block_list_device = _async_h2d_tensor_copy(block_list)
     block_groups_device = _async_h2d_tensor_copy(block_groups)
     block_usage_device = _async_h2d_tensor_copy(block_usage)
-    block_mapping = torch.nn.functional.one_hot(
-        block_groups_device, num_classes=batch_size
-    )
-    mask = torch.arange(0, BLOCK_SIZE, device=device, dtype=torch.int32).unsqueeze(0)
-    mask = mask >= block_usage_device.unsqueeze(-1)
-    attn_bias = torch.zeros_like(mask, dtype=dtype).masked_fill_(mask, -math.inf)
+
     return trim_attn_metadata(
         HPUPagedAttentionMetadata(
             block_list=block_list_device,
             block_groups=block_groups_device,
             block_usage=block_usage_device,
-            block_mapping=block_mapping.to(dtype),
-            attn_bias=attn_bias,
+            block_mapping=None,
+            attn_bias=None,
         )
     )
 
@@ -1298,7 +1293,9 @@ class FlashCausalLMBatch(Batch):
                 self.prefill_next_token_indices + input_ids_padded_length_tensor
             )
         all_input_ids_tensor = torch.zeros(
-            (max_padded_bs, max_total_tokens), dtype=torch.int64, device="hpu"
+            (max_padded_bs, max(max_total_tokens, self.all_input_ids_tensor.shape[-1])),
+            dtype=torch.int64,
+            device="hpu",
         )
         for i in range(len(self)):
             all_input_ids_tensor[i, : self.all_input_ids_tensor.shape[-1]] = (
@@ -2051,8 +2048,6 @@ class FlashCausalLM(Model):
                 )
                 if batch.valid_indices is not None:
                     # TODO speculative decoding handling missing
-                    next_token_logprobs = next_token_logprobs.cpu()
-                    accepted_ids = accepted_ids.cpu()
                     index = torch.arange(
                         0,
                         len(batch.valid_indices),
@@ -2068,8 +2063,13 @@ class FlashCausalLM(Model):
                         0, index, next_input_ids[batch.valid_indices]
                     )
                     next_input_ids = next_input_ids[:padded_total_bs]
-                    next_token_logprobs = next_token_logprobs[batch.valid_indices]
-                    accepted_ids = accepted_ids[batch.valid_indices]
+
+                    next_token_logprobs.index_copy_(
+                        0, index, next_token_logprobs[batch.valid_indices]
+                    )
+                    accepted_ids.index_copy_(
+                        0, index, accepted_ids[batch.valid_indices]
+                    )
                     if speculative_ids is not None:
                         speculative_ids = speculative_ids[batch.valid_indices]
                     batch.top_n_tokens_tensor = batch.top_n_tokens_tensor[

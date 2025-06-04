@@ -33,6 +33,7 @@ from text_generation_server.layers.attention import (
     Seqlen,
     attention,
     paged_attention,
+    set_block_mapping,
     HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers.attention.kv_cache import KVCache, get_kv_scales
@@ -569,6 +570,10 @@ class DeepseekV2Model(torch.nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, input_ids.shape[0]
+            )
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward

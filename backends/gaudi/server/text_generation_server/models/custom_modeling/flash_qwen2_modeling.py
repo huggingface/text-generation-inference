@@ -8,6 +8,7 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -288,6 +289,10 @@ class Qwen2Model(torch.nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
         hidden_states = inputs_embeds
 
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
@@ -359,7 +364,6 @@ class Qwen2ForCausalLM(torch.nn.Module):
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         inputs_embeds = self.embed_tokens(input_ids)
 
         hidden_states = self.model(

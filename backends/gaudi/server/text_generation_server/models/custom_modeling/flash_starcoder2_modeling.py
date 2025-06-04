@@ -29,6 +29,7 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -511,6 +512,10 @@ class Starcoder2Model(torch.nn.Module):
         adapter_data,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, input_ids.shape[0]
+            )
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
@@ -584,7 +589,6 @@ class FlashStarcoder2ForCausalLM(torch.nn.Module):
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         hidden_states = self.model(
             input_ids,
             position_ids,
