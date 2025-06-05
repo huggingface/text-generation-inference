@@ -210,7 +210,7 @@ pub struct Llama4Processor {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct HubProcessorConfig {
     pub chat_template: Option<ChatTemplateVersions>,
-    pub image_seq_len: usize,
+    pub image_seq_len: Option<usize>,
     pub processor_class: Option<String>,
 }
 
@@ -1008,7 +1008,7 @@ impl ChatRequest {
         Ok((
             GenerateRequest {
                 inputs: inputs.to_string(),
-                add_special_tokens: false,
+                add_special_tokens: infer.chat_template.is_none(),
                 parameters: GenerateParameters {
                     best_of: None,
                     temperature,
