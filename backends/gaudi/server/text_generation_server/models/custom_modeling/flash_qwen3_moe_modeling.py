@@ -229,21 +229,8 @@ class Qwen3MoE(nn.Module):
         self.process_group = weights.process_group
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # router_logits: (num_tokens, n_experts)
         router_logits = self.gate(x)
-        # synchronize(x.device)
-        # real_free_memory = get_free_memory(x.device, 1)
-        # log_master(
-        #     logger.debug,
-        #     f"moe forward 1Free memory real: {real_free_memory / 1e9:.2f}GB"
-        # )
         out = self.moe(x, gating_output=router_logits)
-        # synchronize(x.device)
-        # real_free_memory = get_free_memory(x.device, 1)
-        # log_master(
-        #     logger.debug,
-        #     f"moe forward 2 Free memory real: {real_free_memory / 1e9:.2f}GB"
-        # )
 
         # Reduce sum
         if self.process_group.size() > 1:
