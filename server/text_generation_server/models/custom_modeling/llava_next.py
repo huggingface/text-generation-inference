@@ -133,6 +133,8 @@ class LlavaNextForConditionalGeneration(nn.Module):
             # and we select the hidden states at those layers
 
             vision_feature_layer = config.vision_feature_layer
+        else:
+            vision_feature_layer = [vision_config.num_hidden_layers - 1]
 
         self.vision_feature_layer = vision_feature_layer
 
@@ -209,12 +211,13 @@ class LlavaNextForConditionalGeneration(nn.Module):
                 f"Strategy `{self.config.vision_feature_select_strategy}` is not supported/valid."
             )
 
-        # vision_feature_layer is a list of layer indices, we select the hidden states at those layers
-        hs_pool = [
-            image_features.hidden_states[layer_idx]
-            for layer_idx in self.vision_feature_layer
-        ]
-        selected_image_feature = torch.cat(hs_pool, dim=-1)
+        if image_features.hidden_states is not None:
+            # vision_feature_layer is a list of layer indices, we select the hidden states at those layers
+            hs_pool = [
+                image_features.hidden_states[layer_idx]
+                for layer_idx in self.vision_feature_layer
+            ]
+            selected_image_feature = torch.cat(hs_pool, dim=-1)
 
         image_features = self.multi_modal_projector(selected_image_feature)
 
