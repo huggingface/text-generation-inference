@@ -86,7 +86,6 @@ class Qwen3Attention(nn.Module):
             bias=False,
         )
 
-
         self.num_groups = self.num_heads // self.num_key_value_heads
         self.kv_head_mapping = torch.arange(
             0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
@@ -161,7 +160,6 @@ class Qwen3Attention(nn.Module):
                 seqlen=seqlen,
                 softmax_scale=self.softmax_scale,
                 window_size_left=self.max_past,
-                num_key_value_groups=self.num_key_value_groups,
             )
         # Decode
         else:
@@ -277,7 +275,6 @@ class Qwen3Model(nn.Module):
         )
 
         residual = None
-
         lazy_mode = htorch.utils.internal.is_lazy()
         if lazy_mode:
             htorch.core.mark_step()
