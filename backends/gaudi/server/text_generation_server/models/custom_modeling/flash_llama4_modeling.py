@@ -43,6 +43,7 @@ from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.attention import (
     KVCache,
     paged_attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -548,6 +549,10 @@ class Llama4TextModel(nn.Module):
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         attention_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
 
         hidden_states = inputs_embeds
         bs = seqlen.input_lengths.shape[0]

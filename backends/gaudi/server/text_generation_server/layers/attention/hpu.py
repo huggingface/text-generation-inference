@@ -8,6 +8,7 @@ from habana_frameworks.torch.hpex.kernels import FusedSDPA
 from vllm_hpu_extension.utils import ModuleFusedSDPA
 import os
 from text_generation_server.models.globals import BLOCK_SIZE
+import math
 
 SUPPORTS_WINDOWING = False
 
@@ -106,6 +107,21 @@ def attention(
     return attn_output
 
 
+def set_block_mapping(hpu_attention_meta: HPUPagedAttentionMetadata, batch_size):
+    block_mapping = torch.nn.functional.one_hot(
+        hpu_attention_meta.block_groups, num_classes=batch_size
+    )
+    dtype = hpu_attention_meta.block_usage.dtype
+    device = hpu_attention_meta.block_usage.device
+    mask = torch.arange(0, BLOCK_SIZE, device=device, dtype=torch.int32).unsqueeze(0)
+    mask = mask >= hpu_attention_meta.block_usage.unsqueeze(-1)
+    attn_bias = torch.zeros_like(mask, dtype=dtype).masked_fill_(mask, -math.inf)
+    hpu_attention_meta = hpu_attention_meta._replace(
+        attn_bias=attn_bias, block_mapping=block_mapping.to(dtype)
+    )
+    return hpu_attention_meta
+
+
 def paged_attention(
     query: torch.Tensor,
     kv_cache: KVCache,
@@ -176,4 +192,10 @@ def paged_attention_mla(
     return output.view(batch_size, head_num, -1)
 
 
-__all__ = ["SUPPORTS_WINDOWING", "attention", "paged_attention", "paged_attention_mla"]
+__all__ = [
+    "SUPPORTS_WINDOWING",
+    "attention",
+    "paged_attention",
+    "paged_attention_mla",
+    "set_block_mapping",
+]

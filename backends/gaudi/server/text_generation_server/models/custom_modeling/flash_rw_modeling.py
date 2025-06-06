@@ -18,6 +18,7 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.attention import (
     attention,
     paged_attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -628,6 +629,10 @@ class FlashRWModel(FlashRWPreTrainedModel):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, input_ids.shape[0]
+            )
         hidden_states = self.word_embeddings(input_ids)
 
         # Get rotary cos and sin for this forward

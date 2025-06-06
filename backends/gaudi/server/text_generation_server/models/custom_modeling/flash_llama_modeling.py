@@ -35,6 +35,7 @@ from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoE
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -549,6 +550,11 @@ class FlashLlamaModel(torch.nn.Module):
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         cross_attention_states=None,
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
+
         hidden_states = inputs_embeds
 
         # Get rotary cos and sin for this forward
