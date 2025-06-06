@@ -48,8 +48,8 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
-    def concatenate(cls, batches):
-        batch = super().concatenate(batches)
+    def concatenate(cls, batches, padded_total_bs: int = 0):
+        batch = super().concatenate(batches, padded_total_bs)
         batch.pixel_values = None
         batch.pixel_attention_mask = None
 
