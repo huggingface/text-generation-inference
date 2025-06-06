@@ -36,6 +36,7 @@ class PositionRotaryEmbedding(nn.Module):
         self._sin_k_cached = None
         self.scaling_factor = scaling_factor
         self.dynamic_args = None
+        self.max_position_embeddings = max_position_embeddings
 
     def forward(
         self,
@@ -268,7 +269,7 @@ class PositionRotaryEmbedding(nn.Module):
 
     def get_cos_sin(self, position_ids: torch.Tensor):
         self._update_cos_sin_cache(
-            torch.float32, position_ids.device, seqlen=position_ids.shape[-1]
+            torch.float32, position_ids.device, seqlen=self.max_position_embeddings
         )
         cos = torch.index_select(self._cos_cached, 0, position_ids)
         sin = torch.index_select(self._sin_cached, 0, position_ids)
@@ -591,6 +592,9 @@ class RotaryPositionEmbeddingMultimodalSections(PositionRotaryEmbedding):
         position_ids: torch.Tensor,
     ):
         slen = position_ids.shape[0]
+        self._update_cos_sin_cache(
+            torch.float32, position_ids.device, seqlen=self.max_position_embeddings
+        )
 
         cos = self._cos_cached[position_ids].gather(1, self._sections[:slen])
         sin = self._sin_cached[position_ids].gather(1, self._sections[:slen])
