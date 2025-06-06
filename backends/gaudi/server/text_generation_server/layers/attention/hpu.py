@@ -88,6 +88,7 @@ def attention(
     _, kv_head_num, head_size = key.shape
     query = query.view(bs, -1, head_num, head_size).transpose(1, 2)
     key = key.view(bs, -1, kv_head_num, head_size).transpose(1, 2)
+    value = value.view(bs, -1, kv_head_num, head_size).transpose(1, 2)
     attn_output = fsdpa_op(
         query,
         key,
