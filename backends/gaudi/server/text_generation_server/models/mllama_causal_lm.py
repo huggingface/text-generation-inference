@@ -49,7 +49,7 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches, padded_total_bs: int = 0):
-        batch = super().concatenate(batches, padded_total_bs)
+        batch = super(FlashVlmCausalLMBatch, cls).concatenate(batches, padded_total_bs)
         batch.pixel_values = None
         batch.pixel_attention_mask = None
 
@@ -228,6 +228,10 @@ def generate_cross_attention_states(
 
 
 class FlashMllamaCausalLM(FlashVlmCausalLM):
+    def set_inputs_embeds(self, batch):
+        # Set the input embeddings to None, as we are using the input_ids for the model
+        batch.inputs_embeds = None
+
     def warmup_decode(
         self, batch_size: int, block_num: int, batch: FlashMllamaCausalLMBatch
     ):

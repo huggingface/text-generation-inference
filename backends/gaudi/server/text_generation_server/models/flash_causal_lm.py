@@ -1457,7 +1457,7 @@ class FlashCausalLM(Model):
         if head_size is None:
             # Some models use GQA and different sizes for o_proj
             # and q_proj, that allows for that.
-            if hasattr(config, "head_dim"):
+            if getattr(config, "head_dim", None) is not None:
                 self.head_size = config.head_dim
             else:
                 self.head_size = config.hidden_size // config.num_attention_heads
@@ -2263,6 +2263,8 @@ class FlashCausalLM(Model):
             batch.prepare_for_decode(
                 self.dtype, self.use_contiguous_pa, self.bucketing_ctx
             )
+        if hasattr(self, "set_inputs_embeds") and callable(self.set_inputs_embeds):
+            self.set_inputs_embeds(batch)
         prefill_logprobs = batch.prefill_next_token_indices is not None
         # Update adapter indices for speculative tokens (if present)
         adapter_meta = batch.adapter_meta
