@@ -46,6 +46,13 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
     aspect_ratio_mask: Optional[torch.Tensor] = None
     cross_attention_states: Optional[torch.Tensor] = None
 
+    def prepare_for_prefill(
+        self, max_padded_input_len, max_padded_bs, max_total_tokens
+    ):
+        super(FlashVlmCausalLMBatch, self).prepare_for_prefill(
+            max_padded_input_len, max_padded_bs, max_total_tokens
+        )
+
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches, padded_total_bs: int = 0):

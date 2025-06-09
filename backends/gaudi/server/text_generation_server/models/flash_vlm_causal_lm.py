@@ -285,7 +285,7 @@ def scatter_image_embeds(
         (is_embed.shape[0], embeds.shape[-1]),
         fill_value=torch.nan,
     )
-    placeholders[is_embed] = embeds
+    placeholders[is_embed.to(embeds.device)] = embeds
     return placeholders
 
 
@@ -294,7 +294,7 @@ def gather_image_embeds(
 ) -> Optional[torch.Tensor]:
     if is_embed is None:
         return embeds
-    sel = embeds[is_embed]
+    sel = embeds[is_embed.to(embeds.device)]
     return sel if sel.numel() else None
 
 
@@ -553,8 +553,12 @@ class FlashVlmCausalLMBatch(FlashCausalLMBatch):
             batch.image_grid_thw = None
         return batch
 
-    def prepare_for_prefill(self):
-        super().prepare_for_prefill()
+    def prepare_for_prefill(
+        self, max_padded_input_len, max_padded_bs, max_total_tokens
+    ):
+        super().prepare_for_prefill(
+            max_padded_input_len, max_padded_bs, max_total_tokens
+        )
 
         self.has_image_inputs = False
         self.cache_entries_to_free = []
@@ -1003,6 +1007,9 @@ class FlashVlmCausalLM(FlashCausalLM):
                 input_ids.device
             )
             attention_mask = attention_mask.reshape(-1)
+        if self.model.config.model_type == "llama4":
+            attention_mask = (input_ids != 0).long()
+            attention_mask_forward = attention_mask.view(input_lengths.shape[0], -1)
 
         if cu_seqlen_prefill is None and self.max_past() is not None:
             # In decode, not prefill, we're actually overwriting the KV-cache
