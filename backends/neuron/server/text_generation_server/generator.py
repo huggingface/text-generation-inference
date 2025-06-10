@@ -7,7 +7,8 @@ from typing import List, Optional, Tuple
 
 import torch
 from loguru import logger
-from transformers import AutoConfig, AutoTokenizer, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, PreTrainedTokenizerBase
+from optimum.neuron.configuration_utils import NeuronConfig
 from transformers.generation import GenerationConfig
 
 from optimum.neuron import NeuronModelForCausalLM
@@ -175,6 +176,12 @@ class Slot:
                 self._generation_config.top_p = request.parameters.top_p
             if request.parameters.typical_p != 0:
                 self._generation_config.typical_p = request.parameters.typical_p
+        else:
+            # Set the sampling parameters to emulate greedy decoding when using on-device sampling
+            self._generation_config.temperature = 1.0
+            self._generation_config.top_k = 1
+            self._generation_config.top_p = 1.0
+            self._generation_config.typical_p = 1.0
         if request.parameters.repetition_penalty != 0:
             self._generation_config.repetition_penalty = (
                 request.parameters.repetition_penalty
@@ -211,19 +218,11 @@ class Slot:
         self._mask = attention_mask.clone()
         self._selector = selector
 
-    def pause(self, reset_on_pause: bool):
+    def pause(self):
         """Mark the current slot as paused for generation.
 
         Note that the KV cache for this slot will still be filled.
         """
-        if reset_on_pause:
-            # Drop the last token as it will be added back when resuming the slot
-            self._generated_tokens -= 1
-            # Since generated tokens are now part of the prefill, we need to reevaluate
-            # max_new_tokens for the next generation
-            self._generation_config.max_new_tokens = (
-                self._max_new_tokens - self._generated_tokens
-            )
         self._state = Slot.State.PAUSE
 
     def resume(self):
@@ -340,15 +339,26 @@ class NeuronGenerator(Generator):
         tokenizer: PreTrainedTokenizerBase,
     ):
         self.model = model
-        self.rebuild_cache_on_prefill = not self.model.continuous_batching
+        if not isinstance(self.model, NeuronModelForCausalLM):
+            raise ValueError("The model must be a NeuronModelForCausalLM.")
+        if not model.neuron_config.continuous_batching:
+            raise ValueError(
+                "The neuron model must be compiled with continuous_batching=True."
+            )
         # Specify padding and truncation options for decoder-only architecture
         tokenizer.pad_token_id = tokenizer.eos_token_id
         tokenizer.padding_side = "left"
         tokenizer.truncation_side = "left"
         self.tokenizer = tokenizer
         self.special_tokens = self.tokenizer.all_special_ids
-        self.slots = [Slot(i, tokenizer) for i in range(self.model.batch_size)]
+        self.slots = [
+            Slot(i, tokenizer) for i in range(self.model.neuron_config.batch_size)
+        ]
         self.batch_id = 0
+
+    @property
+    def on_device_sampling(self) -> bool:
+        return getattr(self.model.neuron_config, "on_device_sampling", False)
 
     @property
     def info(self) -> InfoResponse:
@@ -371,14 +381,22 @@ class NeuronGenerator(Generator):
             The maximum number of tokens the model supports.
         """
         # Just check that the warmup request parameters match the model capacity
-        batch_size = self.model.batch_size
+        batch_size = self.model.neuron_config.batch_size
         if len(batch.requests) > batch_size:
             raise ValueError(
-                f"Inconsistent batch_size configuration: Please make sure the batch_size in the compiled model (currently {batch_size}) matches the batch_size passed to TGI.  The compiled model batch_size is usually in the neuron section of the model config.json file. You may also have passed it into optimum-cli during the compilation process.  The batch size for TGI is usually set in the environment as MAX_BATCH_SIZE."
+                f"Inconsistent batch_size configuration: Please make sure the batch_size in the compiled model (currently {batch_size}) matches the batch_size passed to TGI.  The compiled model.neuron_config.batch_size is usually in the neuron section of the model config.json file. You may also have passed it into optimum-cli during the compilation process.  The batch size for TGI is usually set in the environment as MAX_BATCH_SIZE."
             )
         self.prefill(batch)
         self.clear()
-        return self.model.batch_size * self.model.max_length
+        return (
+            self.model.neuron_config.batch_size
+            * self.model.neuron_config.sequence_length
+        )
+
+    def max_prefill_length(self) -> int:
+        if hasattr(self.model.neuron_config, "max_context_length"):
+            return self.model.neuron_config.max_context_length
+        return self.model.neuron_config.sequence_length
 
     def prefill(self, batch: Batch) -> Tuple[List[Generation], CachedBatch]:
         """Prefill new requests.
@@ -398,7 +416,7 @@ class NeuronGenerator(Generator):
         if len(empty_slots) < len(batch.requests):
             raise ValueError(
                 f"Cannot prefill {len(batch.requests)} new request(s) with only {len(empty_slots)} empty slots."
-                f" Please align max_batch_size with the static batch size: {self.model.batch_size}."
+                f" Please align max_batch_size with the static batch size: {self.model.neuron_config.batch_size}."
             )
         # Assign each request to an empty slot
         logger.debug(
@@ -412,14 +430,8 @@ class NeuronGenerator(Generator):
             logger.debug(
                 f"Request {slot.request_id} assigned to slot {slot.id} with and max_new_tokens {slot.max_new_tokens}"
             )
-        if self.rebuild_cache_on_prefill:
-            # We will clear pending slots and prefill all slots
-            prefill_slots = self.slots
-            seq_ids = None
-        else:
-            # We only need to pass inputs for the new requests
-            prefill_slots = new_slots
-            seq_ids = torch.tensor([slot.id for slot in prefill_slots])
+        prefill_slots = new_slots
+        seq_ids = torch.tensor([slot.id for slot in prefill_slots])
         # Reconstruct the full inputs (without padding) as seen by the model.
         # This comprises:
         # - the inputs for new requests,
@@ -431,8 +443,10 @@ class NeuronGenerator(Generator):
             inputs.append(slot.cached_text)
             # Apply truncation, making sure we fit into static dimensions
             if slot.truncate == 0:
-                max_length = self.model.max_length
-            elif slot.truncate > max_length and slot.truncate < self.model.max_length:
+                max_length = self.max_prefill_length()
+            elif (
+                slot.truncate > max_length and slot.truncate < self.max_prefill_length()
+            ):
                 max_length = slot.truncate
         # Tokenize with padding and truncation
         padded_inputs = self.tokenizer(
@@ -444,13 +458,12 @@ class NeuronGenerator(Generator):
         )
         input_ids = padded_inputs.input_ids
         attention_mask = padded_inputs.attention_mask
+        sampling_params = (
+            torch.zeros(input_ids.shape[0], 3) if self.on_device_sampling else None
+        )
         # Pause previously active slots during generation
-        next_tokens = []
         for slot in active_slots:
-            slot.pause(reset_on_pause=self.rebuild_cache_on_prefill)
-            if self.rebuild_cache_on_prefill:
-                # The slot will be reset, so we need to store its next token
-                next_tokens.append(slot.next_token)
+            slot.pause()
         # Each slot must be reset with the padded inputs and masks
         for i, slot in enumerate(prefill_slots):
             if slot.state != slot.state.EMPTY:
@@ -464,29 +477,33 @@ class NeuronGenerator(Generator):
                     slot_input_ids,
                     slot.generation_config,
                     self.model,
-                    self.model.max_length,
+                    self.model.neuron_config.sequence_length,
                     tokenizer=self.tokenizer,
                     seed=slot.seed,
                 )
                 slot_input_ids = slot_input_ids.squeeze(dim=0).type(torch.int64)
                 slot_attention_mask = attention_mask[i]
                 slot.reset(slot_input_ids, slot_attention_mask, selector)
+                if sampling_params is not None:
+                    sampling_params[i, 0] = slot.generation_config.top_k
+                    sampling_params[i, 1] = slot.generation_config.top_p
+                    sampling_params[i, 2] = slot.generation_config.temperature
         # Note: when rebuilding cache on prefill, the new tokens on paused slots will be ignored,
         # as they have already been generated and sent back in the last decode.
         model_inputs = self.model.prepare_inputs_for_prefill(
-            input_ids, attention_mask, seq_ids
+            input_ids,
+            attention_mask=attention_mask,
+            seq_ids=seq_ids,
+            sampling_params=sampling_params,
         )
-        logits = self.model(**model_inputs)[0]
+        tokens_or_logits = self.model(**model_inputs)[0]
         generation, next_batch = self._generate_token(
-            prefill_slots, self.batch_id, logits, input_ids
+            prefill_slots, self.batch_id, tokens_or_logits, input_ids
         )
         self.batch_id += 1
         # Reactivate previously active slots for the next decode
         for i, slot in enumerate(active_slots):
             slot.resume()
-            if self.rebuild_cache_on_prefill:
-                # Append back the next token
-                slot.append(next_tokens[i])
         logger.debug("Model ready for decoding")
         if next_batch is not None:
             logger.debug(
@@ -530,12 +547,8 @@ class NeuronGenerator(Generator):
             raise ValueError(
                 "Unable to decode tokens for non-prefilled batches (probably due to a previous failure)"
             )
-        if self.model.continuous_batching:
-            decode_slots = active_slots
-            seq_ids = torch.tensor([slot.id for slot in decode_slots])
-        else:
-            decode_slots = self.slots
-            seq_ids = None
+        decode_slots = active_slots
+        seq_ids = torch.tensor([slot.id for slot in decode_slots])
         # Reconstruct input_ids and attention_mask from decode slots
         n_slots = len(decode_slots)
         input_ids = torch.full(
@@ -545,22 +558,32 @@ class NeuronGenerator(Generator):
         for slot in decode_slots:
             max_length = max(max_length, slot.attention_mask.size(-1))
         attention_mask = torch.zeros([n_slots, max_length], dtype=torch.int64)
+        sampling_params = torch.zeros(n_slots, 3) if self.on_device_sampling else None
         for i, slot in enumerate(decode_slots):
             if slot.state != Slot.State.EMPTY:
                 # input_ids are simply the tokens generated by the last decode or prefill requests (other tokens are cached)
                 input_ids[i, 0] = slot.next_token
                 attention_mask[i, : slot.attention_mask.size(-1)] = slot.attention_mask
+                if sampling_params is not None:
+                    sampling_params[i, 0] = slot.generation_config.top_k
+                    sampling_params[i, 1] = slot.generation_config.top_p
+                    sampling_params[i, 2] = slot.generation_config.temperature
         model_inputs = self.model.prepare_inputs_for_decode(
-            input_ids, attention_mask, seq_ids
+            input_ids,
+            attention_mask=attention_mask,
+            seq_ids=seq_ids,
+            sampling_params=sampling_params,
         )
-        logits = self.model(**model_inputs)[0]
-        return self._generate_token(decode_slots, next_batch_id, logits, input_ids)
+        tokens_or_logits = self.model(**model_inputs)[0]
+        return self._generate_token(
+            decode_slots, next_batch_id, tokens_or_logits, input_ids
+        )
 
     def _generate_token(
         self,
         slots: List[Slot],
         next_batch_id: int,
-        logits: torch.Tensor,
+        tokens_or_logits: torch.Tensor,
         input_ids: torch.LongTensor,
     ) -> Tuple[List[Generation], CachedBatch]:
         generations = []
@@ -569,9 +592,12 @@ class NeuronGenerator(Generator):
             if slot.state != Slot.State.READY:
                 continue
             request_id = slot.request_id
-            next_token_logits = logits[i : i + 1, -1, :]
             slot_input_ids = input_ids[i : i + 1, :]
-            next_token = slot.select(slot_input_ids, next_token_logits)
+            if self.on_device_sampling:
+                next_token = tokens_or_logits[i]
+            else:
+                next_token_logits = tokens_or_logits[i : i + 1, -1, :]
+                next_token = slot.select(slot_input_ids, next_token_logits)
             next_token_text = slot.append(next_token)
             generated_text = None
             finish_reason = None
@@ -622,7 +648,7 @@ class NeuronGenerator(Generator):
 
     def _cached_batch(self, batch_id: int, request_ids: List):
         size = len(request_ids)
-        max_tokens = size * self.model.max_length
+        max_tokens = size * self.model.neuron_config.sequence_length
         return CachedBatch(
             id=batch_id, request_ids=request_ids, size=size, max_tokens=max_tokens
         )
@@ -671,8 +697,16 @@ class NeuronGenerator(Generator):
         Returns:
             A NeuronGenerator.
         """
-        config = AutoConfig.from_pretrained(model_id)
-        neuron_config = getattr(config, "neuron", None)
+        try:
+            neuron_config = NeuronConfig.from_pretrained(model_id, revision=revision)
+        except Exception as e:
+            logger.debug(
+                "NeuronConfig.from_pretrained failed for model %s, revision %s: %s",
+                model_id,
+                revision,
+                e,
+            )
+            neuron_config = None
         start = time.time()
         if neuron_config is None:
             export_kwargs = get_export_kwargs_from_env()
