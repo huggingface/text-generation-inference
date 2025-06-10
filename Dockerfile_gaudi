@@ -57,7 +57,7 @@ ARG PYTORCH_VERSION
 
 FROM vault.habana.ai/gaudi-docker/${HABANA_VERSION}/ubuntu22.04/habanalabs/pytorch-installer-${PYTORCH_VERSION}:latest AS base
 
-ENV ATTENTION=default
+ENV ATTENTION=paged
 ENV PREFIX_CACHING=0
 ENV PREFILL_CHUNKING=0
 ENV PT_HPU_LAZY_MODE=1

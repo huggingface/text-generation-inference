@@ -35,14 +35,10 @@ __all__ = [
     "Seq2SeqLM",
     "get_model_with_lora_adapters",
 ]
-from text_generation_server.models.globals import ATTENTION
 
 VLM_BATCH_TYPES = set()
-FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
-FLASH_ATTENTION = False
-if ATTENTION == "paged":
-    FLASH_ATTENTION = True
+FLASH_ATTENTION = True
 
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
