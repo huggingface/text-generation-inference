@@ -619,9 +619,7 @@ class FlashVlmCausalLMBatch(FlashCausalLMBatch):
                 if "image_grid_thw" in x[2]
             ]
             if image_grid_thw_list:
-                self.image_grid_thw = torch.cat(image_grid_thw_list, dim=0).to(
-                    self.input_ids.device
-                )
+                self.image_grid_thw = torch.cat(image_grid_thw_list, dim=0)
             else:
                 self.image_grid_thw = None
 
@@ -898,7 +896,7 @@ class FlashVlmCausalLM(FlashCausalLM):
                     image_sizes = None
 
                 if "image_grid_thw" in image_input:
-                    image_grid_thw = image_input["image_grid_thw"].to(device)
+                    image_grid_thw = image_input["image_grid_thw"]
                 else:
                     image_grid_thw = None
 
@@ -992,7 +990,7 @@ class FlashVlmCausalLM(FlashCausalLM):
         if self.model.config.model_type in {"qwen2_vl", "qwen2_5_vl"}:
             if position_ids.dim() == 1 and batch.prefilling:
                 position_ids = self.model.get_position_ids(
-                    input_ids, batch.image_grid_thw
+                    input_ids.cpu(), batch.image_grid_thw
                 )
                 batch.position_ids = position_ids
 

@@ -1000,9 +1000,18 @@ class FlashCausalLMBatch(Batch):
         self.input_ids = F.pad(
             self.input_ids, (0, padded_bs - self.input_ids.shape[0]), value=0
         )
-        self.position_ids = F.pad(
-            self.position_ids, (0, padded_bs - self.position_ids.shape[0]), value=1
-        )
+
+        if self.position_ids.dim() == 2:
+            # Qwen VL case
+            self.position_ids = F.pad(
+                self.position_ids,
+                (0, 0, 0, padded_bs - self.position_ids.shape[0]),
+                value=1,
+            )
+        else:
+            self.position_ids = F.pad(
+                self.position_ids, (0, padded_bs - self.position_ids.shape[0]), value=1
+            )
         self.input_lengths_tensor = F.pad(
             self.input_lengths_tensor,
             (0, padded_bs - self.input_lengths_tensor.shape[0]),
