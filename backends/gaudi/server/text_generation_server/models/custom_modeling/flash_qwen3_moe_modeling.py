@@ -185,7 +185,6 @@ class Qwen3MoeAttention(nn.Module):
                 seqlen=seqlen,
                 softmax_scale=self.scaling,
                 window_size_left=self.max_past,
-                num_key_value_groups=self.num_key_value_groups,
             )
         # Decode
         else:
