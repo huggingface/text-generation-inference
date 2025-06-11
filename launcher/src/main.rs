@@ -1590,11 +1590,6 @@ fn spawn_shards(
 ) -> Result<(), LauncherError> {
     // Start shard processes
     for rank in 0..num_shard {
-        if rank != 0 && env_runtime::Env::new().should_start_a_single_hpu_shard() {
-            tracing::info!("Running on HPU, the launcher will not do any sharding as actual sharding is done in the server");
-            break;
-        }
-
         let model_id = args.model_id.clone();
         let revision = args.revision.clone();
         let uds_path = args.shard_uds_path.clone();
@@ -1668,10 +1663,6 @@ fn spawn_shards(
             Ok(ShardStatus::Ready) => {
                 shard_ready += 1;
                 if shard_ready == num_shard {
-                    break;
-                }
-                if env_runtime::Env::new().should_start_a_single_hpu_shard() {
-                    tracing::info!("HPU detected, shard is ready");
                     break;
                 }
             }

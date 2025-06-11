@@ -27,10 +27,6 @@ impl Env {
             docker_label: option_env!("DOCKER_LABEL").unwrap_or("N/A"),
         }
     }
-
-    pub fn should_start_a_single_hpu_shard(&self) -> bool {
-        self.hpu_env != "N/A" && std::env::var("ATTENTION").as_deref() != Ok("paged")
-    }
 }
 
 impl fmt::Display for Env {
