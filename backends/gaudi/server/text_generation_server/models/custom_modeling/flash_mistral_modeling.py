@@ -30,6 +30,7 @@ from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -396,6 +397,10 @@ class MistralModel(torch.nn.Module):
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         adapter_data: Optional[torch.Tensor] = None,
     ):
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
         hidden_states = inputs_embeds
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer

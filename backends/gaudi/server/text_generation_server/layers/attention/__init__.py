@@ -11,6 +11,7 @@ from .hpu import (
     attention,
     paged_attention,
     paged_attention_mla,
+    set_block_mapping,
 )
 
 
@@ -22,6 +23,7 @@ __all__ = [
     "get_kv_scales",
     "paged_attention",
     "paged_attention_mla",
+    "set_block_mapping",
     "SUPPORTS_WINDOWING",
     "KVCache",
     "KVCompressCache",
