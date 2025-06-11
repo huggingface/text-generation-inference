@@ -49,6 +49,7 @@ from habana_frameworks.torch.hpex.kernels import (
     RotaryPosEmbeddingMode,
     apply_rotary_pos_emb,
 )
+import habana_frameworks.torch as htorch
 
 # Copied from: https://github.com/huggingface/transformers/blob/main/src/transformers/models/qwen2_5_vl/processing_qwen2_5_vl.py
 from typing import Union
@@ -595,7 +596,7 @@ class Qwen2_5VisionModel(nn.Module):
             config=config,
             weights=weights,
         )
-        # import ipdb; ipdb.set_trace()
+
         self.temporal_patch_size = config.temporal_patch_size
         self.spatial_patch_size = config.spatial_patch_size
         self.in_channels = config.in_channels
@@ -745,6 +746,9 @@ class Qwen2_5VisionModel(nn.Module):
         max_seqlen = torch.max(cu_seqlens[1:] - cu_seqlens[:-1])
 
         # iterately apply the blocks to the hidden states
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for layer_num, block in enumerate(self.blocks):
             # NOTE: qwen2_5_vl.py has a concept of full attention blocks
             # that are applied at specific layers.
@@ -754,6 +758,8 @@ class Qwen2_5VisionModel(nn.Module):
                 cu_seqlens_now = cu_window_seqlens
 
             hidden_states = block(hidden_states, cu_seqlens_now, cos, sin, max_seqlen)
+            if lazy_mode:
+                htorch.core.mark_step()
 
         # apply the final patch merger to the hidden states
         hidden_states = self.merger(hidden_states)

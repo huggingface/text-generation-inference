@@ -38,6 +38,7 @@ from text_generation_server.models.custom_modeling.flash_llama_modeling import (
 )
 from habana_frameworks.torch.hpex.kernels import FusedSDPA
 from vllm_hpu_extension.utils import ModuleFusedSDPA
+import habana_frameworks.torch as htorch
 
 
 def _prepare_aspect_ratio_attention_mask(
@@ -320,6 +321,9 @@ class MllamaVisionEncoder(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
     ):
         encoder_states = [hidden_states]
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for encoder_layer in self.layers:
             layer_outputs = encoder_layer(
                 hidden_states,
@@ -328,6 +332,8 @@ class MllamaVisionEncoder(nn.Module):
 
             hidden_states = layer_outputs
             encoder_states.append(hidden_states)
+            if lazy_mode:
+                htorch.core.mark_step()
 
         return hidden_states, encoder_states
 

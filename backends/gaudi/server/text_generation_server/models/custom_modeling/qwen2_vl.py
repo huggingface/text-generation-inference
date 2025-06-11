@@ -48,6 +48,7 @@ from habana_frameworks.torch.hpex.kernels import (
     RotaryPosEmbeddingMode,
     apply_rotary_pos_emb,
 )
+import habana_frameworks.torch as htorch
 
 
 class Qwen2VLAttention(nn.Module):
@@ -330,8 +331,13 @@ class Qwen2VisionModel(nn.Module):
         cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
         max_seqlen = torch.max(cu_seqlens[1:] - cu_seqlens[:-1])
         # iterately apply the blocks to the hidden states
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for block in self.blocks:
             hidden_states = block(hidden_states, cu_seqlens, cos, sin, max_seqlen)
+            if lazy_mode:
+                htorch.core.mark_step()
 
         # apply the final patch merger to the hidden states
         hidden_states = self.merger(hidden_states)
