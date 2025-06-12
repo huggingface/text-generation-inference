@@ -1075,8 +1075,19 @@ class FlashCausalLMBatch(Batch):
             input_ids = [0] * extra_pad + input_ids
             self.input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         else:
-            self.input_ids = F.pad(self.input_ids, (extra_pad, 0), value=0)
-            input_ids_padded_length.extend([extra_pad] * len(self))
+            input_ids = self.input_ids.new_zeros(max_padded_input_len * len(self))
+            src_pos = 0
+            for i in range(len(self)):
+                end_pos = (i + 1) * max_padded_input_len
+                start_pos = end_pos - self.input_lengths[i]
+                input_ids[start_pos:end_pos] = self.input_ids[
+                    src_pos : src_pos + self.input_lengths[i]
+                ]
+                input_ids_padded_length.append(
+                    max_padded_input_len - self.input_lengths[i]
+                )
+                src_pos += self.input_lengths[i]
+            self.input_ids = input_ids
 
         self.input_ids = F.pad(
             self.input_ids, (0, extra_pad_bs * max_padded_input_len), value=0

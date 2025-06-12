@@ -80,7 +80,7 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
     @tracer.start_as_current_span("filter")
     def filter(self, request_ids: List[int]):
         assert self.image_indices is not None
-        batch = super().filter(request_ids)
+        batch = super(FlashVlmCausalLMBatch, self).filter(request_ids)
         assert self.image_indices is not None
         indices = []
         for i, request_id in enumerate(request_ids):
@@ -106,6 +106,7 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
             ]
         else:
             batch.cross_attention_states = None
+        batch.pixel_values = None
         return batch
 
     @classmethod
