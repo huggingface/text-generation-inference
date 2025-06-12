@@ -1000,9 +1000,18 @@ class FlashCausalLMBatch(Batch):
         self.input_ids = F.pad(
             self.input_ids, (0, padded_bs - self.input_ids.shape[0]), value=0
         )
-        self.position_ids = F.pad(
-            self.position_ids, (0, padded_bs - self.position_ids.shape[0]), value=1
-        )
+
+        if self.position_ids.dim() == 2:
+            # Qwen VL case
+            self.position_ids = F.pad(
+                self.position_ids,
+                (0, 0, 0, padded_bs - self.position_ids.shape[0]),
+                value=1,
+            )
+        else:
+            self.position_ids = F.pad(
+                self.position_ids, (0, padded_bs - self.position_ids.shape[0]), value=1
+            )
         self.input_lengths_tensor = F.pad(
             self.input_lengths_tensor,
             (0, padded_bs - self.input_lengths_tensor.shape[0]),
@@ -1066,8 +1075,19 @@ class FlashCausalLMBatch(Batch):
             input_ids = [0] * extra_pad + input_ids
             self.input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         else:
-            self.input_ids = F.pad(self.input_ids, (extra_pad, 0), value=0)
-            input_ids_padded_length.extend([extra_pad] * len(self))
+            input_ids = self.input_ids.new_zeros(max_padded_input_len * len(self))
+            src_pos = 0
+            for i in range(len(self)):
+                end_pos = (i + 1) * max_padded_input_len
+                start_pos = end_pos - self.input_lengths[i]
+                input_ids[start_pos:end_pos] = self.input_ids[
+                    src_pos : src_pos + self.input_lengths[i]
+                ]
+                input_ids_padded_length.append(
+                    max_padded_input_len - self.input_lengths[i]
+                )
+                src_pos += self.input_lengths[i]
+            self.input_ids = input_ids
 
         self.input_ids = F.pad(
             self.input_ids, (0, extra_pad_bs * max_padded_input_len), value=0
@@ -1457,7 +1477,7 @@ class FlashCausalLM(Model):
         if head_size is None:
             # Some models use GQA and different sizes for o_proj
             # and q_proj, that allows for that.
-            if hasattr(config, "head_dim"):
+            if getattr(config, "head_dim", None) is not None:
                 self.head_size = config.head_dim
             else:
                 self.head_size = config.hidden_size // config.num_attention_heads
@@ -2263,6 +2283,8 @@ class FlashCausalLM(Model):
             batch.prepare_for_decode(
                 self.dtype, self.use_contiguous_pa, self.bucketing_ctx
             )
+        if hasattr(self, "set_inputs_embeds") and callable(self.set_inputs_embeds):
+            self.set_inputs_embeds(batch)
         prefill_logprobs = batch.prefill_next_token_indices is not None
         # Update adapter indices for speculative tokens (if present)
         adapter_meta = batch.adapter_meta

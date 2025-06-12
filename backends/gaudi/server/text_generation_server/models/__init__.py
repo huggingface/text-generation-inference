@@ -83,9 +83,6 @@ try:
     from text_generation_server.models.custom_modeling.flash_neox_modeling import (
         FlashGPTNeoXForCausalLM,
     )
-    from text_generation_server.models.pali_gemma import (
-        PaliGemmaBatch,
-    )
     from text_generation_server.models.custom_modeling.flash_pali_gemma_modeling import (
         PaliGemmaForConditionalGeneration,
     )
@@ -153,7 +150,6 @@ if FLASH_ATTENTION:
     )
 
     VLM_BATCH_TYPES = {
-        PaliGemmaBatch,
         FlashVlmCausalLMBatch,
         FlashMllamaCausalLMBatch,
     }
@@ -635,6 +631,7 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                support_chunking=False,
             )
         elif model_type == BAICHUAN:
             return FlashCausalLM(
@@ -784,6 +781,8 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
             )
         elif model_type == QWEN2_5_VL:
             return FlashVlmCausalLM(
@@ -799,6 +798,8 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=Qwen2_5_VLConfig,
                 processor_class=Qwen2_5_VLProcessor,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
             )
         elif model_type == QWEN3:
             return FlashCausalLM(
@@ -824,6 +825,7 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                support_chunking=False,
             )
         elif model_type == IDEFICS2:
             return FlashVlmCausalLM(
@@ -868,7 +870,6 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
-                batch_class=PaliGemmaBatch,
             )
         elif model_type == LLAVA_NEXT:
             return FlashVlmCausalLM(
