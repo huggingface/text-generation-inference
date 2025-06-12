@@ -54,7 +54,8 @@ import habana_frameworks.torch as htorch
 # Copied from: https://github.com/huggingface/transformers/blob/main/src/transformers/models/qwen2_5_vl/processing_qwen2_5_vl.py
 from typing import Union
 from transformers.feature_extraction_utils import BatchFeature
-from transformers.image_utils import ImageInput, VideoInput
+from transformers.image_utils import ImageInput
+from transformers.video_utils import VideoInput
 from transformers.processing_utils import (
     ProcessingKwargs,
     ProcessorMixin,
