@@ -111,7 +111,7 @@ class MistralAttention(torch.nn.Module):
         )
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
-        if hasattr(config, "head_dim"):
+        if hasattr(config, "head_dim") and config.head_dim is not None:
             self.head_size = config.head_dim
         else:
             self.head_size = self.hidden_size // self.num_heads
