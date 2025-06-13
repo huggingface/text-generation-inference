@@ -1050,8 +1050,6 @@ class FlashVlmCausalLM(FlashCausalLM):
             attention_mask=attention_mask_forward,
             **kwargs,
         )
-        if batch.prefill_cache_indices is not None:
-            batch.prefill_cache_indices = None
         batch.image_grid_thw = None
         batch.free_encoder_cache()
         return logits, speculative_logits

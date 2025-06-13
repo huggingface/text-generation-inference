@@ -4,14 +4,27 @@ import os
 import glob
 import time
 
-from optimum.habana.utils import to_gb_rounded
 import habana_frameworks.torch as htorch
+import numpy as np
 
 START_TS = None
 DBG_TRACE_FILENAME = os.environ.get("DBG_TRACE_FILENAME")
 if "GRAPH_VISUALIZATION" in os.environ:
     for f in glob.glob(".graph_dumps/*"):
         os.remove(f)
+
+
+def to_gb_rounded(mem: float) -> float:
+    """
+    Rounds and converts to GB.
+
+    Args:
+        mem (float): memory in bytes
+
+    Returns:
+        float: memory in GB rounded to the second decimal
+    """
+    return np.round(mem / 1024**3, 2)
 
 
 def count_hpu_graphs():
