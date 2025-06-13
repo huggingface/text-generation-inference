@@ -35,6 +35,7 @@ from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoE
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -143,12 +144,14 @@ class FlashLlamaAttention(torch.nn.Module):
         config.num_key_value_heads = getattr(
             config, "num_key_value_heads", config.num_attention_heads
         )
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+
+        if config.model_type != "llama4_text":
+            self.rotary_emb = PositionRotaryEmbedding.static(
+                config=config,
+                dim=self.head_size,
+                base=config.rope_theta,
+                device=weights.device,
+            )
 
         # `config.attention_multiplier` is used in Granite
         self.softmax_scale = getattr(
@@ -547,6 +550,11 @@ class FlashLlamaModel(torch.nn.Module):
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         cross_attention_states=None,
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
+
         hidden_states = inputs_embeds
 
         # Get rotary cos and sin for this forward

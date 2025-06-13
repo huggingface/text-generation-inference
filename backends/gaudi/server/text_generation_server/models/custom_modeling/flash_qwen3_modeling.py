@@ -18,6 +18,7 @@ import habana_frameworks.torch as htorch
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -266,7 +267,10 @@ class Qwen3Model(nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
-
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
         hidden_states = inputs_embeds
 
         # create position embeddings to be shared across the decoder layers
@@ -334,7 +338,6 @@ class Qwen3ForCausalLM(nn.Module):
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         inputs_embeds = self.embed_tokens(input_ids)
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         hidden_states = self.model(

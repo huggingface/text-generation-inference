@@ -5,7 +5,6 @@ import os
 
 from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
-from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional
 from pathlib import Path
@@ -36,14 +35,10 @@ __all__ = [
     "Seq2SeqLM",
     "get_model_with_lora_adapters",
 ]
-from text_generation_server.models.globals import ATTENTION
 
 VLM_BATCH_TYPES = set()
-FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
 
-FLASH_ATTENTION = False
-if ATTENTION == "paged":
-    FLASH_ATTENTION = True
+FLASH_ATTENTION = True
 
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
@@ -82,9 +77,6 @@ try:
     )
     from text_generation_server.models.custom_modeling.flash_neox_modeling import (
         FlashGPTNeoXForCausalLM,
-    )
-    from text_generation_server.models.pali_gemma import (
-        PaliGemmaBatch,
     )
     from text_generation_server.models.custom_modeling.flash_pali_gemma_modeling import (
         PaliGemmaForConditionalGeneration,
@@ -156,7 +148,6 @@ if FLASH_ATTENTION:
     )
 
     VLM_BATCH_TYPES = {
-        PaliGemmaBatch,
         FlashVlmCausalLMBatch,
         FlashMllamaCausalLMBatch,
     }
@@ -642,6 +633,7 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                support_chunking=False,
             )
         elif model_type == BAICHUAN:
             return FlashCausalLM(
@@ -791,6 +783,8 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
             )
         elif model_type == QWEN2_5_VL:
             return FlashVlmCausalLM(
@@ -806,6 +800,8 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=Qwen2_5_VLConfig,
                 processor_class=Qwen2_5_VLProcessor,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
             )
         elif model_type == QWEN3:
             return FlashCausalLM(
@@ -843,6 +839,7 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                support_chunking=False,
             )
         elif model_type == IDEFICS2:
             return FlashVlmCausalLM(
@@ -887,7 +884,6 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
-                batch_class=PaliGemmaBatch,
             )
         elif model_type == LLAVA_NEXT:
             return FlashVlmCausalLM(
@@ -900,72 +896,6 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
             )
-
-    from text_generation_server.models.causal_lm import CausalLM
-    from text_generation_server.models.vlm_causal_lm import VlmCausalLM
-    from text_generation_server.models.custom_modeling.mllama import (
-        MllamaForConditionalGeneration,
-    )
-    from text_generation_server.models.custom_modeling.llava_next import (
-        LlavaNextForConditionalGeneration,
-    )
-    from text_generation_server.models.vlm_causal_lm import (
-        VlmCausalLMBatch,
-    )
-
-    VLM_BATCH_TYPES.add(VlmCausalLMBatch)
-
-    from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
-
-    adapt_transformers_to_gaudi()
-    if SDP_ON_BF16 == 1:
-        torch._C._set_math_sdp_allow_fp16_bf16_reduction(True)
-    if model_type == "gpt_bigcode":
-        from text_generation_server.models.starcoder import StarCoder
-
-        return StarCoder(model_id=model_id, revision=revision, dtype=dtype)
-    if model_type == "bloom":
-        from text_generation_server.models.bloom import BLOOM
-
-        return BLOOM(
-            model_id=model_id,
-            revision=revision,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
-    if model_type == "llava_next":
-        return VlmCausalLM(
-            model_class=LlavaNextForConditionalGeneration,
-            model_id=model_id,
-            revision=revision,
-            quantize=None,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
-    if model_type == "mllama":
-        return VlmCausalLM(
-            model_class=MllamaForConditionalGeneration,
-            model_id=model_id,
-            revision=revision,
-            quantize=None,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
-    if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-        return CausalLM(
-            model_id,
-            revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
 
     raise ValueError(f"Unsupported model type {model_type}")
 

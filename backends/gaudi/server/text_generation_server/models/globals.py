@@ -4,14 +4,14 @@ from loguru import logger
 from text_generation_server.utils.log import log_master
 
 REQUEST_LOGPROBS = os.getenv("REQUEST_LOGPROBS", "0").lower() in {"1", "true"}
-ATTENTION = os.getenv("ATTENTION", "default")
+ATTENTION = os.getenv("ATTENTION", "paged")
 # default_prefix_caching = "1" if ATTENTION in {"flashinfer", "flashdecoding"} else "0"
 PREFIX_CACHING = os.getenv("PREFIX_CACHING", "0").lower() in {
     "1",
     "true",
 }
 log_master(logger.info, f"Using prefix caching = {PREFIX_CACHING}")
-_expected = {"paged", "default"}
+_expected = {"paged"}
 assert (
     ATTENTION in _expected
 ), f"Attention is not valid {ATTENTION}, expected {_expected}"

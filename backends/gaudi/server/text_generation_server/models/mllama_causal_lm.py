@@ -46,10 +46,17 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
     aspect_ratio_mask: Optional[torch.Tensor] = None
     cross_attention_states: Optional[torch.Tensor] = None
 
+    def prepare_for_prefill(
+        self, max_padded_input_len, max_padded_bs, max_total_tokens
+    ):
+        super(FlashVlmCausalLMBatch, self).prepare_for_prefill(
+            max_padded_input_len, max_padded_bs, max_total_tokens
+        )
+
     @classmethod
     @tracer.start_as_current_span("concatenate")
-    def concatenate(cls, batches):
-        batch = super().concatenate(batches)
+    def concatenate(cls, batches, padded_total_bs: int = 0):
+        batch = super(FlashVlmCausalLMBatch, cls).concatenate(batches, padded_total_bs)
         batch.pixel_values = None
         batch.pixel_attention_mask = None
 
@@ -73,7 +80,7 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
     @tracer.start_as_current_span("filter")
     def filter(self, request_ids: List[int]):
         assert self.image_indices is not None
-        batch = super().filter(request_ids)
+        batch = super(FlashVlmCausalLMBatch, self).filter(request_ids)
         assert self.image_indices is not None
         indices = []
         for i, request_id in enumerate(request_ids):
@@ -99,6 +106,7 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
             ]
         else:
             batch.cross_attention_states = None
+        batch.pixel_values = None
         return batch
 
     @classmethod
@@ -228,6 +236,10 @@ def generate_cross_attention_states(
 
 
 class FlashMllamaCausalLM(FlashVlmCausalLM):
+    def set_inputs_embeds(self, batch):
+        # Set the input embeddings to None, as we are using the input_ids for the model
+        batch.inputs_embeds = None
+
     def warmup_decode(
         self, batch_size: int, block_num: int, batch: FlashMllamaCausalLMBatch
     ):

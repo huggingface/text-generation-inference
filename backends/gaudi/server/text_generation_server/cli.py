@@ -1,6 +1,4 @@
 import os
-import psutil
-import signal
 import sys
 import typer
 
@@ -115,80 +113,19 @@ def serve(
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
-
-    logger.info("CLI SHARDED = {} DTYPE = {}".format(sharded, dtype))
-
-    if sharded and os.getenv("ATTENTION", "default") not in {"paged"}:
-        tgi_file = Path(__file__).resolve().parent / "tgi_service.py"
-        num_shard = int(os.getenv("WORLD_SIZE", "1"))
-        logger.info("CLI SHARDED = {}".format(num_shard))
-        import subprocess
-
-        cmd = (
-            f"deepspeed --num_nodes 1 --num_gpus {num_shard} --no_local_rank {tgi_file}"
-        )
-        cmd += f" --model_id {model_id} --revision {revision} --sharded {sharded}"
-        cmd += f" --dtype {dtype} --trust_remote_code {trust_remote_code} --uds_path {uds_path}"
-        cmd += f" --quantize {quantize} --max_input_tokens {max_input_tokens}"
-        if speculate is not None:
-            cmd += f"--speculate {speculate}"
-        logger.info("CLI server start deepspeed ={} ".format(cmd))
-        sys.stdout.flush()
-        sys.stderr.flush()
-        with subprocess.Popen(cmd, shell=True, executable="/bin/bash") as proc:
-            do_terminate = False
-            current_handler = signal.getsignal(signal.SIGTERM)
-
-            def terminate_handler(sig, frame):
-                nonlocal do_terminate
-                do_terminate = True
-                if callable(current_handler):
-                    current_handler(sig, frame)
-
-            signal.signal(signal.SIGTERM, terminate_handler)
-
-            finished = False
-            while not finished:
-                try:
-                    if do_terminate:
-                        parent = psutil.Process(proc.pid)
-                        all_procs = parent.children(recursive=True) + [parent]
-                        for p in all_procs:
-                            try:
-                                p.terminate()
-                            except psutil.NoSuchProcess:
-                                pass
-                        _, alive = psutil.wait_procs(all_procs, timeout=30)
-                        for p in alive:
-                            p.kill()
-
-                        do_terminate = False
-
-                    proc.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    pass
-                else:
-                    finished = True
-
-            sys.stdout.flush()
-            sys.stderr.flush()
-            if proc.returncode != 0:
-                logger.error(f"{cmd}  exited with status = {proc.returncode}")
-                return proc.returncode
-    else:
-        server.serve(
-            model_id,
-            lora_adapters,
-            revision,
-            sharded,
-            quantize,
-            speculate,
-            dtype,
-            kv_cache_dtype,
-            trust_remote_code,
-            uds_path,
-            max_input_tokens,
-        )
+    server.serve(
+        model_id,
+        lora_adapters,
+        revision,
+        sharded,
+        quantize,
+        speculate,
+        dtype,
+        kv_cache_dtype,
+        trust_remote_code,
+        uds_path,
+        max_input_tokens,
+    )
 
 
 @app.command()

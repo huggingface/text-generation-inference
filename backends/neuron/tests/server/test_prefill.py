@@ -9,7 +9,7 @@ def test_prefill(neuron_model_config):
     neuron_model_path = neuron_model_config["neuron_model_path"]
     generator = NeuronGenerator.from_pretrained(neuron_model_path)
     max_batch_size = 4
-    assert generator.model.batch_size >= max_batch_size
+    assert generator.model.neuron_config.batch_size >= max_batch_size
     for num_requests in [1, max_batch_size]:
         for do_sample in [True, False]:
             mode = "sample" if do_sample else "greedy"
@@ -34,7 +34,7 @@ def _test_prefill(config_name, generator, batch_size, do_sample):
             )
         )
     # Let's be pessimistic when estimating max_tokens
-    max_length = generator.model.max_length
+    max_length = generator.max_prefill_length()
     batch = Batch(
         id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length
     )
@@ -46,17 +46,13 @@ def _test_prefill(config_name, generator, batch_size, do_sample):
     assert len(generations) == batch_size
     if do_sample:
         expectations = {
-            "gpt2": [383, " The"],
-            "llama": [10058, " George"],
-            "mistral": [450, " The"],
-            "qwen2": [362, " A"],
+            "llama": [358, " I"],
+            "qwen2": [576, " The"],
             "granite": [308, " ("],
         }[config_name]
     else:
         expectations = {
-            "gpt2": [198, "\n"],
-            "llama": [10058, " George"],
-            "mistral": [13, "\n"],
+            "llama": [578, " The"],
             "qwen2": [358, " I"],
             "granite": [203, "\n"],
         }[config_name]
@@ -70,7 +66,7 @@ def test_prefill_truncate(neuron_model_config):
     config_name = neuron_model_config["name"]
     neuron_model_path = neuron_model_config["neuron_model_path"]
     generator = NeuronGenerator.from_pretrained(neuron_model_path)
-    batch_size = generator.model.batch_size
+    batch_size = generator.model.neuron_config.batch_size
     # We apply truncation to all requests but the first one
     truncate = [
         None,
@@ -83,7 +79,7 @@ def test_prefill_truncate(neuron_model_config):
     requests = []
     for i in range(batch_size):
         requests.append(create_request(id=i, inputs=input_text, truncate=truncate[i]))
-    max_length = generator.model.max_length
+    max_length = generator.max_prefill_length()
     batch = Batch(
         id=0, requests=requests, size=batch_size, max_tokens=batch_size * max_length
     )
@@ -91,12 +87,12 @@ def test_prefill_truncate(neuron_model_config):
     # Even if the input text is identical for all requests, the first generated token might
     # be different because of the truncation
     expectations = {
-        "gpt2": [" He", " He", "\n", " He"],
-        "llama": [" —", " The", " He", " He"],
-        "mistral": [" He", "\n", " He", " He"],
+        "llama": [" He", "iens", "\x08", " He"],
         "qwen2": [" He", " The", " He", " He"],
         "granite": ["\n", "\n", " I", " He"],
     }[config_name]
     for i, g in enumerate(generations):
         tokens = g.tokens
-        assert tokens.texts[0] == expectations[i]
+        assert (
+            tokens.texts[0] == expectations[i]
+        ), f"Request {i} expected [{expectations[i]}], got [{tokens.texts[0]}]"
