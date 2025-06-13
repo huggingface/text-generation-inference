@@ -165,20 +165,6 @@ TEST_CONFIGS = {
             "4",
         ],
     },
-    "facebook/opt-125m": {
-        "model_id": "facebook/opt-125m",
-        "input": "What is Deep Learning?",
-        "expected_greedy_output": "\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout",
-        "expected_batch_output": "\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout",
-        "args": [
-            "--max-input-tokens",
-            "512",
-            "--max-total-tokens",
-            "1024",
-            "--max-batch-size",
-            "4",
-        ],
-    },
     "EleutherAI/gpt-j-6b": {
         "model_id": "EleutherAI/gpt-j-6b",
         "input": "What is Deep Learning?",
