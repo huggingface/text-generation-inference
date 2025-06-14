@@ -254,7 +254,7 @@ Options:
 ```
 ## PROMETHEUS_PORT
 ```shell
-  -p, --prometheus-port <PROMETHEUS_PORT>
+  --prometheus-port <PROMETHEUS_PORT>
           The Prometheus port to listen on
           
           [env: PROMETHEUS_PORT=]
