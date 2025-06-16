@@ -47,10 +47,10 @@ class FlashMllamaCausalLMBatch(FlashVlmCausalLMBatch):
     cross_attention_states: Optional[torch.Tensor] = None
 
     def prepare_for_prefill(
-        self, max_padded_input_len, max_padded_bs, max_total_tokens
+        self, max_padded_input_len, max_padded_bs, max_total_tokens, pad_token_id
     ):
         super(FlashVlmCausalLMBatch, self).prepare_for_prefill(
-            max_padded_input_len, max_padded_bs, max_total_tokens
+            max_padded_input_len, max_padded_bs, max_total_tokens, pad_token_id
         )
 
     @classmethod
