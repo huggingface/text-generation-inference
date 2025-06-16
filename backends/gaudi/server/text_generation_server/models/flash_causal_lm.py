@@ -53,6 +53,7 @@ from text_generation_server.models.globals import (
 )
 from text_generation_server.layers.attention import (
     KVCache,
+    KVCompressCache,
     Seqlen,
     HPUPagedAttentionMetadata,
     trim_attn_metadata,
@@ -68,11 +69,14 @@ from text_generation_server.utils.import_utils import (
     synchronize,
     get_free_memory,
 )
-
+from text_generation_server.utils.prefill_chunking import (
+    get_max_prefill_tokens,
+)
 import vllm_hpu_extension.environment as environment
 import habana_frameworks.torch as htorch
 import itertools
-from vllm_hpu_extension.bucketing import HPUBucketingContext
+from vllm_hpu_extension.bucketing.common import get_bucketing_context
+from vllm_hpu_extension.profiler import HabanaMemoryProfiler, format_bytes
 
 tracer = trace.get_tracer(__name__)
 
@@ -149,19 +153,14 @@ def prepare_for_decode(
     block_list_device = _async_h2d_tensor_copy(block_list)
     block_groups_device = _async_h2d_tensor_copy(block_groups)
     block_usage_device = _async_h2d_tensor_copy(block_usage)
-    block_mapping = torch.nn.functional.one_hot(
-        block_groups_device, num_classes=batch_size
-    )
-    mask = torch.arange(0, BLOCK_SIZE, device=device, dtype=torch.int32).unsqueeze(0)
-    mask = mask >= block_usage.unsqueeze(-1)
-    attn_bias = torch.zeros_like(mask, dtype=dtype).masked_fill_(mask, -math.inf)
+
     return trim_attn_metadata(
         HPUPagedAttentionMetadata(
             block_list=block_list_device,
             block_groups=block_groups_device,
             block_usage=block_usage_device,
-            block_mapping=block_mapping.to(dtype),
-            attn_bias=attn_bias,
+            block_mapping=None,
+            attn_bias=None,
         )
     )
 
@@ -424,7 +423,7 @@ class FlashCausalLMBatch(Batch):
         for i, input_ids in enumerate(all_input_ids):
             all_input_ids_tensor[i, : len(input_ids)] = input_ids
 
-        # Create tensors on device
+        # put on cpu temporarily, move to hpu in prepare_for_prefill
         all_input_ids_tensor = torch.tensor(all_input_ids_tensor, dtype=torch.int64)
 
         top_n_tokens_tensor = torch.tensor(top_n_tokens, dtype=torch.int64)
@@ -628,21 +627,25 @@ class FlashCausalLMBatch(Batch):
             # Index into tensors
             input_ids = self.input_ids[indices]
             position_ids = self.position_ids[indices]
-            adapter_indices = self.adapter_meta.adapter_indices[indices]
             input_lengths_tensor = self.input_lengths_tensor[indices]
             cache_lengths_tensor = self.cache_lengths_tensor[indices]
 
             # Move to GPU now that we have the whole tensor
             slot_indices = slot_indices.to(device)
-
-            adapter_segments, adapter_segment_indices = find_segments(adapter_indices)
-            adapter_segments = torch.tensor(adapter_segments, dtype=torch.int32)
-            adapter_meta = AdapterBatchMetadata(
-                adapter_indices=adapter_indices,
-                adapter_set=adapter_set,
-                adapter_segments=adapter_segments,
-                segment_indices=adapter_segment_indices,
-            )
+            if self.adapter_meta is not None:
+                adapter_indices = self.adapter_meta.adapter_indices[indices]
+                adapter_segments, adapter_segment_indices = find_segments(
+                    adapter_indices
+                )
+                adapter_segments = torch.tensor(adapter_segments, dtype=torch.int32)
+                adapter_meta = AdapterBatchMetadata(
+                    adapter_indices=adapter_indices,
+                    adapter_set=adapter_set,
+                    adapter_segments=adapter_segments,
+                    segment_indices=adapter_segment_indices,
+                )
+            else:
+                adapter_meta = None
         htorch.core.mark_step()
         return type(self)(
             batch_id=self.batch_id,
@@ -691,7 +694,9 @@ class FlashCausalLMBatch(Batch):
 
     @classmethod
     @tracer.start_as_current_span("concatenate")
-    def concatenate(cls, batches: List["FlashCausalLMBatch"]) -> "FlashCausalLMBatch":
+    def concatenate(
+        cls, batches: List["FlashCausalLMBatch"], padded_total_bs: int = 0
+    ) -> "FlashCausalLMBatch":
         # Batch attributes
         requests = []
         requests_idx_mapping = {}
@@ -704,6 +709,7 @@ class FlashCausalLMBatch(Batch):
         max_length = 0
         max_input_length = 0
         max_current_length = 0
+        ADAPTER_TO_INDEX = get_adapter_to_index()
         for b in batches:
             total_batch_size += len(b)
             max_blocks = max(max_blocks, b.max_blocks)
@@ -739,7 +745,10 @@ class FlashCausalLMBatch(Batch):
             adapter_meta = None
             adapter_segment_builder = None
         else:
-            input_ids = batches[0].input_ids.new_empty(total_batch_size)
+            if padded_total_bs == batches[0].input_ids.shape[0]:
+                input_ids = batches[0].input_ids
+            else:
+                input_ids = batches[0].input_ids.new_empty(total_batch_size)
             if (
                 batches[0].position_ids is not None
                 and batches[0].position_ids.dim() == 2
@@ -757,14 +766,15 @@ class FlashCausalLMBatch(Batch):
             cache_lengths_tensor = batches[0].cache_lengths_tensor.new_empty(
                 total_batch_size
             )
-            total_indices_size = sum(
-                b.adapter_meta.adapter_indices.shape[0] for b in batches
-            )
-            adapter_indices = batches[0].adapter_meta.adapter_indices.new_empty(
-                total_indices_size
-            )
-            adapter_segment_builder = SegmentConcatBuilder()
-            adapter_set = set()
+            if ADAPTER_TO_INDEX:
+                total_indices_size = sum(
+                    b.adapter_meta.adapter_indices.shape[0] for b in batches
+                )
+                adapter_indices = batches[0].adapter_meta.adapter_indices.new_empty(
+                    total_indices_size
+                )
+                adapter_segment_builder = SegmentConcatBuilder()
+                adapter_set = set()
 
         prompt_lengths_tensor = batches[0].prompt_lengths_tensor.new_empty(
             total_batch_size
@@ -772,9 +782,7 @@ class FlashCausalLMBatch(Batch):
         block_tables_tensor = batches[0].block_tables_tensor.new_zeros(
             (total_batch_size, max_blocks)
         )
-        all_input_ids_tensor = batches[0].all_input_ids_tensor.new_zeros(
-            (total_batch_size, max_length)
-        )
+        all_input_ids_tensor = batches[0].all_input_ids_tensor
         top_n_tokens_tensor = batches[0].top_n_tokens_tensor.new_zeros(
             total_batch_size,
         )
@@ -815,13 +823,14 @@ class FlashCausalLMBatch(Batch):
             start_index = cumulative_batch_size
             end_index = cumulative_batch_size + valid_bsize
 
-            index = torch.tensor(
-                list(range(start_index, end_index)), device=batch.input_ids.device
-            )
+            index = torch.tensor(list(range(start_index, end_index)), device="cpu")
             top_n_tokens_tensor.index_copy_(0, index, batch.top_n_tokens_tensor)
-            all_input_ids_tensor[
-                start_index:end_index, : batch.all_input_ids_tensor.shape[1]
-            ] = batch.all_input_ids_tensor[:valid_bsize, :max_length]
+            if i > 0:
+                all_input_ids_tensor.index_copy_(
+                    0,
+                    index.to(batch.all_input_ids_tensor.device),
+                    batch.all_input_ids_tensor[:valid_bsize, :],
+                )
 
             block_tables_tensor[
                 start_index:end_index, : batch.block_tables_tensor.shape[1]
@@ -841,7 +850,10 @@ class FlashCausalLMBatch(Batch):
             )
 
             if not prefilling:
-                input_ids.index_copy_(0, index, batch.input_ids[:valid_bsize])
+                if padded_total_bs != batches[0].input_ids.shape[0] or i > 0:
+                    input_ids.index_copy_(
+                        0, index.to(input_ids.device), batch.input_ids[:valid_bsize]
+                    )
                 position_ids.index_copy_(0, index, batch.position_ids[:valid_bsize])
                 slot_indices.index_copy_(
                     0, index, batch.slot_indices + cumulative_slots
@@ -852,20 +864,21 @@ class FlashCausalLMBatch(Batch):
                 cache_lengths_tensor.index_copy_(
                     0, index, batch.cache_lengths_tensor[:valid_bsize]
                 )
-                adapter_start_index = cumulative_adapter_indices_size
-                adapter_end_index = (
-                    cumulative_adapter_indices_size
-                    + batch.adapter_meta.adapter_indices.shape[0]
-                )
-                adapter_indices[adapter_start_index:adapter_end_index] = (
-                    batch.adapter_meta.adapter_indices
-                )
-                cumulative_adapter_indices_size = adapter_end_index
-                adapter_set.update(batch.adapter_meta.adapter_set)
-                adapter_segment_builder.concat(
-                    batch.adapter_meta.adapter_segments,
-                    batch.adapter_meta.segment_indices,
-                )
+                if ADAPTER_TO_INDEX:
+                    adapter_start_index = cumulative_adapter_indices_size
+                    adapter_end_index = (
+                        cumulative_adapter_indices_size
+                        + batch.adapter_meta.adapter_indices.shape[0]
+                    )
+                    adapter_indices[adapter_start_index:adapter_end_index] = (
+                        batch.adapter_meta.adapter_indices
+                    )
+                    cumulative_adapter_indices_size = adapter_end_index
+                    adapter_set.update(batch.adapter_meta.adapter_set)
+                    adapter_segment_builder.concat(
+                        batch.adapter_meta.adapter_segments,
+                        batch.adapter_meta.segment_indices,
+                    )
             else:
                 if isinstance(batch.input_ids, torch.Tensor):
                     batch.input_ids = batch.input_ids.view(-1, 1).tolist()
@@ -908,7 +921,7 @@ class FlashCausalLMBatch(Batch):
         else:
             speculative_ids = None
 
-        if adapter_segment_builder is not None:
+        if ADAPTER_TO_INDEX and adapter_segment_builder is not None:
             adapter_segments, adapter_segment_indices = adapter_segment_builder.build()
             adapter_meta = AdapterBatchMetadata(
                 adapter_indices=adapter_indices,
@@ -955,7 +968,7 @@ class FlashCausalLMBatch(Batch):
             num_blocks=num_blocks,
             max_blocks=max_blocks,
             speculative_ids=speculative_ids,
-            adapter_meta=adapter_meta,
+            adapter_meta=adapter_meta if ADAPTER_TO_INDEX else None,
             hpu_attn_meta=None,
             next_token_logits=None,
             speculative_logits=None,
@@ -974,7 +987,6 @@ class FlashCausalLMBatch(Batch):
         else:
             padded_bs = self.input_ids.shape[0]
         slots = self.slots[self.slot_indices]
-        extra_pad = padded_bs - self.input_ids.shape[0]
 
         self.hpu_attn_meta = prepare_for_decode(
             dtype,
@@ -985,17 +997,29 @@ class FlashCausalLMBatch(Batch):
             padded_bs,
             bucketing_ctx,
         )
-        self.input_ids = F.pad(self.input_ids, (0, extra_pad), value=0)
-        self.position_ids = F.pad(self.position_ids, (0, extra_pad), value=1)
+        self.input_ids = F.pad(
+            self.input_ids, (0, padded_bs - self.input_ids.shape[0]), value=0
+        )
+
+        if self.position_ids.dim() == 2:
+            # Qwen VL case
+            self.position_ids = F.pad(
+                self.position_ids,
+                (0, 0, 0, padded_bs - self.position_ids.shape[0]),
+                value=1,
+            )
+        else:
+            self.position_ids = F.pad(
+                self.position_ids, (0, padded_bs - self.position_ids.shape[0]), value=1
+            )
         self.input_lengths_tensor = F.pad(
-            self.input_lengths_tensor, (0, extra_pad), value=0
+            self.input_lengths_tensor,
+            (0, padded_bs - self.input_lengths_tensor.shape[0]),
+            value=0,
         )
         self.cache_lengths_tensor = F.pad(
-            self.cache_lengths_tensor, (0, extra_pad), value=0
-        )
-        self.all_input_ids_tensor = F.pad(
-            self.all_input_ids_tensor,
-            (0, 0, 0, extra_pad),
+            self.cache_lengths_tensor,
+            (0, padded_bs - self.cache_lengths_tensor.shape[0]),
             value=0,
         )
         next_token_chooser_parameters = []
@@ -1015,7 +1039,9 @@ class FlashCausalLMBatch(Batch):
             fsm_grammar_states,
         )
 
-    def prepare_for_prefill(self, max_padded_input_len, max_padded_bs):
+    def prepare_for_prefill(
+        self, max_padded_input_len, max_padded_bs, max_total_tokens
+    ):
         # Prepare values if we need to continue prefilling
         # Speculation must be ignored while we prefill even with chunking
         # it simplifies everything
@@ -1031,6 +1057,7 @@ class FlashCausalLMBatch(Batch):
         # need extra pad to match warmup seq
         extra_pad = max_padded_input_len - self.max_input_length
         extra_pad_bs = max_padded_bs - len(self)
+        device = "hpu"
         if isinstance(self.input_ids, list) and len(self) > 1:
             input_ids_padded_length = []
             input_ids = []
@@ -1041,15 +1068,26 @@ class FlashCausalLMBatch(Batch):
                 input_ids.append(input_id)
                 input_ids_padded_length.append(padded)
             input_ids = np.concatenate(input_ids, dtype=np.int64)
-            self.input_ids = torch.tensor(input_ids, dtype=torch.int64)
+            self.input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         elif isinstance(self.input_ids, list):
             input_ids = self.input_ids[0]
             input_ids_padded_length.append(extra_pad)
             input_ids = [0] * extra_pad + input_ids
-            self.input_ids = torch.tensor(input_ids, dtype=torch.int64)
+            self.input_ids = torch.tensor(input_ids, dtype=torch.int64, device=device)
         else:
-            self.input_ids = F.pad(self.input_ids, (extra_pad, 0), value=0)
-            input_ids_padded_length.extend([extra_pad] * len(self))
+            input_ids = self.input_ids.new_zeros(max_padded_input_len * len(self))
+            src_pos = 0
+            for i in range(len(self)):
+                end_pos = (i + 1) * max_padded_input_len
+                start_pos = end_pos - self.input_lengths[i]
+                input_ids[start_pos:end_pos] = self.input_ids[
+                    src_pos : src_pos + self.input_lengths[i]
+                ]
+                input_ids_padded_length.append(
+                    max_padded_input_len - self.input_lengths[i]
+                )
+                src_pos += self.input_lengths[i]
+            self.input_ids = input_ids
 
         self.input_ids = F.pad(
             self.input_ids, (0, extra_pad_bs * max_padded_input_len), value=0
@@ -1239,7 +1277,9 @@ class FlashCausalLMBatch(Batch):
         self.slot_indices = slot_indices
 
         self.prefill_cu_outlens = prefill_cu_outlens
-        self.prefill_cache_indices = torch.zeros_like(self.input_ids, dtype=torch.bool)
+        self.prefill_cache_indices = torch.zeros_like(
+            self.input_ids, dtype=torch.bool, device="cpu"
+        )
         self.prefill_cache_indices[prefill_cache_indices] = True
 
         if all_prefill_logprobs:
@@ -1272,12 +1312,17 @@ class FlashCausalLMBatch(Batch):
             self.prefill_next_token_indices = (
                 self.prefill_next_token_indices + input_ids_padded_length_tensor
             )
-
-        self.all_input_ids_tensor = F.pad(
-            self.all_input_ids_tensor,
-            (0, 0, 0, extra_pad_bs),
-            value=0,
+        all_input_ids_tensor = torch.zeros(
+            (max_padded_bs, max(max_total_tokens, self.all_input_ids_tensor.shape[-1])),
+            dtype=torch.int64,
+            device="hpu",
         )
+        for i in range(len(self)):
+            all_input_ids_tensor[i, : self.all_input_ids_tensor.shape[-1]] = (
+                self.all_input_ids_tensor[i]
+            )
+        self.all_input_ids_tensor = all_input_ids_tensor
+
         next_token_chooser_parameters = []
         next_token_chooser_parameters.extend([r.parameters for r in self.requests])
         pad_next_token_chooser_parameters(next_token_chooser_parameters, max_padded_bs)
@@ -1295,21 +1340,24 @@ class FlashCausalLMBatch(Batch):
             fsm_grammar_states,
         )
 
-        if adapter_set:
-            adapter_indices = torch.cat(adapter_indices_list).to(dtype=torch.int64)
-            adapter_segments, adapter_segment_indices = find_segments(adapter_indices)
-        else:
-            adapter_indices = torch.zeros_like(self.input_ids)
-            adapter_segments = [0, len(adapter_indices)]
-            adapter_segment_indices = [len(adapter_indices) - 1]
+        if ADAPTER_TO_INDEX:
+            if adapter_set:
+                adapter_indices = torch.cat(adapter_indices_list).to(dtype=torch.int64)
+                adapter_segments, adapter_segment_indices = find_segments(
+                    adapter_indices
+                )
+            else:
+                adapter_indices = torch.zeros_like(self.input_ids)
+                adapter_segments = [0, len(adapter_indices)]
+                adapter_segment_indices = [len(adapter_indices) - 1]
 
-        adapter_segments = torch.tensor(adapter_segments, dtype=torch.int32)
-        self.adapter_meta = AdapterBatchMetadata(
-            adapter_indices=adapter_indices,
-            adapter_set=adapter_set,
-            adapter_segments=adapter_segments,
-            segment_indices=adapter_segment_indices,
-        )
+            adapter_segments = torch.tensor(adapter_segments, dtype=torch.int32)
+            self.adapter_meta = AdapterBatchMetadata(
+                adapter_indices=adapter_indices,
+                adapter_set=adapter_set,
+                adapter_segments=adapter_segments,
+                segment_indices=adapter_segment_indices,
+            )
 
     def __len__(self):
         return len(self.requests)
@@ -1352,6 +1400,8 @@ class FlashCausalLM(Model):
     ):
         self.quantize = quantize
         self.process_group, rank, world_size = initialize_torch_distributed()
+        if world_size > 1:
+            self.process_group_cpu = torch.distributed.new_group(backend="gloo")
 
         device = torch.device("hpu")
         dtype = torch.bfloat16 if dtype is None else dtype
@@ -1419,7 +1469,7 @@ class FlashCausalLM(Model):
             raise ValueError("Cannot get the number of key/value heads")
         self.num_kv_heads = (
             num_kv_heads // self.process_group.size()
-            if num_kv_heads > 1
+            if num_kv_heads // self.process_group.size() > 0
             else num_kv_heads
         )
         assert self.num_kv_heads > 0
@@ -1427,7 +1477,7 @@ class FlashCausalLM(Model):
         if head_size is None:
             # Some models use GQA and different sizes for o_proj
             # and q_proj, that allows for that.
-            if hasattr(config, "head_dim"):
+            if getattr(config, "head_dim", None) is not None:
                 self.head_size = config.head_dim
             else:
                 self.head_size = config.hidden_size // config.num_attention_heads
@@ -1438,15 +1488,20 @@ class FlashCausalLM(Model):
         self.kv_cache = []
         self.kv_cache_dtype = dtype if kv_cache_dtype is None else kv_cache_dtype
         self.bucketing_ctx = None
+        self.max_total_tokens = None
+        self.max_input_tokens = None
+        htorch.core.hpu_set_env()
         if htorch.utils.internal.is_lazy():
             htorch.hpu.wrap_in_hpu_graph(model, disable_tensor_cache=True)
         environment.set_model_config(self.config)
         self.use_contiguous_pa = (
             os.environ.get("VLLM_CONTIGUOUS_PA", "true").lower() == "true"
         )
-        self.limit_hpu_graphs = (
-            os.environ.get("LIMIT_HPU_GRAPHS", "false").lower() == "true"
+        self.limit_hpu_graph = (
+            os.environ.get("LIMIT_HPU_GRAPH", "false").lower() == "true"
         )
+        self.skip_warmup = os.getenv("VLLM_SKIP_WARMUP", "false").lower() == "true"
+        self.max_seq_len_to_capture = 8192
         super().__init__(
             model_id=model_id,
             model=model,
@@ -1478,16 +1533,27 @@ class FlashCausalLM(Model):
     ):
         self.kv_cache = []
         empty_cache()
-        self.kv_cache = [
-            KVCache(
-                num_blocks=num_blocks,
-                num_heads=num_heads,
-                head_size=head_size,
-                dtype=dtype,
-                device=device,
-            )
-            for _ in range(num_layers)
-        ]
+        if self.config.model_type == "deepseek_v3":
+            self.kv_cache = [
+                KVCompressCache(
+                    num_blocks=num_blocks,
+                    head_size=self.config.kv_lora_rank + self.config.qk_rope_head_dim,
+                    dtype=dtype,
+                    device=device,
+                )
+                for _ in range(num_layers)
+            ]
+        else:
+            self.kv_cache = [
+                KVCache(
+                    num_blocks=num_blocks,
+                    num_heads=num_heads,
+                    head_size=head_size,
+                    dtype=dtype,
+                    device=device,
+                )
+                for _ in range(num_layers)
+            ]
 
     def warmup(
         self,
@@ -1495,16 +1561,48 @@ class FlashCausalLM(Model):
         max_input_tokens: Optional[int],
         max_total_tokens: Optional[int],
     ):
+        if os.environ.get("MAX_BATCH_SIZE") is None:
+            raise RuntimeError(
+                "MAX_BATCH_SIZE is not set, it should be set in the launcher "
+                "using `--max-batch-size xxx`"
+            )
         # The warmup batch is the biggest batch we could ever receive
         self.kv_cache = []
         empty_cache()
-
+        self.graphed_buckets = set()
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
         dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
-        cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
-        total_cache_size = self.num_layers * cache_block_size * 2 * dtype_size
+        if self.config.model_type == "deepseek_v3":
+            cache_block_size = BLOCK_SIZE * (
+                self.config.kv_lora_rank + self.config.qk_rope_head_dim
+            )
+        else:
+            cache_block_size = BLOCK_SIZE * self.num_kv_heads * self.head_size
+            cache_block_size = cache_block_size * 2
+        total_cache_size = self.num_layers * cache_block_size * dtype_size
+        free_memory = get_free_memory(self.device, TGI_WIGGLE_ROOM)
+        self.mem_reserved = int(free_memory * (1 - MEMORY_FRACTION))
+        graph_reserved_mem = (
+            float(os.environ.get("TGI_GRAPH_RESERVED_MEM", "0.1"))
+            if htorch.utils.internal.is_lazy()
+            else 0
+        )
+        mem_used_from_graph = int(
+            (free_memory - self.mem_reserved) * graph_reserved_mem
+        )
+        log_master(
+            logger.info,
+            f"Free memory on device {self.device}: {format_bytes(free_memory)} used_for_graph: {format_bytes(mem_used_from_graph)} ratio {graph_reserved_mem} reserved_for_runtime: {format_bytes(self.mem_reserved)}",
+        )
+        if max_total_tokens is None:
+            max_total_tokens = sum(batch.input_lengths)
 
+        if max_input_tokens is None:
+            max_input_tokens = max_total_tokens - 1
+
+        self.max_total_tokens = max_total_tokens
+        self.max_input_tokens = max_input_tokens
         try:
             self.init_kv_cache(
                 batch.num_blocks,
@@ -1519,15 +1617,6 @@ class FlashCausalLM(Model):
 
             num_tokens = batch.to_pb().current_tokens
             synchronize(self.device)
-            free_memory = get_free_memory(
-                self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM
-            )
-            real_free_memory = get_free_memory(self.device, MEMORY_FRACTION)
-            log_master(
-                logger.debug,
-                f"Free memory {free_memory / 1e9:.2f}GB , (real: {real_free_memory / 1e9:.2f}GB",
-            )
-
             _, _batch, _ = self.generate_token([batch])
         except Exception:
             raise RuntimeError(
@@ -1536,8 +1625,9 @@ class FlashCausalLM(Model):
             )
 
         synchronize(self.device)
-        free_memory = get_free_memory(self.device, MEMORY_FRACTION * TGI_WIGGLE_ROOM)
-        kv_memory = free_memory
+        free_memory = get_free_memory(self.device, TGI_WIGGLE_ROOM)
+
+        kv_memory = free_memory - self.mem_reserved - mem_used_from_graph
         num_blocks = (
             # Leave 5% for some wiggle room
             int(kv_memory // total_cache_size)
@@ -1546,15 +1636,9 @@ class FlashCausalLM(Model):
         )
 
         log_master(logger.info, f"KV-cache blocks: {num_blocks}, size: {BLOCK_SIZE}")
-        if max_total_tokens is None:
-            max_total_tokens = sum(batch.input_lengths)
-
-        if max_input_tokens is None:
-            max_input_tokens = max_total_tokens - 1
 
         self.kv_cache = []
         empty_cache()
-
         self.init_kv_cache(
             num_blocks,
             self.num_layers,
@@ -1563,56 +1647,177 @@ class FlashCausalLM(Model):
             self.kv_cache_dtype,
             self.device,
         )
-
-        max_num_seqs = int(os.getenv("MAX_BATCH_SIZE", 128))
-        if os.getenv("VLLM_PROMPT_SEQ_BUCKET_MAX") is None:
-            os.environ["VLLM_PROMPT_SEQ_BUCKET_MAX"] = str(max_input_tokens)
-        if os.getenv("VLLM_DECODE_BLOCK_BUCKET_MAX") is None:
-            max_total_blocks = (
-                math.ceil(max_total_tokens / BLOCK_SIZE) * max_num_seqs + 1
-            )
-            os.environ["VLLM_DECODE_BLOCK_BUCKET_MAX"] = str(max_total_blocks)
+        self.max_batch_prefill_tokens = get_max_prefill_tokens()
+        max_num_seqs = int(os.getenv("MAX_BATCH_SIZE"))
+        HPUBucketingContext = get_bucketing_context()
+        # need to warmup one more step since block is allocated from 1
+        block_step = os.getenv("VLLM_DECODE_BLOCK_BUCKET_STEP", BLOCK_SIZE)
+        max_total_tokens_aligned = math.ceil(
+            max_total_tokens / BLOCK_SIZE
+        ) * BLOCK_SIZE + math.ceil(block_step * BLOCK_SIZE / max_num_seqs)
+        model_max_length = self.tokenizer.model_max_length
+        max_position_embeddings = getattr(
+            self.config, "max_position_embeddings", model_max_length
+        )
 
         self.bucketing_ctx = HPUBucketingContext(
             max_num_seqs,
-            os.getenv("PREFILL_MAX_BS", 64),  # self.max_num_prefill_seqs, #TODO
+            max_num_seqs,  # self.max_num_prefill_seqs, #TODO
             BLOCK_SIZE,
-            num_blocks * BLOCK_SIZE,
+            max_num_seqs * max_total_tokens_aligned,
             False,
+            min(model_max_length, max_position_embeddings),
+            max_input_tokens,
+            max_total_tokens_aligned,
         )
-        self.bucketing_ctx.num_hpu_blocks = num_blocks
-        if os.getenv("VLLM_SKIP_WARMUP", "false").lower() == "true":
-            logger.info("skip warmup hpu graph, not recommmended")
+        max_blocks = max(
+            BLOCK_SIZE, max_num_seqs * max_total_tokens_aligned // BLOCK_SIZE
+        )
+        self.bucketing_ctx.num_hpu_blocks = min(max_blocks, num_blocks)
+        synchronize(self.device)
+        if self.skip_warmup:
+            self.bucketing_ctx.generate_prompt_buckets()
+            self.bucketing_ctx.generate_decode_buckets(
+                self.bucketing_ctx.num_hpu_blocks
+            )
+            log_master(
+                logger.info, "skip warmup hpu graph, not recommmended, may cause OOM"
+            )
             del _batch, batch
             return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
-
         self.warmup_hpu_graph(batch)
         del _batch, batch
 
         return int(num_blocks * BLOCK_SIZE), max_input_tokens, max_total_tokens
 
+    def log_warmup(self, prefilling, i, max_i, batch_size, seq_len):
+        free_mem = format_bytes(HabanaMemoryProfiler.current_free_device_memory())
+        phase = "Prompt" if prefilling else "Decode"
+        dim = "seq_len" if prefilling else "num_blocks"
+        graphed_bucket = (batch_size, seq_len, prefilling)
+        bypass = graphed_bucket not in self.graphed_buckets
+        msg = (
+            f"[Warmup][{phase}][{i+1}/{max_i}] "
+            f"batch_size:{batch_size} "
+            f"{dim}:{seq_len} "
+            f"bypass:{bypass} "
+            f"free_mem:{free_mem}"
+        )
+        log_master(logger.info, msg)
+
+    def use_graphs(self, prefill, seq_len, batch_size):
+        if self.limit_hpu_graph and prefill:
+            return False
+
+        if self.skip_warmup:
+            return True
+
+        return (batch_size, seq_len, prefill) in self.graphed_buckets
+
+    def align_workers(self, value, op):
+        if self.world_size <= 1:
+            return value
+        value_t = torch.tensor(value, device="cpu")
+        torch.distributed.all_reduce(value_t, op=op, group=self.process_group_cpu)
+        return value_t.item()
+
     def warmup_hpu_graph(self, batch):
+        prompt_graph_mem_ratio = float(os.environ.get("VLLM_GRAPH_PROMPT_RATIO", "0.3"))
+        free_mem = HabanaMemoryProfiler.current_free_device_memory()
+        graph_free_mem = free_mem - self.mem_reserved
+        graph_free_mem = self.align_workers(
+            graph_free_mem, torch.distributed.ReduceOp.MIN
+        )
+        prompt_available_memory = prompt_graph_mem_ratio * graph_free_mem
+        decode_available_memory = graph_free_mem - prompt_available_memory
+        msg = (
+            f"Using {format_bytes(graph_free_mem)}"
+            f"/{format_bytes(free_mem)} "
+            "of free device memory for HPUGraphs, "
+            f"{format_bytes(prompt_available_memory)} for prompt and "
+            f"{format_bytes(decode_available_memory)} for decode "
+            f"(VLLM_GRAPH_PROMPT_RATIO={prompt_graph_mem_ratio})"
+        )
+        log_master(logger.info, msg)
+        start_time = time.time()
+        warmup_shape_count = 0
         warmup_times = 3
         self.bucketing_ctx.generate_prompt_buckets()
-        for i, (batch_size, seq_len) in enumerate(
-            reversed(self.bucketing_ctx.prompt_buckets)
-        ):
-            log_master(logger.info, f"warmup prefill seq {seq_len} bs {batch_size}")
-            for index in range(warmup_times):
-                self.warmup_prefill(seq_len, batch_size, batch)
+
+        def ordering_function_min_tokens(b):
+            return (b[0] * b[1], b[1], b[0])
+
+        buckets = list(
+            sorted(self.bucketing_ctx.prompt_buckets, key=ordering_function_min_tokens)
+        )
+        total_batch_seq = 0.001
+        total_mem = 0
+        available_mem = prompt_available_memory
+        for i, (batch_size, seq_len) in enumerate(buckets):
+            if batch_size * seq_len > self.max_batch_prefill_tokens:
+                continue
+            # Graph memory usage is proportional to seq dimension in a batch
+            batch_seq = batch_size * seq_len
+            mem_estimate = batch_seq / total_batch_seq * total_mem
+            graphed_bucket = (batch_size, seq_len, True)
+            if not (
+                mem_estimate >= available_mem or batch_seq > self.max_seq_len_to_capture
+            ):
+                if graphed_bucket not in self.graphed_buckets:
+                    self.graphed_buckets.add(graphed_bucket)
+            warmup_shape_count += 1
+            self.log_warmup(True, i, len(buckets), batch_size, seq_len)
+            with HabanaMemoryProfiler() as mem_prof:
+                for index in range(warmup_times):
+                    self.warmup_prefill(seq_len, batch_size, batch)
+                    synchronize(self.device)
+            used_mem = self.align_workers(
+                mem_prof.consumed_device_memory, torch.distributed.ReduceOp.MAX
+            )
+            if graphed_bucket in self.graphed_buckets:
+                available_mem -= used_mem
+                total_mem += used_mem
+                total_batch_seq += batch_seq
+
+        def ordering_function_max_bs(b):
+            return (-b[0], b[1])
 
         self.bucketing_ctx.generate_decode_buckets(self.bucketing_ctx.num_hpu_blocks)
-        for i, (batch_size, block_num) in enumerate(
-            reversed(self.bucketing_ctx.decode_buckets)
-        ):
+        buckets = list(
+            sorted(self.bucketing_ctx.decode_buckets, key=ordering_function_max_bs)
+        )
+        free_mem = HabanaMemoryProfiler.current_free_device_memory()
+        total_batch_seq = 0.001
+        total_mem = 0
+        available_mem = free_mem - self.mem_reserved
+        for i, (batch_size, block_num) in enumerate(buckets):
             if batch_size > block_num:
                 continue
-            log_master(
-                logger.info, f"warmup decode bs {batch_size} block_num {block_num}"
+            # Graph memory usage is proportional to seq dimension in a batch
+            batch_seq = batch_size
+            mem_estimate = batch_seq / total_batch_seq * total_mem
+            graphed_bucket = (batch_size, block_num, False)
+            if not mem_estimate >= available_mem:
+                if graphed_bucket not in self.graphed_buckets:
+                    self.graphed_buckets.add(graphed_bucket)
+            warmup_shape_count += 1
+            self.log_warmup(False, i, len(buckets), batch_size, block_num)
+            with HabanaMemoryProfiler() as mem_prof:
+                for index in range(warmup_times):
+                    self.warmup_decode(batch_size, block_num, batch)
+                    synchronize(self.device)
+            used_mem = self.align_workers(
+                mem_prof.consumed_device_memory, torch.distributed.ReduceOp.MAX
             )
-            for index in range(warmup_times):
-                self.warmup_decode(batch_size, block_num, batch)
-        synchronize(self.device)
+            if graphed_bucket in self.graphed_buckets:
+                available_mem -= used_mem
+                total_mem += used_mem
+                total_batch_seq += batch_seq
+
+        log_master(
+            logger.info,
+            f"warmup hpu graph time {int(time.time() - start_time)}s warmup shape count {warmup_shape_count}",
+        )
 
     def warmup_prefill(
         self, prompt_len: int, batch_size: int, batch: FlashCausalLMBatch
@@ -1643,7 +1848,9 @@ class FlashCausalLM(Model):
         lm_head_indices = input_lengths - 1
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = self.limit_hpu_graphs
+            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
+                True, prompt_len, batch_size
+            )
 
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
@@ -1696,7 +1903,9 @@ class FlashCausalLM(Model):
         slots_tensor = torch.tensor(slots, dtype=batch.slots.dtype)
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = False
+            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
+                False, hpu_attention_meta.block_list.shape[0], batch_size
+            )
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
             input_ids=_async_h2d_tensor_copy(input_ids),
@@ -1779,11 +1988,11 @@ class FlashCausalLM(Model):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
         if batch.prefill_cache_indices is not None:
-            slots_pad = torch.zeros_like(input_ids)
+            slots_pad = torch.zeros_like(input_ids, device=slots.device)
             slots_pad[batch.prefill_cache_indices] = slots
             slots = slots_pad
         else:
-            slots_pad = torch.zeros_like(input_ids)
+            slots_pad = torch.zeros_like(input_ids, device=slots.device)
             slots_pad[: slots.shape[0]] = slots
             slots = slots_pad
         seqlen = Seqlen(
@@ -1792,12 +2001,18 @@ class FlashCausalLM(Model):
 
         kwargs = {}
         if htorch.utils.internal.is_lazy():
-            kwargs["bypass_hpu_graphs"] = (
-                batch.prefilling if self.limit_hpu_graphs else False
+            batch_size = input_lengths.shape[0]
+            prompt_len = (
+                input_ids.shape[0] // batch_size
+                if batch.prefilling
+                else batch.hpu_attn_meta.block_list.shape[0]
+            )
+            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
+                batch.prefilling, prompt_len, batch_size
             )
 
         logits, speculative_logits = self.model.forward(
-            input_ids=_async_h2d_tensor_copy(input_ids),
+            input_ids=input_ids,
             position_ids=_async_h2d_tensor_copy(position_ids),
             cu_seqlen_prefill=_async_h2d_tensor_copy(cu_seqlen_prefill),
             kv_cache=kv_cache,
@@ -1836,9 +2051,9 @@ class FlashCausalLM(Model):
                     accepted_ids,
                     speculative_ids,
                 ) = batch.next_token_chooser(
-                    _async_h2d_tensor_copy(
-                        batch.all_input_ids_tensor[:, : batch.max_current_length]
-                    ),
+                    batch.all_input_ids_tensor[
+                        : batch.next_token_logits.shape[0], : batch.max_current_length
+                    ],
                     batch.next_token_logits,
                     speculate,
                     batch.speculative_ids,
@@ -1852,15 +2067,29 @@ class FlashCausalLM(Model):
                     accepted_ids,
                 )
                 if batch.valid_indices is not None:
-                    next_input_ids = next_input_ids.cpu()
-                    next_token_logprobs = next_token_logprobs.cpu()
-                    accepted_ids = accepted_ids.cpu()
-                    batch.all_input_ids_tensor = batch.all_input_ids_tensor[
-                        batch.valid_indices
-                    ]
-                    next_input_ids = next_input_ids[batch.valid_indices]
-                    next_token_logprobs = next_token_logprobs[batch.valid_indices]
-                    accepted_ids = accepted_ids[batch.valid_indices]
+                    # TODO speculative decoding handling missing
+                    index = torch.arange(
+                        0,
+                        len(batch.valid_indices),
+                        device=batch.all_input_ids_tensor.device,
+                    )
+                    batch.all_input_ids_tensor.index_copy_(
+                        0, index, batch.all_input_ids_tensor[batch.valid_indices]
+                    )
+                    padded_total_bs = self.bucketing_ctx.get_padded_decode_batch_size(
+                        len(batch.valid_indices)
+                    )
+                    next_input_ids.index_copy_(
+                        0, index, next_input_ids[batch.valid_indices]
+                    )
+                    next_input_ids = next_input_ids[:padded_total_bs]
+
+                    next_token_logprobs.index_copy_(
+                        0, index, next_token_logprobs[batch.valid_indices]
+                    )
+                    accepted_ids.index_copy_(
+                        0, index, accepted_ids[batch.valid_indices]
+                    )
                     if speculative_ids is not None:
                         speculative_ids = speculative_ids[batch.valid_indices]
                     batch.top_n_tokens_tensor = batch.top_n_tokens_tensor[
@@ -1894,16 +2123,16 @@ class FlashCausalLM(Model):
                         batch.position_ids = batch.position_ids[indices]
 
                     batch.slot_indices = batch.slot_indices[indices[: len(batch)]]
-                    batch.adapter_meta.adapter_indices = (
-                        batch.adapter_meta.adapter_indices[indices]
-                    )
+                    if batch.adapter_meta is not None:
+                        batch.adapter_meta.adapter_indices = (
+                            batch.adapter_meta.adapter_indices[indices]
+                        )
                 # For each member of the batch
                 # Cumulative length
-                accepted_ids = accepted_ids.cpu()
-                cu_accepted_ids = accepted_ids.new_zeros(accepted_ids.shape[0] + 1)
-                torch.cumsum(accepted_ids, dim=0, out=cu_accepted_ids[1:])
-                next_input_ids = next_input_ids.cpu()
+
                 if batch.speculative_logits is not None:
+                    cu_accepted_ids = accepted_ids.new_zeros(accepted_ids.shape[0] + 1)
+                    torch.cumsum(accepted_ids, dim=0, out=cu_accepted_ids[1:])
                     for i in range(len(batch)):
                         batch.all_input_ids_tensor[
                             i,
@@ -1912,33 +2141,47 @@ class FlashCausalLM(Model):
                             + batch.input_lengths[i]
                             + accepted_ids[i],
                         ] = next_input_ids[cu_accepted_ids[i] : cu_accepted_ids[i + 1]]
+                    batch.input_ids = next_input_ids[cu_accepted_ids[1:] - 1]
+                    accepted_ids = accepted_ids.cpu()
+                    if batch.position_ids.dim() == 2:
+                        # Qwen2_vl case:
+                        batch.position_ids += accepted_ids.unsqueeze(-1)
+                    else:
+                        batch.position_ids += accepted_ids
+                    batch.cache_lengths_tensor += (
+                        batch.input_lengths_tensor + accepted_ids - 1
+                    )
+                    batch.input_lengths_tensor = torch.ones_like(
+                        batch.input_lengths_tensor
+                    )
+                    batch.slot_indices += accepted_ids[: len(batch)]
                 else:
                     index = batch.cache_lengths_tensor + batch.input_lengths_tensor
-                    index = index.to(batch.all_input_ids_tensor)
+                    index = F.pad(
+                        index, (0, next_input_ids.shape[0] - index.shape[0]), value=0
+                    )
+                    index = index.to(batch.all_input_ids_tensor.device)
                     batch_idx = torch.arange(
                         0,
-                        batch.all_input_ids_tensor.shape[0],
+                        index.shape[0],
                         dtype=torch.long,
                         device=batch.all_input_ids_tensor.device,
                     )
                     batch.all_input_ids_tensor.index_put_(
                         (batch_idx, index.long()), next_input_ids
                     )
-                batch.input_ids = next_input_ids[cu_accepted_ids[1:] - 1]
+                    batch.input_ids = next_input_ids
+                    batch.position_ids += 1
+                    batch.cache_lengths_tensor += batch.input_lengths_tensor
+                    batch.input_lengths_tensor = torch.ones_like(
+                        batch.input_lengths_tensor
+                    )
+                    batch.slot_indices += 1
+
                 batch.speculative_ids = speculative_ids
-                if batch.position_ids.dim() == 2:
-                    # Qwen2_vl case:
-                    batch.position_ids += accepted_ids.unsqueeze(-1)
-                else:
-                    batch.position_ids += accepted_ids
-                batch.cache_lengths_tensor += (
-                    batch.input_lengths_tensor + accepted_ids - 1
-                )
-                batch.input_lengths_tensor = torch.ones_like(batch.input_lengths_tensor)
-                batch.slot_indices += accepted_ids[: len(batch)]
 
                 # Does a HPU <-> CPU sync internally
-                if prefill:
+                if prefill and batch.adapter_meta is not None:
                     # adjust segment lengths to account for all request lengths being 1 during decoding
                     adapter_segments, _ = find_segments(
                         batch.adapter_meta.adapter_indices
@@ -2008,7 +2251,18 @@ class FlashCausalLM(Model):
         htorch.core.mark_step()
         # Stage 2. Prepare new batch for speculative scheduling
         if len(batches) > 1:
-            batch = self.batch_type.concatenate(batches)
+            if self.bucketing_ctx is not None:
+                total_batch_size = 0
+                for b in batches:
+                    total_batch_size += len(b)
+                padded_total_bs = self.bucketing_ctx.get_padded_decode_batch_size(
+                    total_batch_size
+                )
+                batch = self.batch_type.concatenate(
+                    batches, padded_total_bs=padded_total_bs
+                )
+            else:
+                batch = self.batch_type.concatenate(batches)
         else:
             batch = batches[0]
         prefill = batch.prefilling
@@ -2019,40 +2273,48 @@ class FlashCausalLM(Model):
                         batch.max_input_length
                     ),
                     self.bucketing_ctx.get_padded_prompt_batch_size(len(batch)),
+                    self.max_total_tokens,
                 )
             else:
-                batch.prepare_for_prefill(batch.max_input_length, len(batch))
+                batch.prepare_for_prefill(
+                    batch.max_input_length, len(batch), self.max_total_tokens
+                )
         else:
             batch.prepare_for_decode(
                 self.dtype, self.use_contiguous_pa, self.bucketing_ctx
             )
+        if hasattr(self, "set_inputs_embeds") and callable(self.set_inputs_embeds):
+            self.set_inputs_embeds(batch)
         prefill_logprobs = batch.prefill_next_token_indices is not None
         # Update adapter indices for speculative tokens (if present)
         adapter_meta = batch.adapter_meta
-        if batch.speculative_ids is not None:
-            B, speculative_length = batch.speculative_ids.shape
-            new_length = speculative_length + 1
-            adapter_indices = (
-                adapter_meta.adapter_indices.unsqueeze(-1)
-                .expand(B, new_length)
-                .reshape(-1)
-            )
-            adapter_segments = adapter_meta.adapter_segments * new_length
-            adapter_meta = AdapterBatchMetadata(
-                adapter_indices=adapter_indices,
-                adapter_set=adapter_meta.adapter_set,
-                adapter_segments=adapter_segments,
-                segment_indices=adapter_meta.segment_indices,
-            )
+        if adapter_meta is not None:
+            if batch.speculative_ids is not None:
+                B, speculative_length = batch.speculative_ids.shape
+                new_length = speculative_length + 1
+                adapter_indices = (
+                    adapter_meta.adapter_indices.unsqueeze(-1)
+                    .expand(B, new_length)
+                    .reshape(-1)
+                )
+                adapter_segments = adapter_meta.adapter_segments * new_length
+                adapter_meta = AdapterBatchMetadata(
+                    adapter_indices=adapter_indices,
+                    adapter_set=adapter_meta.adapter_set,
+                    adapter_segments=adapter_segments,
+                    segment_indices=adapter_meta.segment_indices,
+                )
 
-        # Assign pointers to adapter weights
-        # TODO(travis): don't update this if indices haven't changed
-        adapter_data = AdapterBatchData.from_meta(
-            adapter_meta,
-            self.layer_to_adapter_weights,
-            prefill,
-            batch.prefill_head_indices,
-        )
+            # Assign pointers to adapter weights
+            # TODO(travis): don't update this if indices haven't changed
+            adapter_data = AdapterBatchData.from_meta(
+                adapter_meta,
+                self.layer_to_adapter_weights,
+                prefill,
+                batch.prefill_head_indices,
+            )
+        else:
+            adapter_data = None
 
         out, speculative_logits = self.forward(batch, adapter_data)
 

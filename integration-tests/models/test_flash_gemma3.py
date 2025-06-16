@@ -53,9 +53,9 @@ async def test_flash_gemma3_image_cow_dog(flash_gemma3, response_snapshot):
 
     assert (
         response.choices[0].message.content
-        == "That's a fantastic question! However, the image doesn't show a dog. It shows a **Brown Swiss cow** standing on a beach. \n\nBrown Swiss cows are known for their reddish-brown color and distinctive white markings. \n\nIf you'd like, you can send me another image and I’ll do my best to identify it!"
+        == "That's a fantastic question! However, the image doesn't show a dog. It shows a **Brown Swiss cow** standing on a beach. \n\nBrown Swiss cows are known for their beautiful reddish-brown coats and distinctive white markings. \n\nIf you'd like, you can send me another image, and I'll do my best to identify the animal in it!"
     )
-    assert response.usage["completion_tokens"] == 75
+    assert response.usage["completion_tokens"] == 80
     assert response == response_snapshot
 
 
@@ -76,9 +76,9 @@ async def test_flash_gemma3_image_cow(flash_gemma3, response_snapshot):
     )
     assert (
         response.choices[0].message.content
-        == "Here's a description of what's shown in the image:\n\nThe image depicts a brown cow standing on a sandy beach. The beach has turquoise water and a distant island visible in the background. The sky is bright blue with some white clouds. \n\nIt's a quite a humorous and unusual scene – a cow enjoying a day at the beach!"
+        == "Here's a description of what's shown in the image:\n\nThe image depicts a brown cow standing on a sandy beach. The beach has turquoise water and a distant island visible in the background. The sky is bright blue with some white clouds. \n\nIt's a quite a humorous and unusual scene – a cow enjoying a beach day!"
     )
-    assert response.usage["completion_tokens"] == 74
+    assert response.usage["completion_tokens"] == 72
     assert response == response_snapshot
 
 

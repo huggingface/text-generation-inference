@@ -48,7 +48,7 @@ FROM nvidia/cuda:12.4.1-devel-ubuntu22.04 AS pytorch-install
 WORKDIR /usr/src/
 
 # NOTE: When updating PyTorch version, beware to remove `pip install nvidia-nccl-cu12==2.22.3` below in the Dockerfile. Context: https://github.com/huggingface/text-generation-inference/pull/2099
-ARG PYTORCH_VERSION=2.6
+ARG PYTORCH_VERSION=2.7
 ARG PYTHON_VERSION=3.11
 
 # Keep in sync with `server/pyproject.toml
@@ -120,13 +120,6 @@ WORKDIR /usr/src
 COPY server/Makefile-awq Makefile
 # Build specific version of transformers
 RUN . .venv/bin/activate && make build-awq
-
-# Build Lorax Punica kernels
-FROM kernel-builder AS lorax-punica-builder
-WORKDIR /usr/src
-COPY server/Makefile-lorax-punica Makefile
-# Build specific version of transformers
-RUN . .venv/bin/activate && TORCH_CUDA_ARCH_LIST="8.0;8.6+PTX" make build-lorax-punica
 
 # Build Transformers CUDA kernels
 FROM kernel-builder AS custom-kernels-builder
@@ -210,8 +203,6 @@ COPY --from=exllama-kernels-builder /usr/src/build/lib.linux-x86_64-cpython-311 
 COPY --from=exllamav2-kernels-builder /usr/src/exllamav2/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from awq kernels builder
 COPY --from=awq-kernels-builder /usr/src/llm-awq/awq/kernels/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
-# Copy build artifacts from lorax punica kernels builder
-COPY --from=lorax-punica-builder /usr/src/lorax-punica/server/punica_kernels/build/lib.linux-x86_64-cpython-311 /usr/src/.venv/lib/python3.11/site-packages
 # Copy build artifacts from mamba builder
 COPY --from=mamba-builder /usr/src/mamba/build/lib.linux-x86_64-cpython-311/ /usr/src/.venv/lib/python3.11/site-packages
 COPY --from=mamba-builder /usr/src/causal-conv1d/build/lib.linux-x86_64-cpython-311/ /usr/src/.venv/lib/python3.11/site-packages

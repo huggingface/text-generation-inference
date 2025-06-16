@@ -1263,7 +1263,23 @@ fn num_cuda_devices() -> Option<usize> {
     let devices = match env::var("CUDA_VISIBLE_DEVICES") {
         Ok(devices) => devices,
         Err(_) => match env::var("NVIDIA_VISIBLE_DEVICES") {
-            Ok(devices) => devices,
+            Ok(devices) => {
+                if devices.trim() == "all" {
+                    // Count the number of all GPUs via nvidia-smi
+                    let output = Command::new("nvidia-smi")
+                        .args(["--query-gpu=uuid", "--format=csv,noheader"])
+                        .output()
+                        .ok()?;
+
+                    String::from_utf8_lossy(&output.stdout)
+                        .lines()
+                        .filter(|line| !line.trim().is_empty())
+                        .count()
+                        .to_string()
+                } else {
+                    devices
+                }
+            }
             Err(_) => env::var("ZE_AFFINITY_MASK").ok()?,
         },
     };
@@ -1574,11 +1590,6 @@ fn spawn_shards(
 ) -> Result<(), LauncherError> {
     // Start shard processes
     for rank in 0..num_shard {
-        if rank != 0 && env_runtime::Env::new().should_start_a_single_hpu_shard() {
-            tracing::info!("Running on HPU, the launcher will not do any sharding as actual sharding is done in the server");
-            break;
-        }
-
         let model_id = args.model_id.clone();
         let revision = args.revision.clone();
         let uds_path = args.shard_uds_path.clone();
@@ -1652,10 +1663,6 @@ fn spawn_shards(
             Ok(ShardStatus::Ready) => {
                 shard_ready += 1;
                 if shard_ready == num_shard {
-                    break;
-                }
-                if env_runtime::Env::new().should_start_a_single_hpu_shard() {
-                    tracing::info!("HPU detected, shard is ready");
                     break;
                 }
             }

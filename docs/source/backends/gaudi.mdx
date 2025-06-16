@@ -20,7 +20,7 @@ hf_token=YOUR_HF_ACCESS_TOKEN
 
 docker run --runtime=habana --cap-add=sys_nice --ipc=host \
     -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
-    ghcr.io/huggingface/text-generation-inference:3.3.0-gaudi \
+    ghcr.io/huggingface/text-generation-inference:3.3.2-gaudi \
     --model-id $model
 ```
 
@@ -52,7 +52,7 @@ hf_token=YOUR_ACCESS_TOKEN
 
 docker run --runtime=habana --cap-add=sys_nice --ipc=host \
     -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
-    ghcr.io/huggingface/text-generation-inference:3.3.0-gaudi \
+    ghcr.io/huggingface/text-generation-inference:3.3.2-gaudi \
     --model-id $model
     <text-generation-inference-launcher-arguments>
 ```
@@ -115,7 +115,7 @@ docker run -p 8080:80 \
    -e BATCH_BUCKET_SIZE=256 \
    -e PREFILL_BATCH_BUCKET_SIZE=4 \
    -e PAD_SEQUENCE_TO_MULTIPLE_OF=64 \
-   ghcr.io/huggingface/text-generation-inference:3.3.0-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.3.2-gaudi \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 1024 --max-total-tokens 2048 \
@@ -141,7 +141,7 @@ docker run -p 8080:80 \
    -v $volume:/data \
     -e PREFILL_BATCH_BUCKET_SIZE=1 \
     -e BATCH_BUCKET_SIZE=1 \
-   ghcr.io/huggingface/text-generation-inference:3.3.0-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.3.2-gaudi \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-size 4
@@ -208,7 +208,7 @@ docker run --runtime=habana --ipc=host --cap-add=sys_nice \
     -e PROF_PATH=/tmp/hpu_profile \
     -e PROF_RANKS=0 \
     -e PROF_RECORD_SHAPES=True \
-    ghcr.io/huggingface/text-generation-inference:3.3.0-gaudi \
+    ghcr.io/huggingface/text-generation-inference:3.3.2-gaudi \
     --model-id $model
 ```
 

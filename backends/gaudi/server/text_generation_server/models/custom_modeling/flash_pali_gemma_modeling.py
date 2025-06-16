@@ -62,10 +62,40 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         self.pad_token_id = (
             config.pad_token_id if config.pad_token_id is not None else -1
         )
+        self.dtype = weights.dtype
+
+    def get_vision_embeds(
+        self,
+        pixel_values: torch.FloatTensor,
+        pixel_attention_mask: Optional[torch.FloatTensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
+    ):
+        pixel_values = pixel_values.to(dtype=self.dtype)
+        image_outputs = self.vision_tower(pixel_values)
+        last_hidden_state = self.post_vision_tower_layernorm(
+            image_outputs.last_hidden_state
+        )
+        image_features = self.multi_modal_projector(last_hidden_state)
+        image_features = image_features.view(-1, image_features.shape[-1])
+        return image_features
+
+    def get_inputs_embeds(
+        self,
+        input_ids: torch.Tensor,
+        vision_embeds: torch.Tensor = None,
+    ):
+        inputs_embeds = self.text_model.embed_tokens(input_ids)
+
+        if vision_embeds is not None:
+            mask = input_ids == self.config.image_token_index
+            inputs_embeds[mask] = vision_embeds
+
+        return inputs_embeds
 
     def forward(
         self,
-        input_ids: torch.Tensor,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -73,31 +103,12 @@ class PaliGemmaForConditionalGeneration(nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor] = None,
-        pixel_values: torch.FloatTensor = None,
-        # Unused here
-        pixel_attention_mask: Optional[torch.BoolTensor] = None,
-        image_sizes: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.BoolTensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
-        image_grid_thw: Optional[torch.LongTensor] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        inputs_embeds = self.text_model.embed_tokens(input_ids)
         # TODO This is odd but apparently pali gemma position ids start at 1.
         if cu_seqlen_prefill is not None:
             position_ids += 1
-
-        if pixel_values is not None:
-            pixel_values = pixel_values.to(dtype=inputs_embeds.dtype)
-            image_outputs = self.vision_tower(pixel_values)
-            last_hidden_state = self.post_vision_tower_layernorm(
-                image_outputs.last_hidden_state
-            )
-            image_features = self.multi_modal_projector(last_hidden_state)
-
-            # mask where image or padding tokens
-            mask = input_ids == self.config.image_token_index
-
-            # insert image features into input embeddings
-            inputs_embeds[mask] = image_features.view(-1, image_features.shape[-1])
 
         hidden_states = self.text_model.model(
             inputs_embeds=inputs_embeds,

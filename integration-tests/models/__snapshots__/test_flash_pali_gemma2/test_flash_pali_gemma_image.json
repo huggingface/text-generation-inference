@@ -8,126 +8,126 @@
     "tokens": [
       {
         "id": 108,
-        "logprob": -0.73046875,
+        "logprob": -0.48046875,
         "special": false,
         "text": "\n"
       },
       {
         "id": 30234,
-        "logprob": -2.328125,
+        "logprob": -2.21875,
         "special": false,
         "text": "Brown"
       },
       {
         "id": 108,
-        "logprob": -0.12060547,
+        "logprob": -0.119140625,
         "special": false,
         "text": "\n"
       },
       {
         "id": 3726,
-        "logprob": -1.7734375,
+        "logprob": -1.703125,
         "special": false,
         "text": "Car"
       },
       {
         "id": 108,
-        "logprob": -0.041503906,
+        "logprob": -0.0390625,
         "special": false,
         "text": "\n"
       },
       {
         "id": 2915,
-        "logprob": -1.796875,
+        "logprob": -1.8203125,
         "special": false,
         "text": "Color"
       },
       {
         "id": 108,
-        "logprob": -0.039794922,
+        "logprob": -0.035888672,
         "special": false,
         "text": "\n"
       },
       {
         "id": 19178,
-        "logprob": -1.96875,
+        "logprob": -2.015625,
         "special": false,
         "text": "Cool"
       },
       {
         "id": 108,
-        "logprob": -0.080566406,
+        "logprob": -0.08105469,
         "special": false,
         "text": "\n"
       },
       {
         "id": 40544,
-        "logprob": -2.1875,
+        "logprob": -2.09375,
         "special": false,
         "text": "Decor"
       },
       {
         "id": 108,
-        "logprob": -0.033935547,
+        "logprob": -0.038330078,
         "special": false,
         "text": "\n"
       },
       {
-        "id": 13936,
+        "id": 108,
+        "logprob": -1.515625,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 108,
+        "logprob": -1.8671875,
+        "special": false,
+        "text": "\n"
+      },
+      {
+        "id": 108,
         "logprob": -1.6328125,
         "special": false,
-        "text": "Green"
+        "text": "\n"
       },
       {
         "id": 108,
-        "logprob": -0.16210938,
+        "logprob": -1.265625,
         "special": false,
         "text": "\n"
       },
       {
-        "id": 955,
-        "logprob": -2.015625,
-        "special": false,
-        "text": "..."
-      },
-      {
         "id": 108,
-        "logprob": -0.14746094,
+        "logprob": -1.0078125,
         "special": false,
         "text": "\n"
       },
       {
-        "id": 955,
-        "logprob": -0.73828125,
-        "special": false,
-        "text": "..."
-      },
-      {
         "id": 108,
-        "logprob": -0.051513672,
+        "logprob": -1.03125,
         "special": false,
         "text": "\n"
       },
       {
-        "id": 955,
-        "logprob": -0.34765625,
+        "id": 235336,
+        "logprob": -1.2109375,
         "special": false,
-        "text": "..."
+        "text": "?"
       },
       {
         "id": 108,
-        "logprob": -0.020141602,
+        "logprob": -0.29101562,
         "special": false,
         "text": "\n"
       },
       {
-        "id": 955,
-        "logprob": -0.11767578,
+        "id": 235336,
+        "logprob": -0.08935547,
         "special": false,
-        "text": "..."
+        "text": "?"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "\nBrown\nCar\nColor\nCool\nDecor\nGreen\n...\n...\n...\n..."
+  "generated_text": "\nBrown\nCar\nColor\nCool\nDecor\n\n\n\n\n\n\n?\n?"
 }

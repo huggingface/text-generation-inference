@@ -1,6 +1,4 @@
 import os
-import psutil
-import signal
 import sys
 import typer
 
@@ -19,11 +17,17 @@ class Quantization(str, Enum):
     gptq = "gptq"
     awq = "awq"
     fp8 = "fp8"
+    compressed_tensors = "compressed-tensors"
 
 
 class Dtype(str, Enum):
     float16 = "float16"
     bloat16 = "bfloat16"
+
+
+class KVCacheDtype(str, Enum):
+    fp8_e4m3fn = "fp8_e4m3fn"
+    fp8_e5m2 = "fp8_e5m2"
 
 
 @app.command()
@@ -34,6 +38,7 @@ def serve(
     quantize: Optional[Quantization] = None,
     speculate: Optional[int] = None,
     dtype: Optional[Dtype] = None,
+    kv_cache_dtype: Optional[KVCacheDtype] = None,
     trust_remote_code: bool = False,
     uds_path: Path = "/tmp/text-generation-server",
     logger_level: str = "INFO",
@@ -93,7 +98,8 @@ def serve(
     # Downgrade enum into str for easier management later on
     quantize = None if quantize is None else quantize.value
     dtype = "bfloat16" if dtype is None else dtype.value
-    logger.info(f"quantize={quantize}")
+    kv_cache_dtype = None if kv_cache_dtype is None else kv_cache_dtype.value
+    logger.info(f"quantize={quantize} kv_cache_dtype={kv_cache_dtype}")
     if dtype is not None and quantize not in {
         None,
         "bitsandbytes",
@@ -102,83 +108,24 @@ def serve(
         "gptq",
         "awq",
         "fp8",
+        "compressed-tensors",
     }:
         raise RuntimeError(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
-
-    logger.info("CLI SHARDED = {} DTYPE = {}".format(sharded, dtype))
-
-    if sharded and os.getenv("ATTENTION", "default") not in {"paged"}:
-        tgi_file = Path(__file__).resolve().parent / "tgi_service.py"
-        num_shard = int(os.getenv("WORLD_SIZE", "1"))
-        logger.info("CLI SHARDED = {}".format(num_shard))
-        import subprocess
-
-        cmd = (
-            f"deepspeed --num_nodes 1 --num_gpus {num_shard} --no_local_rank {tgi_file}"
-        )
-        cmd += f" --model_id {model_id} --revision {revision} --sharded {sharded}"
-        cmd += f" --dtype {dtype} --trust_remote_code {trust_remote_code} --uds_path {uds_path}"
-        cmd += f" --quantize {quantize} --max_input_tokens {max_input_tokens}"
-        if speculate is not None:
-            cmd += f"--speculate {speculate}"
-        logger.info("CLI server start deepspeed ={} ".format(cmd))
-        sys.stdout.flush()
-        sys.stderr.flush()
-        with subprocess.Popen(cmd, shell=True, executable="/bin/bash") as proc:
-            do_terminate = False
-            current_handler = signal.getsignal(signal.SIGTERM)
-
-            def terminate_handler(sig, frame):
-                nonlocal do_terminate
-                do_terminate = True
-                if callable(current_handler):
-                    current_handler(sig, frame)
-
-            signal.signal(signal.SIGTERM, terminate_handler)
-
-            finished = False
-            while not finished:
-                try:
-                    if do_terminate:
-                        parent = psutil.Process(proc.pid)
-                        all_procs = parent.children(recursive=True) + [parent]
-                        for p in all_procs:
-                            try:
-                                p.terminate()
-                            except psutil.NoSuchProcess:
-                                pass
-                        _, alive = psutil.wait_procs(all_procs, timeout=30)
-                        for p in alive:
-                            p.kill()
-
-                        do_terminate = False
-
-                    proc.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    pass
-                else:
-                    finished = True
-
-            sys.stdout.flush()
-            sys.stderr.flush()
-            if proc.returncode != 0:
-                logger.error(f"{cmd}  exited with status = {proc.returncode}")
-                return proc.returncode
-    else:
-        server.serve(
-            model_id,
-            lora_adapters,
-            revision,
-            sharded,
-            quantize,
-            speculate,
-            dtype,
-            trust_remote_code,
-            uds_path,
-            max_input_tokens,
-        )
+    server.serve(
+        model_id,
+        lora_adapters,
+        revision,
+        sharded,
+        quantize,
+        speculate,
+        dtype,
+        kv_cache_dtype,
+        trust_remote_code,
+        uds_path,
+        max_input_tokens,
+    )
 
 
 @app.command()

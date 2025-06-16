@@ -8,49 +8,49 @@
     "tokens": [
       {
         "id": 330,
-        "logprob": -0.118652344,
+        "logprob": -0.107421875,
         "special": false,
         "text": " A"
       },
       {
         "id": 11426,
-        "logprob": -0.28320312,
+        "logprob": -0.30078125,
         "special": false,
         "text": " bee"
       },
       {
         "id": 335,
-        "logprob": -0.95703125,
+        "logprob": -0.9609375,
         "special": false,
         "text": " on"
       },
       {
         "id": 253,
-        "logprob": -0.06982422,
+        "logprob": -0.0703125,
         "special": false,
         "text": " a"
       },
       {
         "id": 11986,
-        "logprob": -0.49414062,
+        "logprob": -0.5,
         "special": false,
         "text": " pink"
       },
       {
         "id": 8525,
-        "logprob": -0.07763672,
+        "logprob": -0.09716797,
         "special": false,
         "text": " flower"
       },
       {
         "id": 30,
-        "logprob": -1.0703125,
+        "logprob": -1.078125,
         "special": false,
         "text": "."
       },
       {
         "id": 49154,
-        "logprob": -0.092285156,
+        "logprob": -0.110839844,
         "special": true,
         "text": "<end_of_utterance>"
       }

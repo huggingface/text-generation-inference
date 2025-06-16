@@ -45,11 +45,17 @@ from text_generation_server.layers.attention import (
 from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
     Qwen2Model,
 )
+from habana_frameworks.torch.hpex.kernels import (
+    RotaryPosEmbeddingMode,
+    apply_rotary_pos_emb,
+)
+import habana_frameworks.torch as htorch
 
 # Copied from: https://github.com/huggingface/transformers/blob/main/src/transformers/models/qwen2_5_vl/processing_qwen2_5_vl.py
 from typing import Union
 from transformers.feature_extraction_utils import BatchFeature
-from transformers.image_utils import ImageInput, VideoInput
+from transformers.image_utils import ImageInput
+from transformers.video_utils import VideoInput
 from transformers.processing_utils import (
     ProcessingKwargs,
     ProcessorMixin,
@@ -375,28 +381,6 @@ class Qwen2_5_VLConfig(PretrainedConfig):
         super().__init__(tie_word_embeddings=tie_word_embeddings, **kwargs)
 
 
-# Copied from transformers.models.llama.modeling_llama.rotate_half
-def rotate_half(x):
-    """Rotates half the hidden dims of the input."""
-    x1 = x[..., : x.shape[-1] // 2]
-    x2 = x[..., x.shape[-1] // 2 :]
-    return torch.cat((-x2, x1), dim=-1)
-
-
-def apply_rotary_pos_emb_vision(
-    tensor: torch.Tensor, freqs: torch.Tensor
-) -> torch.Tensor:
-    orig_dtype = tensor.dtype
-    tensor = tensor.float()
-    cos = freqs.cos()
-    sin = freqs.sin()
-    cos = cos.unsqueeze(1).repeat(1, 1, 2).unsqueeze(0).float()
-    sin = sin.unsqueeze(1).repeat(1, 1, 2).unsqueeze(0).float()
-    output = (tensor * cos) + (rotate_half(tensor) * sin)
-    output = output.to(orig_dtype)
-    return output
-
-
 class Qwen2_5VLAttention(nn.Module):
     def __init__(self, *, prefix, config, weights):
         super().__init__()
@@ -426,7 +410,8 @@ class Qwen2_5VLAttention(nn.Module):
         self,
         hidden_state: torch.Tensor,
         cu_seqlens: torch.Tensor,
-        rotary_pos_emb: torch.Tensor,
+        cos: torch.Tensor,
+        sin: torch.Tensor,
         max_seqlen: int,
     ) -> torch.Tensor:
         # apply the qkv linear layer to the hidden state
@@ -444,29 +429,37 @@ class Qwen2_5VLAttention(nn.Module):
         query = query.view(*_shape)
         key = key.view(*_shape)
         value = value.view(*_shape)
-
         # apply rotary positional embeddings
-        query = apply_rotary_pos_emb_vision(query.unsqueeze(0), rotary_pos_emb).squeeze(
-            0
-        )
-        key = apply_rotary_pos_emb_vision(key.unsqueeze(0), rotary_pos_emb).squeeze(0)
+        rope_mode = RotaryPosEmbeddingMode.BLOCKWISE
+        rotary_dim = cos.shape[-1]
+        query_rot = query[..., :rotary_dim]
+        query_pass = query[..., rotary_dim:]
+        query_rot = apply_rotary_pos_emb(query_rot, cos, sin, None, 0, rope_mode)
+        query.copy_(torch.cat((query_rot, query_pass), dim=-1).reshape(query.shape))
 
-        # calc maximum sequence length for any batch
-        query = query.contiguous()
-        key = key.contiguous()
-        value = value.contiguous()
-        causal = False
+        key_rot = key[..., :rotary_dim]
+        key_pass = key[..., rotary_dim:]
+        key_rot = apply_rotary_pos_emb(key_rot, cos, sin, None, 0, rope_mode)
+        key.copy_(torch.cat((key_rot, key_pass), dim=-1).reshape(key.shape))
 
         # execute sdpa
-        query = query.unsqueeze(0).transpose(1, 2)
-        key = key.unsqueeze(0).transpose(1, 2)
-        value = value.unsqueeze(0).transpose(1, 2)
+        causal = False
+        query = query.transpose(0, 1)
+        key = key.transpose(0, 1)
+        value = value.transpose(0, 1)
         fsdpa_op = ModuleFusedSDPA(FusedSDPA)
+        attention_mask = torch.zeros(
+            [1, max_seqlen, max_seqlen], device=query.device, dtype=torch.bool
+        )
+        for i in range(1, len(cu_seqlens)):
+            attention_mask[
+                :, cu_seqlens[i - 1] : cu_seqlens[i], cu_seqlens[i - 1] : cu_seqlens[i]
+            ] = True
         attn_output = fsdpa_op(
             query,
             key,
             value,
-            attn_mask=None,
+            attn_mask=attention_mask,
             dropout_p=0.0,
             is_causal=causal,
             scale=None,
@@ -474,7 +467,7 @@ class Qwen2_5VLAttention(nn.Module):
             recompute_mode=None,
             valid_sequence_lengths=None,
         )
-        attn_output = attn_output.transpose(1, 2).squeeze(0).contiguous()
+        attn_output = attn_output.transpose(0, 1)
 
         # reshape output to original dimensions
         attn_output = attn_output.reshape(hidden_state.shape[0], -1)
@@ -533,11 +526,9 @@ class Qwen2_5VLVisionBlock(nn.Module):
             weights=weights,
         )
 
-    def forward(
-        self, hidden_states, cu_seqlens, rotary_pos_emb, max_seqlen
-    ) -> torch.Tensor:
+    def forward(self, hidden_states, cu_seqlens, cos, sin, max_seqlen) -> torch.Tensor:
         norm1_out, _ = self.norm1(hidden_states)
-        attn_out = self.attn(norm1_out, cu_seqlens, rotary_pos_emb, max_seqlen)
+        attn_out = self.attn(norm1_out, cu_seqlens, cos, sin, max_seqlen)
         hidden_states = hidden_states + attn_out
         norm2_out, _ = self.norm2(hidden_states)
         mlp_out = self.mlp(norm2_out)
@@ -608,7 +599,7 @@ class Qwen2_5VisionModel(nn.Module):
             config=config,
             weights=weights,
         )
-        # import ipdb; ipdb.set_trace()
+
         self.temporal_patch_size = config.temporal_patch_size
         self.spatial_patch_size = config.spatial_patch_size
         self.in_channels = config.in_channels
@@ -736,6 +727,10 @@ class Qwen2_5VisionModel(nn.Module):
         )
 
         rotary_pos_emb = rotary_pos_emb.to(device=hidden_states.device)
+        cos = rotary_pos_emb.cos()
+        sin = rotary_pos_emb.sin()
+        cos = torch.cat((cos, cos), dim=-1).unsqueeze(1)
+        sin = torch.cat((sin, sin), dim=-1).unsqueeze(1)
 
         cu_window_seqlens = torch.tensor(
             cu_window_seqlens,
@@ -754,6 +749,9 @@ class Qwen2_5VisionModel(nn.Module):
         max_seqlen = torch.max(cu_seqlens[1:] - cu_seqlens[:-1])
 
         # iterately apply the blocks to the hidden states
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for layer_num, block in enumerate(self.blocks):
             # NOTE: qwen2_5_vl.py has a concept of full attention blocks
             # that are applied at specific layers.
@@ -762,9 +760,9 @@ class Qwen2_5VisionModel(nn.Module):
             else:
                 cu_seqlens_now = cu_window_seqlens
 
-            hidden_states = block(
-                hidden_states, cu_seqlens_now, rotary_pos_emb, max_seqlen
-            )
+            hidden_states = block(hidden_states, cu_seqlens_now, cos, sin, max_seqlen)
+            if lazy_mode:
+                htorch.core.mark_step()
 
         # apply the final patch merger to the hidden states
         hidden_states = self.merger(hidden_states)
@@ -886,9 +884,6 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
         full_llm_pos_ids_list = [
             item for sublist in zip(text_ranges, llm_pos_ids_list) for item in sublist
         ]
-        # import ipdb
-
-        # ipdb.set_trace()
         max_s = full_llm_pos_ids_list[-1].max() + 1
         final_text_len = input_ids_len - vision_ends[-1]
         if final_text_len > 0:
@@ -900,9 +895,33 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
         )
         return position_ids
 
-    def forward(
+    def get_vision_embeds(
+        self,
+        pixel_values: torch.FloatTensor,
+        pixel_attention_mask: Optional[torch.FloatTensor] = None,
+        image_sizes: Optional[torch.Tensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
+    ):
+        image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw).squeeze(0)
+        return image_embeds
+
+    def get_inputs_embeds(
         self,
         input_ids: torch.Tensor,
+        vision_embeds: torch.Tensor = None,
+    ):
+        inputs_embeds = self.embed_tokens(input_ids)
+
+        # apply the visual model to the pixel values if they are provided
+        if vision_embeds is not None:
+            mask = torch.where(input_ids == self.image_token_id)
+            inputs_embeds[mask] = vision_embeds
+
+        return inputs_embeds
+
+    def forward(
+        self,
+        inputs_embeds: torch.Tensor,
         position_ids: torch.Tensor,
         cu_seqlen_prefill: Optional[torch.Tensor],
         kv_cache: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -910,26 +929,10 @@ class Qwen2_5VLForConditionalGeneration(nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         lm_head_indices: Optional[torch.Tensor],
-        pixel_values: torch.FloatTensor = None,
-        image_grid_thw: Optional[torch.LongTensor] = None,
-        # Unused in this model
-        video_grid_thw: Optional[torch.LongTensor] = None,
-        pixel_attention_mask=None,
-        image_sizes: Optional[torch.LongTensor] = None,
+        attention_mask: Optional[torch.BoolTensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
-        cross_attention_states: Optional[torch.Tensor] = None,
         image_indices=None,
     ):
-        inputs_embeds = self.embed_tokens(input_ids)
-
-        # apply the visual model to the pixel values if they are provided
-        if pixel_values is not None and len(pixel_values) > 0:
-            if pixel_values is not None:
-                image_embeds = self.visual(
-                    pixel_values, grid_thw=image_grid_thw
-                ).squeeze(0)
-                mask = torch.where(input_ids == self.image_token_id)
-                inputs_embeds[mask] = image_embeds
 
         hidden_states = self.text_model(
             inputs_embeds=inputs_embeds,

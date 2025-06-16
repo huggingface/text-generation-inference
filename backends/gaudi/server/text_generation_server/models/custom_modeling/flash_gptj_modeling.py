@@ -28,6 +28,7 @@ from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -48,6 +49,7 @@ from habana_frameworks.torch.hpex.kernels import (
     RotaryPosEmbeddingMode,
     apply_rotary_pos_emb,
 )
+import habana_frameworks.torch as htorch
 
 
 def load_attention(config, prefix: str, weights):
@@ -323,6 +325,10 @@ class FlashGPTJModel(torch.nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, input_ids.shape[0]
+            )
         hidden_states = self.wte(input_ids)
 
         # Get rotary cos and sin for this forward
@@ -330,6 +336,9 @@ class FlashGPTJModel(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -342,6 +351,8 @@ class FlashGPTJModel(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
 

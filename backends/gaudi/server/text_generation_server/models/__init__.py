@@ -5,7 +5,6 @@ import os
 
 from loguru import logger
 from transformers.configuration_utils import PretrainedConfig
-from transformers.models.auto import modeling_auto
 from huggingface_hub import hf_hub_download, HfApi
 from typing import Optional
 from pathlib import Path
@@ -16,9 +15,6 @@ import enum
 
 from text_generation_server.utils.speculate import get_speculate, set_speculate
 from text_generation_server.models.model import Model
-from text_generation_server.models.causal_lm import CausalLM
-from text_generation_server.models.bloom import BLOOM
-from text_generation_server.models.starcoder import StarCoder
 from text_generation_server.models.custom_modeling.flash_phi_moe_modeling import (
     PhiMoEConfig,
 )
@@ -32,7 +28,6 @@ from text_generation_server.utils.adapter import (
 from text_generation_server.adapters.lora import LoraWeights
 
 from text_generation_server.utils.log import log_master
-from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 
 __all__ = [
     "Model",
@@ -40,13 +35,10 @@ __all__ = [
     "Seq2SeqLM",
     "get_model_with_lora_adapters",
 ]
-from text_generation_server.models.globals import ATTENTION
 
-FLASH_ATT_ERROR_MESSAGE = "{} requires Flash Attention enabled models."
+VLM_BATCH_TYPES = set()
 
-FLASH_ATTENTION = False
-if ATTENTION == "paged":
-    FLASH_ATTENTION = True
+FLASH_ATTENTION = True
 
 try:
     from text_generation_server.models.flash_causal_lm import FlashCausalLM
@@ -62,6 +54,9 @@ try:
     )
     from text_generation_server.models.custom_modeling.flash_llama_modeling import (
         FlashLlamaForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_llama4_modeling import (
+        Llama4ForConditionalGeneration,
     )
     from text_generation_server.models.custom_modeling.flash_cohere_modeling import (
         FlashCohereForCausalLM,
@@ -82,9 +77,6 @@ try:
     )
     from text_generation_server.models.custom_modeling.flash_neox_modeling import (
         FlashGPTNeoXForCausalLM,
-    )
-    from text_generation_server.models.pali_gemma import (
-        PaliGemmaBatch,
     )
     from text_generation_server.models.custom_modeling.flash_pali_gemma_modeling import (
         PaliGemmaForConditionalGeneration,
@@ -108,6 +100,12 @@ try:
     )
     from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
         Qwen2ForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_qwen3_modeling import (
+        Qwen3ForCausalLM,
+    )
+    from text_generation_server.models.custom_modeling.flash_qwen3_moe_modeling import (
+        Qwen3MoeForCausalLM,
     )
     from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
         FlashMistralForCausalLM,
@@ -140,9 +138,22 @@ except ImportError as e:
     log_master(logger.warning, f"Could not import Flash Attention enabled models: {e}")
     SUPPORTS_WINDOWING = False
     FLASH_ATTENTION = False
+    VLM_BATCH_TYPES = set()
 
 if FLASH_ATTENTION:
     __all__.append(FlashCausalLM)
+
+    from text_generation_server.models.flash_vlm_causal_lm import (
+        FlashVlmCausalLMBatch,
+    )
+
+    VLM_BATCH_TYPES = {
+        FlashVlmCausalLMBatch,
+        FlashMllamaCausalLMBatch,
+    }
+
+
+__all__.append(VLM_BATCH_TYPES)
 
 
 class ModelType(enum.Enum):
@@ -177,6 +188,11 @@ class ModelType(enum.Enum):
     LLAMA = {
         "type": "llama",
         "name": "Llama",
+        "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
+    }
+    LLAMA4 = {
+        "type": "llama4",
+        "name": "Llama4",
         "url": "https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f",
     }
     PHI3 = {
@@ -274,6 +290,16 @@ class ModelType(enum.Enum):
         "name": "Qwen 2.5 VL",
         "url": "https://huggingface.co/collections/Qwen/qwen25-66e81a666513e518adb90d9e",
     }
+    QWEN3 = {
+        "type": "qwen3",
+        "name": "Qwen 3",
+        "url": "https://huggingface.co/collections/Qwen/qwen3-67dd247413f0e2e4f653967f",
+    }
+    QWEN3_MOE = {
+        "type": "qwen3_moe",
+        "name": "Qwen 3 Moe",
+        "url": "https://huggingface.co/collections/Qwen/qwen3-67dd247413f0e2e4f653967f",
+    }
     GALACTICA = {
         "type": "galactica",
         "name": "Galactica",
@@ -324,6 +350,7 @@ def get_model(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[torch.dtype],
+    kv_cache_dtype: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
 ) -> Model:
@@ -449,7 +476,12 @@ def get_model(
 
     model_type = config_dict["model_type"]
 
-    kv_cache_dtype = dtype
+    if kv_cache_dtype == "fp8_e4m3fn":
+        kv_cache_dtype = torch.float8_e4m3fn
+    elif kv_cache_dtype == "fp8_e5m2":
+        kv_cache_dtype = torch.float8_e5m2
+    else:
+        kv_cache_dtype = dtype
 
     if FLASH_ATTENTION:
         if model_type == DEEPSEEK_V2:
@@ -588,6 +620,20 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+            )
+        elif model_type == LLAMA4:
+            print(f"Llama4 model detected: {model_id}")
+            return FlashVlmCausalLM(
+                model_id=model_id,
+                model_class=Llama4ForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                support_chunking=False,
             )
         elif model_type == BAICHUAN:
             return FlashCausalLM(
@@ -737,6 +783,8 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
             )
         elif model_type == QWEN2_5_VL:
             return FlashVlmCausalLM(
@@ -752,6 +800,32 @@ def get_model(
                 lora_adapter_ids=lora_adapter_ids,
                 config_class=Qwen2_5_VLConfig,
                 processor_class=Qwen2_5_VLProcessor,
+                # TODO: Fix bug in rust image_text_replacement implementation
+                support_chunking=False,
+            )
+        elif model_type == QWEN3:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=Qwen3ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif model_type == QWEN3_MOE:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=Qwen3MoeForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
             )
         elif model_type == MLLAMA:
             return FlashMllamaCausalLM(
@@ -765,6 +839,7 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
+                support_chunking=False,
             )
         elif model_type == IDEFICS2:
             return FlashVlmCausalLM(
@@ -809,7 +884,6 @@ def get_model(
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
-                batch_class=PaliGemmaBatch,
             )
         elif model_type == LLAVA_NEXT:
             return FlashVlmCausalLM(
@@ -822,60 +896,6 @@ def get_model(
                 kv_cache_dtype=kv_cache_dtype,
                 trust_remote_code=trust_remote_code,
             )
-
-    from text_generation_server.models.vlm_causal_lm import VlmCausalLM
-    from text_generation_server.models.custom_modeling.mllama import (
-        MllamaForConditionalGeneration,
-    )
-    from text_generation_server.models.custom_modeling.llava_next import (
-        LlavaNextForConditionalGeneration,
-    )
-
-    adapt_transformers_to_gaudi()
-    if SDP_ON_BF16 == 1:
-        torch._C._set_math_sdp_allow_fp16_bf16_reduction(True)
-    if model_type == "gpt_bigcode":
-        return StarCoder(model_id=model_id, revision=revision, dtype=dtype)
-    if model_type == "bloom":
-        return BLOOM(
-            model_id=model_id,
-            revision=revision,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
-    if model_type == "llava_next":
-        return VlmCausalLM(
-            model_class=LlavaNextForConditionalGeneration,
-            model_id=model_id,
-            revision=revision,
-            quantize=None,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
-    if model_type == "mllama":
-        return VlmCausalLM(
-            model_class=MllamaForConditionalGeneration,
-            model_id=model_id,
-            revision=revision,
-            quantize=None,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
-
-    if model_type in modeling_auto.MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-        return CausalLM(
-            model_id,
-            revision,
-            quantize=quantize,
-            speculator=speculator,
-            dtype=dtype,
-            trust_remote_code=trust_remote_code,
-        )
 
     raise ValueError(f"Unsupported model type {model_type}")
 
@@ -890,6 +910,7 @@ def get_model_with_lora_adapters(
     quantize: Optional[str],
     speculate: Optional[int],
     dtype: Optional[torch.dtype],
+    kv_cache_dtype: Optional[str],
     trust_remote_code: bool,
     max_input_tokens: int,
     adapter_to_index: Dict[str, int],
@@ -903,6 +924,7 @@ def get_model_with_lora_adapters(
         quantize,
         speculate,
         dtype,
+        kv_cache_dtype,
         trust_remote_code,
         max_input_tokens,
     )

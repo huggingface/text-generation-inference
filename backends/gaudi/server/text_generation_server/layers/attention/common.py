@@ -90,6 +90,8 @@ class Seqlen:
 def _async_h2d_tensor_copy(source, device="hpu"):
     if source is None:
         return None
+    if source.device.type == "hpu":
+        return source
     assert source.device.type == "cpu", "Source tensor is not present in host memory!"
     target = torch.empty(source.shape, dtype=source.dtype, device=device)
     target.copy_(source, non_blocking=True)

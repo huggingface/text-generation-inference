@@ -8,6 +8,7 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -22,6 +23,7 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
+import habana_frameworks.torch as htorch
 
 
 def load_attention(config, prefix, weights):
@@ -287,6 +289,10 @@ class Qwen2Model(torch.nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
         hidden_states = inputs_embeds
 
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(
@@ -294,6 +300,9 @@ class Qwen2Model(torch.nn.Module):
         )
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states = layer(
                 hidden_states,
@@ -306,6 +315,8 @@ class Qwen2Model(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states)
 
@@ -353,7 +364,6 @@ class Qwen2ForCausalLM(torch.nn.Module):
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         inputs_embeds = self.embed_tokens(input_ids)
 
         hidden_states = self.model(

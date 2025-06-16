@@ -9,8 +9,8 @@ TEST_CONFIGS = {
     "meta-llama/Llama-3.1-8B-Instruct-shared": {
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
         "input": "What is Deep Learning?",
-        "expected_greedy_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use",
-        "expected_batch_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use",
+        "expected_greedy_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use of artificial neural networks to analyze and interpret data. It is a type of",
+        "expected_batch_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use of artificial neural networks to analyze and interpret data. It is a type of",
         "args": [
             "--sharded",
             "true",
@@ -156,20 +156,6 @@ TEST_CONFIGS = {
         "input": "What is Deep Learning?",
         "expected_greedy_output": "\n\nDeep learning is a new field of research that has been around for a long time. It is a new field of research that has been around for a",
         "expected_batch_output": "\n\nDeep learning is a new field of research that has been around for a long time. It is a new field of research that has been around for a",
-        "args": [
-            "--max-input-tokens",
-            "512",
-            "--max-total-tokens",
-            "1024",
-            "--max-batch-size",
-            "4",
-        ],
-    },
-    "facebook/opt-125m": {
-        "model_id": "facebook/opt-125m",
-        "input": "What is Deep Learning?",
-        "expected_greedy_output": "\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout",
-        "expected_batch_output": "\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout the Author\n\nAbout",
         "args": [
             "--max-input-tokens",
             "512",

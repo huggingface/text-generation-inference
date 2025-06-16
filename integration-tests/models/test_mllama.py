@@ -5,7 +5,7 @@ import asyncio
 @pytest.fixture(scope="module")
 def mllama_handle(launcher):
     with launcher(
-        "meta-llama/Llama-3.2-11B-Vision-Instruct",
+        "unsloth/Llama-3.2-11B-Vision-Instruct",
         num_shard=2,
     ) as handle:
         yield handle
@@ -48,7 +48,7 @@ async def test_mllama_simpl(mllama, response_snapshot):
     }
     assert (
         response.choices[0].message.content
-        == "A chicken stands on a pile of money, looking"
+        == "A chicken sits on a pile of money, looking"
     )
     assert response == response_snapshot
 

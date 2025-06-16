@@ -18,9 +18,11 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.attention import (
     attention,
     paged_attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
+import habana_frameworks.torch as htorch
 
 
 def load_row(config, prefix: str, weights, bias: bool):
@@ -627,6 +629,10 @@ class FlashRWModel(FlashRWPreTrainedModel):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, input_ids.shape[0]
+            )
         hidden_states = self.word_embeddings(input_ids)
 
         # Get rotary cos and sin for this forward
@@ -634,6 +640,9 @@ class FlashRWModel(FlashRWPreTrainedModel):
         cos, sin = self.h[0].self_attention.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.h):
             hidden_states, residual = layer(
                 hidden_states,
@@ -646,6 +655,8 @@ class FlashRWModel(FlashRWPreTrainedModel):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.ln_f(hidden_states, residual)
 

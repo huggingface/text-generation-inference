@@ -26,7 +26,7 @@ import torch.distributed
 
 from torch import nn
 from transformers.activations import ACT2FN
-
+import habana_frameworks.torch as htorch
 from text_generation_server.layers.attention import (
     KVCache,
     get_kv_scales,
@@ -35,6 +35,7 @@ from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoE
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -143,12 +144,14 @@ class FlashLlamaAttention(torch.nn.Module):
         config.num_key_value_heads = getattr(
             config, "num_key_value_heads", config.num_attention_heads
         )
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+
+        if config.model_type != "llama4_text":
+            self.rotary_emb = PositionRotaryEmbedding.static(
+                config=config,
+                dim=self.head_size,
+                base=config.rope_theta,
+                device=weights.device,
+            )
 
         # `config.attention_multiplier` is used in Granite
         self.softmax_scale = getattr(
@@ -547,6 +550,11 @@ class FlashLlamaModel(torch.nn.Module):
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         cross_attention_states=None,
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
+
         hidden_states = inputs_embeds
 
         # Get rotary cos and sin for this forward
@@ -554,6 +562,9 @@ class FlashLlamaModel(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -568,6 +579,8 @@ class FlashLlamaModel(torch.nn.Module):
                 cross_attention_states,
                 hpu_attention_meta=hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states, residual)
 

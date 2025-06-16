@@ -2,15 +2,15 @@
   inputs = {
     crate2nix = {
       url = "github:nix-community/crate2nix";
-      inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
+      inputs.nixpkgs.follows = "hf-nix/nixpkgs";
     };
     nix-filter.url = "github:numtide/nix-filter";
-    tgi-nix.url = "github:huggingface/text-generation-inference-nix";
-    nixpkgs.follows = "tgi-nix/nixpkgs";
+    hf-nix.url = "github:huggingface/hf-nix";
+    nixpkgs.follows = "hf-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
+      inputs.nixpkgs.follows = "hf-nix/nixpkgs";
     };
   };
   outputs =
@@ -21,7 +21,7 @@
       nixpkgs,
       flake-utils,
       rust-overlay,
-      tgi-nix,
+      hf-nix,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -33,10 +33,10 @@
         };
         pkgs = import nixpkgs {
           inherit system;
-          inherit (tgi-nix.lib) config;
+          inherit (hf-nix.lib) config;
           overlays = [
             rust-overlay.overlays.default
-            tgi-nix.overlays.default
+            hf-nix.overlays.default
             (import nix/overlay.nix)
           ];
         };

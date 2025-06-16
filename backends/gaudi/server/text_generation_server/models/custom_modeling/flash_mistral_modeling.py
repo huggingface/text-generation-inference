@@ -30,6 +30,7 @@ from text_generation_server.layers.attention.kv_cache import get_kv_scales
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -45,6 +46,7 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
+import habana_frameworks.torch as htorch
 
 
 class MistralConfig(PretrainedConfig):
@@ -109,7 +111,8 @@ class MistralAttention(torch.nn.Module):
         )
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
-        if hasattr(config, "head_dim"):
+
+        if getattr(config, "head_dim", None) is not None:
             self.head_size = config.head_dim
         else:
             self.head_size = self.hidden_size // self.num_heads
@@ -395,12 +398,19 @@ class MistralModel(torch.nn.Module):
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
         adapter_data: Optional[torch.Tensor] = None,
     ):
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
         hidden_states = inputs_embeds
         # Get rotary cos and sin for this forward
         # Avoid to index in each layer
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -414,6 +424,8 @@ class MistralModel(torch.nn.Module):
                 adapter_data,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states, residual)
         return hidden_states

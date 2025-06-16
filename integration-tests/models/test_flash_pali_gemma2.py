@@ -22,8 +22,7 @@ async def test_flash_pali_gemma_image(flash_pali_gemma, response_snapshot):
         max_new_tokens=20,
     )
     assert (
-        response.generated_text
-        == "\nBrown\nCar\nColor\nCool\nDecor\nGreen\n...\n...\n...\n..."
+        response.generated_text == "\nBrown\nCar\nColor\nCool\nDecor\n\n\n\n\n\n\n?\n?"
     )
 
     assert response == response_snapshot

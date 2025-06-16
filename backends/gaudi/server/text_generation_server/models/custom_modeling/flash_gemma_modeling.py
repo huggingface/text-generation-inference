@@ -28,6 +28,7 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -44,6 +45,7 @@ from text_generation_server.layers.layernorm import (
     FastRMSNorm,
 )
 from text_generation_server.utils.weights import UnquantizedWeight
+import habana_frameworks.torch as htorch
 
 
 class GemmaConfig(PretrainedConfig):
@@ -387,6 +389,10 @@ class FlashGemmaModel(torch.nn.Module):
         adapter_data: Optional[torch.Tensor],
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
         hidden_states = inputs_embeds
 
         # Get rotary cos and sin for this forward
@@ -394,6 +400,9 @@ class FlashGemmaModel(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -406,6 +415,8 @@ class FlashGemmaModel(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states, residual)
 

@@ -29,6 +29,7 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -50,6 +51,7 @@ from text_generation_server.layers.rotary import (
     PositionRotaryEmbedding,
 )
 from text_generation_server.utils.weights import UnquantizedWeight
+import habana_frameworks.torch as htorch
 
 
 class Starcoder2Config(PretrainedConfig):
@@ -510,6 +512,10 @@ class Starcoder2Model(torch.nn.Module):
         adapter_data,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, input_ids.shape[0]
+            )
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
@@ -517,6 +523,9 @@ class Starcoder2Model(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -530,6 +539,8 @@ class Starcoder2Model(torch.nn.Module):
                 adapter_data,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
@@ -578,7 +589,6 @@ class FlashStarcoder2ForCausalLM(torch.nn.Module):
         lm_head_indices: Optional[torch.Tensor] = None,
         adapter_data: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-
         hidden_states = self.model(
             input_ids,
             position_ids,

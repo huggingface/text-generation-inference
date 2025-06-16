@@ -5,7 +5,7 @@
       "index": 0,
       "logprobs": null,
       "message": {
-        "content": "A chicken stands on a pile of money, looking",
+        "content": "A chicken sits on a pile of money, looking",
         "name": null,
         "role": "assistant",
         "tool_calls": null
@@ -13,11 +13,11 @@
       "usage": null
     }
   ],
-  "created": 1746054919,
+  "created": 1747230171,
   "id": "",
-  "model": "meta-llama/Llama-3.2-11B-Vision-Instruct",
+  "model": "unsloth/Llama-3.2-11B-Vision-Instruct",
   "object": "chat.completion",
-  "system_fingerprint": "3.3.0-dev0-native",
+  "system_fingerprint": "3.3.2-dev0-native",
   "usage": {
     "completion_tokens": 10,
     "prompt_tokens": 45,

@@ -28,11 +28,13 @@ from text_generation_server.layers import (
     TensorParallelEmbedding,
     TensorParallelRowLinear,
     get_linear,
+    Fp8Linear,
 )
 from text_generation_server.layers.attention import (
     Seqlen,
     attention,
-    paged_attention,
+    paged_attention_mla,
+    set_block_mapping,
     HPUPagedAttentionMetadata,
 )
 from text_generation_server.layers.attention.kv_cache import KVCache, get_kv_scales
@@ -40,6 +42,19 @@ from text_generation_server.layers.layernorm import FastRMSNorm
 from text_generation_server.layers.moe import DenseMoELayer, MoELayer, SparseMoELayer
 from text_generation_server.layers.rotary import PositionRotaryEmbedding, get_mscale
 from text_generation_server.utils.weights import Weights
+import habana_frameworks.torch as htorch
+
+
+def get_and_maybe_dequant_weights(layer: torch.nn.Module) -> torch.Tensor:
+    if isinstance(layer, Fp8Linear):
+        eye = torch.eye(
+            layer.qweight.shape[-1], dtype=torch.bfloat16, device=layer.qweight.device
+        )
+        dequant_weights = layer(eye)
+        del eye
+        # standardize to (output, input)
+        return dequant_weights.T
+    return layer.weight
 
 
 class DeepseekV3Config(PretrainedConfig):
@@ -249,6 +264,44 @@ class DeepseekV3Attention(torch.nn.Module):
             0, self.num_key_value_heads, dtype=torch.int32, device=weights.device
         ).repeat_interleave(self.num_groups)
 
+        kv_b_proj_weight = get_and_maybe_dequant_weights(self.kv_b_proj.linear).T
+        kv_b_proj_weight = kv_b_proj_weight.view(
+            self.kv_lora_rank,
+            self.num_heads,
+            self.qk_nope_head_dim + self.value_head_size,
+        )
+        W_UK, W_UV = kv_b_proj_weight.split(
+            [self.qk_nope_head_dim, self.value_head_size], dim=-1
+        )
+        # Convert from (L, N, V) to (N, L, V)
+        self.W_UV = W_UV.transpose(0, 1)
+        # Convert from (L, N, P) to (N, P, L)
+        self.W_UK_T = W_UK.permute(1, 2, 0)
+
+    def _q_proj_and_k_up_proj(self, x):
+        q_proj = self.q_proj if self.q_lora_rank is None else self.q_b_proj
+        q_nope, q_pe = (
+            q_proj(x)
+            .view(-1, self.num_heads, self.head_size)
+            .split([self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1)
+        )
+
+        # Convert from (B, N, P) to (N, B, P)
+        q_nope = q_nope.transpose(0, 1)
+        # Multiply (N, B, P) x (N, P, L) -> (N, B, L)
+        ql_nope = torch.bmm(q_nope, self.W_UK_T)
+        # Convert from (N, B, L) to (B, N, L)
+        return ql_nope.transpose(0, 1), q_pe
+
+    def _v_up_proj_and_o_proj(self, x):
+        # Convert from (B, N, L) to (N, B, L)
+        x = x.view(-1, self.num_heads, self.kv_lora_rank).transpose(0, 1)
+        # Multiply (N, B, L) x (N, L, V) -> (N, B, V)
+        x = torch.bmm(x, self.W_UV)
+        # Convert from (N, B, V) to (B, N * V)
+        x = x.transpose(0, 1).reshape(-1, self.num_heads * self.value_head_size)
+        return self.o_proj(x)
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -261,14 +314,9 @@ class DeepseekV3Attention(torch.nn.Module):
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ):
         if self.q_lora_rank is None:
-            query = self.q_proj(hidden_states)
+            hidden_states_or_q_c = hidden_states
         else:
-            query = self.q_b_proj(self.q_a_layernorm(self.q_a_proj(hidden_states))[0])
-        query = query.view(-1, self.num_heads, self.head_size)
-
-        _, query_pe = torch.split(
-            query, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
-        )
+            hidden_states_or_q_c = self.q_a_layernorm(self.q_a_proj(hidden_states))[0]
 
         compressed_kv = self.kv_a_proj_with_mqa(hidden_states)
         compressed_kv, key_pe = torch.split(
@@ -276,13 +324,18 @@ class DeepseekV3Attention(torch.nn.Module):
         )
 
         key_pe = key_pe.view(-1, 1, self.qk_rope_head_dim)
-        kv = self.kv_b_proj(self.kv_a_layernorm(compressed_kv.contiguous())[0]).view(
-            -1, self.num_key_value_heads, self.qk_nope_head_dim + self.value_head_size
-        )
+        kv_c_normed = self.kv_a_layernorm(compressed_kv.contiguous())[0]
 
-        key_nope, value = torch.split(
-            kv, [self.qk_nope_head_dim, self.value_head_size], dim=-1
-        )
+        # Prefill
+        if cu_seqlen_prefill is not None:
+            q_proj = self.q_proj if self.q_lora_rank is None else self.q_b_proj
+            query = q_proj(hidden_states_or_q_c)
+            query = query.view(-1, self.num_heads, self.head_size)
+            query_nope, query_pe = torch.split(
+                query, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
+            )
+        else:
+            query_nope, query_pe = self._q_proj_and_k_up_proj(hidden_states_or_q_c)
 
         batch_size, heads, head_dim = query_pe.shape
         query_pe = (
@@ -297,33 +350,47 @@ class DeepseekV3Attention(torch.nn.Module):
             .reshape(batch_size, heads, head_dim)
         )
         self.rotary_emb(query_pe, key_pe, cos, sin)
+        latent_vec_k = torch.concat(
+            (kv_c_normed, key_pe.view(-1, self.qk_rope_head_dim)), dim=-1
+        )
+        latent_vec_k = latent_vec_k.view(-1, self.qk_rope_head_dim + self.kv_lora_rank)
 
-        query[..., self.qk_nope_head_dim :] = query_pe
-        key = torch.empty_like(query)
-        key[..., : self.qk_nope_head_dim] = key_nope
-        key[..., self.qk_nope_head_dim :] = key_pe
-
-        # We need to pad the heads because Flash Attention does not support
-        # qk and v with different head sizes.
-        query = torch.nn.functional.pad(
-            query, (0, self.head_pad_size - self.head_size), value=0
-        )
-        key = torch.nn.functional.pad(
-            key, (0, self.head_pad_size - self.head_size), value=0
-        )
-        value = torch.nn.functional.pad(
-            value, (0, self.head_pad_size - self.value_head_size), value=0
-        )
+        latent_vec_k = latent_vec_k.unflatten(0, (slots.size(0), -1))
 
         kv_cache.store(
-            key=key,
-            value=value,
+            key=latent_vec_k,
+            value=None,
             slots=slots,
             kv_scales=self.kv_scales,
         )
 
-        # Prefill
         if cu_seqlen_prefill is not None:
+            kv = self.kv_b_proj(kv_c_normed).view(
+                -1,
+                self.num_key_value_heads,
+                self.qk_nope_head_dim + self.value_head_size,
+            )
+
+            key_nope, value = torch.split(
+                kv, [self.qk_nope_head_dim, self.value_head_size], dim=-1
+            )
+            query[..., self.qk_nope_head_dim :] = query_pe
+            key = torch.empty_like(query)
+            key[..., : self.qk_nope_head_dim] = key_nope
+            key[..., self.qk_nope_head_dim :] = key_pe
+
+            # We need to pad the heads because Flash Attention does not support
+            # qk and v with different head sizes.
+            query = torch.nn.functional.pad(
+                query, (0, self.head_pad_size - self.head_size), value=0
+            )
+            key = torch.nn.functional.pad(
+                key, (0, self.head_pad_size - self.head_size), value=0
+            )
+            value = torch.nn.functional.pad(
+                value, (0, self.head_pad_size - self.value_head_size), value=0
+            )
+
             # flash attention
             attn_output = attention(
                 query=query,
@@ -334,9 +401,15 @@ class DeepseekV3Attention(torch.nn.Module):
                 seqlen=seqlen,
                 softmax_scale=self.softmax_scale,
             )
-        # Decode
+            attn_output = attn_output[..., : self.value_head_size]
+
+            return self.o_proj(
+                attn_output.reshape(-1, self.num_heads * self.value_head_size)
+            )
         else:
-            attn_output = paged_attention(
+            # Decode
+            query = torch.cat([query_nope, query_pe], dim=-1)
+            attn_output = paged_attention_mla(
                 query,
                 kv_cache,
                 self.kv_head_mapping,
@@ -344,14 +417,10 @@ class DeepseekV3Attention(torch.nn.Module):
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
+                kv_lora_rank=self.kv_lora_rank,
             )
-
-        # Remove padding.
-        attn_output = attn_output[..., : self.value_head_size]
-
-        return self.o_proj(
-            attn_output.reshape(-1, self.num_heads * self.value_head_size)
-        )
+            attn_output = self._v_up_proj_and_o_proj(attn_output)
+            return attn_output
 
 
 class DeepseekV3MLP(nn.Module):
@@ -577,6 +646,10 @@ class DeepseekV3Model(torch.nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, input_ids.shape[0]
+            )
         hidden_states = self.embed_tokens(input_ids)
 
         # Get rotary cos and sin for this forward
@@ -584,6 +657,9 @@ class DeepseekV3Model(torch.nn.Module):
         cos, sin = self.layers[0].self_attn.rotary_emb.get_cos_sin(position_ids)
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -596,6 +672,8 @@ class DeepseekV3Model(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states, _ = self.norm(hidden_states, residual)
 

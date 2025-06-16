@@ -9,13 +9,13 @@ def test_continuous_batching_two_requests(neuron_model_config):
     """
     neuron_model_path = neuron_model_config["neuron_model_path"]
     generator = NeuronGenerator.from_pretrained(neuron_model_path)
-    assert generator.model.batch_size > 1
+    assert generator.model.neuron_config.batch_size > 1
     input_text = "Once upon a time"
     max_new_tokens = 20
     # Prefill a single request, remembering the generated token
     tokens = {0: [], 1: []}
     request = create_request(id=0, inputs=input_text, max_new_tokens=max_new_tokens)
-    max_length = generator.model.max_length
+    max_length = generator.model.neuron_config.sequence_length
     batch = Batch(id=0, requests=[request], size=1, max_tokens=max_length)
     generations, next_batch = generator.prefill(batch)
     assert next_batch.size == 1

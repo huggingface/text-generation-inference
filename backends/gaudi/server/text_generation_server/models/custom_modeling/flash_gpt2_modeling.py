@@ -27,6 +27,7 @@ from typing import Optional, List, Tuple
 from text_generation_server.layers.attention import (
     paged_attention,
     attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -38,6 +39,7 @@ from text_generation_server.layers import (
     get_linear,
 )
 from text_generation_server.layers.attention.kv_cache import get_kv_scales
+import habana_frameworks.torch as htorch
 
 
 def load_qkv(config, prefix: str, weights, head_size, num_heads):
@@ -382,9 +384,17 @@ class FlashGPT2Model(torch.nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
         hidden_states = inputs_embeds
 
         residual = None
+        lazy_mode = htorch.utils.internal.is_lazy()
+        if lazy_mode:
+            htorch.core.mark_step()
+
         for i, layer in enumerate(self.layers):
             hidden_states, residual = layer(
                 hidden_states,
@@ -395,6 +405,8 @@ class FlashGPT2Model(torch.nn.Module):
                 seqlen,
                 hpu_attention_meta,
             )
+            if lazy_mode:
+                htorch.core.mark_step()
 
         hidden_states = self.norm(hidden_states)
 
