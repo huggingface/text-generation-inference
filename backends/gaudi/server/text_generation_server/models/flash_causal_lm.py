@@ -1754,10 +1754,11 @@ class FlashCausalLM(Model):
         total_batch_seq = 0.001
         total_mem = 0
         available_mem = prompt_available_memory
-        logger.info(
+        msg = (
             f"Prefill batch size list:{[bsz[0] for bsz in buckets]}\n"
             f"Prefill sequence length list:{[seq[1] for seq in buckets]}\n"
         )
+        log_master(logger.info, msg)
         for i, (batch_size, seq_len) in enumerate(buckets):
             if batch_size * seq_len > self.max_batch_prefill_tokens:
                 continue
@@ -1784,7 +1785,7 @@ class FlashCausalLM(Model):
                 total_mem += used_mem
                 total_batch_seq += batch_seq
 
-        logger.info("Prefill warmup successful.\n")
+        log_master(logger.info, "Prefill warmup successful.\n")
 
         def ordering_function_max_bs(b):
             return (-b[0], b[1])
@@ -1797,7 +1798,7 @@ class FlashCausalLM(Model):
         total_batch_seq = 0.001
         total_mem = 0
         available_mem = free_mem - self.mem_reserved
-        logger.info(f"Decode batch size list:{[bsz[0] for bsz in buckets]}\n")
+        log_master(logger.info, f"Decode batch size list:{[bsz[0] for bsz in buckets]}\n")
         for i, (batch_size, block_num) in enumerate(buckets):
             if batch_size > block_num:
                 continue
@@ -1822,7 +1823,7 @@ class FlashCausalLM(Model):
                 total_mem += used_mem
                 total_batch_seq += batch_seq
 
-        logger.info("Decode warmup successful.\n")
+        log_master(logger.info, "Decode warmup successful.\n")
 
         log_master(
             logger.info,
