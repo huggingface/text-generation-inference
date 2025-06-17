@@ -554,10 +554,10 @@ class FlashVlmCausalLMBatch(FlashCausalLMBatch):
         return batch
 
     def prepare_for_prefill(
-        self, max_padded_input_len, max_padded_bs, max_total_tokens
+        self, max_padded_input_len, max_padded_bs, max_total_tokens, pad_token_id
     ):
         super().prepare_for_prefill(
-            max_padded_input_len, max_padded_bs, max_total_tokens
+            max_padded_input_len, max_padded_bs, max_total_tokens, pad_token_id
         )
 
         self.has_image_inputs = False
