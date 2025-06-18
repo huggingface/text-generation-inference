@@ -341,7 +341,10 @@ class NeuronGenerator(Generator):
         self.model = model
         if not isinstance(self.model, NeuronModelForCausalLM):
             raise ValueError("The model must be a NeuronModelForCausalLM.")
-        if not model.neuron_config.continuous_batching:
+        if (
+            model.neuron_config.batch_size > 1
+            and not model.neuron_config.continuous_batching
+        ):
             raise ValueError(
                 "The neuron model must be compiled with continuous_batching=True."
             )
