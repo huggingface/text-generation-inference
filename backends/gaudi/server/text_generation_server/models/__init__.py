@@ -67,6 +67,10 @@ try:
     from text_generation_server.models.custom_modeling.flash_gemma2_modeling import (
         FlashGemma2ForCausalLM,
     )
+    from text_generation_server.models.custom_modeling.flash_gemma3_modeling import (
+        Gemma3ForConditionalGeneration,
+        FlashGemma3ForCausalLM,
+    )
     from text_generation_server.models.custom_modeling.flash_dbrx_modeling import (
         FlashDbrxForCausalLM,
         DbrxConfig,
@@ -219,6 +223,16 @@ class ModelType(enum.Enum):
         "type": "gemma2",
         "name": "Gemma2",
         "url": "https://huggingface.co/collections/google/gemma-2-release-667d6600fd5220e7b967f315",
+    }
+    GEMMA3 = {
+        "type": "gemma3",
+        "name": "Gemma3",
+        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d",
+    }
+    GEMMA3_TEXT = {
+        "type": "gemma3_text",
+        "name": "Gemma3 Text",
+        "url": "https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d",
     }
     COHERE = {
         "type": "cohere",
@@ -630,6 +644,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
@@ -665,6 +680,34 @@ def get_model(
             return FlashCausalLM(
                 model_id=model_id,
                 model_class=FlashGemma2ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                # Works better for these models
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif model_type == GEMMA3:
+            return FlashVlmCausalLM(
+                model_id=model_id,
+                model_class=Gemma3ForConditionalGeneration,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                default_dtype=torch.bfloat16,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+                support_chunking=False,
+            )
+        elif model_type == GEMMA3_TEXT:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=FlashGemma3ForCausalLM,
                 revision=revision,
                 quantize=quantize,
                 speculator=speculator,
@@ -864,6 +907,7 @@ def get_model(
                 quantize=quantize,
                 speculator=speculator,
                 dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
                 default_dtype=torch.bfloat16,
                 trust_remote_code=trust_remote_code,
                 lora_adapter_ids=lora_adapter_ids,
