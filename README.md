@@ -84,7 +84,7 @@ model=HuggingFaceH4/zephyr-7b-beta
 volume=$PWD/data
 
 docker run --gpus all --shm-size 1g -p 8080:80 -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:3.3.2 --model-id $model
+    ghcr.io/huggingface/text-generation-inference:3.3.3 --model-id $model
 ```
 
 And then you can make requests like
@@ -152,7 +152,7 @@ volume=$PWD/data # share a volume with the Docker container to avoid downloading
 token=<your cli READ token>
 
 docker run --gpus all --shm-size 1g -e HF_TOKEN=$token -p 8080:80 -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:3.3.2 --model-id $model
+    ghcr.io/huggingface/text-generation-inference:3.3.3 --model-id $model
 ```
 
 ### A note on Shared Memory (shm)
