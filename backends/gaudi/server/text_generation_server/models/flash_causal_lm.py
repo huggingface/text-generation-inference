@@ -1798,7 +1798,9 @@ class FlashCausalLM(Model):
         total_batch_seq = 0.001
         total_mem = 0
         available_mem = free_mem - self.mem_reserved
-        log_master(logger.info, f"Decode batch size list:{[bsz[0] for bsz in buckets]}\n")
+        log_master(
+            logger.info, f"Decode batch size list:{[bsz[0] for bsz in buckets]}\n"
+        )
         for i, (batch_size, block_num) in enumerate(buckets):
             if batch_size > block_num:
                 continue
