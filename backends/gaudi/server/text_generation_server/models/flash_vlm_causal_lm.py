@@ -822,6 +822,9 @@ class FlashVlmCausalLM(FlashCausalLM):
         total_batch_seq = 0.001
         total_mem = 0
         available_mem = decode_available_memory
+        log_master(
+            logger.info, f"Decode batch size list:{[bsz[0] for bsz in buckets]}\n"
+        )
         for i, (batch_size, block_num) in enumerate(buckets):
             if batch_size > block_num:
                 continue
@@ -846,6 +849,8 @@ class FlashVlmCausalLM(FlashCausalLM):
                 available_mem -= used_mem
                 total_mem += used_mem
                 total_batch_seq += batch_seq
+
+        log_master(logger.info, "Decode warmup successful.\n")
 
         log_master(
             logger.info,

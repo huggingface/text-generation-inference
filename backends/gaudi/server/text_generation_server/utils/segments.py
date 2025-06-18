@@ -8,7 +8,7 @@ import torch
 
 
 def find_segments(
-    adapter_indices: Union[torch.Tensor, List[int]]
+    adapter_indices: Union[torch.Tensor, List[int]],
 ) -> Tuple[List[int], List[int]]:
     segments = [0]
     segment_indices = []
