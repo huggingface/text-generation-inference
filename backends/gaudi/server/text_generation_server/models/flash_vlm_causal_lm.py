@@ -1001,17 +1001,8 @@ class FlashVlmCausalLM(FlashCausalLM):
 
         attention_mask = None
         attention_mask_forward = None
-        if self.model.config.model_type == "gemma3" and cu_seqlen_prefill is not None:
-            attention_mask = self.model.get_attention_mask(
-                input_ids, cu_seqlen_prefill, self.dtype, bool_mask=True
-            )
-            min_dtype = torch.finfo(self.dtype).min
-            attention_mask_forward = torch.where(attention_mask, 0, min_dtype).to(
-                input_ids.device
-            )
-            attention_mask = attention_mask.reshape(-1)
         if self.model.config.model_type == "llama4":
-            attention_mask = (input_ids != 0).long()
+            attention_mask = (input_ids != self.tokenizer.pad_token_id).long()
             attention_mask_forward = attention_mask.view(input_lengths.shape[0], -1)
 
         if cu_seqlen_prefill is None and self.max_past() is not None:

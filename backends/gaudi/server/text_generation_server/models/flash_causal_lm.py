@@ -80,19 +80,6 @@ from vllm_hpu_extension.profiler import HabanaMemoryProfiler, format_bytes
 
 tracer = trace.get_tracer(__name__)
 
-# Will be set in init
-SLIDING_WINDOW: Optional[int] = None
-
-
-def set_sliding_window(sliding_window: int):
-    global SLIDING_WINDOW
-    SLIDING_WINDOW = sliding_window
-
-
-def get_sliding_windows() -> int:
-    global SLIDING_WINDOW
-    return SLIDING_WINDOW
-
 
 def prepare_for_decode(
     dtype, use_contiguous_pa, device, slots, block_tables, batch_size, bucketing_ctx
@@ -1112,7 +1099,6 @@ class FlashCausalLMBatch(Batch):
             self.cache_lengths_tensor, (0, extra_pad_bs), value=0
         )
 
-        sliding_window = get_sliding_windows()
         position_ids = []
         slot_indices = []
         prefill_cache_indices = []
@@ -1178,9 +1164,7 @@ class FlashCausalLMBatch(Batch):
 
             # Create tensor to slice into the kv tensor in prefill
             # hpu need request_prefill_cache_indices to skip padding in kv cache
-            sliding_window = get_sliding_windows()
-            if sliding_window is None:
-                sliding_window = input_length
+            sliding_window = input_length
             cumulative_length += input_ids_padded_length[i]
             if sliding_window is not None:
                 request_prefill_cache_indices = torch.arange(
@@ -1457,9 +1441,7 @@ class FlashCausalLM(Model):
         if text_config is not None:
             config = text_config
 
-        if getattr(config, "sliding_window", None) is not None:
-            set_sliding_window(config.sliding_window)
-        else:
+        if getattr(config, "sliding_window", None) is None:
             config.sliding_window = None
 
         self.num_layers = config.num_hidden_layers

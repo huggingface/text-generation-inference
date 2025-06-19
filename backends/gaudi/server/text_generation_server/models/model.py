@@ -79,7 +79,7 @@ class Model(ABC):
             requires_padding=self.requires_padding,
             dtype=str(self.dtype),
             device_type=self.device.type,
-            window_size=self.sliding_window,
+            window_size=None,
             speculate=self.speculate,
             block_size=BLOCK_SIZE,
         )
