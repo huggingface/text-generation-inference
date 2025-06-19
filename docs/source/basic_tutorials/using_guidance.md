@@ -138,10 +138,10 @@ client = InferenceClient("http://localhost:3000")
 
 user_input = "I saw a puppy a cat and a raccoon during my bike ride in the park"
 resp = client.text_generation(
-    f"convert to JSON: 'f{user_input}'. please use the following schema: {Animals.schema()}",
+    f"convert to JSON: 'f{user_input}'. please use the following schema: {Animals.model_json_schema()}",
     max_new_tokens=100,
     seed=42,
-    grammar={"type": "json", "value": Animals.schema()},
+    grammar={"type": "json", "value": Animals.model_json_schema()},
 )
 
 print(resp)
