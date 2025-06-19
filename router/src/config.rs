@@ -265,6 +265,10 @@ impl Idefics3 {
     pub fn get_max_longest_edge_for_image_resize(&self) -> usize {
         1456
     }
+
+    pub fn get_max_image_size(&self) -> usize {
+        4096
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
