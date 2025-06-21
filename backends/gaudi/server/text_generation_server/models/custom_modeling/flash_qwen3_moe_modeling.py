@@ -80,7 +80,7 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
 class Qwen3MoeAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config, prefix, weights, layer_idx):
+    def __init__(self, config, prefix, weights, layer_idx, rotary_emb):
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
@@ -108,13 +108,7 @@ class Qwen3MoeAttention(nn.Module):
         self.o_proj = FastLinear.load(
             config, f"{prefix}.o_proj", weights, bias=config.attention_bias
         )
-
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_dim,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         self.q_norm = FastRMSNorm.load(
             prefix=f"{prefix}.q_norm",
@@ -345,7 +339,7 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
 
 
 class Qwen3MoeDecoderLayer(nn.Module):
-    def __init__(self, config, prefix, weights, layer_idx: int):
+    def __init__(self, config, prefix, weights, layer_idx: int, rotary_emb):
         super().__init__()
         self.hidden_size = config.hidden_size
 
@@ -355,6 +349,7 @@ class Qwen3MoeDecoderLayer(nn.Module):
                 prefix=f"{prefix}.self_attn",
                 weights=weights,
                 layer_idx=layer_idx,
+                rotary_emb=rotary_emb,
             )
         else:
             self.self_attn = Qwen3MoeAttention(
@@ -362,6 +357,7 @@ class Qwen3MoeDecoderLayer(nn.Module):
                 prefix=f"{prefix}.self_attn",
                 weights=weights,
                 layer_idx=layer_idx,
+                rotary_emb=rotary_emb,
             )
 
         moe_layer_cls = (
@@ -433,6 +429,15 @@ class Qwen3MoeModel(nn.Module):
         self.config = config
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
+        head_dim = getattr(
+            config, "head_dim", config.hidden_size // config.num_attention_heads
+        )
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=head_dim,
+            base=config.rope_theta,
+            device=weights.device,
+        )
 
         self.layers = nn.ModuleList(
             [
@@ -441,6 +446,7 @@ class Qwen3MoeModel(nn.Module):
                     prefix=f"{prefix}.layers.{layer_idx}",
                     weights=weights,
                     layer_idx=layer_idx,
+                    rotary_emb=rotary_emb,
                 )
                 for layer_idx in range(config.num_hidden_layers)
             ]

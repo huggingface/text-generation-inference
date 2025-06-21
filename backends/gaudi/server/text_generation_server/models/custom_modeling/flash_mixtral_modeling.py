@@ -188,6 +188,7 @@ class MixtralAttention(torch.nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.max_past = (
@@ -196,13 +197,7 @@ class MixtralAttention(torch.nn.Module):
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
-
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         self.softmax_scale = self.head_size**-0.5
 
@@ -345,12 +340,15 @@ class MixtralMoE(nn.Module):
 
 
 class MixtralLayer(nn.Module):
-    def __init__(self, prefix: str, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights, rotary_emb):
         super().__init__()
         prefix = f"{prefix}.layers.{layer_id}"
 
         self.self_attn = MixtralAttention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights
+            prefix=f"{prefix}.self_attn",
+            config=config,
+            weights=weights,
+            rotary_emb=rotary_emb,
         )
 
         moe_layer_cls = (
@@ -416,6 +414,12 @@ class MixtralModel(torch.nn.Module):
             weights=weights,
         )
 
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.hidden_size // config.num_attention_heads,
+            base=config.rope_theta,
+            device=weights.device,
+        )
         self.layers = nn.ModuleList(
             [
                 MixtralLayer(
@@ -423,6 +427,7 @@ class MixtralModel(torch.nn.Module):
                     layer_id,
                     config,
                     weights,
+                    rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

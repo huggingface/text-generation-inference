@@ -99,7 +99,7 @@ def load_qkv(config, prefix: str, weights, num_heads, head_size, hidden_size):
 
 
 class FlashNeoxAttention(torch.nn.Module):
-    def __init__(self, config, prefix, weights):
+    def __init__(self, config, prefix, weights, rotary_emb):
         super().__init__()
         num_heads = config.num_attention_heads
         hidden_size = config.hidden_size
@@ -116,14 +116,7 @@ class FlashNeoxAttention(torch.nn.Module):
                 f"and `num_shards`: {weights.process_group.size()}"
             )
         self.num_heads = self.num_heads // weights.process_group.size()
-
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.rotary_dim,
-            base=config.rotary_emb_base,
-            device=weights.device,
-        )
-
+        self.rotary_emb = rotary_emb
         self.softmax_scale = self.head_size ** (-0.5)
 
         self.query_key_value = load_qkv(
@@ -231,7 +224,7 @@ class FlashMLP(nn.Module):
 
 
 class FlashNeoXLayer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, layer_id, config, weights, rotary_emb):
         super().__init__()
 
         layer_norm_eps = config.layer_norm_eps
@@ -248,7 +241,10 @@ class FlashNeoXLayer(nn.Module):
             eps=layer_norm_eps,
         )
         self.attention = FlashNeoxAttention(
-            config, prefix=f"{prefix}.attention", weights=weights
+            config,
+            prefix=f"{prefix}.attention",
+            weights=weights,
+            rotary_emb=rotary_emb,
         )
 
         self.mlp = FlashMLP(config, prefix=f"{prefix}.mlp", weights=weights)
@@ -328,9 +324,18 @@ class FlashGPTNeoXModel(FlashGPTNeoXPreTrainedModel):
             prefix=f"{prefix}.embed_in", weights=weights
         )
 
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=int(
+                config.rotary_pct * (config.hidden_size // config.num_attention_heads)
+            ),
+            base=config.rotary_emb_base,
+            device=weights.device,
+        )
+
         self.layers = nn.ModuleList(
             [
-                FlashNeoXLayer(layer_id, config, weights)
+                FlashNeoXLayer(layer_id, config, weights, rotary_emb)
                 for layer_id in range(config.num_hidden_layers)
             ]
         )

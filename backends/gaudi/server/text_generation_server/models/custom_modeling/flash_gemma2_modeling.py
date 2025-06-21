@@ -166,7 +166,14 @@ def _load_gqa(config, prefix: str, weights):
 
 class FlashGemma2Attention(torch.nn.Module):
     def __init__(
-        self, prefix: str, config, weights, layer_id, causal: bool, is_sliding: bool
+        self,
+        prefix: str,
+        config,
+        weights,
+        layer_id,
+        causal: bool,
+        is_sliding: bool,
+        rotary_emb,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
@@ -176,13 +183,7 @@ class FlashGemma2Attention(torch.nn.Module):
             self.window_size = config.sliding_window
         else:
             self.window_size = -1
-
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         # self.softmax_scale = self.head_size**-0.5
         self.softmax_scale = config.query_pre_attn_scalar**-0.5
@@ -354,7 +355,14 @@ class Gemma2MLP(nn.Module):
 
 class FlashGemma2Layer(nn.Module):
     def __init__(
-        self, prefix: str, config, weights, layer_id, causal: bool, is_sliding: bool
+        self,
+        prefix: str,
+        config,
+        weights,
+        layer_id,
+        causal: bool,
+        is_sliding: bool,
+        rotary_emb,
     ):
         super().__init__()
         self.self_attn = FlashGemma2Attention(
@@ -364,6 +372,7 @@ class FlashGemma2Layer(nn.Module):
             layer_id=layer_id,
             causal=causal,
             is_sliding=is_sliding,
+            rotary_emb=rotary_emb,
         )
         self.mlp = Gemma2MLP(
             prefix=f"{prefix}.mlp", config=config, weights=weights, layer_id=layer_id
@@ -435,6 +444,13 @@ class FlashGemma2Model(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.head_dim,
+            base=config.rope_theta,
+            device=weights.device,
+        )
+
         self.layers = nn.ModuleList(
             [
                 FlashGemma2Layer(
@@ -444,6 +460,7 @@ class FlashGemma2Model(torch.nn.Module):
                     layer_id=layer_id,
                     causal=causal,
                     is_sliding=layer_id % 2 == 0,
+                    rotary_emb=rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

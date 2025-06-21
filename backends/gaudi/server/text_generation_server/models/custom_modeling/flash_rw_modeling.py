@@ -134,6 +134,7 @@ class FlashRWAttention(torch.nn.Module):
         config,
         prefix: str,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.num_heads = config.n_head
@@ -141,13 +142,8 @@ class FlashRWAttention(torch.nn.Module):
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
         self.rope_theta = config.rope_theta
+        self.rotary_emb = rotary_emb
 
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=self.rope_theta,
-            device=weights.device,
-        )
         self.softmax_scale = self.head_size ** (-0.5)
 
         if self.num_heads % weights.process_group.size() != 0:
@@ -243,6 +239,7 @@ class FlashRWLargeAttention(torch.nn.Module):
         config,
         prefix: str,
         weights,
+        rotary_emb,
     ):
         super().__init__()
 
@@ -255,13 +252,8 @@ class FlashRWLargeAttention(torch.nn.Module):
         self.head_size = hidden_size // num_heads
         self.num_groups = num_groups
         self.rope_theta = config.rope_theta
+        self.rotary_emb = rotary_emb
 
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=self.rope_theta,
-            device=weights.device,
-        )
         self.softmax_scale = self.head_size ** (-0.5)
 
         # self.num_groups = num_heads // (num_heads_kv * 2)
@@ -382,6 +374,7 @@ class FlashRWLayer(nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
 
@@ -404,6 +397,7 @@ class FlashRWLayer(nn.Module):
             config,
             prefix=f"{prefix}.self_attention",
             weights=weights,
+            rotary_emb=rotary_emb,
         )
         self.post_attention_layernorm = (
             FastLayerNorm.load(
@@ -526,7 +520,7 @@ class FlashRWLayerNorm(nn.Module):
 
 
 class FlashRWLargeLayer(nn.Module):
-    def __init__(self, layer_id, prefix: str, config, weights):
+    def __init__(self, layer_id, prefix: str, config, weights, rotary_emb):
         super().__init__()
         prefix = f"{prefix}.h.{layer_id}"
 
@@ -536,6 +530,7 @@ class FlashRWLargeLayer(nn.Module):
             config,
             prefix=f"{prefix}.self_attention",
             weights=weights,
+            rotary_emb=rotary_emb,
         )
         assert config.parallel_attn, "This version doesn't support non parallel_attn"
 
@@ -593,11 +588,17 @@ class FlashRWModel(FlashRWPreTrainedModel):
         self.word_embeddings = TensorParallelEmbedding(
             prefix=f"{prefix}.word_embeddings", weights=weights
         )
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.hidden_size // config.n_head,
+            base=config.rope_theta,
+            device=weights.device,
+        )
 
         if config.new_decoder_architecture:
             self.h = nn.ModuleList(
                 [
-                    FlashRWLargeLayer(layer_id, prefix, config, weights)
+                    FlashRWLargeLayer(layer_id, prefix, config, weights, rotary_emb)
                     for layer_id in range(config.num_hidden_layers)
                 ]
             )
@@ -605,7 +606,7 @@ class FlashRWModel(FlashRWPreTrainedModel):
         else:
             self.h = nn.ModuleList(
                 [
-                    FlashRWLayer(layer_id, prefix, config, weights)
+                    FlashRWLayer(layer_id, prefix, config, weights, rotary_emb)
                     for layer_id in range(config.num_hidden_layers)
                 ]
             )

@@ -119,7 +119,15 @@ def _load_gqa(config, prefix: str, weights):
 
 class FlashGemma3Attention(torch.nn.Module):
     def __init__(
-        self, prefix: str, config, weights, layer_id, causal: bool, is_sliding: bool
+        self,
+        prefix: str,
+        config,
+        weights,
+        layer_id,
+        causal: bool,
+        is_sliding: bool,
+        local_rotary_emb,
+        global_rotary_emb,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
@@ -130,20 +138,10 @@ class FlashGemma3Attention(torch.nn.Module):
             # TODO: remove this hack to support local sliding window
             config = copy.deepcopy(config)
             config.rope_scaling = dict(rope_type="default")
-            self.rotary_emb = PositionRotaryEmbedding.static(
-                config=config,
-                dim=config.head_dim,
-                base=config.rope_local_base_freq,
-                device=weights.device,
-            )
+            self.rotary_emb = local_rotary_emb
         else:
             self.window_size = -1
-            self.rotary_emb = PositionRotaryEmbedding.static(
-                config=config,
-                dim=config.head_dim,
-                base=config.rope_theta,
-                device=weights.device,
-            )
+            self.rotary_emb = global_rotary_emb
 
         self.softmax_scale = (
             config.query_pre_attn_scalar**-0.5
@@ -336,7 +334,15 @@ class Gemma3MLP(nn.Module):
 
 class FlashGemma3Layer(nn.Module):
     def __init__(
-        self, prefix: str, config, weights, layer_id, causal: bool, is_sliding: bool
+        self,
+        prefix: str,
+        config,
+        weights,
+        layer_id,
+        causal: bool,
+        is_sliding: bool,
+        local_rotary_emb,
+        global_rotary_emb,
     ):
         super().__init__()
         self.self_attn = FlashGemma3Attention(
@@ -346,6 +352,8 @@ class FlashGemma3Layer(nn.Module):
             layer_id=layer_id,
             causal=causal,
             is_sliding=is_sliding,
+            local_rotary_emb=local_rotary_emb,
+            global_rotary_emb=global_rotary_emb,
         )
         self.mlp = Gemma3MLP(
             prefix=f"{prefix}.mlp", config=config, weights=weights, layer_id=layer_id
@@ -417,6 +425,18 @@ class FlashGemma3Model(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
+        local_rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.head_dim,
+            base=config.rope_local_base_freq,
+            device=weights.device,
+        )
+        global_rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.head_dim,
+            base=config.rope_theta,
+            device=weights.device,
+        )
 
         self.layers = nn.ModuleList(
             [
@@ -427,6 +447,8 @@ class FlashGemma3Model(torch.nn.Module):
                     layer_id=layer_id,
                     causal=causal,
                     is_sliding=bool((layer_id + 1) % config.sliding_window_pattern),
+                    local_rotary_emb=local_rotary_emb,
+                    global_rotary_emb=global_rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]
