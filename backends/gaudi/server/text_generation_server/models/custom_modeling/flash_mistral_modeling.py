@@ -104,7 +104,7 @@ class MistralConfig(PretrainedConfig):
 
 
 class MistralAttention(torch.nn.Module):
-    def __init__(self, prefix: str, config, weights, layer_id):
+    def __init__(self, prefix: str, config, weights, layer_id, rotary_emb):
         super().__init__()
         self.max_past = (
             config.sliding_window if config.sliding_window is not None else -1
@@ -117,12 +117,7 @@ class MistralAttention(torch.nn.Module):
         else:
             self.head_size = self.hidden_size // self.num_heads
 
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         self.softmax_scale = self.head_size**-0.5
 
@@ -300,13 +295,14 @@ class MistralMLP(nn.Module):
 
 
 class MistralLayer(nn.Module):
-    def __init__(self, prefix: str, config, weights, layer_id):
+    def __init__(self, prefix: str, config, weights, layer_id, rotary_emb):
         super().__init__()
         self.self_attn = MistralAttention(
             prefix=f"{prefix}.self_attn",
             config=config,
             weights=weights,
             layer_id=layer_id,
+            rotary_emb=rotary_emb,
         )
         self.mlp = MistralMLP(
             prefix=f"{prefix}.mlp", config=config, weights=weights, layer_id=layer_id
@@ -366,6 +362,19 @@ class MistralModel(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
+
+        if getattr(config, "head_dim", None) is not None:
+            head_dim = config.head_dim
+        else:
+            head_dim = config.hidden_size // config.num_attention_heads
+
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=head_dim,
+            base=config.rope_theta,
+            device=weights.device,
+        )
+
         self.layers = nn.ModuleList(
             [
                 MistralLayer(
@@ -373,6 +382,7 @@ class MistralModel(torch.nn.Module):
                     config=config,
                     weights=weights,
                     layer_id=layer_id,
+                    rotary_emb=rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

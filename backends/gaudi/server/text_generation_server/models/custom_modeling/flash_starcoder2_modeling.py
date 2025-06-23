@@ -180,6 +180,7 @@ class Starcoder2Attention(torch.nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.max_past = (
@@ -188,13 +189,7 @@ class Starcoder2Attention(torch.nn.Module):
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
-
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         self.softmax_scale = self.head_size**-0.5
 
@@ -411,11 +406,15 @@ STARCODER2_MLP_CLASSES = {
 
 
 class Starcoder2Layer(nn.Module):
-    def __init__(self, layer_id, config, weights):
+    def __init__(self, layer_id, config, weights, rotary_emb):
         super().__init__()
         prefix = f"model.layers.{layer_id}"
         self.self_attn = Starcoder2Attention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights, index=layer_id
+            prefix=f"{prefix}.self_attn",
+            config=config,
+            weights=weights,
+            index=layer_id,
+            rotary_emb=rotary_emb,
         )
 
         self.mlp = STARCODER2_MLP_CLASSES[config.mlp_type](
@@ -481,12 +480,19 @@ class Starcoder2Model(torch.nn.Module):
         self.embed_tokens = TensorParallelEmbedding(
             prefix=f"{prefix}.embed_tokens", weights=weights
         )
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.hidden_size // config.num_attention_heads,
+            base=config.rope_theta,
+            device=weights.device,
+        )
         self.layers = nn.ModuleList(
             [
                 Starcoder2Layer(
                     layer_id,
                     config,
                     weights,
+                    rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

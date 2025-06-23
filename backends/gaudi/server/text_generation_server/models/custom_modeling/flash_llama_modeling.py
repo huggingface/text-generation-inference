@@ -133,6 +133,7 @@ class FlashLlamaAttention(torch.nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
@@ -145,13 +146,7 @@ class FlashLlamaAttention(torch.nn.Module):
             config, "num_key_value_heads", config.num_attention_heads
         )
 
-        if config.model_type != "llama4_text":
-            self.rotary_emb = PositionRotaryEmbedding.static(
-                config=config,
-                dim=self.head_size,
-                base=config.rope_theta,
-                device=weights.device,
-            )
+        self.rotary_emb = rotary_emb
 
         # `config.attention_multiplier` is used in Granite
         self.softmax_scale = getattr(
@@ -376,7 +371,7 @@ class LlamaMLP(nn.Module):
 
 
 class FlashLlamaLayer(nn.Module):
-    def __init__(self, index, prefix, config, weights):
+    def __init__(self, index, prefix, config, weights, rotary_emb):
         super().__init__()
 
         with no_fp8(weights):
@@ -385,6 +380,7 @@ class FlashLlamaLayer(nn.Module):
                 prefix=f"{prefix}.self_attn",
                 config=config,
                 weights=weights,
+                rotary_emb=rotary_emb,
             )
 
         if config.model_type == "phimoe":
@@ -480,6 +476,13 @@ class FlashLlamaModel(torch.nn.Module):
         # Skip fp8 quant for first and last layers
         self.layers = nn.ModuleList()
         self.cross_attention_layers = getattr(config, "cross_attention_layers", [])
+
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.hidden_size // config.num_attention_heads,
+            base=config.rope_theta,
+            device=weights.device,
+        )
         with no_fp8(weights):
             self.layers.append(
                 FlashLlamaLayer(
@@ -487,6 +490,7 @@ class FlashLlamaModel(torch.nn.Module):
                     prefix=f"{prefix}.layers.0",
                     config=config,
                     weights=weights,
+                    rotary_emb=rotary_emb,
                 )
             )
 
@@ -512,6 +516,7 @@ class FlashLlamaModel(torch.nn.Module):
                         prefix=(f"{prefix}.layers.{layer_id}"),
                         config=config,
                         weights=weights,
+                        rotary_emb=rotary_emb,
                     )
                 )
 
@@ -523,6 +528,7 @@ class FlashLlamaModel(torch.nn.Module):
                     prefix=(f"{prefix}.layers.{last_layer_id}"),
                     config=config,
                     weights=weights,
+                    rotary_emb=rotary_emb,
                 )
             )
 

@@ -58,6 +58,7 @@ class Qwen2Attention(torch.nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.max_past = (
@@ -66,13 +67,7 @@ class Qwen2Attention(torch.nn.Module):
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
-
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         self.softmax_scale = self.head_size**-0.5
 
@@ -199,11 +194,14 @@ class Qwen2MLP(nn.Module):
 
 
 class Qwen2Layer(nn.Module):
-    def __init__(self, prefix, layer_id, config, weights):
+    def __init__(self, prefix, layer_id, config, weights, rotary_emb):
         super().__init__()
         prefix = f"{prefix}.layers.{layer_id}"
         self.self_attn = Qwen2Attention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights
+            prefix=f"{prefix}.self_attn",
+            config=config,
+            weights=weights,
+            rotary_emb=rotary_emb,
         )
         self.mlp = Qwen2MLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
         self.input_layernorm = FastRMSNorm.load(
@@ -258,6 +256,14 @@ class Qwen2Model(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
+
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.hidden_size // config.num_attention_heads,
+            base=config.rope_theta,
+            device=weights.device,
+        )
+
         self.layers = nn.ModuleList(
             [
                 Qwen2Layer(
@@ -265,6 +271,7 @@ class Qwen2Model(torch.nn.Module):
                     layer_id,
                     config,
                     weights,
+                    rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

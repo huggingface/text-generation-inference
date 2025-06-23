@@ -263,6 +263,7 @@ class DbrxAttention(torch.nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.clip_qkv = config.attn_config.clip_qkv
@@ -270,12 +271,7 @@ class DbrxAttention(torch.nn.Module):
         self.hidden_size = config.d_model
         self.head_size = self.hidden_size // self.num_heads
 
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=config.attn_config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         self.softmax_scale = self.head_size**-0.5
 
@@ -370,13 +366,17 @@ class DbrxNormAttentionNorm(nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.norm_1 = FastLayerNorm.load_no_bias(
             prefix=f"{prefix}.norm_1", weights=weights, eps=1e-5
         )
         self.self_attn = DbrxAttention(
-            prefix=f"{prefix}.attn", config=config, weights=weights
+            prefix=f"{prefix}.attn",
+            config=config,
+            weights=weights,
+            rotary_emb=rotary_emb,
         )
         self.norm_2 = FastLayerNorm.load_no_bias(
             prefix=f"{prefix}.norm_2",
@@ -601,12 +601,15 @@ class DenseMoE(nn.Module):
 
 
 class DbrxLayer(nn.Module):
-    def __init__(self, prefix: str, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights, rotary_emb):
         super().__init__()
         prefix = f"{prefix}.blocks.{layer_id}"
 
         self.attn = DbrxNormAttentionNorm(
-            prefix=f"{prefix}.norm_attn_norm", config=config, weights=weights
+            prefix=f"{prefix}.norm_attn_norm",
+            config=config,
+            weights=weights,
+            rotary_emb=rotary_emb,
         )
 
         moe_cls = BlockSparseMoE if config.quantize is None else DenseMoE
@@ -649,6 +652,12 @@ class DbrxModel(torch.nn.Module):
         self.embed_tokens = TensorParallelEmbedding(
             prefix=f"{prefix}.wte", weights=weights
         )
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.d_model // config.n_heads,
+            base=config.attn_config.rope_theta,
+            device=weights.device,
+        )
 
         self.layers = nn.ModuleList(
             [
@@ -657,6 +666,7 @@ class DbrxModel(torch.nn.Module):
                     layer_id,
                     config,
                     weights,
+                    rotary_emb,
                 )
                 for layer_id in range(config.n_layers)
             ]

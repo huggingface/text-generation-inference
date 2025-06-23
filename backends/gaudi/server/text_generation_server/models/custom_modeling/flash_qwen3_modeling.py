@@ -41,7 +41,7 @@ from text_generation_server.layers.rotary import PositionRotaryEmbedding
 class Qwen3Attention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
-    def __init__(self, config, prefix, weights, layer_idx):
+    def __init__(self, config, prefix, weights, layer_idx, rotary_emb):
         super().__init__()
         self.config = config
         self.layer_idx = layer_idx
@@ -54,12 +54,7 @@ class Qwen3Attention(nn.Module):
         self.num_heads = config.num_attention_heads
         self.attention_dropout = config.attention_dropout
         self.softmax_scale = self.head_dim**-0.5
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_dim,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
@@ -179,7 +174,7 @@ class Qwen3Attention(nn.Module):
 
 
 class Qwen3DecoderLayer(nn.Module):
-    def __init__(self, config, prefix, weights, layer_idx: int):
+    def __init__(self, config, prefix, weights, layer_idx: int, rotary_emb):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.self_attn = Qwen3Attention(
@@ -187,6 +182,7 @@ class Qwen3DecoderLayer(nn.Module):
             prefix=f"{prefix}.self_attn",
             weights=weights,
             layer_idx=layer_idx,
+            rotary_emb=rotary_emb,
         )
         self.mlp = Qwen2MLP(config=config, prefix=f"{prefix}.mlp", weights=weights)
         self.input_layernorm = FastRMSNorm.load(
@@ -241,6 +237,15 @@ class Qwen3Model(nn.Module):
         self.config = config
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
+        head_dim = getattr(
+            config, "head_dim", config.hidden_size // config.num_attention_heads
+        )
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=head_dim,
+            base=config.rope_theta,
+            device=weights.device,
+        )
 
         self.layers = nn.ModuleList(
             [
@@ -249,6 +254,7 @@ class Qwen3Model(nn.Module):
                     prefix=f"{prefix}.layers.{layer_idx}",
                     weights=weights,
                     layer_idx=layer_idx,
+                    rotary_emb=rotary_emb,
                 )
                 for layer_idx in range(config.num_hidden_layers)
             ]

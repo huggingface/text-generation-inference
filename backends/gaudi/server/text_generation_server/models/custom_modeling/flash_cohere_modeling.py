@@ -160,18 +160,14 @@ class FlashCohereAttention(torch.nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
 
-        self.rotary_emb = CohereRotary.static(
-            config=config,
-            dim=self.head_size,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         self.softmax_scale = self.head_size**-0.5
 
@@ -325,11 +321,14 @@ class CohereMLP(nn.Module):
 
 
 class FlashCohereLayer(nn.Module):
-    def __init__(self, prefix: str, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights, rotary_emb):
         super().__init__()
         prefix = f"{prefix}.layers.{layer_id}"
         self.self_attn = FlashCohereAttention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights
+            prefix=f"{prefix}.self_attn",
+            config=config,
+            weights=weights,
+            rotary_emb=rotary_emb,
         )
         self.mlp = CohereMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
@@ -385,6 +384,12 @@ class FlashCohereModel(torch.nn.Module):
         self.embed_tokens = TensorParallelEmbedding(
             prefix=f"{prefix}.embed_tokens", weights=weights
         )
+        rotary_emb = CohereRotary.static(
+            config=config,
+            dim=config.hidden_size // config.num_attention_heads,
+            base=config.rope_theta,
+            device=weights.device,
+        )
         self.layers = nn.ModuleList(
             [
                 FlashCohereLayer(
@@ -392,6 +397,7 @@ class FlashCohereModel(torch.nn.Module):
                     layer_id,
                     config,
                     weights,
+                    rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

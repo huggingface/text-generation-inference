@@ -303,7 +303,7 @@ class Llama4TextAttention(FlashLlamaAttention):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
     def __init__(self, prefix, config, weights, layer_idx):
-        super().__init__(layer_idx, prefix, config, weights)
+        super().__init__(layer_idx, prefix, config, weights, None)
         self.config = config
         self.layer_idx = layer_idx
         self.head_dim = getattr(

@@ -163,19 +163,12 @@ def _load_gqa(config, prefix: str, weights):
 
 
 class FlashGemmaAttention(torch.nn.Module):
-    def __init__(self, prefix: str, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, causal: bool, rotary_emb):
         super().__init__()
         self.num_heads = config.num_attention_heads
         self.head_size = config.head_dim
         self.causal = causal
-
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.head_size,
-            base=config.rope_theta,
-            device=weights.device,
-        )
-
+        self.rotary_emb = rotary_emb
         self.softmax_scale = self.head_size**-0.5
 
         if self.num_heads % weights.process_group.size() != 0:
@@ -300,10 +293,14 @@ class GemmaMLP(nn.Module):
 
 
 class FlashGemmaLayer(nn.Module):
-    def __init__(self, prefix: str, config, weights, causal: bool):
+    def __init__(self, prefix: str, config, weights, causal: bool, rotary_emb):
         super().__init__()
         self.self_attn = FlashGemmaAttention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights, causal=causal
+            prefix=f"{prefix}.self_attn",
+            config=config,
+            weights=weights,
+            causal=causal,
+            rotary_emb=rotary_emb,
         )
         self.mlp = GemmaMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
@@ -359,6 +356,13 @@ class FlashGemmaModel(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.head_dim,
+            base=config.rope_theta,
+            device=weights.device,
+        )
+
         self.layers = nn.ModuleList(
             [
                 FlashGemmaLayer(
@@ -366,6 +370,7 @@ class FlashGemmaModel(torch.nn.Module):
                     config=config,
                     weights=weights,
                     causal=causal,
+                    rotary_emb=rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

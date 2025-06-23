@@ -110,6 +110,7 @@ class FlashGPTJAttention(torch.nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
@@ -143,13 +144,7 @@ class FlashGPTJAttention(torch.nn.Module):
         self.kv_head_mapping = torch.arange(
             0, self.num_heads, dtype=torch.int32, device=weights.device
         )
-
-        self.rotary_emb = GPTJRotary.static(
-            config=config,
-            dim=self.rotary_dim,
-            base=10000,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
     def forward(
         self,
@@ -244,10 +239,13 @@ class GPTJMLP(nn.Module):
 
 
 class FlashGPTJLayer(nn.Module):
-    def __init__(self, prefix: str, config, weights):
+    def __init__(self, prefix: str, config, weights, rotary_emb):
         super().__init__()
         self.self_attn = FlashGPTJAttention(
-            prefix=f"{prefix}.attn", config=config, weights=weights
+            prefix=f"{prefix}.attn",
+            config=config,
+            weights=weights,
+            rotary_emb=rotary_emb,
         )
         self.mlp = GPTJMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
 
@@ -291,6 +289,12 @@ class FlashGPTJModel(torch.nn.Module):
         self.config = config
 
         self.wte = TensorParallelEmbedding(prefix=f"{prefix}.wte", weights=weights)
+        rotary_emb = GPTJRotary.static(
+            config=config,
+            dim=config.rotary_dim,
+            base=10000,
+            device=weights.device,
+        )
         self.layers = nn.ModuleList(
             [
                 FlashGPTJLayer(
@@ -299,6 +303,7 @@ class FlashGPTJModel(torch.nn.Module):
                     ),
                     config=config,
                     weights=weights,
+                    rotary_emb=rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

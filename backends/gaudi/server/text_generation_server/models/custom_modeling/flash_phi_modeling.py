@@ -113,6 +113,7 @@ class FlashPhiAttention(torch.nn.Module):
         prefix: str,
         config,
         weights,
+        rotary_emb,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
@@ -121,13 +122,7 @@ class FlashPhiAttention(torch.nn.Module):
 
         self.softmax_scale = self.head_size**-0.5
         self.rotary_dim = int(config.partial_rotary_factor * self.head_size)
-
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.rotary_dim,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         if self.num_heads % weights.process_group.size() != 0:
             raise ValueError(
@@ -259,11 +254,14 @@ class PhiMLP(nn.Module):
 
 
 class FlashPhiLayer(nn.Module):
-    def __init__(self, prefix: str, layer_id, config, weights):
+    def __init__(self, prefix: str, layer_id, config, weights, rotary_emb):
         super().__init__()
         prefix = f"{prefix}.layers.{layer_id}"
         self.self_attn = FlashPhiAttention(
-            prefix=f"{prefix}.self_attn", config=config, weights=weights
+            prefix=f"{prefix}.self_attn",
+            config=config,
+            weights=weights,
+            rotary_emb=rotary_emb,
         )
         self.mlp = PhiMLP(prefix=f"{prefix}.mlp", config=config, weights=weights)
         self.input_layernorm = FastLayerNorm.load(
@@ -315,6 +313,16 @@ class FlashPhiModel(torch.nn.Module):
         self.embed_tokens = TensorParallelEmbedding(
             prefix=f"{prefix}.embed_tokens", weights=weights
         )
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=int(
+                config.partial_rotary_factor
+                * (config.hidden_size // config.num_attention_heads)
+            ),
+            base=config.rope_theta,
+            device=weights.device,
+        )
+
         self.layers = nn.ModuleList(
             [
                 FlashPhiLayer(
@@ -322,6 +330,7 @@ class FlashPhiModel(torch.nn.Module):
                     layer_id,
                     config,
                     weights,
+                    rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]

@@ -156,6 +156,7 @@ class DeepseekV2Attention(torch.nn.Module):
         prefix: str,
         config,
         weights: Weights,
+        rotary_emb,
     ):
         super().__init__()
         self.num_heads = config.num_attention_heads
@@ -167,13 +168,7 @@ class DeepseekV2Attention(torch.nn.Module):
         self.head_size = config.qk_nope_head_dim + config.qk_rope_head_dim
         self.value_head_size = config.v_head_dim
         self.head_pad_size = max(self.head_size, self.value_head_size)
-
-        self.rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
-            dim=self.qk_rope_head_dim,
-            base=config.rope_theta,
-            device=weights.device,
-        )
+        self.rotary_emb = rotary_emb
 
         mscale = get_mscale(
             self.rotary_emb.scaling_factor, self.rotary_emb.mscale_all_dim
@@ -459,7 +454,7 @@ class DeepseekV2MoE(nn.Module):
 
 
 class DeepseekV2Layer(nn.Module):
-    def __init__(self, prefix, layer_id, config, weights):
+    def __init__(self, prefix, layer_id, config, weights, rotary_emb):
         super().__init__()
         prefix = f"{prefix}.layers.{layer_id}"
 
@@ -467,6 +462,7 @@ class DeepseekV2Layer(nn.Module):
             prefix=f"{prefix}.self_attn",
             config=config,
             weights=weights,
+            rotary_emb=rotary_emb,
         )
 
         if (
@@ -541,6 +537,12 @@ class DeepseekV2Model(torch.nn.Module):
             prefix=f"{prefix}.embed_tokens", weights=weights
         )
 
+        rotary_emb = PositionRotaryEmbedding.static(
+            config=config,
+            dim=config.qk_rope_head_dim,
+            base=config.rope_theta,
+            device=weights.device,
+        )
         self.layers = nn.ModuleList(
             [
                 DeepseekV2Layer(
@@ -548,6 +550,7 @@ class DeepseekV2Model(torch.nn.Module):
                     layer_id,
                     config,
                     weights,
+                    rotary_emb,
                 )
                 for layer_id in range(config.num_hidden_layers)
             ]
