@@ -167,6 +167,7 @@ class Qwen3Attention(nn.Module):
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
+                window_size_left=self.max_past,
             )
 
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()

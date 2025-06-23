@@ -150,6 +150,7 @@ class Qwen2Attention(torch.nn.Module):
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
+                window_size_left=self.max_past,
             )
 
         return self.o_proj(attn_output.view(-1, self.num_heads * self.head_size))
