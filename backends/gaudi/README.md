@@ -99,6 +99,11 @@ curl 127.0.0.1:8080/generate \
 
 ### Integration tests
 
+Install the dependencies:
+```bash
+pip install -r integration-tests/requirements.txt
+```
+
 To run the integration tests, you need to first build the image:
 ```bash
 make -C backends/gaudi image

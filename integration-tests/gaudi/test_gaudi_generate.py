@@ -1,7 +1,6 @@
 from typing import Any, Dict, Generator
 from _pytest.fixtures import SubRequest
-
-from text_generation import AsyncClient
+from huggingface_hub import AsyncInferenceClient, TextGenerationOutput
 import pytest
 
 
@@ -238,13 +237,18 @@ def input(test_config: Dict[str, Any]) -> str:
 
 
 @pytest.fixture(scope="module")
-def tgi_service(gaudi_launcher, model_id: str, test_name: str):
-    with gaudi_launcher(model_id, test_name) as tgi_service:
+def tgi_service(gaudi_launcher, model_id: str, test_name: str, test_config: Dict[str, Any]):
+    with gaudi_launcher(
+        model_id, 
+        test_name, 
+        tgi_args=test_config.get("args", []),
+        env_config=test_config.get("env_config", {})
+    ) as tgi_service:
         yield tgi_service
 
 
 @pytest.fixture(scope="module")
-async def tgi_client(tgi_service) -> AsyncClient:
+async def tgi_client(tgi_service) -> AsyncInferenceClient:
     await tgi_service.health(1000)
     return tgi_service.client
 
@@ -252,12 +256,14 @@ async def tgi_client(tgi_service) -> AsyncClient:
 @pytest.mark.asyncio
 @pytest.mark.all_models
 async def test_model_single_request(
-    tgi_client: AsyncClient, expected_outputs: Dict[str, str], input: str
+    tgi_client: AsyncInferenceClient, expected_outputs: Dict[str, str], input: str
 ):
     # Bounded greedy decoding without input
-    response = await tgi_client.generate(
+    response = await tgi_client.text_generation(
         input,
         max_new_tokens=32,
+        details=True,
+        decoder_input_details=True,
     )
     assert response.details.generated_tokens == 32
     assert response.generated_text == expected_outputs["greedy"]
@@ -266,7 +272,7 @@ async def test_model_single_request(
 @pytest.mark.asyncio
 @pytest.mark.all_models
 async def test_model_multiple_requests(
-    tgi_client: AsyncClient,
+    tgi_client: AsyncInferenceClient,
     gaudi_generate_load,
     expected_outputs: Dict[str, str],
     input: str,

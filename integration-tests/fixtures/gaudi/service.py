@@ -16,8 +16,7 @@ from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
 import logging
 from gaudi.test_gaudi_generate import TEST_CONFIGS
-from text_generation import AsyncClient
-from text_generation.types import Response
+from huggingface_hub import AsyncInferenceClient, TextGenerationOutput
 import huggingface_hub
 
 logging.basicConfig(
@@ -71,9 +70,15 @@ def stream_container_logs(container, test_name):
         logger.error(f"Error streaming container logs: {str(e)}")
 
 
+class TestClient(AsyncInferenceClient):
+    def __init__(self, service_name: str, base_url: str):
+        super().__init__(model=base_url)
+        self.service_name = service_name
+
+
 class LauncherHandle:
-    def __init__(self, port: int):
-        self.client = AsyncClient(f"http://localhost:{port}", timeout=3600)
+    def __init__(self, service_name: str, port: int):
+        self.client = TestClient(service_name, f"http://localhost:{port}")
 
     def _inner_health(self):
         raise NotImplementedError
@@ -89,7 +94,7 @@ class LauncherHandle:
                 raise RuntimeError("Launcher crashed")
 
             try:
-                await self.client.generate("test")
+                await self.client.text_generation("test", max_new_tokens=1)
                 elapsed = time.time() - start_time
                 logger.info(f"Health check passed after {elapsed:.1f}s")
                 return
@@ -113,7 +118,8 @@ class LauncherHandle:
 
 class ContainerLauncherHandle(LauncherHandle):
     def __init__(self, docker_client, container_name, port: int):
-        super(ContainerLauncherHandle, self).__init__(port)
+        service_name = container_name  # Use container name as service name
+        super(ContainerLauncherHandle, self).__init__(service_name, port)
         self.docker_client = docker_client
         self.container_name = container_name
 
@@ -134,7 +140,8 @@ class ContainerLauncherHandle(LauncherHandle):
 
 class ProcessLauncherHandle(LauncherHandle):
     def __init__(self, process, port: int):
-        super(ProcessLauncherHandle, self).__init__(port)
+        service_name = "process"  # Use generic name for process launcher
+        super(ProcessLauncherHandle, self).__init__(service_name, port)
         self.process = process
 
     def _inner_health(self) -> bool:
@@ -153,11 +160,13 @@ def data_volume():
 
 
 @pytest.fixture(scope="module")
-def gaudi_launcher(event_loop):
+def gaudi_launcher():
     @contextlib.contextmanager
     def docker_launcher(
         model_id: str,
         test_name: str,
+        tgi_args: List[str] = None,
+        env_config: dict = None
     ):
         logger.info(
             f"Starting docker launcher for model {model_id} and test {test_name}"
@@ -185,23 +194,30 @@ def gaudi_launcher(event_loop):
             )
             container.stop()
             container.wait()
+            container.remove()
+            logger.info(f"Removed existing container {container_name}")
         except NotFound:
             pass
         except Exception as e:
             logger.error(f"Error handling existing container: {str(e)}")
 
-        tgi_args = TEST_CONFIGS[test_name]["args"].copy()
+        if tgi_args is None:
+            tgi_args = []
+        else:
+            tgi_args = tgi_args.copy()
 
         env = BASE_ENV.copy()
 
         # Add model_id to env
         env["MODEL_ID"] = model_id
 
-        # Add env config that is definied in the fixture parameter
-        if "env_config" in TEST_CONFIGS[test_name]:
-            env.update(TEST_CONFIGS[test_name]["env_config"].copy())
+        # Add env config that is defined in the fixture parameter
+        if env_config is not None:
+            env.update(env_config.copy())
 
-        volumes = [f"{DOCKER_VOLUME}:/data"]
+        volumes = []
+        if DOCKER_VOLUME:
+            volumes = [f"{DOCKER_VOLUME}:/data"]
         logger.debug(f"Using volume {volumes}")
 
         try:
@@ -276,13 +292,14 @@ def gaudi_launcher(event_loop):
 @pytest.fixture(scope="module")
 def gaudi_generate_load():
     async def generate_load_inner(
-        client: AsyncClient, prompt: str, max_new_tokens: int, n: int
-    ) -> List[Response]:
+        client: AsyncInferenceClient, prompt: str, max_new_tokens: int, n: int
+    ) -> List[TextGenerationOutput]:
         try:
             futures = [
-                client.generate(
+                client.text_generation(
                     prompt,
                     max_new_tokens=max_new_tokens,
+                    details=True,
                     decoder_input_details=True,
                 )
                 for _ in range(n)
