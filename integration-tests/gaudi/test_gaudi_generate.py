@@ -12,7 +12,7 @@ def pytest_configure(config):
 
 # The "args" values in TEST_CONFIGS are not optimized for speed but only check that the inference is working for the different models architectures.
 TEST_CONFIGS = {
-    "meta-llama/Llama-3.1-8B-Instruct-shared": {
+    "meta-llama/Llama-3.1-8B-Instruct-sharded": {
         "model_id": "meta-llama/Llama-3.1-8B-Instruct",
         "input": "What is Deep Learning?",
         "expected_greedy_output": " A Beginner’s Guide\nDeep learning is a subset of machine learning that involves the use of artificial neural networks to analyze and interpret data. It is a type of",
@@ -21,13 +21,13 @@ TEST_CONFIGS = {
             "--sharded",
             "true",
             "--num-shard",
-            "8",
+            "2",
             "--max-input-tokens",
             "512",
             "--max-total-tokens",
             "1024",
             "--max-batch-size",
-            "8",
+            "4",
             "--max-batch-prefill-tokens",
             "2048",
         ],
