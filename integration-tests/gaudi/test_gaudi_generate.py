@@ -1,6 +1,6 @@
 from typing import Any, Dict, Generator
 from _pytest.fixtures import SubRequest
-from huggingface_hub import AsyncInferenceClient, TextGenerationOutput
+from huggingface_hub import AsyncInferenceClient
 import pytest
 
 
@@ -237,12 +237,14 @@ def input(test_config: Dict[str, Any]) -> str:
 
 
 @pytest.fixture(scope="module")
-def tgi_service(gaudi_launcher, model_id: str, test_name: str, test_config: Dict[str, Any]):
+def tgi_service(
+    gaudi_launcher, model_id: str, test_name: str, test_config: Dict[str, Any]
+):
     with gaudi_launcher(
-        model_id, 
-        test_name, 
+        model_id,
+        test_name,
         tgi_args=test_config.get("args", []),
-        env_config=test_config.get("env_config", {})
+        env_config=test_config.get("env_config", {}),
     ) as tgi_service:
         yield tgi_service
 

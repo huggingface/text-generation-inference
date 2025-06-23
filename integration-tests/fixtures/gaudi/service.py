@@ -15,7 +15,6 @@ import pytest
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
 import logging
-from gaudi.test_gaudi_generate import TEST_CONFIGS
 from huggingface_hub import AsyncInferenceClient, TextGenerationOutput
 import huggingface_hub
 
@@ -166,7 +165,7 @@ def gaudi_launcher():
         model_id: str,
         test_name: str,
         tgi_args: List[str] = None,
-        env_config: dict = None
+        env_config: dict = None,
     ):
         logger.info(
             f"Starting docker launcher for model {model_id} and test {test_name}"
