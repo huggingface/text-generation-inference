@@ -1,4 +1,8 @@
-pytest_plugins = ["fixtures.neuron.service", "fixtures.neuron.export_models"]
+pytest_plugins = [
+    "fixtures.neuron.service",
+    "fixtures.neuron.export_models",
+    "fixtures.gaudi.service",
+]
 # ruff: noqa: E402
 from _pytest.fixtures import SubRequest
 from huggingface_hub.inference._generated.types.chat_completion import (
@@ -68,6 +72,15 @@ def pytest_addoption(parser):
     parser.addoption(
         "--neuron", action="store_true", default=False, help="run neuron tests"
     )
+    parser.addoption(
+        "--gaudi", action="store_true", default=False, help="run gaudi tests"
+    )
+    parser.addoption(
+        "--gaudi-all-models",
+        action="store_true",
+        default=False,
+        help="Run tests for all models instead of just the default subset",
+    )
 
 
 def pytest_configure(config):
@@ -84,6 +97,22 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(pytest.mark.skip(reason="need --release option to run"))
 
         selectors.append(skip_release)
+
+    if config.getoption("--gaudi"):
+
+        def skip_not_gaudi(item):
+            if "gaudi" not in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --gaudi to run"))
+
+        selectors.append(skip_not_gaudi)
+    else:
+
+        def skip_gaudi(item):
+            if "gaudi" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --gaudi to run"))
+
+        selectors.append(skip_gaudi)
+
     if config.getoption("--neuron"):
 
         def skip_not_neuron(item):
@@ -100,6 +129,7 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(pytest.mark.skip(reason="requires --neuron to run"))
 
         selectors.append(skip_neuron)
+
     for item in items:
         for selector in selectors:
             selector(item)
