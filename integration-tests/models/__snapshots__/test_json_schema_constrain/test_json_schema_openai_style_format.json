@@ -1,0 +1,23 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "{\"status\":\".OK.\"}",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1750877897,
+  "id": "",
+  "model": "google/gemma-3-4b-it",
+  "object": "chat.completion",
+  "system_fingerprint": "3.3.4-dev0-native",
+  "usage": {
+    "completion_tokens": 8,
+    "prompt_tokens": 36,
+    "total_tokens": 44
+  }
+}
