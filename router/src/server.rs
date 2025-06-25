@@ -28,7 +28,7 @@ use crate::{
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
-use crate::{ChatTokenizeResponse, JsonSchemaConfig};
+use crate::{ChatTokenizeResponse, JsonSchemaConfig, JsonSchemaFormat, JsonSchemaOrConfig};
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
 use crate::{MessageBody, ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
@@ -1363,6 +1363,8 @@ SagemakerRequest,
 GenerateRequest,
 GrammarType,
 JsonSchemaConfig,
+JsonSchemaOrConfig,
+JsonSchemaFormat,
 ChatRequest,
 Message,
 MessageContent,

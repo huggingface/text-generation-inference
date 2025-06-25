@@ -207,3 +207,87 @@ async def test_json_schema_stream(model_fixture, response_snapshot):
     assert isinstance(parsed_content["numCats"], int)
     assert parsed_content["numCats"] >= 0
     assert chunks == response_snapshot
+
+
+status_schema = {
+    "type": "object",
+    "properties": {"status": {"type": "string"}},
+    "required": ["status"],
+    "additionalProperties": False,
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_json_schema_simple_status(model_fixture, response_snapshot):
+    """Test simple status JSON schema - TGI format."""
+    response = requests.post(
+        f"{model_fixture.base_url}/v1/chat/completions",
+        json={
+            "model": "tgi",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant. You answer with a JSON output with a status string containing the value 'OK'",
+                },
+                {"role": "user", "content": "Please tell me OK"},
+            ],
+            "seed": 42,
+            "temperature": 0.0,
+            "response_format": {
+                "type": "json_schema",
+                "value": {"name": "test", "schema": status_schema},
+            },
+            "max_completion_tokens": 8192,
+        },
+    )
+
+    result = response.json()
+
+    # Validate response format
+    content = result["choices"][0]["message"]["content"]
+    parsed_content = json.loads(content)
+
+    assert "status" in parsed_content
+    assert isinstance(parsed_content["status"], str)
+    assert result == response_snapshot
+
+
+@pytest.mark.asyncio
+@pytest.mark.private
+async def test_json_schema_openai_style_format(model_fixture, response_snapshot):
+    """Test OpenAI-style JSON schema format (should also work now)."""
+    response = requests.post(
+        f"{model_fixture.base_url}/v1/chat/completions",
+        json={
+            "model": "tgi",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant. You answer with a JSON output with a status string containing the value 'OK'",
+                },
+                {"role": "user", "content": "Please tell me OK"},
+            ],
+            "seed": 42,
+            "temperature": 0.0,
+            "response_format": {
+                "json_schema": {
+                    "name": "test",
+                    "strict": True,
+                    "schema": status_schema,
+                },
+                "type": "json_schema",
+            },
+            "max_completion_tokens": 8192,
+        },
+    )
+
+    result = response.json()
+
+    # Validate response format
+    content = result["choices"][0]["message"]["content"]
+    parsed_content = json.loads(content)
+
+    assert "status" in parsed_content
+    assert isinstance(parsed_content["status"], str)
+    assert result == response_snapshot

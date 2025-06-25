@@ -1738,9 +1738,10 @@
         "oneOf": [
           {
             "type": "object",
+            "description": "A string that represents a [JSON Schema](https://json-schema.org/).\n\nJSON Schema is a declarative language that allows to annotate JSON documents\nwith types and descriptions.",
             "required": [
-              "type",
-              "value"
+              "value",
+              "type"
             ],
             "properties": {
               "type": {
@@ -1749,16 +1750,21 @@
                   "json"
                 ]
               },
-              "value": {
-                "description": "A string that represents a [JSON Schema](https://json-schema.org/).\n\nJSON Schema is a declarative language that allows to annotate JSON documents\nwith types and descriptions."
+              "value": {}
+            },
+            "example": {
+              "properties": {
+                "location": {
+                  "type": "string"
+                }
               }
             }
           },
           {
             "type": "object",
             "required": [
-              "type",
-              "value"
+              "value",
+              "type"
             ],
             "properties": {
               "type": {
@@ -1773,22 +1779,25 @@
             }
           },
           {
-            "type": "object",
-            "required": [
-              "type",
-              "value"
-            ],
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "json_schema"
-                ]
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/JsonSchemaFormat"
               },
-              "value": {
-                "$ref": "#/components/schemas/JsonSchemaConfig"
+              {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "json_schema"
+                    ]
+                  }
+                }
               }
-            }
+            ]
           }
         ],
         "discriminator": {
@@ -1897,6 +1906,40 @@
             "description": "The actual JSON schema definition"
           }
         }
+      },
+      "JsonSchemaFormat": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "json_schema"
+            ],
+            "properties": {
+              "json_schema": {
+                "$ref": "#/components/schemas/JsonSchemaOrConfig"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "value"
+            ],
+            "properties": {
+              "value": {
+                "$ref": "#/components/schemas/JsonSchemaOrConfig"
+              }
+            }
+          }
+        ]
+      },
+      "JsonSchemaOrConfig": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/JsonSchemaConfig"
+          },
+          {}
+        ]
       },
       "Message": {
         "allOf": [

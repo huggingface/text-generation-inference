@@ -224,7 +224,7 @@ impl HubProcessorConfig {
 
 #[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
 #[cfg_attr(test, derive(PartialEq))]
-struct JsonSchemaConfig {
+pub struct JsonSchemaConfig {
     /// Optional name identifier for the schema
     #[serde(skip_serializing_if = "Option::is_none")]
     name: Option<String>,
@@ -235,7 +235,7 @@ struct JsonSchemaConfig {
 
 #[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
 #[cfg_attr(test, derive(PartialEq))]
-#[serde(tag = "type", content = "value")]
+#[serde(tag = "type")]
 pub(crate) enum GrammarType {
     /// A string that represents a [JSON Schema](https://json-schema.org/).
     ///
@@ -244,17 +244,53 @@ pub(crate) enum GrammarType {
     #[serde(rename = "json")]
     #[serde(alias = "json_object")]
     #[schema(example = json ! ({"properties": {"location":{"type": "string"}}}))]
-    Json(serde_json::Value),
+    Json { value: serde_json::Value },
 
     #[serde(rename = "regex")]
-    Regex(String),
+    Regex { value: String },
 
     /// A JSON Schema specification with additional metadata.
     ///
     /// Includes an optional name for the schema, an optional strict flag, and the required schema definition.
     #[serde(rename = "json_schema")]
-    #[schema(example = json ! ({"schema": {"properties": {"name": {"type": "string"}, "age": {"type": "integer"}}}, "name": "person_info", "strict": true}))]
-    JsonSchema(JsonSchemaConfig),
+    JsonSchema(JsonSchemaFormat),
+}
+
+#[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
+#[cfg_attr(test, derive(PartialEq))]
+#[serde(untagged)]
+pub enum JsonSchemaFormat {
+    JsonSchema { json_schema: JsonSchemaOrConfig },
+    Value { value: JsonSchemaOrConfig },
+}
+
+#[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
+#[cfg_attr(test, derive(PartialEq))]
+#[serde(untagged)]
+pub enum JsonSchemaOrConfig {
+    Config(JsonSchemaConfig),
+    Value(serde_json::Value),
+}
+
+impl JsonSchemaOrConfig {
+    pub fn schema_value(&self) -> &serde_json::Value {
+        match self {
+            JsonSchemaOrConfig::Config(config) => &config.schema,
+            JsonSchemaOrConfig::Value(value) => value,
+        }
+    }
+}
+
+impl JsonSchemaFormat {
+    pub fn schema_value(&self) -> &serde_json::Value {
+        let config = match self {
+            Self::JsonSchema { json_schema } | Self::Value { value: json_schema } => json_schema,
+        };
+        match config {
+            JsonSchemaOrConfig::Config(config) => &config.schema,
+            JsonSchemaOrConfig::Value(value) => value,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, ToSchema)]
@@ -984,7 +1020,9 @@ impl ChatRequest {
                 if let Some(tools) = tools {
                     match ToolGrammar::apply(tools, tool_choice)? {
                         Some((updated_tools, tool_schema)) => {
-                            let grammar = GrammarType::Json(serde_json::json!(tool_schema));
+                            let grammar = GrammarType::Json {
+                                value: serde_json::json!(tool_schema),
+                            };
                             let inputs: String = infer.apply_chat_template(
                                 messages,
                                 Some((updated_tools, tool_prompt)),
