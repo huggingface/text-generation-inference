@@ -247,8 +247,6 @@ def get_number_of_features(height: int, width: int, config) -> int:
     image_size = config.vision_config.image_size
     patch_size = config.vision_config.patch_size
 
-    assert image_size % patch_size == 0
-
     npatches = image_size // patch_size
 
     # Dimensions are intentionally swapped to be bug-compatible with
