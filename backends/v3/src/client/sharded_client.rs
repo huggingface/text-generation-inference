@@ -10,6 +10,7 @@ use crate::client::{
 use crate::client::{Chunk, InfoResponse, Input};
 use async_trait::async_trait;
 use futures::future::join_all;
+use std::collections::HashMap;
 use tonic::transport::Uri;
 use tracing::instrument;
 
@@ -232,6 +233,7 @@ impl Health for ShardedClient {
                 watermark: false,
                 grammar: String::new(),
                 grammar_type: GrammarType::None as i32,
+                logit_bias: HashMap::new(),
             }),
             stopping_parameters: Some(StoppingCriteriaParameters {
                 max_new_tokens: 1,
