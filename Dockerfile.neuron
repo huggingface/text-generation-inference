@@ -5,7 +5,7 @@ RUN mkdir -p /tgi
 # Fetch the optimum-neuron sources directly to avoid relying on pypi deployments
 FROM alpine AS optimum-neuron
 RUN mkdir -p /optimum-neuron
-ADD https://github.com/huggingface/optimum-neuron/archive/refs/tags/v0.2.0.tar.gz /optimum-neuron/sources.tar.gz
+ADD https://github.com/huggingface/optimum-neuron/archive/refs/tags/v0.2.1.tar.gz /optimum-neuron/sources.tar.gz
 RUN tar -C /optimum-neuron -xf /optimum-neuron/sources.tar.gz --strip-components=1
 
 # Build cargo components (adapted from TGI original Dockerfile)
