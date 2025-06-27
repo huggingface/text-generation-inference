@@ -1059,17 +1059,6 @@ class FlashVlmCausalLM(FlashCausalLM):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
 
-        kwargs = {}
-        if htorch.utils.internal.is_lazy():
-            batch_size = input_lengths.shape[0]
-            seqlen = (
-                input_ids.shape[0] // batch_size
-                if batch.prefilling
-                else batch.hpu_attn_meta.block_list.shape[0]
-            )
-            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
-                batch.prefilling, seqlen, batch_size
-            )
         if batch.prefill_cache_indices is not None:
             slots_pad = torch.zeros_like(input_ids, device=slots.device)
             slots_pad[batch.prefill_cache_indices] = slots
@@ -1082,6 +1071,26 @@ class FlashVlmCausalLM(FlashCausalLM):
         seqlen = Seqlen(
             input_lengths=_async_h2d_tensor_copy(input_lengths),
         )
+        kwargs = {}
+        batch_size = input_lengths.shape[0]
+        prompt_len = (
+            input_ids.shape[0] // batch_size
+            if batch.prefilling
+            else batch.hpu_attn_meta.block_list.shape[0]
+        )
+        if htorch.utils.internal.is_lazy():
+            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
+                batch.prefilling, prompt_len, batch_size
+            )
+        if self.sliding_window is not None:
+            attn_mask = seqlen.make_sliding_window_bias(
+                input_lengths.tolist(),
+                self.sliding_window,
+                self.dtype,
+                prompt_len,
+                batch_size,
+            )
+            seqlen.attn_mask = _async_h2d_tensor_copy(attn_mask)
         logits, speculative_logits = self.model.forward(
             inputs_embeds=inputs_embeds,
             position_ids=_async_h2d_tensor_copy(position_ids),

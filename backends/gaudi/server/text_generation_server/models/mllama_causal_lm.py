@@ -282,43 +282,6 @@ class FlashMllamaCausalLM(FlashVlmCausalLM):
             block_mapping=None,
             attn_bias=None,
         )
-        if self.sliding_window is not None:
-            block_tables_in_window = []
-            for i, bt in enumerate(block_tables):
-                block_num_in_window = (
-                    self.sliding_window + BLOCK_SIZE - 1
-                ) // BLOCK_SIZE
-                block_tables_in_window.append(
-                    bt[max(0, blocks[i] - block_num_in_window) : blocks[i]]
-                )
-            slots_in_window = []
-            start_idx = 0
-            for i, indice in enumerate(slot_indices):
-                mask = (
-                    indice - torch.arange(start_idx, indice + 1)
-                ) < self.sliding_window
-                slots_in_window.append(torch.arange(start_idx, indice + 1)[mask])
-                start_idx += blocks[i] * BLOCK_SIZE
-            slots_in_window = torch.cat(slots_in_window, dim=0)
-            (
-                block_list_in_window,
-                block_groups_in_window,
-                block_usage_in_window,
-                slots_in_window_mask,
-                _,
-            ) = generate_block_metadata(
-                self.dtype,
-                self.use_contiguous_pa,
-                slots,
-                block_tables_in_window,
-                self.bucketing_ctx,
-                slots_in_window,
-                block_bucket_size,
-            )
-            meta.block_list_in_window = _async_h2d_tensor_copy(block_list_in_window)
-            meta.block_groups_in_window = _async_h2d_tensor_copy(block_groups_in_window)
-            meta.block_usage_in_window = _async_h2d_tensor_copy(block_usage_in_window)
-            meta.slots_in_window_mask = _async_h2d_tensor_copy(slots_in_window_mask)
 
         hpu_attention_meta = trim_attn_metadata(meta)
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.

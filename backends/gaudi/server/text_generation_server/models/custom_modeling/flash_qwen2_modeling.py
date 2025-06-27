@@ -62,7 +62,9 @@ class Qwen2Attention(torch.nn.Module):
     ):
         super().__init__()
         self.max_past = (
-            config.sliding_window if config.sliding_window is not None else -1
+            config.sliding_window
+            if config.use_sliding_window and config.sliding_window is not None
+            else -1
         )
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size

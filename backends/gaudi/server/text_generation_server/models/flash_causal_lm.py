@@ -1510,6 +1510,8 @@ class FlashCausalLM(Model):
 
         if getattr(config, "sliding_window", None) is None:
             config.sliding_window = None
+        if getattr(config, "use_sliding_window", True) is False:
+            config.sliding_window = None
 
         self.num_layers = config.num_hidden_layers
         self.num_heads = config.num_attention_heads // self.process_group.size()
