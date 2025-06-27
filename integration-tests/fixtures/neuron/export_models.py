@@ -46,8 +46,26 @@ MODEL_CONFIGURATIONS = {
             "auto_cast_type": "fp16",
         },
     },
+    "qwen3": {
+        "model_id": "Qwen/Qwen3-1.7B",
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 4096,
+            "num_cores": 2,
+            "auto_cast_type": "bf16",
+        },
+    },
     "granite": {
         "model_id": "ibm-granite/granite-3.1-2b-instruct",
+        "export_kwargs": {
+            "batch_size": 4,
+            "sequence_length": 4096,
+            "num_cores": 2,
+            "auto_cast_type": "bf16",
+        },
+    },
+    "phi3": {
+        "model_id": "microsoft/Phi-3-mini-4k-instruct",
         "export_kwargs": {
             "batch_size": 4,
             "sequence_length": 4096,
