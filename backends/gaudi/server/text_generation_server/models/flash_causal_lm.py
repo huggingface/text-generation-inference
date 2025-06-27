@@ -81,8 +81,14 @@ from vllm_hpu_extension.profiler import HabanaMemoryProfiler, format_bytes
 tracer = trace.get_tracer(__name__)
 
 
-def prepare_for_decode(
-    dtype, use_contiguous_pa, device, slots, block_tables, batch_size, bucketing_ctx
+def generate_block_metadata(
+    dtype,
+    use_contiguous_pa,
+    slots,
+    block_tables,
+    bucketing_ctx,
+    slots_in_window=None,
+    block_bucket_size=None,
 ):
     # Prepare values if we need to continue decoding
     # need for HPUPagedAttentionMetadata preparation
@@ -112,11 +118,12 @@ def prepare_for_decode(
     assert len(block_list) == len(block_groups)
     assert len(block_list) == len(block_usage)
     if use_contiguous_pa:
-        block_bucket_size = max(max(block_list) + 1, len(block_list))
-        if bucketing_ctx is not None:
-            block_bucket_size = bucketing_ctx.get_padded_decode_num_blocks(
-                block_bucket_size
-            )
+        if block_bucket_size is None:
+            block_bucket_size = max(max(block_list) + 1, len(block_list))
+            if bucketing_ctx is not None:
+                block_bucket_size = bucketing_ctx.get_padded_decode_num_blocks(
+                    block_bucket_size
+                )
         indices: List[Any]
         indices = [None] * block_bucket_size
         for i, bid in enumerate(block_list):
@@ -125,30 +132,38 @@ def prepare_for_decode(
         block_groups = gather_list(block_groups, indices, -1)
         block_usage = gather_list(block_usage, indices, 1)
     else:
-        block_bucket_size = len(block_list)
-        if bucketing_ctx is not None:
-            block_bucket_size = bucketing_ctx.get_padded_decode_num_blocks(
-                block_bucket_size
-            )
+        if block_bucket_size is None:
+            block_bucket_size = len(block_list)
+            if bucketing_ctx is not None:
+                block_bucket_size = bucketing_ctx.get_padded_decode_num_blocks(
+                    block_bucket_size
+                )
         block_list = pad_list(block_list, block_bucket_size, 0)
         block_groups = pad_list(block_groups, block_bucket_size, -1)
         block_usage = pad_list(block_usage, block_bucket_size, 1)
+    slots_in_window_mask = None
+    if slots_in_window is not None:
+        slot_list = [
+            block_id * BLOCK_SIZE + slot_idx
+            for block_id in block_list
+            for slot_idx in range(BLOCK_SIZE)
+        ]
+        slot_list = torch.tensor(slot_list, dtype=torch.int64)
+        slot_list = slot_list.view(-1, BLOCK_SIZE)
+        slots_in_window_mask = torch.isin(slot_list, slots_in_window)
+        for i in range(slots_in_window_mask.shape[0]):
+            if not slots_in_window_mask[i].any():
+                slots_in_window_mask[i, 0] = True
 
     block_list = torch.tensor(block_list, dtype=torch.int, device="cpu")
     block_groups = torch.tensor(block_groups, dtype=torch.int, device="cpu")
     block_usage = torch.tensor(block_usage, dtype=dtype, device="cpu")
-    block_list_device = _async_h2d_tensor_copy(block_list)
-    block_groups_device = _async_h2d_tensor_copy(block_groups)
-    block_usage_device = _async_h2d_tensor_copy(block_usage)
-
-    return trim_attn_metadata(
-        HPUPagedAttentionMetadata(
-            block_list=block_list_device,
-            block_groups=block_groups_device,
-            block_usage=block_usage_device,
-            block_mapping=None,
-            attn_bias=None,
-        )
+    return (
+        block_list,
+        block_groups,
+        block_usage,
+        slots_in_window_mask,
+        block_bucket_size,
     )
 
 
@@ -962,7 +977,9 @@ class FlashCausalLMBatch(Batch):
             valid_indices=None,
         )
 
-    def prepare_for_decode(self, dtype, use_contiguous_pa, bucketing_ctx, pad_token_id):
+    def prepare_for_decode(
+        self, dtype, use_contiguous_pa, bucketing_ctx, pad_token_id, sliding_window
+    ):
         block_num = [length // BLOCK_SIZE + 1 for length in self.cache_lengths]
         block_tables = []
         for i, bt in enumerate(self.block_tables):
@@ -975,15 +992,65 @@ class FlashCausalLMBatch(Batch):
             padded_bs = self.input_ids.shape[0]
         slots = self.slots[self.slot_indices]
 
-        self.hpu_attn_meta = prepare_for_decode(
-            dtype,
-            use_contiguous_pa,
-            "hpu",
-            slots,
-            block_tables,
-            padded_bs,
-            bucketing_ctx,
+        block_list, block_groups, block_usage, _, block_bucket_size = (
+            generate_block_metadata(
+                dtype,
+                use_contiguous_pa,
+                slots,
+                block_tables,
+                bucketing_ctx,
+            )
         )
+        meta = HPUPagedAttentionMetadata(
+            block_list=_async_h2d_tensor_copy(block_list),
+            block_groups=_async_h2d_tensor_copy(block_groups),
+            block_usage=_async_h2d_tensor_copy(block_usage),
+            block_mapping=None,
+            attn_bias=None,
+        )
+        if sliding_window is not None:
+            block_tables_in_window = []
+            for i, bt in enumerate(self.block_tables):
+                block_num_in_window = (
+                    sliding_window + 2 * BLOCK_SIZE - 2 - slots[i] % BLOCK_SIZE
+                ) // BLOCK_SIZE
+                block_tables_in_window.append(
+                    bt[max(0, block_num[i] - block_num_in_window) : block_num[i]]
+                )
+            slots_in_window = []
+            for i, indice in enumerate(self.slot_indices):
+                start_idx = indice - self.cache_lengths[i]
+                mask = (
+                    indice
+                    - torch.arange(
+                        start_idx,
+                        indice + 1,
+                        device=self.slots.device,
+                    )
+                ) < sliding_window
+                slots_in_window.append(self.slots[start_idx : indice + 1][mask])
+            slots_in_window = torch.cat(slots_in_window, dim=0)
+            (
+                block_list_in_window,
+                block_groups_in_window,
+                block_usage_in_window,
+                slots_in_window_mask,
+                _,
+            ) = generate_block_metadata(
+                dtype,
+                use_contiguous_pa,
+                slots,
+                block_tables_in_window,
+                bucketing_ctx,
+                slots_in_window,
+                block_bucket_size,
+            )
+            meta.block_list_in_window = _async_h2d_tensor_copy(block_list_in_window)
+            meta.block_groups_in_window = _async_h2d_tensor_copy(block_groups_in_window)
+            meta.block_usage_in_window = _async_h2d_tensor_copy(block_usage_in_window)
+            meta.slots_in_window_mask = _async_h2d_tensor_copy(slots_in_window_mask)
+
+        self.hpu_attn_meta = trim_attn_metadata(meta)
         self.input_ids = F.pad(
             self.input_ids, (0, padded_bs - self.input_ids.shape[0]), value=pad_token_id
         )
@@ -1443,6 +1510,8 @@ class FlashCausalLM(Model):
 
         if getattr(config, "sliding_window", None) is None:
             config.sliding_window = None
+        if getattr(config, "use_sliding_window", True) is False:
+            config.sliding_window = None
 
         self.num_layers = config.num_hidden_layers
         self.num_heads = config.num_attention_heads // self.process_group.size()
@@ -1865,6 +1934,15 @@ class FlashCausalLM(Model):
             kwargs["bypass_hpu_graphs"] = not self.use_graphs(
                 True, prompt_len, batch_size
             )
+        if self.sliding_window is not None:
+            attn_mask = seqlen.make_sliding_window_bias(
+                input_lengths.tolist(),
+                self.sliding_window,
+                self.dtype,
+                prompt_len,
+                batch_size,
+            )
+            seqlen.attn_mask = _async_h2d_tensor_copy(attn_mask)
 
         # We pass a `cu_seqlen_prefill` in order not to have to deal with paged attention cache allocation/deallocation.
         self.model.forward(
@@ -1885,17 +1963,17 @@ class FlashCausalLM(Model):
         position_ids = torch.arange(batch_size, dtype=batch.position_ids.dtype)
         blocks = [block_num // batch_size for _ in range(batch_size)]
         blocks[0] += block_num % batch_size
-        past_len = []
         block_tables = []
         slots = []
         start_idx = 0
+        slot_indices = []
 
         # fetch the last blocked to warmup block num
         for i in range(batch_size):
             block_array = list(range(start_idx, start_idx + blocks[i]))
             slots.append(BLOCK_SIZE * block_array[-1] + BLOCK_SIZE - 1)
+            slot_indices.append((start_idx + blocks[i]) * BLOCK_SIZE - 1)
             block_tables.append(block_array)
-            past_len.append(blocks[i] * BLOCK_SIZE - 1)
             start_idx += blocks[i]
         input_lengths = torch.ones(batch_size, dtype=torch.int32)
         cu_seqlen_prefill = torch.zeros(batch_size + 1, dtype=torch.int32)
@@ -1904,16 +1982,61 @@ class FlashCausalLM(Model):
         seqlen = Seqlen(
             input_lengths=_async_h2d_tensor_copy(input_lengths),
         )
-
-        hpu_attention_meta = prepare_for_decode(
-            self.dtype,
-            self.use_contiguous_pa,
-            self.device,
-            slots,
-            block_tables,
-            batch_size,
-            bucketing_ctx=None,
+        block_list, block_groups, block_usage, _, block_bucket_size = (
+            generate_block_metadata(
+                self.dtype,
+                self.use_contiguous_pa,
+                slots,
+                block_tables,
+                self.bucketing_ctx,
+            )
         )
+        meta = HPUPagedAttentionMetadata(
+            block_list=_async_h2d_tensor_copy(block_list),
+            block_groups=_async_h2d_tensor_copy(block_groups),
+            block_usage=_async_h2d_tensor_copy(block_usage),
+            block_mapping=None,
+            attn_bias=None,
+        )
+        if self.sliding_window is not None:
+            block_tables_in_window = []
+            for i, bt in enumerate(block_tables):
+                block_num_in_window = (
+                    self.sliding_window + BLOCK_SIZE - 1
+                ) // BLOCK_SIZE
+                block_tables_in_window.append(
+                    bt[max(0, blocks[i] - block_num_in_window) : blocks[i]]
+                )
+            slots_in_window = []
+            start_idx = 0
+            for i, indice in enumerate(slot_indices):
+                mask = (
+                    indice - torch.arange(start_idx, indice + 1)
+                ) < self.sliding_window
+                slots_in_window.append(torch.arange(start_idx, indice + 1)[mask])
+                start_idx += blocks[i] * BLOCK_SIZE
+            slots_in_window = torch.cat(slots_in_window, dim=0)
+            (
+                block_list_in_window,
+                block_groups_in_window,
+                block_usage_in_window,
+                slots_in_window_mask,
+                _,
+            ) = generate_block_metadata(
+                self.dtype,
+                self.use_contiguous_pa,
+                slots,
+                block_tables_in_window,
+                self.bucketing_ctx,
+                slots_in_window,
+                block_bucket_size,
+            )
+            meta.block_list_in_window = _async_h2d_tensor_copy(block_list_in_window)
+            meta.block_groups_in_window = _async_h2d_tensor_copy(block_groups_in_window)
+            meta.block_usage_in_window = _async_h2d_tensor_copy(block_usage_in_window)
+            meta.slots_in_window_mask = _async_h2d_tensor_copy(slots_in_window_mask)
+
+        hpu_attention_meta = trim_attn_metadata(meta)
         slots_tensor = torch.tensor(slots, dtype=batch.slots.dtype)
         kwargs = {}
         if htorch.utils.internal.is_lazy():
@@ -2014,16 +2137,25 @@ class FlashCausalLM(Model):
         )
 
         kwargs = {}
+        batch_size = input_lengths.shape[0]
+        prompt_len = (
+            input_ids.shape[0] // batch_size
+            if batch.prefilling
+            else batch.hpu_attn_meta.block_list.shape[0]
+        )
         if htorch.utils.internal.is_lazy():
-            batch_size = input_lengths.shape[0]
-            prompt_len = (
-                input_ids.shape[0] // batch_size
-                if batch.prefilling
-                else batch.hpu_attn_meta.block_list.shape[0]
-            )
             kwargs["bypass_hpu_graphs"] = not self.use_graphs(
                 batch.prefilling, prompt_len, batch_size
             )
+        if self.sliding_window is not None and batch.prefilling:
+            attn_mask = seqlen.make_sliding_window_bias(
+                input_lengths.tolist(),
+                self.sliding_window,
+                self.dtype,
+                prompt_len,
+                batch_size,
+            )
+            seqlen.attn_mask = _async_h2d_tensor_copy(attn_mask)
 
         logits, speculative_logits = self.model.forward(
             input_ids=input_ids,
@@ -2303,6 +2435,7 @@ class FlashCausalLM(Model):
                 self.use_contiguous_pa,
                 self.bucketing_ctx,
                 self.tokenizer.pad_token_id,
+                self.sliding_window,
             )
         if hasattr(self, "set_inputs_embeds") and callable(self.set_inputs_embeds):
             self.set_inputs_embeds(batch)

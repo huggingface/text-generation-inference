@@ -280,6 +280,7 @@ class Starcoder2Attention(torch.nn.Module):
                 seqlen,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
+                window_size_left=self.max_past,
             )
 
         return self.o_proj(

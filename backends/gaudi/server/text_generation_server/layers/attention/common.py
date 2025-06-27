@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import torch
 from typing import Optional, List, Dict
 import collections
+import torch.nn.functional as F
 
 _TYPE_CACHE = {}
 
@@ -15,6 +16,12 @@ class HPUPagedAttentionMetadata:
     block_usage: Optional[torch.Tensor]
     block_groups: Optional[torch.Tensor]
     attn_bias: Optional[torch.Tensor]
+    slots_in_window_mask: Optional[torch.Tensor] = None
+    block_list_in_window: Optional[torch.Tensor] = None
+    block_mapping_in_window: Optional[torch.Tensor] = None
+    block_usage_in_window: Optional[torch.Tensor] = None
+    block_groups_in_window: Optional[torch.Tensor] = None
+    attn_bias_in_window: Optional[torch.Tensor] = None
 
 
 def subtuple(
@@ -67,6 +74,12 @@ def trim_attn_metadata(metadata: HPUPagedAttentionMetadata) -> object:
             "block_usage",
             "block_groups",
             "attn_bias",
+            "slots_in_window_mask",
+            "block_list_in_window",
+            "block_mapping_in_window",
+            "block_usage_in_window",
+            "block_groups_in_window",
+            "attn_bias_in_window",
         ],
     )
     return attention_metadata
@@ -75,6 +88,7 @@ def trim_attn_metadata(metadata: HPUPagedAttentionMetadata) -> object:
 @dataclass
 class Seqlen:
     input_lengths: torch.Tensor
+    attn_mask: Optional[torch.Tensor] = None
 
     def __init__(
         self,
@@ -85,6 +99,48 @@ class Seqlen:
     def clamp(self, max):
         # Flash decoding doesn't need to clamp
         return self
+
+    def make_sliding_window_bias(
+        self,
+        seq_lens: List[int],
+        window_size: Optional[int],
+        dtype: torch.dtype,
+        padded_input_len: Optional[int],
+        padded_bs: Optional[int],
+    ) -> List[torch.Tensor]:
+        attn_biases = []
+        for seq_len in seq_lens:
+            if seq_len != 0:
+                tensor = torch.full(
+                    (1, seq_len, seq_len),
+                    dtype=dtype,
+                    fill_value=1,
+                )
+                shift = 0
+                mask = torch.tril(tensor, diagonal=shift).to(dtype)  # type: ignore
+                if window_size is not None:
+                    mask = torch.triu(mask, diagonal=shift - window_size + 1)
+                mask = F.pad(
+                    mask,
+                    (
+                        padded_input_len - seq_len,
+                        0,
+                        padded_input_len - seq_len,
+                        0,
+                        0,
+                        0,
+                    ),
+                    value=0,
+                )
+            else:
+                mask = torch.full(
+                    (1, padded_input_len, padded_input_len),
+                    dtype=dtype,
+                    fill_value=0,
+                )
+            attn_biases.append(mask)
+        attn_biases = torch.stack(attn_biases, dim=0)
+        return attn_biases.to(torch.bool)
 
 
 def _async_h2d_tensor_copy(source, device="hpu"):
@@ -124,6 +180,7 @@ def trim_seqlen_metadata(metadata: Seqlen) -> object:
         "TrimmedSeqlen",
         [
             "input_lengths",
+            "attn_mask",
         ],
     )
     return attention_metadata
