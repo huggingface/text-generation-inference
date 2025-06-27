@@ -226,7 +226,7 @@ def generate_cross_attention_states(
     cross_attention_states, image_indices, input_lengths, pad_seq_len, prefilling
 ):
     if cross_attention_states is None:
-        return None, None, None
+        return None, None
     indices_list = []
     if prefilling:
         for i in image_indices:
