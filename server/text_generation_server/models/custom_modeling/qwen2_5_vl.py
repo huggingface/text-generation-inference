@@ -460,7 +460,7 @@ class Qwen2_5VLAttention(nn.Module):
         # execute flash attention
         if SYSTEM == "ipex":
             attn_output = torch.empty_like(query)
-            if query.device.dtype == "xpu":
+            if query.device.type == "xpu":
                 ipex.llm.functional.varlen_attention(
                     query.contiguous(),
                     key.contiguous(),
