@@ -3,12 +3,12 @@ use cxx::UniquePtr;
 use hashbrown::HashMap;
 use std::hint;
 use std::ops::Deref;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tokenizers::Tokenizer;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use tokio::sync::TryAcquireError;
 use tokio::task::spawn_blocking;
-use tokio::time::Instant;
+use tokio::time::{Duration, Instant};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, error, warn};
 
@@ -35,6 +35,9 @@ struct GenerationContext {
     tokens: Vec<u32>,
     start: Option<Instant>,
     queued: Instant,
+
+    /// output_buffer stores the output for detecting stop sequences
+    output_buffer: Option<String>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -49,16 +52,28 @@ impl<'step> TryFrom<&'step GenerationStep> for DecodedToken {
     type Error = InferError;
 
     fn try_from(step: &'step GenerationStep) -> Result<Self, Self::Error> {
-        if !step.has_error {
-            Ok(Self {
-                id: step.token_id,
-                log_prob: step.log_prob,
-                is_final: step.is_final,
-                finish_reason: step.finish_reason,
-            })
-        } else {
-            Err(GenerationError(step.error_msg.clone()))
+        if step.has_error {
+            return Err(GenerationError(step.error_msg.clone()));
         }
+
+        if !step.token_id_valid {
+            return Err(GenerationError(
+                "GenerationStep contains no token_id".to_string(),
+            ));
+        }
+
+        if !step.log_prob_valid {
+            return Err(GenerationError(
+                "GenerationStep contains no log_prob".to_string(),
+            ));
+        }
+
+        Ok(Self {
+            id: step.token_id,
+            log_prob: step.log_prob,
+            is_final: step.is_final,
+            finish_reason: step.finish_reason,
+        })
     }
 }
 
@@ -67,6 +82,7 @@ fn executor_status_looper(
     tokenizer: Tokenizer,
     mut backend: UniquePtr<TensorRtLlmBackendImpl>,
     mut backlog: UnboundedReceiver<GenerationContext>,
+    created_time: Instant,
 ) {
     // Track the tuple (request_id, stream) for each request
     let mut in_flights =
@@ -74,7 +90,12 @@ fn executor_status_looper(
 
     'scheduler: loop {
         // Is there any request pending to be scheduled?
-        let awaiting_requests = backlog.len();
+        let mut awaiting_requests = backlog.len();
+        if awaiting_requests == 0 && in_flights.is_empty() {
+            // Wait for 1 request if we are not waiting for any response,
+            // so that the loop blocks at receive from backlog.
+            awaiting_requests += 1;
+        }
         for _ in 0..awaiting_requests {
             // Retrieve all the requests
             if let Some(ctx) = backlog.blocking_recv() {
@@ -83,12 +104,17 @@ fn executor_status_looper(
                 let generation_params = &request.parameters;
                 let stopping_params = &request.stopping_parameters;
                 let input_ids = request.input_ids.as_deref();
+                let top_k = if generation_params.do_sample {
+                    generation_params.top_k
+                } else {
+                    1
+                };
 
                 // Submit to the TensorRT-LLM executor for scheduling
                 match backend.pin_mut().submit(
                     &input_ids.unwrap(), // This is checked beforehand in validate()
                     stopping_params.max_new_tokens,
-                    generation_params.top_k,
+                    top_k,
                     generation_params.top_p,
                     generation_params.temperature,
                     generation_params.repetition_penalty,
@@ -124,12 +150,22 @@ fn executor_status_looper(
                     for step in responses.deref() {
                         if let Some(ctx) = in_flights.get_mut(&step.request_id) {
                             // Update the starting timestamp if not set
-                            // This value might not be the actual real starting time of the request
-                            // on the executor side - Need to expose more info from the executor to
-                            // retrieve this value
-                            // TODO : Expose actual real starting time for a request on FFI layer
                             if ctx.start.is_none() {
-                                ctx.start = Some(Instant::now());
+                                if step.first_scheduled_time_ns_valid {
+                                    if step.first_scheduled_time_ns >= 0 {
+                                        ctx.start = created_time.checked_add(Duration::from_nanos(
+                                            step.first_scheduled_time_ns as u64,
+                                        ));
+                                    } else {
+                                        ctx.start = created_time.checked_sub(Duration::from_nanos(
+                                            -step.first_scheduled_time_ns as u64,
+                                        ));
+                                    }
+                                }
+
+                                if ctx.start.is_none() {
+                                    ctx.start = Some(Instant::now());
+                                }
                             }
 
                             // Try to map the generation step to a DecodedToken
@@ -151,7 +187,16 @@ fn executor_status_looper(
                                 let _ = in_flights.remove(&step.request_id);
                             }
                         } else {
-                            warn!("Untracked request {}", step.request_id,);
+                            match step.finish_reason {
+                                FinishReason::Cancelled => {
+                                    // The client has canceled the request, so this should not generate a
+                                    // warning.
+                                    debug!("Cancelled request {}", step.request_id);
+                                }
+                                _ => {
+                                    warn!("Untracked request {}", step.request_id);
+                                }
+                            }
                         }
                     }
                 }
@@ -170,11 +215,39 @@ fn executor_status_looper(
 fn post_process_decoded_token(
     tokenizer: &Tokenizer,
     ctx: &mut GenerationContext,
-    decoded_token: DecodedToken,
+    mut decoded_token: DecodedToken,
 ) -> InferResult<InferStreamResponse> {
     match tokenizer.decode(&[decoded_token.id], false) {
         Ok(text) => {
             let is_special = tokenizer.get_added_vocabulary().is_special_token(&text);
+
+            if let Some(buf) = ctx.output_buffer.as_mut() {
+                if buf.len() + text.len() > buf.capacity() {
+                    let mut start = buf.len() + text.len() - buf.capacity();
+                    while start <= buf.len() && !buf.is_char_boundary(start) {
+                        start += 1;
+                    }
+                    buf.drain(..start);
+                }
+                buf.push_str(&text);
+
+                for stop_seq in &ctx.request.stopping_parameters.stop_sequences {
+                    let start = if 1 + buf.len() > text.len() + stop_seq.len() {
+                        let mut start = 1 + buf.len() - text.len() - stop_seq.len();
+                        while start > 0 && !buf.is_char_boundary(start) {
+                            start -= 1;
+                        }
+                        start
+                    } else {
+                        0
+                    };
+                    if buf[start..].contains(stop_seq) {
+                        decoded_token.is_final = true;
+                        decoded_token.finish_reason = FinishReason::StopWords;
+                    }
+                }
+            }
+
             let token = Token {
                 id: decoded_token.id,
                 text,
@@ -231,6 +304,26 @@ fn ensure_paths_exist<P: AsRef<Path>, PP: AsRef<Path>>(
         return Err(err);
     }
 
+    let mut config_path = PathBuf::from(engine_folder);
+    config_path.push("config.json");
+
+    if !config_path.exists() {
+        let err = TensorRtLlmBackendError::ConfigNotFound(engine_folder.to_path_buf());
+
+        error!("Path validation failed: {}", err,);
+        return Err(err);
+    }
+
+    let mut generation_config_path = PathBuf::from(engine_folder);
+    generation_config_path.push("generation_config.json");
+
+    if !generation_config_path.exists() {
+        let err = TensorRtLlmBackendError::GenerationConfigNotFound(engine_folder.to_path_buf());
+
+        error!("Path validation failed: {}", err,);
+        return Err(err);
+    }
+
     // Ensure executor worker binary exists
     if !executor_worker_path.exists() {
         let err = TensorRtLlmBackendError::ExecutorWorkerNotFound(engine_folder.to_path_buf());
@@ -271,13 +364,23 @@ impl TensorRtLlmBackendV2 {
         // Allocate the IPC layer to communicate with the backend
         let (executor_sender, executor_receiver) = unbounded_channel();
 
+        // This is a reference point to convert time from c++ time_point
+        // to rust Instant.
+        let created_time = Instant::now();
+
         // Create the FFI backend
         let backend = create_backend_from_engine_folder(&engine_folder, &executor_worker_path)
             .map_err(|e| TensorRtLlmBackendError::Runtime(first_line(e.what(), "Unknown error")))?;
 
         // Executor looper is responsible for scheduling and pulling requests state at regular interval
         spawn_blocking(move || {
-            executor_status_looper(max_inflight_requests, tokenizer, backend, executor_receiver)
+            executor_status_looper(
+                max_inflight_requests,
+                tokenizer,
+                backend,
+                executor_receiver,
+                created_time,
+            )
         });
 
         Ok(TensorRtLlmBackendV2(executor_sender))
@@ -323,12 +426,20 @@ impl Backend for TensorRtLlmBackendV2 {
 
         // Send the context to the executor for scheduling
         let queued = Instant::now();
+        let output_buffer = request
+            .stopping_parameters
+            .stop_sequences
+            .iter()
+            .map(|x| x.len())
+            .max()
+            .map(|m| String::with_capacity(m + 32)); // TODO: is this number enough?
         match self.0.send(GenerationContext {
             request,
             streamer,
             tokens: Vec::with_capacity(256),
             start: None,
             queued,
+            output_buffer,
         }) {
             Ok(_) => Ok(UnboundedReceiverStream::new(receiver)),
             Err(_) => Err(GenerationError(
