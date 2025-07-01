@@ -51,9 +51,8 @@ class LoraLinear(nn.Module):
             return result
         data: Optional["BatchLoraWeights"] = adapter_data.data.get(layer_type)
 
-        if (
-            data is not None
-            and SYSTEM == "ipex"
+        if data is not None and (
+            SYSTEM == "ipex"
             or (punica_sgmv is not None and data.can_vectorize(self.process_group))
         ):
             # In tensor-parallel configurations, each GPU processes a specific segment of the output.
