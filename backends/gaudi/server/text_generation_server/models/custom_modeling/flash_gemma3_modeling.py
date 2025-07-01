@@ -135,9 +135,6 @@ class FlashGemma3Attention(torch.nn.Module):
         self.causal = causal
         if is_sliding:
             self.window_size = config.sliding_window
-            # TODO: remove this hack to support local sliding window
-            config = copy.deepcopy(config)
-            config.rope_scaling = dict(rope_type="default")
             self.rotary_emb = local_rotary_emb
         else:
             self.window_size = -1
@@ -267,6 +264,7 @@ class FlashGemma3Attention(torch.nn.Module):
                 softcap=self.softcap,
                 kv_scales=self.kv_scales,
                 hpu_attention_meta=hpu_attention_meta,
+                window_size_left=self.window_size,
             )
 
         return self.o_proj(
@@ -425,8 +423,10 @@ class FlashGemma3Model(torch.nn.Module):
         process_group = weights.process_group
         self.tp_rank = process_group.rank()
         self.tp_world_size = process_group.size()
+        local_config = copy.deepcopy(config)
+        local_config.rope_scaling = dict(rope_type="default")
         local_rotary_emb = PositionRotaryEmbedding.static(
-            config=config,
+            config=local_config,
             dim=config.head_dim,
             base=config.rope_local_base_freq,
             device=weights.device,

@@ -11,7 +11,7 @@ from text_generation_server.pb import generate_pb2
 from text_generation_server.models.flash_causal_lm import (
     FlashCausalLMBatch,
     FlashCausalLM,
-    prepare_for_decode,
+    generate_block_metadata,
 )
 from text_generation_server.models.globals import PREFIX_CACHING, BLOCK_SIZE
 from loguru import logger
@@ -21,6 +21,8 @@ from text_generation_server.layers.attention import (
     Seqlen,
     trim_seqlen_metadata,
     _async_h2d_tensor_copy,
+    HPUPagedAttentionMetadata,
+    trim_attn_metadata,
 )
 import habana_frameworks.torch as htorch
 import time
@@ -749,33 +751,79 @@ class FlashVlmCausalLM(FlashCausalLM):
             )
         blocks = [block_num // batch_size for _ in range(batch_size)]
         blocks[0] += block_num % batch_size
-        past_len = []
         block_tables = []
         slots = []
         start_idx = 0
+        slot_indices = []
 
         # fetch the last blocked to warmup block num
+
         for i in range(batch_size):
             block_array = list(range(start_idx, start_idx + blocks[i]))
             slots.append(BLOCK_SIZE * block_array[-1] + BLOCK_SIZE - 1)
             block_tables.append(block_array)
-            past_len.append(blocks[i] * BLOCK_SIZE - 1)
+            slot_indices.append((start_idx + blocks[i]) * BLOCK_SIZE - 1)
             start_idx += blocks[i]
         input_lengths = torch.ones(batch_size, dtype=torch.int32)
 
         seqlen = Seqlen(
             input_lengths=_async_h2d_tensor_copy(input_lengths),
         )
-
-        hpu_attention_meta = prepare_for_decode(
-            self.dtype,
-            self.use_contiguous_pa,
-            self.device,
-            slots,
-            block_tables,
-            batch_size,
-            bucketing_ctx=None,
+        block_list, block_groups, block_usage, _, block_bucket_size = (
+            generate_block_metadata(
+                self.dtype,
+                self.use_contiguous_pa,
+                slots,
+                block_tables,
+                self.bucketing_ctx,
+            )
         )
+        meta = HPUPagedAttentionMetadata(
+            block_list=_async_h2d_tensor_copy(block_list),
+            block_groups=_async_h2d_tensor_copy(block_groups),
+            block_usage=_async_h2d_tensor_copy(block_usage),
+            block_mapping=None,
+            attn_bias=None,
+        )
+        if self.sliding_window is not None:
+            block_tables_in_window = []
+            for i, bt in enumerate(block_tables):
+                block_num_in_window = (
+                    self.sliding_window + BLOCK_SIZE - 1
+                ) // BLOCK_SIZE
+                block_tables_in_window.append(
+                    bt[max(0, blocks[i] - block_num_in_window) : blocks[i]]
+                )
+            slots_in_window = []
+            start_idx = 0
+            for i, indice in enumerate(slot_indices):
+                mask = (
+                    indice - torch.arange(start_idx, indice + 1)
+                ) < self.sliding_window
+                slots_in_window.append(torch.arange(start_idx, indice + 1)[mask])
+                start_idx += blocks[i] * BLOCK_SIZE
+            slots_in_window = torch.cat(slots_in_window, dim=0)
+            (
+                block_list_in_window,
+                block_groups_in_window,
+                block_usage_in_window,
+                slots_in_window_mask,
+                _,
+            ) = generate_block_metadata(
+                self.dtype,
+                self.use_contiguous_pa,
+                slots,
+                block_tables_in_window,
+                self.bucketing_ctx,
+                slots_in_window,
+                block_bucket_size,
+            )
+            meta.block_list_in_window = _async_h2d_tensor_copy(block_list_in_window)
+            meta.block_groups_in_window = _async_h2d_tensor_copy(block_groups_in_window)
+            meta.block_usage_in_window = _async_h2d_tensor_copy(block_usage_in_window)
+            meta.slots_in_window_mask = _async_h2d_tensor_copy(slots_in_window_mask)
+
+        hpu_attention_meta = trim_attn_metadata(meta)
         slots_tensor = torch.tensor(slots, dtype=batch.slots.dtype)
         inputs_embeds = self.get_inputs_embeds(
             input_ids=input_ids.to(self.device),
@@ -1011,17 +1059,6 @@ class FlashVlmCausalLM(FlashCausalLM):
             # This makes sure the max_s for the decode pass is correct.
             max_s = min(self.max_past(), max_s)
 
-        kwargs = {}
-        if htorch.utils.internal.is_lazy():
-            batch_size = input_lengths.shape[0]
-            seqlen = (
-                input_ids.shape[0] // batch_size
-                if batch.prefilling
-                else batch.hpu_attn_meta.block_list.shape[0]
-            )
-            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
-                batch.prefilling, seqlen, batch_size
-            )
         if batch.prefill_cache_indices is not None:
             slots_pad = torch.zeros_like(input_ids, device=slots.device)
             slots_pad[batch.prefill_cache_indices] = slots
@@ -1034,6 +1071,26 @@ class FlashVlmCausalLM(FlashCausalLM):
         seqlen = Seqlen(
             input_lengths=_async_h2d_tensor_copy(input_lengths),
         )
+        kwargs = {}
+        batch_size = input_lengths.shape[0]
+        prompt_len = (
+            input_ids.shape[0] // batch_size
+            if batch.prefilling
+            else batch.hpu_attn_meta.block_list.shape[0]
+        )
+        if htorch.utils.internal.is_lazy():
+            kwargs["bypass_hpu_graphs"] = not self.use_graphs(
+                batch.prefilling, prompt_len, batch_size
+            )
+        if self.sliding_window is not None:
+            attn_mask = seqlen.make_sliding_window_bias(
+                input_lengths.tolist(),
+                self.sliding_window,
+                self.dtype,
+                prompt_len,
+                batch_size,
+            )
+            seqlen.attn_mask = _async_h2d_tensor_copy(attn_mask)
         logits, speculative_logits = self.model.forward(
             inputs_embeds=inputs_embeds,
             position_ids=_async_h2d_tensor_copy(position_ids),

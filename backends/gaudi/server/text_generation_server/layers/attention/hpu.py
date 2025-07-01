@@ -94,13 +94,13 @@ def attention(
         query,
         key,
         value,
-        attn_mask=None,
+        attn_mask=seqlen.attn_mask if window_size_left != -1 else None,
         dropout_p=0.0,
-        is_causal=causal,
+        is_causal=causal if window_size_left == -1 else False,
         scale=softmax_scale,
         softmax_mode="None",
         recompute_mode=None,
-        valid_sequence_lengths=seqlen.input_lengths,
+        valid_sequence_lengths=seqlen.input_lengths if window_size_left == -1 else None,
         padding_side="left",
     )
     attn_output = attn_output.transpose(1, 2).squeeze(0).contiguous()
@@ -119,6 +119,15 @@ def set_block_mapping(hpu_attention_meta: HPUPagedAttentionMetadata, batch_size)
     hpu_attention_meta = hpu_attention_meta._replace(
         attn_bias=attn_bias, block_mapping=block_mapping.to(dtype)
     )
+    if hpu_attention_meta.block_groups_in_window is not None:
+        block_mapping = torch.nn.functional.one_hot(
+            hpu_attention_meta.block_groups_in_window, num_classes=batch_size
+        )
+        attn_bias = torch.log(hpu_attention_meta.slots_in_window_mask.float())
+        hpu_attention_meta = hpu_attention_meta._replace(
+            attn_bias_in_window=attn_bias,
+            block_mapping_in_window=block_mapping.to(dtype),
+        )
     return hpu_attention_meta
 
 
@@ -132,6 +141,7 @@ def paged_attention(
     kv_scales: KVScales,
     softcap: Optional[float] = None,
     hpu_attention_meta: HPUPagedAttentionMetadata,
+    window_size_left: int = -1,
 ):
     batch_size, head_num, head_size = query.shape
     fp8_kv = kv_cache.dtype == torch.float8_e4m3fn
@@ -139,10 +149,26 @@ def paged_attention(
         query=query.view(batch_size, 1, head_num * head_size),
         key_cache=kv_cache.key,
         value_cache=kv_cache.value,
-        block_list=hpu_attention_meta.block_list,
-        block_mapping=hpu_attention_meta.block_mapping,
-        block_bias=hpu_attention_meta.attn_bias,
-        block_groups=hpu_attention_meta.block_groups,
+        block_list=(
+            hpu_attention_meta.block_list
+            if window_size_left == -1
+            else hpu_attention_meta.block_list_in_window
+        ),
+        block_mapping=(
+            hpu_attention_meta.block_mapping
+            if window_size_left == -1
+            else hpu_attention_meta.block_mapping_in_window
+        ),
+        block_bias=(
+            hpu_attention_meta.attn_bias
+            if window_size_left == -1
+            else hpu_attention_meta.attn_bias_in_window
+        ),
+        block_groups=(
+            hpu_attention_meta.block_groups
+            if window_size_left == -1
+            else hpu_attention_meta.block_groups_in_window
+        ),
         block_size=BLOCK_SIZE,
         scale=softmax_scale,
         matmul_qk_op=FP8Matmul(kv_scales.key_scale) if fp8_kv else Matmul(),
