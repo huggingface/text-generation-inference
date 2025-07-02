@@ -140,12 +140,6 @@ class FlashLlamaAttention(torch.nn.Module):
         self.hidden_size = config.hidden_size
         self.head_size = self.hidden_size // self.num_heads
 
-        # Setting defaults for baichuan custom config which doesn't apply them.
-        config.rope_theta = getattr(config, "rope_theta", 10000)
-        config.num_key_value_heads = getattr(
-            config, "num_key_value_heads", config.num_attention_heads
-        )
-
         self.rotary_emb = rotary_emb
 
         # `config.attention_multiplier` is used in Granite
@@ -476,7 +470,11 @@ class FlashLlamaModel(torch.nn.Module):
         # Skip fp8 quant for first and last layers
         self.layers = nn.ModuleList()
         self.cross_attention_layers = getattr(config, "cross_attention_layers", [])
-
+        # Setting defaults for baichuan custom config which doesn't apply them.
+        config.rope_theta = getattr(config, "rope_theta", 10000)
+        config.num_key_value_heads = getattr(
+            config, "num_key_value_heads", config.num_attention_heads
+        )
         rotary_emb = PositionRotaryEmbedding.static(
             config=config,
             dim=config.hidden_size // config.num_attention_heads,
