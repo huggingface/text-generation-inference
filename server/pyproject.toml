@@ -80,7 +80,7 @@ peft = [
     "peft>=0.14.0",
 ]
 outlines = [
-    "outlines>=0.1.13",
+    "outlines>=0.1.13,<1.0",
 ]
 dev = [
     "grpcio-tools>=1.51.1,<2.0",
