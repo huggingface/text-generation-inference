@@ -350,13 +350,13 @@ impl Validation {
                     return Err(ValidationError::Grammar);
                 }
                 let valid_grammar = match grammar {
-                    GrammarType::Json(json) => {
-                        let json = match json {
+                    GrammarType::Json { value } => {
+                        let json = match value {
                             // if value is a string, we need to parse it again to make sure its
                             // a valid json
                             Value::String(s) => serde_json::from_str(&s)
                                 .map_err(|e| ValidationError::InvalidGrammar(e.to_string())),
-                            Value::Object(_) => Ok(json),
+                            Value::Object(_) => Ok(value),
                             _ => Err(ValidationError::Grammar),
                         }?;
 
@@ -380,9 +380,9 @@ impl Validation {
 
                         ValidGrammar::Regex(grammar_regex.to_string())
                     }
-                    GrammarType::JsonSchema(schema_config) => {
+                    GrammarType::JsonSchema(json_schema) => {
                         // Extract the actual schema for validation
-                        let json = &schema_config.schema;
+                        let json = json_schema.schema_value();
 
                         // Check if the json is a valid JSONSchema
                         jsonschema::draft202012::meta::validate(json)
@@ -402,7 +402,7 @@ impl Validation {
 
                         ValidGrammar::Regex(grammar_regex.to_string())
                     }
-                    GrammarType::Regex(regex) => ValidGrammar::Regex(regex),
+                    GrammarType::Regex { value } => ValidGrammar::Regex(value),
                 };
                 Some(valid_grammar)
             }
