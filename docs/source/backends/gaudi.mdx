@@ -120,7 +120,7 @@ curl -N 127.0.0.1:8080/generate \
     -H 'Content-Type: application/json'
 ```
 
-> Note: In Llava-v1.6-Mistral-7B, an image usually accounts for 2000 input tokens. For example, an image of size 512x512 is represented by 2800 tokens. Thus, `max-input-tokens` must be larger than the number of tokens associated with the image. Otherwise the image may be truncated. The value of `max-batch-prefill-tokens` is 16384, which is calcualted as follows: `prefill_batch_size` = `max-batch-prefill-tokens` / `max-input-tokens`.
+> Note: In Llava-v1.6-Mistral-7B, an image usually accounts for 2000 input tokens. For example, an image of size 512x512 is represented by 2800 tokens. Thus, `max-input-tokens` must be larger than the number of tokens associated with the image. Otherwise the image may be truncated. The value of `max-batch-prefill-tokens` is 16384, which is calculated as follows: `prefill_batch_size` = `max-batch-prefill-tokens` / `max-input-tokens`.
 
 ### How to Benchmark Performance
 
@@ -171,7 +171,7 @@ Note: Model warmup can take several minutes, especially for FP8 inference. For f
 #### Batch Size Parameters
 - For prefill operation, please set `--max-batch-prefill-tokens` as `bs * max-input-tokens`, where `bs` is your expected maximum prefill batch size.
 - For decode operation, please set `--max-batch-size` as `bs`, where `bs` is your expected maximum decode batch size.
-- Please note that batch size will be always padded to the nearest shapes what has been warmed up. This is done to avoid out of memory issues and to ensure that the graphs are reused efficiently.
+- Please note that batch size will be always padded to the nearest shapes that has been warmed up. This is done to avoid out of memory issues and to ensure that the graphs are reused efficiently.
 
 
 ## Reference
