@@ -51,10 +51,12 @@ class FP8SparseMoELayer(nn.Module):
         self.rank = weights.process_group.rank()
         self.ep_rank = self.rank
         self.use_ep = os.getenv("USE_EXPERT_PARALLEL", "true").lower() == "true"
-
+        if (n_experts + self.world_size - 1) // self.world_size < 4:
+            self.use_ep = False
         if self.use_ep:
-            n_experts = (n_experts + self.world_size - 1) // self.world_size
-            self.ep_offset = self.ep_rank * n_experts
+            n_experts_per_rank = (n_experts + self.world_size - 1) // self.world_size
+            self.ep_offset = self.ep_rank * n_experts_per_rank
+            n_experts = min(n_experts_per_rank, n_experts - self.ep_offset)
         else:
             self.ep_offset = 0
 

@@ -21,6 +21,7 @@ import torch.nn.functional as F
 from text_generation_server.layers.attention import (
     attention,
     paged_attention,
+    set_block_mapping,
     Seqlen,
     HPUPagedAttentionMetadata,
 )
@@ -466,6 +467,10 @@ class Qwen3MoeModel(nn.Module):
         seqlen: Seqlen,
         hpu_attention_meta: Optional[HPUPagedAttentionMetadata],
     ) -> torch.Tensor:
+        if hpu_attention_meta is not None:
+            hpu_attention_meta = set_block_mapping(
+                hpu_attention_meta, inputs_embeds.shape[0]
+            )
 
         hidden_states = inputs_embeds
 
