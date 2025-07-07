@@ -96,9 +96,13 @@ impl ToolGrammar {
                                         if ref_str.starts_with("#/$defs/") {
                                             // Replace $defs with $functions/{func.name}/$defs to handle
                                             // function-specific definitions
-                                            new_obj.insert("$ref".to_string(), Value::String(
-                                                ref_str.replace("#/$defs/", &format!("#/$functions/{}/$defs/", func.name))
-                                            ));
+                                            new_obj.insert(
+                                                "$ref".to_string(),
+                                                Value::String(ref_str.replace(
+                                                    "#/$defs/",
+                                                    &format!("#/$functions/{}/$defs/", func.name),
+                                                )),
+                                            );
                                         }
                                     }
                                     Value::Object(new_obj)

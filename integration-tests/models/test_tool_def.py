@@ -46,6 +46,12 @@ async def test_flash_gemma3_defs(flash_gemma3, response_snapshot):
         seed=42,
     )
 
-    assert response.choices[0].message.tool_calls[0]["function"]["name"] == "classify_weather"
-    assert response.choices[0].message.tool_calls[0]["function"]["arguments"] == '{"weather":"sunny"}'
+    assert (
+        response.choices[0].message.tool_calls[0]["function"]["name"]
+        == "classify_weather"
+    )
+    assert (
+        response.choices[0].message.tool_calls[0]["function"]["arguments"]
+        == '{"weather":"sunny"}'
+    )
     assert response == response_snapshot
