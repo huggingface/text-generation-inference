@@ -710,34 +710,41 @@ class MllamaTextCrossAttention(nn.Module):
         # )
         if SYSTEM == "ipex":
             attn_output = torch.empty_like(query_states)
-            ipex.llm.functional.varlen_attention(
-                (
-                    query_states.contiguous()
-                    if query_states.device.type == "xpu"
-                    else query_states
-                ),
-                (
-                    key_states.contiguous()
-                    if key_states.device.type == "xpu"
-                    else key_states
-                ),
-                (
-                    value_states.contiguous()
-                    if value_states.device.type == "xpu"
-                    else value_states
-                ),
-                attn_output,
-                cu_seqlen_q,
-                cu_seqlen_k,
-                max_q,
-                max_k,
-                0.0,
-                self.softmax_scale,
-                False,
-                causal,
-                False,
-                None,
-            )
+            if query_states.device.type == "xpu":
+                ipex.llm.functional.varlen_attention(
+                    query_states.contiguous(),
+                    key_states.contiguous(),
+                    value_states.contiguous(),
+                    attn_output,
+                    cu_seqlen_q,
+                    cu_seqlen_k,
+                    None,
+                    max_q,
+                    max_k,
+                    0.0,
+                    self.softmax_scale,
+                    False,
+                    causal,
+                    False,
+                    None,
+                )
+            else:
+                ipex.llm.functional.varlen_attention(
+                    query_states,
+                    key_states,
+                    value_states,
+                    attn_output,
+                    cu_seqlen_q,
+                    cu_seqlen_k,
+                    max_q,
+                    max_k,
+                    0.0,
+                    self.softmax_scale,
+                    False,
+                    causal,
+                    False,
+                    None,
+                )
         else:
             attn_output = flash_attn_2_cuda.varlen_fwd(
                 query_states,
