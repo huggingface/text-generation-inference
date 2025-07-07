@@ -79,14 +79,23 @@ def initialize_torch_distributed():
                     ), "Each process is one xpu"
                     device = RANK % torch.xpu.device_count()
                     torch.xpu.set_device(device)
-
-                ipex.distributed.init_process_group(
-                    backend="ccl",
-                    world_size=WORLD_SIZE,
-                    rank=RANK,
-                    timeout=timedelta(seconds=120),
-                    pg_options=options,
-                )
+                    device_id = torch.device(f"xpu:{RANK}")
+                    torch.distributed.init_process_group(
+                        backend="xccl",
+                        world_size=WORLD_SIZE,
+                        rank=RANK,
+                        timeout=timedelta(seconds=120),
+                        pg_options=options,
+                        device_id=device_id,
+                    )
+                else:
+                    ipex.distributed.init_process_group(
+                        backend="ccl",
+                        world_size=WORLD_SIZE,
+                        rank=RANK,
+                        timeout=timedelta(seconds=120),
+                        pg_options=options,
+                    )
             else:
                 device = torch.device(f"cuda:{RANK}")
                 torch.distributed.init_process_group(
