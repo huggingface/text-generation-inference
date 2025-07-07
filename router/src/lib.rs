@@ -1853,72 +1853,73 @@ mod grammar_tests {
     use serde_json::json;
 
     #[test]
-    fn parse_plain_schema() {
+    fn parse_regex() {
         let raw = json!({
-            "type": "json_schema",
-            "format": "plain",
-            "value": { "type": "integer" }
+            "type": "regex",
+            "value": "^\\d+$"
         });
         let parsed: GrammarType = serde_json::from_value(raw).unwrap();
 
-        println!("Parsed: {:#?}", parsed);
-
-        // match parsed {
-        //     GrammarType::JsonSchema(JsonSchemaPayload::Plain { schema }) => {
-        //         assert_eq!(schema, &json!({"type":"integer"}));
-        //     }
-        //     _ => panic!("wrong variant"),
-        // }
-
-        assert!(false);
+        match parsed {
+            GrammarType::Regex { value } => assert_eq!(value, "^\\d+$"),
+            _ => panic!("Expected Regex variant"),
+        }
     }
 
-    // #[test]
-    // fn parse_config_schema() {
-    //     let raw = json!({
-    //         "type": "json_schema",
-    //         "format": "configated",
-    //         "name": "User",
-    //         "strict": false,
-    //         "schema": { "type": "object" }
-    //     });
-    //     let parsed: GrammarType = serde_json::from_value(raw).unwrap();
+    #[test]
+    fn parse_json_value() {
+        let raw = json!({
+            "type": "json",
+            "value": { "enum": ["a", "b"] }
+        });
+        let parsed: GrammarType = serde_json::from_value(raw).unwrap();
 
-    //     match parsed {
-    //         GrammarType::JsonSchema(JsonSchemaPayload::Configated(cfg)) => {
-    //             assert_eq!(cfg.name.as_deref(), Some("User"));
-    //             assert!(!cfg.strict);
-    //             assert_eq!(cfg.schema, json!({"type":"object"}));
-    //         }
-    //         _ => panic!("wrong variant"),
-    //     }
-    // }
+        match parsed {
+            GrammarType::Json { value } => assert_eq!(value, json!({"enum":["a","b"]})),
+            _ => panic!("Expected Json variant"),
+        }
+    }
 
-    // #[test]
-    // fn parse_regex() {
-    //     let raw = json!({
-    //         "type": "regex",
-    //         "value": "^\\d+$"
-    //     });
-    //     let parsed: GrammarType = serde_json::from_value(raw).unwrap();
+    #[test]
+    fn parse_json_schema() {
+        let raw = json!({
+            "type": "json_schema",
+            "json_schema": { "schema": {"type":"integer"} }
+        });
+        let parsed: GrammarType = serde_json::from_value(raw).unwrap();
 
-    //     match parsed {
-    //         GrammarType::Regex { value } => assert_eq!(value, "^\\d+$"),
-    //         _ => panic!("wrong variant"),
-    //     }
-    // }
+        match parsed {
+            GrammarType::JsonSchema { json_schema } => {
+                assert_eq!(json_schema, json!({"type":"integer"}));
+            }
+            _ => panic!("Expected JsonSchema variant"),
+        }
+    }
 
-    // #[test]
-    // fn parse_json_value() {
-    //     let raw = json!({
-    //         "type": "json",
-    //         "value": { "enum": ["a", "b"] }
-    //     });
-    //     let parsed: GrammarType = serde_json::from_value(raw).unwrap();
+    #[test]
+    fn parse_regex_ip_address() {
+        let raw = json!({
+            "type": "regex",
+            "value": "((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)"
+        });
+        let parsed: GrammarType = serde_json::from_value(raw).unwrap();
 
-    //     match parsed {
-    //         GrammarType::Json { value } => assert_eq!(value, json!({"enum":["a","b"]})),
-    //         _ => panic!("wrong variant"),
-    //     }
-    // }
+        match parsed {
+            GrammarType::Regex { value } => {
+                assert!(value.contains("25[0-5]"));
+            }
+            _ => panic!("Expected Regex variant"),
+        }
+    }
+
+    #[test]
+    fn parse_invalid_type_should_fail() {
+        let raw = json!({
+            "type": "invalid_type",
+            "value": "test"
+        });
+
+        let result: Result<GrammarType, _> = serde_json::from_value(raw);
+        assert!(result.is_err());
+    }
 }
