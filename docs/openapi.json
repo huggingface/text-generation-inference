@@ -1779,25 +1779,20 @@
             }
           },
           {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/JsonSchemaFormat"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "type"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "json_schema"
-                    ]
-                  }
-                }
+            "type": "object",
+            "required": [
+              "json_schema",
+              "type"
+            ],
+            "properties": {
+              "json_schema": {},
+              "type": {
+                "type": "string",
+                "enum": [
+                  "json_schema"
+                ]
               }
-            ]
+            }
           }
         ],
         "discriminator": {
@@ -1890,56 +1885,6 @@
             "example": "0.5.0"
           }
         }
-      },
-      "JsonSchemaConfig": {
-        "type": "object",
-        "required": [
-          "schema"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Optional name identifier for the schema",
-            "nullable": true
-          },
-          "schema": {
-            "description": "The actual JSON schema definition"
-          }
-        }
-      },
-      "JsonSchemaFormat": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": [
-              "json_schema"
-            ],
-            "properties": {
-              "json_schema": {
-                "$ref": "#/components/schemas/JsonSchemaOrConfig"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": [
-              "value"
-            ],
-            "properties": {
-              "value": {
-                "$ref": "#/components/schemas/JsonSchemaOrConfig"
-              }
-            }
-          }
-        ]
-      },
-      "JsonSchemaOrConfig": {
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/JsonSchemaConfig"
-          },
-          {}
-        ]
       },
       "Message": {
         "allOf": [

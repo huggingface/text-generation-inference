@@ -224,17 +224,6 @@ impl HubProcessorConfig {
 
 #[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
 #[cfg_attr(test, derive(PartialEq))]
-pub struct JsonSchemaConfig {
-    /// Optional name identifier for the schema
-    #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
-
-    /// The actual JSON schema definition
-    schema: serde_json::Value,
-}
-
-#[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
-#[cfg_attr(test, derive(PartialEq))]
 #[serde(tag = "type")]
 pub(crate) enum GrammarType {
     /// A string that represents a [JSON Schema](https://json-schema.org/).
@@ -253,43 +242,26 @@ pub(crate) enum GrammarType {
     ///
     /// Includes an optional name for the schema, an optional strict flag, and the required schema definition.
     #[serde(rename = "json_schema")]
-    JsonSchema(JsonSchemaFormat),
+    JsonSchema {
+        #[serde(alias = "value")]
+        #[serde(deserialize_with = "custom_json_schema::deserialize_json_schema")]
+        json_schema: serde_json::Value,
+    },
 }
 
-#[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
-#[cfg_attr(test, derive(PartialEq))]
-#[serde(untagged)]
-pub enum JsonSchemaFormat {
-    JsonSchema { json_schema: JsonSchemaOrConfig },
-    Value { value: JsonSchemaOrConfig },
-}
+mod custom_json_schema {
+    use serde::{Deserialize, Deserializer};
+    use serde_json::Value;
 
-#[derive(Clone, Debug, Deserialize, ToSchema, Serialize)]
-#[cfg_attr(test, derive(PartialEq))]
-#[serde(untagged)]
-pub enum JsonSchemaOrConfig {
-    Config(JsonSchemaConfig),
-    Value(serde_json::Value),
-}
-
-impl JsonSchemaOrConfig {
-    pub fn schema_value(&self) -> &serde_json::Value {
-        match self {
-            JsonSchemaOrConfig::Config(config) => &config.schema,
-            JsonSchemaOrConfig::Value(value) => value,
-        }
-    }
-}
-
-impl JsonSchemaFormat {
-    pub fn schema_value(&self) -> &serde_json::Value {
-        let config = match self {
-            Self::JsonSchema { json_schema } | Self::Value { value: json_schema } => json_schema,
-        };
-        match config {
-            JsonSchemaOrConfig::Config(config) => &config.schema,
-            JsonSchemaOrConfig::Value(value) => value,
-        }
+    pub fn deserialize_json_schema<'de, D>(deserializer: D) -> Result<Value, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value: Value = Deserialize::deserialize(deserializer)?;
+        value
+            .get("schema")
+            .cloned()
+            .ok_or_else(|| serde::de::Error::custom("Expected a 'schema' field"))
     }
 }
 
@@ -1873,4 +1845,80 @@ mod tests {
             })
         );
     }
+}
+
+#[cfg(test)]
+mod grammar_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parse_plain_schema() {
+        let raw = json!({
+            "type": "json_schema",
+            "format": "plain",
+            "value": { "type": "integer" }
+        });
+        let parsed: GrammarType = serde_json::from_value(raw).unwrap();
+
+        println!("Parsed: {:#?}", parsed);
+
+        // match parsed {
+        //     GrammarType::JsonSchema(JsonSchemaPayload::Plain { schema }) => {
+        //         assert_eq!(schema, &json!({"type":"integer"}));
+        //     }
+        //     _ => panic!("wrong variant"),
+        // }
+
+        assert!(false);
+    }
+
+    // #[test]
+    // fn parse_config_schema() {
+    //     let raw = json!({
+    //         "type": "json_schema",
+    //         "format": "configated",
+    //         "name": "User",
+    //         "strict": false,
+    //         "schema": { "type": "object" }
+    //     });
+    //     let parsed: GrammarType = serde_json::from_value(raw).unwrap();
+
+    //     match parsed {
+    //         GrammarType::JsonSchema(JsonSchemaPayload::Configated(cfg)) => {
+    //             assert_eq!(cfg.name.as_deref(), Some("User"));
+    //             assert!(!cfg.strict);
+    //             assert_eq!(cfg.schema, json!({"type":"object"}));
+    //         }
+    //         _ => panic!("wrong variant"),
+    //     }
+    // }
+
+    // #[test]
+    // fn parse_regex() {
+    //     let raw = json!({
+    //         "type": "regex",
+    //         "value": "^\\d+$"
+    //     });
+    //     let parsed: GrammarType = serde_json::from_value(raw).unwrap();
+
+    //     match parsed {
+    //         GrammarType::Regex { value } => assert_eq!(value, "^\\d+$"),
+    //         _ => panic!("wrong variant"),
+    //     }
+    // }
+
+    // #[test]
+    // fn parse_json_value() {
+    //     let raw = json!({
+    //         "type": "json",
+    //         "value": { "enum": ["a", "b"] }
+    //     });
+    //     let parsed: GrammarType = serde_json::from_value(raw).unwrap();
+
+    //     match parsed {
+    //         GrammarType::Json { value } => assert_eq!(value, json!({"enum":["a","b"]})),
+    //         _ => panic!("wrong variant"),
+    //     }
+    // }
 }

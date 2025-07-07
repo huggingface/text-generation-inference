@@ -380,24 +380,23 @@ impl Validation {
 
                         ValidGrammar::Regex(grammar_regex.to_string())
                     }
-                    GrammarType::JsonSchema(json_schema) => {
+                    GrammarType::JsonSchema { json_schema } => {
                         // Extract the actual schema for validation
-                        let json = json_schema.schema_value();
-
                         // Check if the json is a valid JSONSchema
-                        jsonschema::draft202012::meta::validate(json)
+                        jsonschema::draft202012::meta::validate(&json_schema)
                             .map_err(|e| ValidationError::InvalidGrammar(e.to_string()))?;
 
                         // The schema can be valid but lack properties.
                         // We need properties for the grammar to be successfully parsed in Python.
                         // Therefore, we must check and throw an error if properties are missing.
-                        json.get("properties")
+                        json_schema
+                            .get("properties")
                             .ok_or(ValidationError::InvalidGrammar(
                                 "Grammar must have a 'properties' field".to_string(),
                             ))?;
 
                         // Do compilation in the router for performance
-                        let grammar_regex = json_schema_to_regex(json, None, json)
+                        let grammar_regex = json_schema_to_regex(&json_schema, None, &json_schema)
                             .map_err(ValidationError::RegexFromSchema)?;
 
                         ValidGrammar::Regex(grammar_regex.to_string())
