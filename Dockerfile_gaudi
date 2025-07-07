@@ -118,9 +118,9 @@ ENTRYPOINT ["./entrypoint.sh"]
 # Final image
 FROM base
 
-ENV HF_HUB_ENABLE_HF_TRANSFER 1
-ENV HABANA_VISIBLE_DEVICES all
-ENV OMPI_MCA_btl_vader_single_copy_mechanism NONE
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
+ENV HABANA_VISIBLE_DEVICES=all
+ENV OMPI_MCA_btl_vader_single_copy_mechanism=NONE
 
 COPY backends/gaudi/tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh

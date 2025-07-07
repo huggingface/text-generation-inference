@@ -7,6 +7,7 @@ from text_generation_server.utils.weights import UnquantizedWeight, Weights
 from vllm_hpu_extension.ops import VllmMixtureOfExpertsOp
 import habana_frameworks.torch as htorch
 import torch.nn.functional as F
+import os
 
 
 class UnquantizedSparseMoELayer(nn.Module):
@@ -39,6 +40,21 @@ class UnquantizedSparseMoELayer(nn.Module):
         self.weight_block_size = weights.weights_loader.weight_block_size
         self.scoring_func = scoring_func
         self.e_score_correction_bias = e_score_correction_bias
+        self.rank = weights.process_group.rank()
+        self.world_size = weights.process_group.size()
+        self.use_ep = os.getenv("USE_EXPERT_PARALLEL", "true").lower() == "true"
+        if (n_experts + self.world_size - 1) // self.world_size < 4:
+            self.use_ep = False
+        if self.use_ep:
+            n_experts_per_rank = (n_experts + self.world_size - 1) // self.world_size
+            self.ep_offset = self.rank * n_experts_per_rank
+            n_experts = min(n_experts_per_rank, n_experts - self.ep_offset)
+            experts_min = self.ep_offset
+            experts_max = self.ep_offset + n_experts - 1
+        else:
+            self.ep_offset = 0
+            experts_min = 0
+            experts_max = n_experts - 1
 
         self.gate_up_proj = _load_expert_multi_weights_col(
             prefix=prefix,
@@ -46,6 +62,8 @@ class UnquantizedSparseMoELayer(nn.Module):
             gate_proj_name=gate_proj_name,
             up_proj_name=up_proj_name,
             weights=weights,
+            use_ep=self.use_ep,
+            ep_offset=self.ep_offset,
         )
 
         self.down_proj = _load_expert_weights_row(
@@ -53,9 +71,11 @@ class UnquantizedSparseMoELayer(nn.Module):
             n_experts=n_experts,
             name=down_proj_name,
             weights=weights,
+            use_ep=self.use_ep,
+            ep_offset=self.ep_offset,
         )
 
-        self.MoeOp = VllmMixtureOfExpertsOp(n_experts, 0, n_experts - 1)
+        self.MoeOp = VllmMixtureOfExpertsOp(n_experts, experts_min, experts_max)
         for i in range(n_experts):
             self.MoeOp.w13_list[i].set_weight(self.gate_up_proj[i])
             self.MoeOp.w2_list[i].set_weight(self.down_proj[i])
@@ -87,12 +107,23 @@ def _load_expert_multi_weights_col(
     gate_proj_name: str,
     up_proj_name: str,
     weights: Weights,
+    use_ep: bool = False,
+    ep_offset: int = 0,
 ) -> torch.Tensor:
     all_weight = None
     for i in range(n_experts):
-        weight = weights.get_multi_weights_col(
-            [f"{prefix}.{i}.{gate_proj_name}", f"{prefix}.{i}.{up_proj_name}"], 0
-        )
+        if not use_ep:
+            weight = weights.get_multi_weights_col(
+                [f"{prefix}.{i}.{gate_proj_name}", f"{prefix}.{i}.{up_proj_name}"], 0
+            )
+        else:
+            weight = weights.get_multi_weights(
+                [
+                    f"{prefix}.{i+ep_offset}.{gate_proj_name}",
+                    f"{prefix}.{i+ep_offset}.{up_proj_name}",
+                ],
+                0,
+            )
 
         assert isinstance(weight, UnquantizedWeight)
 
@@ -116,12 +147,19 @@ def _load_expert_weights_row(
     n_experts: int,
     name: str,
     weights: Weights,
+    use_ep: bool = False,
+    ep_offset: int = 0,
 ) -> torch.Tensor:
     all_weight = None
     for i in range(n_experts):
-        weight = weights.get_weights_row(
-            f"{prefix}.{i}.{name}",
-        )
+        if not use_ep:
+            weight = weights.get_weights_row(
+                f"{prefix}.{i}.{name}",
+            )
+        else:
+            weight = weights.get_weights(
+                f"{prefix}.{i+ep_offset}.{name}",
+            )
 
         assert isinstance(weight, UnquantizedWeight)
 

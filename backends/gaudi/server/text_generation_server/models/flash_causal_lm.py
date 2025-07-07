@@ -1606,7 +1606,7 @@ class FlashCausalLM(Model):
     ):
         self.kv_cache = []
         empty_cache()
-        if self.config.model_type == "deepseek_v3":
+        if self.config.model_type in ["deepseek_v3", "deepseek_v2"]:
             self.kv_cache = [
                 KVCompressCache(
                     num_blocks=num_blocks,
@@ -1646,7 +1646,7 @@ class FlashCausalLM(Model):
         # Inspired by the original implementation in [vllm](https://github.com/vllm-project/vllm)
         # Calculate the number of blocks that can be allocated with the free memory
         dtype_size = torch.tensor([], dtype=self.kv_cache_dtype).element_size()
-        if self.config.model_type == "deepseek_v3":
+        if self.config.model_type in ["deepseek_v3", "deepseek_v2"]:
             cache_block_size = BLOCK_SIZE * (
                 self.config.kv_lora_rank + self.config.qk_rope_head_dim
             )
