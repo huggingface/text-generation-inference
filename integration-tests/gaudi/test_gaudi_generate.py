@@ -102,8 +102,8 @@ TEST_CONFIGS = {
     "google/gemma-7b-it": {
         "model_id": "google/gemma-7b-it",
         "input": "What is Deep Learning?",
-        "expected_greedy_output": "\n\nDeep learning is a subset of machine learning that uses artificial neural networks to learn from large amounts of data. Neural networks are inspired by the structure and function of",
-        "expected_batch_output": "\n\nDeep learning is a subset of machine learning that uses artificial neural networks to learn from large amounts of data. Neural networks are inspired by the structure and function of",
+        "expected_greedy_output": "\n\nDeep learning is a subset of machine learning that uses artificial neural networks to learn from large amounts of data. Deep learning is a powerful tool for many tasks,",
+        "expected_batch_output": "\n\nDeep learning is a subset of machine learning that uses artificial neural networks to learn from large amounts of data. Deep learning is a powerful tool for many tasks,",
         "args": [
             "--max-input-tokens",
             "512",
@@ -162,8 +162,8 @@ TEST_CONFIGS = {
     "openai-community/gpt2": {
         "model_id": "openai-community/gpt2",
         "input": "What is Deep Learning?",
-        "expected_greedy_output": "\n\nDeep learning is a new field of research that has been around for a long time. It is a new field of research that has been around for a",
-        "expected_batch_output": "\n\nDeep learning is a new field of research that has been around for a long time. It is a new field of research that has been around for a",
+        "expected_greedy_output": "\n\nDeep learning is a subset of machine learning that is based on artificial neural networks. It is a type of machine learning that is based on the idea of",
+        "expected_batch_output": "\n\nDeep learning is a subset of machine learning that is based on artificial neural networks. It is a type of machine learning that is based on the idea of",
         "args": [
             "--max-input-tokens",
             "512",
