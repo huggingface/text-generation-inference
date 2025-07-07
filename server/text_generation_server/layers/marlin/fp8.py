@@ -76,15 +76,21 @@ class GPTQMarlinFP8Linear(nn.Module):
         assert quantization is not None
 
         A_flat = A.view(-1, A.shape[-1])
-        C = quantization.fp8_marlin_gemm(
-            A_flat,
-            self.qweight,
-            self.scales,
-            self.workspace,
-            8,
-            A_flat.shape[0],
-            self.scales.shape[1],
-            A_flat.shape[1],
+        C = quantization.gptq_marlin_gemm(
+            a=A_flat,
+            c=None,
+            b_q_weight=self.qweight,
+            b_scales=self.scales,
+            global_scale=None,
+            b_zeros=None,
+            g_idx=None,
+            perm=None,
+            workspace=self.workspace,
+            b_q_type=quantization.scalar_type.scalar_types.float8_e4m3fn,
+            size_m=A_flat.shape[0],
+            size_n=self.scales.shape[1],
+            size_k=A_flat.shape[1],
+            use_fp32_reduce=True,
         )
         C = C.reshape(A.shape[:-1] + (self.scales.shape[1],))
 
@@ -143,5 +149,6 @@ def repack_fp8_for_marlin(weight: torch.Tensor, scales: torch.Tensor):
     )
 
     scales = permute_scales(scales)
+    scales = quantization.marlin_utils_fp8.fp8_fused_exponent_bias_into_scales(scales)
 
     return repacked, scales

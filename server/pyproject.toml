@@ -59,7 +59,7 @@ build-backend = "setuptools.build_meta"
 "kernels-community/paged-attention" = ">=0.0.2"
 "kernels-community/moe" = ">=0.1.1"
 "kernels-community/punica-sgmv" = ">=0.0.1"
-"kernels-community/quantization" = ">=0.0.3"
+"kernels-community/quantization" = ">=0.1.1"
 "kernels-community/quantization-eetq" = ">=0.0.1"
 "kernels-community/rotary" = ">=0.0.1"
 
