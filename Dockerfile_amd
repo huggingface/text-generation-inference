@@ -251,7 +251,7 @@ COPY proto proto
 COPY server server
 COPY server/Makefile server/Makefile
 RUN cd server && \
-    uv pip install "grpcio-tools>=1.67.0,<1.73.0" mypy-protobuf && \
+    uv pip install "grpcio-tools>=1.67.0,<1.73.0" "grpcio>=1.67.0,<1.73.0" mypy-protobuf && \
     uv pip install -e ".[accelerate, compressed-tensors, peft, outlines]" --no-cache-dir && \
     make gen-server-raw
 RUN cd server && \
