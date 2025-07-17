@@ -16,12 +16,15 @@ else:
     punica_sgmv = None
 
 if SYSTEM == "ipex":
-    from intel_extension_for_pytorch.llm.functional import (
-        bgmv_expand,
-        bgmv_shrink,
-        sgmv_expand,
-        sgmv_shrink,
-    )
+    try:
+        from intel_extension_for_pytorch.llm.functional import (
+            bgmv_expand,
+            bgmv_shrink,
+            sgmv_expand,
+            sgmv_shrink,
+        )
+    except ImportError:
+        pass
 
 
 if TYPE_CHECKING:
