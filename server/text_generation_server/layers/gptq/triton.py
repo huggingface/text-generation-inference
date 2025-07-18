@@ -202,7 +202,11 @@ def matmul_248_kernel(
 
 
 def matmul248(input, qweight, scales, qzeros, g_idx, bits, maxq):
-    with torch.cuda.device(input.device):
+    with (
+        torch.xpu.device(input.device)
+        if torch.xpu.is_available()
+        else torch.cuda.device(input.device)
+    ):
         output = torch.empty(
             (input.shape[0], qweight.shape[1]), device=input.device, dtype=torch.float16
         )
