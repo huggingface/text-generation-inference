@@ -152,6 +152,9 @@ try:
     from text_generation_server.models.custom_modeling.flash_qwen2_modeling import (
         Qwen2ForCausalLM,
     )
+    from text_generation_server.models.custom_modeling.flash_qwen3_modeling import (
+        Qwen3ForCausalLM,
+    )
     from text_generation_server.models.custom_modeling.flash_mistral_modeling import (
         FlashMistralForCausalLM,
     )
@@ -347,6 +350,11 @@ class ModelType(enum.Enum):
         "type": "qwen2",
         "name": "Qwen 2",
         "url": "https://huggingface.co/collections/Qwen/qwen2-6659360b33528ced941e557f",
+    }
+    QWEN3 = {
+        "type": "qwen3",
+        "name": "Qwen 3",
+        "url": "https://huggingface.co/collections/Qwen/qwen3-67c6c6f89c4f76621268bb6d",
     }
     QWEN2_VL = {
         "type": "qwen2_vl",
@@ -1460,6 +1468,40 @@ def get_model(
             )
         elif sharded:
             raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Qwen2"))
+        else:
+            return CausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+
+    if model_type == QWEN3:
+        if FLASH_ATTENTION:
+            return FlashCausalLM(
+                model_id=model_id,
+                model_class=Qwen3ForCausalLM,
+                revision=revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                kv_cache_dtype=kv_cache_dtype,
+                trust_remote_code=trust_remote_code,
+                lora_adapter_ids=lora_adapter_ids,
+            )
+        elif FLASH_TRANSFORMERS_BACKEND:
+            return TransformersFlashCausalLM.fallback(
+                model_id,
+                revision,
+                quantize=quantize,
+                speculator=speculator,
+                dtype=dtype,
+                trust_remote_code=trust_remote_code,
+            )
+        elif sharded:
+            raise NotImplementedError(FLASH_ATT_ERROR_MESSAGE.format("Sharded Qwen3"))
         else:
             return CausalLM.fallback(
                 model_id,
