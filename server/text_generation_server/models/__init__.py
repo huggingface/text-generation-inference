@@ -354,7 +354,7 @@ class ModelType(enum.Enum):
     QWEN3 = {
         "type": "qwen3",
         "name": "Qwen 3",
-        "url": "https://huggingface.co/collections/Qwen/qwen3-67c6c6f89c4f76621268bb6d",
+        "url": "https://huggingface.co/collections/Qwen/qwen3-67dd247413f0e2e4f653967f",
     }
     QWEN2_VL = {
         "type": "qwen2_vl",
