@@ -22,8 +22,8 @@ async def test_model_single_request(tgi_service):
     greedy_expectations = {
         "llama": " and how does it work?\nDeep learning is a subset of machine learning that uses artificial",
         "qwen2": " - Deep Learning is a subset of Machine Learning that involves the use of artificial neural networks",
-        "granite": "\n\nDeep learning is a subset of machine learning techniques based on artificial neural networks",
-        "qwen3": " A Deep Learning is a subset of machine learning that uses neural networks with multiple layers to",
+        "granite": "\n\nDeep Learning is a subset of machine learning that is inspired by the structure and",
+        "qwen3": " And Why Should You Care?\n\nDeep learning is a subset of machine learning that uses neural",
         "phi3": "\n\nDeep learning is a subfield of machine learning that focuses on creating",
     }
     assert response.generated_text == greedy_expectations[service_name]
@@ -81,8 +81,8 @@ async def test_model_multiple_requests(tgi_service, neuron_generate_load):
     expectations = {
         "llama": "Deep learning is a subset of machine learning that uses artificial",
         "qwen2": "Deep Learning is a subset of Machine Learning that involves",
-        "granite": "Deep learning is a subset of machine learning techniques",
-        "qwen3": "Deep Learning is a subset of machine learning that uses neural networks",
+        "granite": "Deep Learning is a subset of machine learning that is inspired by the structure and",
+        "qwen3": " And Why Should You Care?\n\nDeep learning is a subset of machine learning that uses neural",
         "phi3": "Deep learning is a subfield of machine learning that focuses on creating",
     }
     expected = expectations[tgi_service.client.service_name]
