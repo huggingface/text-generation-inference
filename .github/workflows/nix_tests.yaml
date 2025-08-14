@@ -27,9 +27,11 @@ jobs:
       with:
         name: huggingface
         # If you chose signing key for write access
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+        #authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
       env:
         USER: github_runner
+    - name: Nix info
+      run: nix-shell -p nix-info --run "nix-info -m"
     - name: Build
       run: nix develop .#test --command echo "Ok"
     - name: Pre-commit tests.
