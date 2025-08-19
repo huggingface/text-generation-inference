@@ -12,11 +12,7 @@ from text_generation_server.utils.weights import (
     WeightsLoader,
     DefaultWeightsLoader,
 )
-
-if SYSTEM == "ipex":
-    from .ipex import QuantLinear
-elif SYSTEM in {"cuda", "rocm"}:
-    from .triton import QuantLinear
+import math
 
 
 @dataclass
@@ -70,6 +66,19 @@ class GPTQWeight(Weight):
 
             return ExllamaQuantLinear(self, bias)
         else:
+            if SYSTEM == "ipex" and not (
+                self.device.type == "xpu"
+                and (
+                    self.bits != 4
+                    or math.ceil(
+                        (self.qweight.shape[0] * 32 // self.bits) / self.groupsize
+                    )
+                    != self.scales.shape[0]
+                )
+            ):
+                from .ipex import QuantLinear
+            else:
+                from .triton import QuantLinear
             return QuantLinear(
                 self.qweight,
                 self.qzeros,
