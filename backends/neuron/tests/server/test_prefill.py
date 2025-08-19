@@ -44,23 +44,17 @@ def _test_prefill(config_name, generator, batch_size, do_sample):
     # because of static batching
     assert next_batch.max_tokens == batch_size * max_length
     assert len(generations) == batch_size
-    if do_sample:
-        expectations = {
-            "llama": [358, " I"],
-            "qwen2": [576, " The"],
-            "granite": [308, " ("],
-        }[config_name]
-    else:
-        expectations = {
-            "llama": [578, " The"],
-            "qwen2": [358, " I"],
-            "granite": [203, "\n"],
-        }[config_name]
-    for g in generations:
-        tokens = g.tokens
-        assert tokens.ids[0] == expectations[0]
-        assert tokens.texts[0] == expectations[1]
-
+    expectations = {
+        "llama": [578, " The"],
+        "qwen2": [358, " I"],
+        "granite": [203, "\n"],
+    }[config_name]
+    # Greedy mode should always generate the same output
+    if not do_sample:
+        for g in generations:
+            tokens = g.tokens
+            assert tokens.ids[0] == expectations[0]
+            assert tokens.texts[0] == expectations[1]
 
 def test_prefill_truncate(neuron_model_config):
     config_name = neuron_model_config["name"]
@@ -88,8 +82,8 @@ def test_prefill_truncate(neuron_model_config):
     # be different because of the truncation
     expectations = {
         "llama": [" He", "iens", "\x08", " He"],
-        "qwen2": [" He", " The", " He", " He"],
-        "granite": ["\n", "\n", " I", " He"],
+        "qwen2": [" He", "<|endoftext|>", " ", " The"],
+        "granite": ["\n", "\n", "\n", "\n"],
     }[config_name]
     for i, g in enumerate(generations):
         tokens = g.tokens

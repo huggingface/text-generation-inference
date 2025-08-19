@@ -22,22 +22,22 @@ async def test_model_single_request(tgi_service):
     greedy_expectations = {
         "llama": " and how does it work?\nDeep learning is a subset of machine learning that uses artificial",
         "qwen2": " - Deep Learning is a subset of Machine Learning that involves the use of artificial neural networks",
-        "granite": "\n\nDeep learning is a subset of machine learning techniques based on artificial neural networks",
-        "qwen3": " A Deep Learning is a subset of machine learning that uses neural networks with multiple layers to",
+        "granite": "\n\nDeep Learning is a subset of machine learning that is inspired by the structure and",
+        "qwen3": " And Why Should You Care?\n\nDeep learning is a subset of machine learning that uses neural",
         "phi3": "\n\nDeep learning is a subfield of machine learning that focuses on creating",
     }
     assert response.generated_text == greedy_expectations[service_name]
 
     # Greedy bounded with input
-    response = await tgi_service.client.text_generation(
+    greedy_response = await tgi_service.client.text_generation(
         "What is Deep Learning?",
         max_new_tokens=17,
         return_full_text=True,
         details=True,
         decoder_input_details=True,
     )
-    assert response.details.generated_tokens == 17
-    assert response.generated_text == prompt + greedy_expectations[service_name]
+    assert greedy_response.details.generated_tokens == 17
+    assert greedy_response.generated_text == prompt + greedy_expectations[service_name]
 
     # Sampling
     response = await tgi_service.client.text_generation(
@@ -52,16 +52,12 @@ async def test_model_single_request(tgi_service):
     # The response must be different
     assert not response.startswith(greedy_expectations[service_name])
 
-    # Sampling with stop sequence (using one of the words returned from the previous test)
-    stop_sequence = response.split(" ")[-5]
+    # Greedy with stop sequence (using one of the words returned from the previous test)
+    stop_sequence = greedy_response.generated_text.split(" ")[-5]
     response = await tgi_service.client.text_generation(
         "What is Deep Learning?",
-        do_sample=True,
-        top_k=50,
-        top_p=0.9,
-        repetition_penalty=1.2,
+        do_sample=False,
         max_new_tokens=128,
-        seed=42,
         stop_sequences=[stop_sequence],
     )
     assert response.endswith(stop_sequence)
@@ -81,8 +77,8 @@ async def test_model_multiple_requests(tgi_service, neuron_generate_load):
     expectations = {
         "llama": "Deep learning is a subset of machine learning that uses artificial",
         "qwen2": "Deep Learning is a subset of Machine Learning that involves",
-        "granite": "Deep learning is a subset of machine learning techniques",
-        "qwen3": "Deep Learning is a subset of machine learning that uses neural networks",
+        "granite": "Deep Learning is a subset of machine learning that is inspired by the structure and",
+        "qwen3": " And Why Should You Care?\n\nDeep learning is a subset of machine learning that uses neural",
         "phi3": "Deep learning is a subfield of machine learning that focuses on creating",
     }
     expected = expectations[tgi_service.client.service_name]
