@@ -83,7 +83,7 @@ docker run \
     -e "HF_TOKEN=$HF_TOKEN" \
     -v "$HOME/models:/app/models" \
     tgi-llamacpp \
-    --n-gpu-layers 99
+    --n-gpu-layers 99 \
     --model-id "Qwen/Qwen2.5-3B-Instruct"
 ```
 
