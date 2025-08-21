@@ -646,25 +646,20 @@ fn image_tokens(
             const GLOBAL_IMG: &str = "<global-img>";
 
             let max_longest_edge_for_image_resize = config.get_max_longest_edge_for_image_resize();
+            let max_image_size = config.get_max_image_size();
 
-            // resize image if it is larger than max_longest_edge_for_image_resize keeping aspect ratio
-            let (height, width) = if height > max_longest_edge_for_image_resize
-                || width > max_longest_edge_for_image_resize
-            {
-                let aspect_ratio = height as f32 / width as f32;
-                if height > width {
-                    (
-                        max_longest_edge_for_image_resize,
-                        (max_longest_edge_for_image_resize as f32 / aspect_ratio) as usize,
-                    )
-                } else {
-                    (
-                        (max_longest_edge_for_image_resize as f32 * aspect_ratio) as usize,
-                        max_longest_edge_for_image_resize,
-                    )
-                }
-            } else {
-                (height, width)
+            let (height, width) = {
+                let h = height as f32;
+                let w = width as f32;
+
+                // First resize to max_longest_edge (always scale to this size)
+                let scale1 = max_longest_edge_for_image_resize as f32 / h.max(w);
+                let (h, w) = (h * scale1, w * scale1);
+
+                // Ensure we dont exceed max_size (only scale down)
+                let scale2 = (max_image_size as f32 / h.max(w)).min(1.0);
+
+                ((h * scale2) as usize, (w * scale2) as usize)
             };
 
             let image_seq_len = config.get_number_of_features();
