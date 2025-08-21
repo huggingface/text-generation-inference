@@ -725,6 +725,15 @@ class VlmCausalLM(FlashCausalLM):
             **kwargs,
         )
 
+        if self.config.vocab_size != self.tokenizer.vocab_size:
+            logger.warning(
+                f"Tokenizer vocab size {self.tokenizer.vocab_size} does not match model vocab size {self.config.vocab_size}. Updating tokenizer vocab size."
+            )
+            # TODO: HUGE HACK! This is a workaround to update the vocab size
+            # in the tokenizer. When the tokenizer is updated within the model
+            # the vocab size is not updated in the tokenizer.
+            self.tokenizer._vocab_size = self.config.vocab_size
+
     @property
     def batch_type(self) -> Type[VlmCausalLMBatch]:
         return self.batch_class
