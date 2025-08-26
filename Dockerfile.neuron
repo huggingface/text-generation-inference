@@ -5,7 +5,7 @@ RUN mkdir -p /tgi
 # Fetch the optimum-neuron sources directly to avoid relying on pypi deployments
 FROM alpine AS optimum-neuron
 RUN mkdir -p /optimum-neuron
-ADD https://github.com/huggingface/optimum-neuron/archive/refs/tags/v0.2.2.tar.gz /optimum-neuron/sources.tar.gz
+ADD https://github.com/huggingface/optimum-neuron/archive/refs/tags/v0.3.0.tar.gz /optimum-neuron/sources.tar.gz
 RUN tar -C /optimum-neuron -xf /optimum-neuron/sources.tar.gz --strip-components=1
 
 # Build cargo components (adapted from TGI original Dockerfile)
@@ -108,10 +108,10 @@ RUN wget -qO - https://apt.repos.neuron.amazonaws.com/GPG-PUB-KEY-AMAZON-AWS-NEU
 # Install neuronx packages
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
-    aws-neuronx-dkms=2.20.28.0 \
-    aws-neuronx-collectives=2.24.59.0-838c7fc8b \
-    aws-neuronx-runtime-lib=2.24.53.0-f239092cc \
-    aws-neuronx-tools=2.22.61.0 \
+    aws-neuronx-dkms=2.22.2.0 \
+    aws-neuronx-collectives=2.26.43.0-47cc904ea \
+    aws-neuronx-runtime-lib=2.26.42.0-2ff3b5c7d  \
+    aws-neuronx-tools=2.24.54.0 \
     libxml2 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
@@ -120,15 +120,15 @@ ENV PATH="/opt/bin/:/opt/aws/neuron/bin:${PATH}"
 
 # Install manually torch CPU version to avoid pulling CUDA
 RUN pip3 install \
-    torch==2.5.1 \
-    torchvision==0.20.1 \
+    torch==2.7.0 \
+    torchvision==0.22.0 \
     --index-url https://download.pytorch.org/whl/cpu
 
 RUN pip3 install \
-    neuronx-cc==2.17.194.0 \
-    torch-neuronx==2.5.1.2.6.0 \
-    neuronx-distributed==0.11.0 \
-    libneuronxla==2.2.1630.0 \
+    neuronx-cc==2.19.8089.0+8ab9f450 \
+    torch-neuronx==2.7.0.2.8.6734+ac864f72 \
+    neuronx-distributed==0.13.14393+b8569585 \
+    libneuronxla==2.2.4410.0+835a67fb \
     --extra-index-url=https://pip.repos.neuron.amazonaws.com
 
 # Install HuggingFace packages
