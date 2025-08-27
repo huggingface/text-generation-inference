@@ -20,7 +20,7 @@ hf_token=YOUR_HF_ACCESS_TOKEN
 
 docker run --runtime=habana --cap-add=sys_nice --ipc=host \
     -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
-    ghcr.io/huggingface/text-generation-inference:3.3.4-gaudi \
+    ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
     --model-id $model
 ```
 
@@ -52,7 +52,7 @@ hf_token=YOUR_ACCESS_TOKEN
 
 docker run --runtime=habana --cap-add=sys_nice --ipc=host \
     -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
-    ghcr.io/huggingface/text-generation-inference:3.3.4-gaudi \
+    ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
     --model-id $model
     <text-generation-inference-launcher-arguments>
 ```
@@ -106,7 +106,7 @@ docker run -p 8080:80 \
    --cap-add=sys_nice \
    --ipc=host \
    -v $volume:/data \
-   ghcr.io/huggingface/text-generation-inference:3.3.4-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-size 4

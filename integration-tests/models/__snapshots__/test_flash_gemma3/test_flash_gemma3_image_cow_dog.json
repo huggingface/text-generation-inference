@@ -17,7 +17,7 @@
   "id": "",
   "model": "google/gemma-3-4b-it",
   "object": "chat.completion",
-  "system_fingerprint": "3.3.4-dev0-native",
+  "system_fingerprint": "3.3.5-dev0-native",
   "usage": {
     "completion_tokens": 80,
     "prompt_tokens": 279,
