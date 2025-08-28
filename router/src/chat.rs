@@ -412,6 +412,7 @@ mod tests {
                 generated_tokens: 10,
                 seed: None,
                 finish_reason: FinishReason::Length,
+                energy_mj: None,
             }),
         });
         if let ChatEvent::Events(events) = events {

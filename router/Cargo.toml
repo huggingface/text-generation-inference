@@ -65,6 +65,7 @@ csv = "1.3.0"
 ureq = "=2.9"
 pyo3 = { workspace = true }
 chrono = "0.4.39"
+nvml-wrapper = "0.11.0"
 
 
 [build-dependencies]
