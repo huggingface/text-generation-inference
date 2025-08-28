@@ -56,6 +56,7 @@ def _test_prefill(config_name, generator, batch_size, do_sample):
             assert tokens.ids[0] == expectations[0]
             assert tokens.texts[0] == expectations[1]
 
+
 def test_prefill_truncate(neuron_model_config):
     config_name = neuron_model_config["name"]
     neuron_model_path = neuron_model_config["neuron_model_path"]
