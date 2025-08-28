@@ -1430,6 +1430,13 @@
             },
             "nullable": true
           },
+          "energy_mj": {
+            "type": "integer",
+            "format": "int64",
+            "example": 152,
+            "nullable": true,
+            "minimum": 0
+          },
           "finish_reason": {
             "$ref": "#/components/schemas/FinishReason"
           },
@@ -2156,6 +2163,13 @@
           "input_length"
         ],
         "properties": {
+          "energy_mj": {
+            "type": "integer",
+            "format": "int64",
+            "example": 152,
+            "nullable": true,
+            "minimum": 0
+          },
           "finish_reason": {
             "$ref": "#/components/schemas/FinishReason"
           },
