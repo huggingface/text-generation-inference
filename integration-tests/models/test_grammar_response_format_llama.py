@@ -43,7 +43,10 @@ async def test_grammar_response_format_llama_json(llama_grammar, response_snapsh
         ],
         "seed": 42,
         "max_tokens": 500,
-        "response_format": {"type": "json_object", "value": Weather.model_json_schema()},
+        "response_format": {
+            "type": "json_object",
+            "value": Weather.model_json_schema(),
+        },
     }
     # send the request
     response = requests.post(
@@ -75,7 +78,11 @@ async def test_grammar_response_format_llama_json(llama_grammar, response_snapsh
 
     json_payload["response_format"] = {
         "type": "json_schema",
-        "value": {"name": "weather", "strict": True, "schema": Weather.model_json_schema()},
+        "value": {
+            "name": "weather",
+            "strict": True,
+            "schema": Weather.model_json_schema(),
+        },
     }
     response = requests.post(
         f"{llama_grammar.base_url}/v1/chat/completions",
@@ -119,7 +126,10 @@ async def test_grammar_response_format_llama_error_if_tools_not_installed(
             "seed": 42,
             "max_tokens": 500,
             "tools": [],
-            "response_format": {"type": "json_object", "value": Weather.model_json_schema()},
+            "response_format": {
+                "type": "json_object",
+                "value": Weather.model_json_schema(),
+            },
         },
     )
 
