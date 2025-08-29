@@ -113,13 +113,13 @@ content(
 ("text/event-stream" = StreamResponse),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error", "error_type": "validation"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"})),
 )
 )]
 #[instrument(skip(infer, req))]
@@ -249,13 +249,13 @@ request_body = GenerateRequest,
 responses(
 (status = 200, description = "Generated Text", body = GenerateResponse),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error", "error_type": "validation"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"})),
 )
 )]
 #[instrument(
@@ -448,16 +448,16 @@ responses(
 (status = 200, description = "Generated Text", body = StreamResponse,
 content_type = "text/event-stream"),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"}),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"}),
 content_type = "text/event-stream"),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"}),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"}),
 content_type = "text/event-stream"),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"}),
+example = json ! ({"error": "Input validation error", "error_type": "validation"}),
 content_type = "text/event-stream"),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"}),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"}),
 content_type = "text/event-stream"),
 )
 )]
@@ -691,13 +691,13 @@ content(
 ("text/event-stream" = Chunk),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error", "error_type": "validation"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"})),
 )
 )]
 #[instrument(
@@ -1144,13 +1144,13 @@ content(
 ("text/event-stream" = ChatCompletionChunk),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error", "error_type": "validation"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"})),
 )
 )]
 #[instrument(
