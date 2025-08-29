@@ -144,17 +144,6 @@ class W8A8IntLoader(WeightsLoader):
 OtherT = TypeVar("OtherT")
 
 
-def _get_tensor_or_else(
-    weights: Weights, prefix: str, other: OtherT
-) -> Union[torch.Tensor, OtherT]:
-    # Even if a checkpoint uses e.g. zero-points, they can be elided:
-    # https://github.com/neuralmagic/compressed-tensors/blob/db6ccb25b265e8370813ecab5e95714a6728b5a6/src/compressed_tensors/compressors/quantized_compressors/base.py#L105
-    if weights.has_tensor(prefix):
-        return weights.get_tensor(prefix, to_dtype=False)
-    else:
-        return other
-
-
 @dataclass
 class Int8Weight(Weight):
     input_symmetric: bool
