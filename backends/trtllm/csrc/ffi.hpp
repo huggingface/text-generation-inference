@@ -1,6 +1,8 @@
 #ifndef TGI_BACKEND_TRTLLM_FFI
 #define TGI_BACKEND_TRTLLM_FFI
 
+#include <chrono>
+#include <exception>
 #include <memory>
 #include <thread>
 
@@ -17,7 +19,7 @@ namespace rust::behavior {
     template<typename Try, typename Fail>
     static void trycatch(Try &&func, Fail &&fail) noexcept try {
         func();
-    } catch (tensorrt_llm::common::TllmException &e) {
+    } catch (const std::exception &e) {
         fail(e.what());
     }
 }
@@ -42,22 +44,46 @@ namespace huggingface::tgi::backends::trtllm {
                 return finish_reason_t::kEND_ID;
             case tle::FinishReason::kLENGTH:
                 return finish_reason_t::kLENGTH;
+            case tle::FinishReason::kTIMED_OUT:
+                return finish_reason_t::kTIMED_OUT;
+            case tle::FinishReason::kCANCELLED:
+                return finish_reason_t::kCANCELLED;
             default:
                 std::unreachable();
         }
     }
 
-    static auto as_generation_step = [](const tle::Response &r) {
+    static auto as_generation_step = [](const tle::Response &r, const std::chrono::time_point<std::chrono::steady_clock> created) {
         const auto reqId = r.getRequestId();
         if (!r.hasError()) [[likely]] {
             const auto result = r.getResult();
-            const auto logits = result.logProbs.value()[0];
+            std::optional<uint32_t> token_id = std::nullopt;
+            if (!result.outputTokenIds.empty() && !result.outputTokenIds[0].empty()) {
+                token_id = static_cast<uint32_t>(result.outputTokenIds[0][0]);
+            }
+
+            std::optional<float> log_prob = std::nullopt;
+            if (result.logProbs && !result.logProbs->empty() && !result.logProbs.value()[0].empty()) {
+                log_prob = result.logProbs.value()[0].back();
+            }
+
+            std::optional<int64_t> first_scheduled_time_ns = std::nullopt;
+            if (result.requestPerfMetrics) {
+                const auto &t = result.requestPerfMetrics->timingMetrics;
+                const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t.firstScheduledTime - created).count();
+                first_scheduled_time_ns = static_cast<int64_t>(ns);
+            }
+
             return generation_step_t{
                     reqId,
-                    static_cast<uint32_t>(result.outputTokenIds[0][0]),
-                    logits.back(),
+                    token_id.value_or(0),
+                    log_prob.value_or(0.0),
+                    first_scheduled_time_ns.value_or(0),
                     result.isFinal,
                     as_finish_reason_t(result.finishReasons[0]),
+                    token_id.has_value(),
+                    log_prob.has_value(),
+                    first_scheduled_time_ns.has_value(),
                     false,
                     std::string()
             };
@@ -66,8 +92,12 @@ namespace huggingface::tgi::backends::trtllm {
                     reqId,
                     0,
                     0.0,
+                    0,
                     true,
                     finish_reason_t::kNOT_FINISHED,
+                    false,
+                    false,
+                    false,
                     true,
                     std::move(r.getErrorMsg())
             };
@@ -79,9 +109,16 @@ namespace huggingface::tgi::backends::trtllm {
     private:
         backend_t inner_;
 
+        // m_created_time is a reference point to convert time from c++ time_point
+        // to rust Instant.
+        std::chrono::time_point<std::chrono::steady_clock> m_created_time;
+
+
     public:
-        tensorrt_llm_backend_t(std::filesystem::path &&engine_folder, std::filesystem::path &&executor_worker_path)
-                : inner_(engine_folder, executor_worker_path) {}
+        tensorrt_llm_backend_t(std::filesystem::path &&engine_folder, std::filesystem::path &&executor_worker_path, const std::chrono::time_point<std::chrono::steady_clock>& created_time)
+                : inner_(engine_folder, executor_worker_path),
+                  m_created_time {created_time}
+        {}
 
         size_t num_tokens_ready() const noexcept { return inner_.num_tokens_ready(); }
 
@@ -121,13 +158,16 @@ namespace huggingface::tgi::backends::trtllm {
 
                 SPDLOG_TRACE("[FFI] Successfully pulled out {:d} responses from executor", responses.size());
 
+                auto f = [this](const tle::Response &r){
+                    return as_generation_step(r, m_created_time);
+                };
                 // Transform tle::Response to generation_step_t
 #ifdef __cpp_lib_ranges_to_container
-                auto steps = responses | std::views::transform(as_generation_step) | std::ranges::to<std::vector>();
+                auto steps = responses | std::views::transform(f) | std::ranges::to<std::vector>();
 #else
                 auto steps = std::vector<generation_step_t>();
                 steps.reserve(responses.size());
-                std::transform(responses.begin(), responses.end(), std::back_inserter(steps), as_generation_step);
+                std::transform(responses.begin(), responses.end(), std::back_inserter(steps), f);
 #endif
                 return std::make_unique<std::vector<generation_step_t>>(steps);
 
@@ -179,12 +219,14 @@ namespace huggingface::tgi::backends::trtllm {
 
     std::unique_ptr<tensorrt_llm_backend_t>
     create_backend_from_engine_folder(const rust::Str engines_folder, const rust::Str executor_worker_path) {
+        const auto created_time = std::chrono::steady_clock::now();
         std::call_once(backend_initialized_flag, initialize_tensorrt_llm_backend);
         return std::make_unique<tensorrt_llm_backend_t>(
                 std::filesystem::path(std::string_view(engines_folder.begin(), engines_folder.end()),
                                       std::filesystem::path::format::auto_format),
                 std::filesystem::path(std::string_view(executor_worker_path.begin(), executor_worker_path.end()),
-                                      std::filesystem::path::format::auto_format)
+                                      std::filesystem::path::format::auto_format),
+                created_time
         );
     }
 }
