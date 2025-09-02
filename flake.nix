@@ -33,7 +33,7 @@
         };
         pkgs = import nixpkgs {
           inherit system;
-          inherit (hf-nix.lib) config;
+          config = hf-nix.lib.config system;
           overlays = [
             rust-overlay.overlays.default
             hf-nix.overlays.default
