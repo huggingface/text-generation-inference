@@ -19,7 +19,7 @@ docker run -p 8080:80 \
    --ipc=host \
    -v $volume:/data \
    -e HF_TOKEN=$hf_token \
-   ghcr.io/huggingface/text-generation-inference:3.3.4-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
    --model-id $model \
    --max-input-tokens 1024 --max-total-tokens 2048 \
    --max-batch-prefill-tokens 2048 --max-batch-size 32 \
@@ -39,7 +39,7 @@ docker run -p 8080:80 \
    --ipc=host \
    -v $volume:/data \
    -e HF_TOKEN=$hf_token \
-   ghcr.io/huggingface/text-generation-inference:3.3.4-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
    --model-id $model \
    --sharded true --num-shard 8 \
    --max-input-tokens 1024 --max-total-tokens 2048 \
@@ -58,7 +58,7 @@ docker run -p 8080:80 \
    --cap-add=sys_nice \
    --ipc=host \
    -v $volume:/data \
-   ghcr.io/huggingface/text-generation-inference:3.3.4-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
    --model-id $model \
    --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
    --max-total-tokens 8192 --max-batch-size 4
@@ -81,7 +81,7 @@ docker run -p 8080:80 \
    --ipc=host \
    -v $volume:/data \
    -e HF_TOKEN=$hf_token \
-   ghcr.io/huggingface/text-generation-inference:3.3.4-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
    --model-id $model \
    --kv-cache-dtype fp8_e4m3fn \
    --max-input-tokens 1024 --max-total-tokens 2048 \
@@ -102,7 +102,7 @@ docker run -p 8080:80 \
    --ipc=host \
    -v $volume:/data \
    -e HF_TOKEN=$hf_token \
-   ghcr.io/huggingface/text-generation-inference:3.3.4-gaudi \
+   ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
    --model-id $model \
    --kv-cache-dtype fp8_e4m3fn \
    --sharded true --num-shard 8 \
