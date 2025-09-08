@@ -33,6 +33,15 @@ final: prev: {
         #    };
         #  }
         #);
+
+        outlines = python-super.outlines.overridePythonAttrs (old: {
+          version = "0.1.13";
+          src = fetchPypi {
+            pname = "outlines";
+            version = "0.1.13";
+            hash = "sha256-AjPLP/rpy2sBrY08MrfYfj8c973HsooLyCzT0nfAm8o=";
+          };
+        });
       }
     )
   ];
