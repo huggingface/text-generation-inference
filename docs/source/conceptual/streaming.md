@@ -27,14 +27,14 @@ For example, a system can generate 100 tokens per second. If the system generate
 
 <div class="block dark:hidden">
 	<iframe
-        src="https://osanseviero-streaming-vs-non-streaming.hf.space?__theme=light"
+        src="https://huggingface-streaming-vs-non-streaming.hf.space?__theme=light"
         width="850"
         height="350"
     ></iframe>
 </div>
 <div class="hidden dark:block">
     <iframe
-        src="https://osanseviero-streaming-vs-non-streaming.hf.space?__theme=dark"
+        src="https://huggingface-streaming-vs-non-streaming.hf.space?__theme=dark"
         width="850"
         height="350"
     ></iframe>
