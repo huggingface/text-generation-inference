@@ -12,7 +12,7 @@ environments.
 - Full compatibility with GGUF format and all quantization formats
   (GGUF-related constraints may be mitigated dynamically by on-the-fly
   generation in future updates)
-- Optimized inference on CPU and GPU architectures
+- Optimized inference on CPU and GPU architectures with two dedicated Dockerfiles
 - Containerized deployment, eliminating dependency complexity
 - Seamless interoperability with the Hugging Face ecosystem
 
@@ -24,13 +24,24 @@ You will find the best models on [Hugging Face][GGUF].
 
 ## Build Docker image
 
+### For CPU-only inference
+
 For optimal performance, the Docker image is compiled with native CPU
 instructions by default. As a result, it is strongly recommended to run
 the container on the same host architecture used during the build
 process. Efforts are ongoing to improve portability across different
 systems while preserving high computational efficiency.
 
-To build the Docker image, use the following command:
+To build the Docker image fo CPU, use the following command:
+
+```bash
+docker build \
+    -t tgi-llamacpp-cpu \
+    https://github.com/huggingface/text-generation-inference.git \
+    -f Dockerfile_llamacpp_cpuonly
+```
+
+### For GPU-enabled inference
 
 ```bash
 docker build \
@@ -41,13 +52,13 @@ docker build \
 
 ### Build parameters
 
-| Parameter (with --build-arg)              | Description                      |
-| ----------------------------------------- | -------------------------------- |
-| `llamacpp_version=bXXXX`                  | Specific version of llama.cpp    |
-| `llamacpp_cuda=ON`                        | Enables CUDA acceleration        |
-| `llamacpp_native=OFF`                     | Disable automatic CPU detection  |
-| `llamacpp_cpu_arm_arch=ARCH[+FEATURE]...` | Specific ARM CPU and features    |
-| `cuda_arch=ARCH`                          | Defines target CUDA architecture |
+| Parameter (with --build-arg)              | Description                      | CPU or GPU? |
+| ----------------------------------------- | -------------------------------- | ----------- |
+| `llamacpp_version=bXXXX`                  | Specific version of llama.cpp    | Both        |
+| `llamacpp_cuda=ON`                        | Enables CUDA acceleration        | GPU         |
+| `llamacpp_native=OFF`                     | Disable automatic CPU detection  | Both        |
+| `llamacpp_cpu_arm_arch=ARCH[+FEATURE]...` | Specific ARM CPU and features    | Both        |
+| `cuda_arch=ARCH`                          | Defines target CUDA architecture | GPU         |
 
 For example, to target Graviton4 when building on another ARM
 architecture:
@@ -61,6 +72,20 @@ docker build \
     -f Dockerfile_llamacpp
 ```
 
+For example, to target a local CPU without GPU acceleration:
+
+```bash
+docker build \                            
+    -t tgi-llamacpp-cpu \
+    --build-arg llamacpp_native=ON \
+    https://github.com/huggingface/text-generation-inference.git \
+    -f Dockerfile_llamacpp_cpuonly
+```
+
+As a rule of thumb, if you are not interested in GPU acceleration,
+you should build the CPU-only image, which is significantly smaller 
+(Dockerfile_llamacpp_cpuonly - 1.7GB vs Dockerfile_llamacpp - 17GB)
+
 ## Run Docker image
 
 ### CPU-based inference
@@ -70,7 +95,7 @@ docker run \
     -p 3000:3000 \
     -e "HF_TOKEN=$HF_TOKEN" \
     -v "$HOME/models:/app/models" \
-    tgi-llamacpp \
+    tgi-llamacpp-cpu \
     --model-id "Qwen/Qwen2.5-3B-Instruct"
 ```
 
