@@ -358,6 +358,8 @@ class SiglipEncoder(nn.Module):
                 for i in range(config.num_hidden_layers)
             ]
         )
+        # Pre-allocate reusable list to avoid memory allocation during forward pass
+        self._hidden_states_buffer = [None] * config.num_hidden_layers
 
     def forward(
         self,
@@ -365,13 +367,15 @@ class SiglipEncoder(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
     ):
         hidden_states = inputs_embeds
+
         for idx, encoder_layer in enumerate(self.layers):
             hidden_states, _ = encoder_layer(
                 hidden_states,
                 attention_mask,
             )
+            self._hidden_states_buffer[idx] = hidden_states
 
-        return hidden_states
+        return self._hidden_states_buffer
 
 
 class SiglipVisionTransformer(nn.Module):
@@ -393,18 +397,22 @@ class SiglipVisionTransformer(nn.Module):
         if pixel_values is None:
             raise ValueError("You have to specify pixel_values")
 
+        # make sure the pixel values are the correct dtype
+        pixel_values = pixel_values.to(
+            dtype=self.embeddings.patch_embedding.weight.dtype
+        )
         hidden_states = self.embeddings(pixel_values)
 
         # NOTE: up until this point, the code logits are exactly
         # the same as the transformers code. The values evaulate
         # slightly differently in our encoder layer.
-        encoder_outputs = self.encoder(
+        all_encoder_outputs = self.encoder(
             inputs_embeds=hidden_states,
         )
-        last_hidden_state = encoder_outputs
+        last_hidden_state = all_encoder_outputs[-1]
 
         return BaseModelOutputWithPooling(
             last_hidden_state=last_hidden_state,
             # pooler_output=pooled_output,
-            # hidden_states=encoder_outputs,
+            hidden_states=all_encoder_outputs,
         )
