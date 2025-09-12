@@ -72,6 +72,7 @@ impl ToolGrammar {
                     Value::String(func.description.unwrap_or_default()),
                 );
 
+                let mut defs = Map::new();
                 let mut properties = Map::new();
                 let mut required = vec![Value::String("_name".to_string())];
 
@@ -85,10 +86,38 @@ impl ToolGrammar {
 
                 if let Value::Object(args) = func.arguments {
                     if let Some(Value::Object(props)) = args.get("properties") {
-                        properties.extend(props.clone());
+                        let mut updated_props = Map::new();
+                        // Update $ref paths in properties by iterating through
+                        for (key, value) in props.iter() {
+                            let updated_value = match value {
+                                Value::Object(obj) if obj.contains_key("$ref") => {
+                                    let mut new_obj = obj.clone();
+                                    if let Some(Value::String(ref_str)) = new_obj.get("$ref") {
+                                        if ref_str.starts_with("#/$defs/") {
+                                            // Replace $defs with $functions/{func.name}/$defs to handle
+                                            // function-specific definitions
+                                            new_obj.insert(
+                                                "$ref".to_string(),
+                                                Value::String(ref_str.replace(
+                                                    "#/$defs/",
+                                                    &format!("#/$functions/{}/$defs/", func.name),
+                                                )),
+                                            );
+                                        }
+                                    }
+                                    Value::Object(new_obj)
+                                }
+                                _ => value.clone(),
+                            };
+                            updated_props.insert(key.clone(), updated_value);
+                        }
+                        properties.extend(updated_props);
                     }
                     if let Some(Value::Array(reqs)) = args.get("required") {
                         required.extend(reqs.clone());
+                    }
+                    if let Some(Value::Object(definitions)) = args.get("$defs") {
+                        defs.extend(definitions.clone());
                     }
                     params.insert(
                         "additionalProperties".to_string(),
@@ -101,6 +130,7 @@ impl ToolGrammar {
 
                 params.insert("properties".to_string(), Value::Object(properties));
                 params.insert("required".to_string(), Value::Array(required));
+                params.insert("$defs".to_string(), Value::Object(defs));
 
                 (func.name, Value::Object(params))
             })
