@@ -434,7 +434,7 @@ impl Data {
 }
 
 /// Progress bar
-fn progress_gauge(title: &str, label: String, progress: f64, color: Color) -> Gauge {
+fn progress_gauge(title: &str, label: String, progress: f64, color: Color) -> Gauge<'_> {
     Gauge::default()
         .block(Block::default().title(title).borders(Borders::ALL))
         .gauge_style(Style::default().fg(color))
