@@ -1,0 +1,4 @@
+transformers[torch]==4.49
+huggingface-hub==0.28.1
+hf-transfer==0.1.9
+# when changing transformers version, adjust torch version in Dockerfile_llamacpp_cpuonly
