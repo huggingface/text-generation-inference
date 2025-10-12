@@ -37,7 +37,7 @@ struct Args {
     hostname: String,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
-    #[clap(default_value = "9000", long, short, env)]
+    #[clap(default_value = "9000", long, env)]
     prometheus_port: u16,
     #[clap(long, env, required = true)]
     tokenizer_name: String,
@@ -67,6 +67,8 @@ struct Args {
     usage_stats: UsageStatsLevel,
     #[clap(default_value = "2000000", long, env)]
     payload_limit: usize,
+    #[clap(long, env, default_value_t = false)]
+    disable_grammar_support: bool,
 }
 
 async fn get_tokenizer(tokenizer_name: &str, revision: Option<&str>) -> Option<Tokenizer> {
@@ -244,6 +246,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         executor_worker,
         usage_stats,
         payload_limit,
+        disable_grammar_support,
     } = args;
 
     // Launch Tokio runtime
@@ -321,7 +324,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
                 false,
                 None,
                 None,
-                true,
+                disable_grammar_support,
                 max_client_batch_size,
                 usage_stats,
                 payload_limit,

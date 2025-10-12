@@ -24,6 +24,14 @@ mod ffi {
         /// The request finished because the maximum number of tokens was reached.
         #[cxx_name = "kLENGTH"]
         MaxLength = 3u8,
+
+        #[cxx_name = "kTIMED_OUT"]
+        /// The request finished because it got timed out (via the mAllotedTime parameter)
+        TimedOut = 4u8,
+
+        #[cxx_name = "kCANCELLED"]
+        /// The request was cancelled by calling cancelRequest.
+        Cancelled = 5u8,
     }
 
     /// Struct used as shared type between rust and C++ to represent the result
@@ -34,8 +42,14 @@ mod ffi {
         request_id: u64,
         token_id: u32,
         log_prob: f32,
+
+        /// The time of first schedule since the creation of the backend
+        first_scheduled_time_ns: i64,
         is_final: bool,
         finish_reason: FinishReason,
+        token_id_valid: bool,
+        log_prob_valid: bool,
+        first_scheduled_time_ns_valid: bool,
         has_error: bool,
         error_msg: String,
     }
@@ -64,12 +78,12 @@ mod ffi {
         fn create_backend_from_engine_folder(
             engine_folder: &str,
             executor_worker: &str,
+            tokenizer_str: &str,
+            encoded_vocab: Vec<String>,
         ) -> Result<UniquePtr<TensorRtLlmBackendImpl>>;
 
-        fn num_tokens_ready(self: &TensorRtLlmBackendImpl) -> usize;
-
         fn submit(
-            self: Pin<&mut TensorRtLlmBackendImpl>,
+            self: &TensorRtLlmBackendImpl,
             tokens: &[u32],
             max_new_tokens: u32,
             top_k: u32,
@@ -78,13 +92,28 @@ mod ffi {
             repetition_penalty: f32,
             frequency_penalty: f32,
             seed: u64,
+            grammar_type: GrammarType,
+            grammar_value: &str,
         ) -> Result<u64>;
 
         fn pull_tokens(
-            self: Pin<&mut TensorRtLlmBackendImpl>,
+            self: &TensorRtLlmBackendImpl,
         ) -> Result<UniquePtr<CxxVector<GenerationStep>>>;
 
-        fn cancel(self: Pin<&mut TensorRtLlmBackendImpl>, request_id: u64);
+        fn cancel(self: &TensorRtLlmBackendImpl, request_id: u64);
+    }
+
+    #[cxx_name = "grammar_type_t"]
+    #[derive(Debug, Clone, Copy)]
+    pub enum GrammarType {
+        #[cxx_name = "kNONE"]
+        None = 0u8,
+
+        #[cxx_name = "kJSON"]
+        Json = 1u8,
+
+        #[cxx_name = "kREGEX"]
+        Regex = 2u8,
     }
 }
 

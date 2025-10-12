@@ -36,7 +36,7 @@ struct Args {
     hostname: String,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
-    #[clap(default_value = "9000", long, short, env)]
+    #[clap(default_value = "9000", long, env)]
     prometheus_port: u16,
     #[clap(default_value = "/tmp/text-generation-server-0", long, env)]
     master_shard_uds_path: String,

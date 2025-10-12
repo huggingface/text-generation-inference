@@ -119,7 +119,7 @@ struct Args {
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
 
-    #[clap(default_value = "9000", long, short, env)]
+    #[clap(default_value = "9000", long, env)]
     prometheus_port: u16,
 
     /// Enable JSON output format.

@@ -26,7 +26,7 @@ namespace huggingface::tgi::backends::trtllm {
     }
 
 
-    tle::ExecutorConfig backend_workspace_t::executor_config() const {
+    tle::ExecutorConfig backend_workspace_t::executor_config(const std::vector<std::string>& encoded_vocab, std::string_view tokenizer_str) const {
         // Retrieve the compute capabilities to enable some options at runtime
         const auto compute_capabilities = hardware::cuda::compute_capabilities_t();
 
@@ -40,32 +40,50 @@ namespace huggingface::tgi::backends::trtllm {
         executor_config.setKvCacheConfig(tle::KvCacheConfig(true));
         executor_config.setEnableChunkedContext(compute_capabilities.is_at_least_ampere());
         executor_config.setSchedulerConfig(tle::SchedulerConfig(tle::CapacitySchedulerPolicy::kMAX_UTILIZATION));
+        executor_config.setGuidedDecodingConfig(tle::GuidedDecodingConfig(
+            tle::GuidedDecodingConfig::GuidedDecodingBackend::kXGRAMMAR,
+            encoded_vocab,
+            std::string(tokenizer_str),
+            generation_config().eos_token_ids
+        ));
         return executor_config;
     }
 
-    backend_t::backend_t(std::filesystem::path &engines_folder, std::filesystem::path &executor_worker_path)
-            : workspace(engines_folder, executor_worker_path), executor_(executor_factory_initializer(workspace)) {}
-
-    size_t backend_t::num_tokens_ready() const noexcept {
-        return executor_.getNumResponsesReady();
-    }
+    backend_t::backend_t(std::filesystem::path &engines_folder, std::filesystem::path &executor_worker_path, const std::vector<std::string> &encoded_vocab, std::string_view tokenizer_str)
+            : workspace(engines_folder, executor_worker_path), 
+              executor_(executor_factory_initializer(workspace, encoded_vocab, tokenizer_str)) {}
 
     std::expected<request_id_t, backend_error_t>
     backend_t::submit(std::span<const token_id_t> token_ids, const generation_params_t g_params,
                       const sampling_params_t s_params) noexcept {
         SPDLOG_DEBUG("Submit {:d} tokens for scheduling ({}, {})", token_ids.size(), g_params, s_params);
-        return executor_.enqueueRequest(tle::Request{
+        tle::Request req {
                 {token_ids.begin(), token_ids.end()},  // Making actual copy of the tokens
                 static_cast<tle::SizeType32>(g_params.max_new_tokens),
                 true,
                 (tle::SamplingConfig) s_params,
-                tle::OutputConfig{ /* returnLogProbs= */ true},
+                tle::OutputConfig{ 
+                    /* returnLogProbs= */ true,
+                    false,
+                    false,
+                    false,
+                    false,
+                    /* returnPerfMetrics=*/ true,
+                },
                 std::nullopt,
                 std::nullopt,
                 std::nullopt,
                 std::nullopt,
                 workspace.generation_config().stop_words
-        });
+        };
+
+        if (g_params.guide_type.has_value()) {
+            req.setGuidedDecodingParams(tle::GuidedDecodingParams(
+                g_params.guide_type.value(),
+                g_params.guide
+            ));
+        }
+        return executor_.enqueueRequest(req);
     }
 
     std::vector<tle::Response> backend_t::pull_tokens() noexcept {

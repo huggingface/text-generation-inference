@@ -774,7 +774,7 @@ struct Args {
     port: u16,
 
     /// The Prometheus port to listen on.
-    #[clap(default_value = "9000", long, short, env)]
+    #[clap(default_value = "9000", long, env)]
     prometheus_port: u16,
 
     /// The name of the socket for gRPC communication between the webserver

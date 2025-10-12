@@ -19,4 +19,8 @@ pub enum TensorRtLlmBackendError {
     WebServer(#[from] server::WebServerError),
     #[error("Tokio runtime failed to start: {0}")]
     Tokio(#[from] std::io::Error),
+    #[error("config.json doesn't exist in engine folder {0}")]
+    ConfigNotFound(PathBuf),
+    #[error("generation_config.json doesn't exist in engine folder {0}")]
+    GenerationConfigNotFound(PathBuf),
 }
