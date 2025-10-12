@@ -25,6 +25,8 @@ namespace huggingface::tgi::backends::trtllm {
      */
     struct generation_params_t {
         uint32_t max_new_tokens;
+        std::optional<tle::GuidedDecodingParams::GuideType> guide_type;
+        std::string guide;
     };
 
     /**
@@ -66,9 +68,10 @@ namespace huggingface::tgi::backends::trtllm {
         float_t top_p;
         float_t temperature;
         std::list<std::vector<int32_t>> stop_words;
+        std::vector<int32_t> eos_token_ids;
 
         constexpr explicit generation_config_t(const json &config) :
-                top_p(config.value("top_p", 1.0f)), temperature(config.value("temperature", 1.0f)), stop_words(0) {
+                top_p(config.value("top_p", 1.0f)), temperature(config.value("temperature", 1.0f)), stop_words(0), eos_token_ids{} {
             if (!config.contains("/eos_token_id"_json_pointer)) {
                 return;
             }
@@ -76,13 +79,17 @@ namespace huggingface::tgi::backends::trtllm {
                 SPDLOG_DEBUG("generation config eos_token_id is array");
                 const auto &eos_token_id = config["/eos_token_id"_json_pointer];
                 std::for_each(eos_token_id.begin(), eos_token_id.end(), [this](const auto token_id) {
-                    stop_words.emplace_back(1, token_id.template get<int32_t>());
+                    const auto token = token_id.template get<int32_t>();
+                    stop_words.emplace_back(1, token);
+                    eos_token_ids.emplace_back(token);
                 });
             }
 
             if (config["/eos_token_id"_json_pointer].is_number()) {
                 SPDLOG_DEBUG("generation config eos_token_id is number");
-                stop_words.emplace_back(1, config["/eos_token_id"_json_pointer].get<int32_t>());
+                const auto token = config["/eos_token_id"_json_pointer].get<int32_t>();
+                stop_words.emplace_back(1, token);
+                eos_token_ids.emplace_back(token);
             }
 
             SPDLOG_DEBUG("Detected {:d} predefined stop_words from generation_config.json", stop_words.size());
@@ -143,7 +150,7 @@ namespace huggingface::tgi::backends::trtllm {
          * to initialize `tensorrt_llm::executor::Executor`
          * @return `tensorrt_llm::executor::ExecutorConfig` instance
          */
-        [[nodiscard]] tle::ExecutorConfig executor_config() const;
+        [[nodiscard]] tle::ExecutorConfig executor_config(const std::vector<std::string>& encoded_vocab, std::string_view tokenizer_str) const;
     };
 
     /**
@@ -167,10 +174,10 @@ namespace huggingface::tgi::backends::trtllm {
         tle::Executor executor_;
 
     public:
-        backend_t(std::filesystem::path &engines_folder, std::filesystem::path &executor_worker_path);
+        backend_t(std::filesystem::path &engines_folder, std::filesystem::path &executor_worker_path, const std::vector<std::string> &encoded_vocab, std::string_view tokenizer_str);
 
-        backend_t(std::filesystem::path &&engines_folder, std::filesystem::path &&executor_worker_path)
-                : backend_t(engines_folder, executor_worker_path) {};
+        backend_t(std::filesystem::path &&engines_folder, std::filesystem::path &&executor_worker_path, const std::vector<std::string> &encoded_vocab, std::string_view tokenizer_str)
+                : backend_t(engines_folder, executor_worker_path, encoded_vocab, tokenizer_str) {};
 
         /**
          * Submit a new request to the executor
@@ -201,9 +208,9 @@ namespace huggingface::tgi::backends::trtllm {
     /**
      * Create a TensorRT-LLM executor from a workspace
      */
-    const auto executor_factory_initializer = [](const backend_workspace_t &workspace) -> tle::Executor {
+    const auto executor_factory_initializer = [](const backend_workspace_t &workspace, const std::vector<std::string> &encoded_vocab, std::string_view tokenizer_str) -> tle::Executor {
         return {workspace.engines_folder(), tensorrt_llm::executor::ModelType::kDECODER_ONLY,
-                workspace.executor_config()};
+                workspace.executor_config(encoded_vocab, tokenizer_str)};
     };
 }
 

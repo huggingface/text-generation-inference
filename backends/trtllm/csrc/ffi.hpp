@@ -4,6 +4,7 @@
 #include <chrono>
 #include <exception>
 #include <memory>
+#include <optional>
 #include <thread>
 
 #include <nvml.h>
@@ -115,8 +116,8 @@ namespace huggingface::tgi::backends::trtllm {
 
 
     public:
-        tensorrt_llm_backend_t(std::filesystem::path &&engine_folder, std::filesystem::path &&executor_worker_path, const std::chrono::time_point<std::chrono::steady_clock>& created_time)
-                : inner_(engine_folder, executor_worker_path),
+        tensorrt_llm_backend_t(std::filesystem::path &&engine_folder, std::filesystem::path &&executor_worker_path, const std::chrono::time_point<std::chrono::steady_clock>& created_time, const std::vector<std::string>& encoded_vocab, std::string_view tokenizer_str)
+                : inner_(engine_folder, executor_worker_path, encoded_vocab, tokenizer_str),
                   m_created_time {created_time}
         {}
 
@@ -128,16 +129,31 @@ namespace huggingface::tgi::backends::trtllm {
                 float_t temperature,
                 float_t repetition_penalty,
                 float_t frequency_penalty,
-                uint64_t seed
+                uint64_t seed,
+                grammar_type_t grammar_type,
+                rust::Str grammar_value
         ) const {
             // This is enabled only if using add_compile_definitions(SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
             SPDLOG_TRACE(FMT_STRING("[FFI] Submitting {:d} prompt tokens to the executor"));
 
             // Submit the request to the executor and get back a potential request_id used to track request status
             const auto signed_tokens = std::vector<int32_t>(tokens.begin(), tokens.end());
+
+            std::optional<tle::GuidedDecodingParams::GuideType> guide_type = std::nullopt;
+            switch (grammar_type) {
+            case grammar_type_t::kJSON:
+                guide_type = tle::GuidedDecodingParams::GuideType::kJSON_SCHEMA;
+                break;
+            case grammar_type_t::kREGEX:
+                guide_type = tle::GuidedDecodingParams::GuideType::kREGEX;
+                break;
+            default:
+                break;
+            }
+
             const auto maybe_request_id = inner_.submit(
                     signed_tokens,
-                    {max_new_tokens},
+                    {max_new_tokens, guide_type, std::string(grammar_value)},
                     {top_k, top_p, repetition_penalty, frequency_penalty, temperature, seed}
             );
 
@@ -211,15 +227,25 @@ namespace huggingface::tgi::backends::trtllm {
     }
 
     std::unique_ptr<tensorrt_llm_backend_t>
-    create_backend_from_engine_folder(const rust::Str engines_folder, const rust::Str executor_worker_path) {
+    create_backend_from_engine_folder(const rust::Str engines_folder, const rust::Str executor_worker_path, const rust::Str tokenizer_str, const rust::Vec<rust::String> encoded_vocab) {
         const auto created_time = std::chrono::steady_clock::now();
         std::call_once(backend_initialized_flag, initialize_tensorrt_llm_backend);
+
+        std::vector<std::string> encoded_vocab_std{};
+        encoded_vocab_std.reserve(encoded_vocab.size());
+
+        for (const auto& v : encoded_vocab) {
+            encoded_vocab_std.push_back(std::string(v));
+        }
+
         return std::make_unique<tensorrt_llm_backend_t>(
                 std::filesystem::path(std::string_view(engines_folder.begin(), engines_folder.end()),
                                       std::filesystem::path::format::auto_format),
                 std::filesystem::path(std::string_view(executor_worker_path.begin(), executor_worker_path.end()),
                                       std::filesystem::path::format::auto_format),
-                created_time
+                created_time,
+                encoded_vocab_std,
+                std::string_view(tokenizer_str)
         );
     }
 }

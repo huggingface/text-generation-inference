@@ -18,12 +18,13 @@ use text_generation_router::infer::{Backend, GeneratedText, InferError, InferStr
 use text_generation_router::validation::ValidationError::{
     EmptyInput, Grammar, TopNTokensDisabled, UnsupportedModality,
 };
-use text_generation_router::validation::{Chunk, ValidGenerateRequest};
+use text_generation_router::validation::{Chunk, ValidGenerateRequest, ValidGrammar};
 use text_generation_router::Token;
 
 use crate::errors::TensorRtLlmBackendError;
 use crate::ffi::{
-    create_backend_from_engine_folder, FinishReason, GenerationStep, TensorRtLlmBackendImpl,
+    create_backend_from_engine_folder, FinishReason, GenerationStep, GrammarType,
+    TensorRtLlmBackendImpl,
 };
 use crate::utils::first_line;
 
@@ -105,6 +106,16 @@ fn request_looper(
             1
         };
 
+        let (grammar_type, grammar_value): (GrammarType, &str) =
+            if let Some(grammar) = &generation_params.grammar {
+                match grammar {
+                    ValidGrammar::Json(v) => (GrammarType::Json, v),
+                    ValidGrammar::Regex(v) => (GrammarType::Regex, v),
+                }
+            } else {
+                (GrammarType::None, "")
+            };
+
         // Submit to the TensorRT-LLM executor for scheduling
         match backend.submit(
             &input_ids.unwrap(), // This is checked beforehand in validate()
@@ -115,6 +126,8 @@ fn request_looper(
             generation_params.repetition_penalty,
             generation_params.frequency_penalty,
             generation_params.seed,
+            grammar_type,
+            grammar_value,
         ) {
             Ok(request_id) => {
                 // Insert the context linked to the generated request id in the tracker
@@ -392,9 +405,25 @@ impl TensorRtLlmBackendV2 {
         // to rust Instant.
         let created_time = Instant::now();
 
+        let encoded_vocab = {
+            let vocab = tokenizer.get_vocab(true);
+            let mut tokens: Vec<String> = vocab.keys().map(|x| x.clone()).collect();
+            tokens.sort_by(|a, b| vocab.get(a).cmp(&vocab.get(b)));
+            tokens
+        };
+
+        let tokenizer_str = tokenizer
+            .to_string(false)
+            .map_err(|e| TensorRtLlmBackendError::Tokenizer(e.to_string()))?;
+
         // Create the FFI backend
-        let backend = create_backend_from_engine_folder(&engine_folder, &executor_worker_path)
-            .map_err(|e| TensorRtLlmBackendError::Runtime(first_line(e.what(), "Unknown error")))?;
+        let backend = create_backend_from_engine_folder(
+            &engine_folder,
+            &executor_worker_path,
+            &tokenizer_str,
+            encoded_vocab,
+        )
+        .map_err(|e| TensorRtLlmBackendError::Runtime(first_line(e.what(), "Unknown error")))?;
 
         let backend = Arc::new(backend);
         let backend_response = backend.clone();
@@ -423,11 +452,6 @@ impl TensorRtLlmBackendV2 {
 
         if request.top_n_tokens > 1 {
             return Err(ValidationError(TopNTokensDisabled));
-        }
-
-        // TODO: Is it really needed? How can it be validated before?
-        if request.parameters.grammar.is_some() {
-            return Err(ValidationError(Grammar));
         }
 
         match request.inputs.len() {

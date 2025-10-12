@@ -78,6 +78,8 @@ mod ffi {
         fn create_backend_from_engine_folder(
             engine_folder: &str,
             executor_worker: &str,
+            tokenizer_str: &str,
+            encoded_vocab: Vec<String>,
         ) -> Result<UniquePtr<TensorRtLlmBackendImpl>>;
 
         fn submit(
@@ -90,6 +92,8 @@ mod ffi {
             repetition_penalty: f32,
             frequency_penalty: f32,
             seed: u64,
+            grammar_type: GrammarType,
+            grammar_value: &str,
         ) -> Result<u64>;
 
         fn pull_tokens(
@@ -97,6 +101,19 @@ mod ffi {
         ) -> Result<UniquePtr<CxxVector<GenerationStep>>>;
 
         fn cancel(self: &TensorRtLlmBackendImpl, request_id: u64);
+    }
+
+    #[cxx_name = "grammar_type_t"]
+    #[derive(Debug, Clone, Copy)]
+    pub enum GrammarType {
+        #[cxx_name = "kNONE"]
+        None = 0u8,
+
+        #[cxx_name = "kJSON"]
+        Json = 1u8,
+
+        #[cxx_name = "kREGEX"]
+        Regex = 2u8,
     }
 }
 
