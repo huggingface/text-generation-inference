@@ -14,7 +14,7 @@ def get_test_model():
         def generate_token(self, batch):
             raise NotImplementedError
 
-    tokenizer = AutoTokenizer.from_pretrained("huggingface/llama-7b")
+    tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
 
     model = TestModel(
         "test_model_id",
