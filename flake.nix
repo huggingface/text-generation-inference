@@ -33,7 +33,7 @@
         };
         pkgs = import nixpkgs {
           inherit system;
-          inherit (hf-nix.lib) config;
+          config = hf-nix.lib.config system;
           overlays = [
             rust-overlay.overlays.default
             hf-nix.overlays.default
@@ -127,27 +127,33 @@
             ];
           };
           test = mkShell {
-            buildInputs =
-              [
-                benchmark
-                launcher
-                router
-                server
-                client
-                openssl.dev
-                pkg-config
-                cargo
-                rustfmt
-                clippy
-              ]
-              ++ (with python3.pkgs; [
-                docker
-                pytest
-                pytest-asyncio
-                syrupy
-                pre-commit
-                ruff
-              ]);
+            nativeBuildInputs = [
+              (rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
+              pkg-config
+              protobuf
+            ];
+            buildInputs = [
+              benchmark
+              launcher
+              router
+              server
+              client
+              openssl.dev
+            ]
+            ++ (with python3.pkgs; [
+              docker
+              pytest
+              pytest-asyncio
+              syrupy
+              pre-commit
+              ruff
+            ]);
+
+            # Isolate from user cargo/rust installations
+            shellHook = ''
+              export CARGO_HOME=$PWD/.cargo-nix
+              export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v -E '(\.cargo/bin|\.rustup)' | tr '\n' ':' | sed 's/:$//')
+            '';
           };
 
           impure = callPackage ./nix/impure-shell.nix { inherit server; };

@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import lru_cache, wraps
 import math
 import time
 import torch
@@ -8,8 +8,7 @@ from loguru import logger
 from typing import Dict
 from text_generation_server.pb.generate_pb2 import GrammarType
 
-from outlines.fsm.guide import RegexGuide
-
+from outlines_core import Guide, Index, Vocabulary
 from transformers import (
     LogitsProcessor,
     PreTrainedTokenizerBase,
@@ -18,6 +17,81 @@ from transformers import (
     TopPLogitsWarper,
     TypicalLogitsWarper,
 )
+
+# TODO: avoid custom cache with improved strategy
+def custom_lru_cache(maxsize=128, typed=False):
+    """Custom LRU cache that handles unhashable Vocabulary objects.
+
+    Uses object identity (id) and key attributes to create cache keys for Vocabulary objects.
+    """
+    from collections import OrderedDict
+
+    def decorator(func):
+        cache = OrderedDict()
+        cache_hits = 0
+        cache_misses = 0
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            nonlocal cache_hits, cache_misses
+
+            # Convert args to a hashable cache key
+            cache_key_parts = []
+            for arg in args:
+                if isinstance(arg, Vocabulary):
+                    # Create a hashable signature for the Vocabulary
+                    # Use eos_token_id and vocab length as cache key
+                    eos_id = arg.get_eos_token_id()
+                    vocab_len = len(arg)
+                    vocab_sig = ("__vocab__", eos_id, vocab_len, id(arg))
+                    cache_key_parts.append(vocab_sig)
+                else:
+                    cache_key_parts.append(arg)
+
+            # Create cache key from hashable parts
+            cache_key = tuple(cache_key_parts)
+
+            # Check if result is in cache
+            if cache_key in cache:
+                # Move to end (most recently used)
+                cache.move_to_end(cache_key)
+                cache_hits += 1
+                return cache[cache_key]
+
+            # Cache miss - call the function
+            cache_misses += 1
+            result = func(*args, **kwargs)
+
+            # Store in cache
+            cache[cache_key] = result
+
+            # Remove oldest item if cache is full
+            if len(cache) > maxsize:
+                cache.popitem(last=False)
+
+            return result
+
+        def cache_info():
+            from collections import namedtuple
+
+            CacheInfo = namedtuple(
+                "CacheInfo", ["hits", "misses", "maxsize", "currsize"]
+            )
+            return CacheInfo(cache_hits, cache_misses, maxsize, len(cache))
+
+        def cache_clear():
+            nonlocal cache_hits, cache_misses
+            cache.clear()
+            cache_hits = 0
+            cache_misses = 0
+
+        wrapper.cache_info = cache_info
+        wrapper.cache_clear = cache_clear
+
+        return wrapper
+
+    return decorator
+
 
 mempool = torch.cuda.graph_pool_handle() if torch.cuda.is_available() else None
 
@@ -479,9 +553,10 @@ class HeterogeneousProcessorWrapper(LogitsProcessor):
         return None
 
 
+# TODO(outlines)
 class GrammarLogitProcessor(LogitsProcessor):
     fsm_state: DefaultDict[int, int]
-    fsm: RegexGuide
+    fsm: Guide
 
     def __init__(
         self,
@@ -491,9 +566,18 @@ class GrammarLogitProcessor(LogitsProcessor):
         grammar_type: GrammarType,
     ):
         self.device = device
-        self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
+        # map must not contain the eos token
+        vocab_map = {
+            token: [idx]
+            for token, idx in tokenizer.get_vocab().items()
+            if idx != tokenizer.eos_token_id
+        }
+        vocabulary = Vocabulary(
+            map=vocab_map,
+            eos_token_id=tokenizer.eos_token_id,
+        )
         self.fsm = GrammarLogitProcessor._cached_compile_fsm(
-            grammar_type, grammar, self.tokenizer
+            grammar_type, grammar, vocabulary
         )
 
     def __call__(
@@ -503,7 +587,8 @@ class GrammarLogitProcessor(LogitsProcessor):
     ):
         if fsm_grammar_state == -1 or self.fsm is None:
             return logits
-        allowed_tokens = self.fsm.get_next_instruction(fsm_grammar_state).tokens
+        allowed_tokens = self.fsm.get_tokens()
+        logger.info(f"state={fsm_grammar_state} allowed_tokens={allowed_tokens}")
         mask = torch.full_like(logits, -math.inf)
         if allowed_tokens is not None:
             mask[:, allowed_tokens] = 0
@@ -519,15 +604,26 @@ class GrammarLogitProcessor(LogitsProcessor):
     def _advance(next_token_id, fsm_grammar_state, fsm):
         if fsm_grammar_state == -1:
             return fsm_grammar_state
-        return fsm.get_next_state(fsm_grammar_state, next_token_id)
+        logger.info(f"state={fsm_grammar_state} next_token={next_token_id}")
+        
+        # TODO: remove the try except and correctly handle invalid transitions
+        try:
+            fsm.advance(next_token_id)
+            new_state = fsm.get_state()
+            logger.info(f"new_state={new_state}")
+        except Exception as e:
+            logger.error(f"FSM advance error: {e}")
+            new_state = -1
+
+        return new_state
 
     # TODO: move grammar compilation into the router
     @staticmethod
-    @lru_cache(maxsize=32, typed=True)
+    @custom_lru_cache(maxsize=32, typed=True)
     def _cached_compile_fsm(
         grammar_type: GrammarType,
         schema: str,
-        tokenizer: Optional[PreTrainedTokenizerBase],
+        vocabulary: Vocabulary,
     ):
         start_time = time.time()
         if grammar_type == GrammarType.GRAMMAR_TYPE_JSON:
@@ -538,9 +634,10 @@ class GrammarLogitProcessor(LogitsProcessor):
             # allows everything
             schema = "(.*?)"
 
-        fsm = RegexGuide.from_regex(schema, tokenizer)
+        index = Index(schema, vocabulary)
+        guide = Guide(index)
         logger.debug(f"Compiled FSM in {time.time() - start_time:.2f}s")
-        return fsm
+        return guide
 
     @staticmethod
     @lru_cache(maxsize=32, typed=True)
@@ -596,7 +693,7 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
             fsm = self.fsms[i]
             if fsm_grammar_states[i] == -1 or fsm is None:
                 continue
-            allowed_tokens = fsm.get_next_instruction(fsm_grammar_states[i]).tokens
+            allowed_tokens = fsm.get_tokens()
             if allowed_tokens is not None:
                 mask[i, allowed_tokens] = 0
             logits[i] += mask[i]
