@@ -327,7 +327,7 @@ def test_batch_concatenate(
         )
 
     # TODO: fix the filtering issue
-    
+
     # for _ in range(3):
     #     generations, next_batch, _ = default_seq2seq_lm.generate_token(next_batch)
     #     assert len(generations) == len(next_batch)

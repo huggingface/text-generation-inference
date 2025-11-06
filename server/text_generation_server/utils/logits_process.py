@@ -18,6 +18,7 @@ from transformers import (
     TypicalLogitsWarper,
 )
 
+
 # TODO: avoid custom cache with improved strategy
 def custom_lru_cache(maxsize=128, typed=False):
     """Custom LRU cache that handles unhashable Vocabulary objects.
@@ -605,7 +606,7 @@ class GrammarLogitProcessor(LogitsProcessor):
         if fsm_grammar_state == -1:
             return fsm_grammar_state
         logger.info(f"state={fsm_grammar_state} next_token={next_token_id}")
-        
+
         # TODO: remove the try except and correctly handle invalid transitions
         try:
             fsm.advance(next_token_id)
