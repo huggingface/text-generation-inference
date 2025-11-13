@@ -569,10 +569,13 @@ fn format_to_mimetype(format: ImageFormat) -> String {
     .to_string()
 }
 
-fn fetch_image(input: &str, max_image_fetch_size: usize) -> Result<(Vec<u8>, String, usize, usize), ValidationError> {
+fn fetch_image(
+    input: &str,
+    max_image_fetch_size: usize,
+) -> Result<(Vec<u8>, String, usize, usize), ValidationError> {
     if input.starts_with("![](http://") || input.starts_with("![](https://") {
         let url = &input["![](".len()..input.len() - 1];
-        let mut response = reqwest::blocking::get(url)?;
+        let response = reqwest::blocking::get(url)?;
 
         // Check Content-Length header if present
         if let Some(content_length) = response.content_length() {
@@ -590,7 +593,10 @@ fn fetch_image(input: &str, max_image_fetch_size: usize) -> Result<(Vec<u8>, Str
         limited_reader.read_to_end(&mut data)?;
 
         if data.len() > max_image_fetch_size {
-            return Err(ValidationError::ImageTooLarge(data.len(), max_image_fetch_size));
+            return Err(ValidationError::ImageTooLarge(
+                data.len(),
+                max_image_fetch_size,
+            ));
         }
 
         let format = image::guess_format(&data)?;
@@ -832,7 +838,8 @@ fn prepare_input<T: TokenizerTrait>(
                     input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()));
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
-                let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end], max_image_fetch_size)?;
+                let (data, mimetype, height, width) =
+                    fetch_image(&inputs[chunk_start..chunk_end], max_image_fetch_size)?;
                 input_chunks.push(Chunk::Image(Image { data, mimetype }));
                 tokenizer_query.push_str(&image_tokens(config, preprocessor_config, height, width));
                 start = chunk_end;
