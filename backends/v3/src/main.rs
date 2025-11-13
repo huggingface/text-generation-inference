@@ -74,6 +74,8 @@ struct Args {
     usage_stats: usage_stats::UsageStatsLevel,
     #[clap(default_value = "2000000", long, env)]
     payload_limit: usize,
+    #[clap(default_value = "1073741824", long, env)]
+    max_image_fetch_size: usize,
 }
 
 #[derive(Debug, Subcommand)]
@@ -120,6 +122,7 @@ async fn main() -> Result<(), RouterError> {
         max_client_batch_size,
         usage_stats,
         payload_limit,
+        max_image_fetch_size,
     } = args;
 
     if let Some(Commands::PrintSchema) = command {
@@ -217,6 +220,7 @@ async fn main() -> Result<(), RouterError> {
         max_client_batch_size,
         usage_stats,
         payload_limit,
+        max_image_fetch_size,
         prometheus_port,
     )
     .await?;
