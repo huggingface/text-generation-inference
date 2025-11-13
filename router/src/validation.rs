@@ -34,7 +34,6 @@ pub struct Validation {
     max_input_length: usize,
     max_total_tokens: usize,
     disable_grammar_support: bool,
-    max_image_fetch_size: usize,
     /// Channel to communicate with the background tokenization task
     sender: mpsc::UnboundedSender<TokenizerRequest>,
 }
@@ -99,7 +98,6 @@ impl Validation {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
-            max_image_fetch_size,
         }
     }
 
