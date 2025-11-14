@@ -489,6 +489,7 @@ class GrammarLogitProcessor(LogitsProcessor):
         device: str,
         grammar: str,
         grammar_type: GrammarType,
+        grammar_index: Optional[int] = None,
     ):
         self.device = device
         self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
@@ -573,7 +574,7 @@ class GrammarLogitProcessor(LogitsProcessor):
 
 
 class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
-    def __init__(self, tokenizer, device, grammars, grammar_types):
+    def __init__(self, tokenizer, device, grammars, grammar_types, grammar_index):
         self.device = device
         self.tokenizer = GrammarLogitProcessor._cached_adapt_tokenizer(tokenizer)
         self.fsms = []

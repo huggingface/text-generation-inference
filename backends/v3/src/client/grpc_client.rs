@@ -181,6 +181,7 @@ impl Client {
                     watermark: true,
                     grammar: String::new(),
                     grammar_type: GrammarType::None as i32,
+                    grammar_index: None,
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
                     max_new_tokens,
