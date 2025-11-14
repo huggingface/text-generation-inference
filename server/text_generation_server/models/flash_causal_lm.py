@@ -83,22 +83,9 @@ from text_generation_server.models.metadata_kernels import (
 
 tracer = trace.get_tracer(__name__)
 
-# Will be set in init
-SLIDING_WINDOW: Optional[int] = None
-
 
 def small_power_of_2(n: int):
     return 1 << ((n - 1).bit_length() - 1)
-
-
-def set_sliding_window(sliding_window: int):
-    global SLIDING_WINDOW
-    SLIDING_WINDOW = sliding_window
-
-
-def get_sliding_windows() -> int:
-    global SLIDING_WINDOW
-    return SLIDING_WINDOW
 
 
 def init_cpu_threads_env(rank_id: int, world_size: int):
@@ -750,7 +737,16 @@ class FlashCausalLMBatch(Batch):
             adapter_segment_builder = None
         else:
             input_ids = batches[0].input_ids.new_empty(total_batch_size)
-            position_ids = batches[0].position_ids.new_empty(total_batch_size)
+            if (
+                batches[0].position_ids is not None
+                and batches[0].position_ids.dim() == 2
+            ):
+                # Qwen2_vl case:
+                position_ids = batches[0].position_ids.new_empty(
+                    (total_batch_size, batches[0].position_ids.shape[-1])
+                )
+            else:
+                position_ids = batches[0].position_ids.new_empty(total_batch_size)
             slot_indices = batches[0].slot_indices.new_empty(total_batch_size)
             input_lengths_tensor = batches[0].input_lengths_tensor.new_empty(
                 total_batch_size
@@ -993,10 +989,8 @@ class FlashCausalLMBatch(Batch):
                 self.slot_indices,
             )
 
-        sliding_window = get_sliding_windows()
         position_ids = []
         slot_indices = []
-        prefill_cache_indices = []
         all_prefill_logprobs = True
         no_prefill_logprobs = True
         prefill_cu_outlens = [0]
@@ -1055,14 +1049,6 @@ class FlashCausalLMBatch(Batch):
                 # Update
                 cumulative_slot_tokens += len(request_slots)
 
-            # Create tensor to slice into the kv tensor in prefill
-            if sliding_window is not None:
-                request_prefill_cache_indices = torch.arange(
-                    cumulative_length + max(0, input_length - sliding_window),
-                    cumulative_length + input_length,
-                    dtype=torch.int64,
-                )
-
             # Prefill logprobs is ignored if the request is done prefilling
             prefill_logprobs = r.prefill_logprobs and request_prefilling
 
@@ -1075,9 +1061,6 @@ class FlashCausalLMBatch(Batch):
             else:
                 prefill_cu_outlens.append(prefill_out_cumulative_length + 1)
                 prefill_out_cumulative_length += 1
-
-            if sliding_window is not None:
-                prefill_cache_indices.append(request_prefill_cache_indices)
 
             ADAPTER_TO_INDEX = get_adapter_to_index()
             if ADAPTER_TO_INDEX:
@@ -1142,24 +1125,18 @@ class FlashCausalLMBatch(Batch):
                 position_ids = torch.cat(position_ids)
             if slot_indices:
                 slot_indices = torch.cat(slot_indices)
-            if sliding_window is not None:
-                prefill_cache_indices = torch.cat(prefill_cache_indices)
         else:
             if position_ids:
                 position_ids = position_ids[0]
             if slot_indices:
                 slot_indices = slot_indices[0]
-            if sliding_window is not None:
-                prefill_cache_indices = prefill_cache_indices[0]
 
         if not has_triton():
             self.position_ids = position_ids.to(device)
             self.slot_indices = slot_indices.to(device)
 
         self.prefill_cu_outlens = prefill_cu_outlens
-        self.prefill_cache_indices = (
-            prefill_cache_indices.to(device) if sliding_window is not None else None
-        )
+        self.prefill_cache_indices = None
 
         if all_prefill_logprobs:
             prefill_head_indices = None
@@ -1297,9 +1274,7 @@ class FlashCausalLM(Model):
         if text_config is not None:
             config = text_config
 
-        if getattr(config, "sliding_window", None) is not None:
-            set_sliding_window(config.sliding_window)
-        else:
+        if getattr(config, "sliding_window", None) is None:
             config.sliding_window = None
 
         self.num_layers = config.num_hidden_layers
@@ -1323,7 +1298,7 @@ class FlashCausalLM(Model):
         if head_size is None:
             # Some models use GQA and different sizes for o_proj
             # and q_proj, that allows for that.
-            if hasattr(config, "head_dim"):
+            if getattr(config, "head_dim", None) is not None:
                 self.head_size = config.head_dim
             else:
                 self.head_size = config.hidden_size // config.num_attention_heads
@@ -1369,9 +1344,6 @@ class FlashCausalLM(Model):
     def batch_type(self) -> Type[FlashCausalLMBatch]:
         return FlashCausalLMBatch
 
-    def max_past(self) -> int:
-        return getattr(self.model, "max_past", None)
-
     def init_kv_cache(
         self,
         num_blocks: int,
@@ -1401,6 +1373,13 @@ class FlashCausalLM(Model):
         if max_bs is None:
             input_ids = torch.zeros(bs, dtype=torch.int64, device=self.device)
             position_ids = torch.zeros(bs, dtype=torch.int32, device=self.device)
+            config = getattr(self.model, "config", None)
+            rope_scaling = getattr(config, "rope_scaling", None) if config else None
+            if (  # mrope have position_ids per section, if so repeat n times
+                isinstance(rope_scaling, dict) and rope_scaling["rope_type"] == "mrope"
+            ):
+                n_sections = len(self.model.config.rope_scaling["mrope_section"])
+                position_ids = position_ids.unsqueeze(1).repeat(1, n_sections)
             slots = torch.arange(bs, dtype=torch.int64, device=self.device)
             input_lengths_tensor = (
                 torch.ones(bs, dtype=torch.int32, device=self.device) * max_s
@@ -1455,14 +1434,6 @@ class FlashCausalLM(Model):
             )
         else:
             state = None
-
-        if (
-            hasattr(self.model, "config")
-            and hasattr(self.model.config, "model_type")
-            and self.model.config.model_type == "qwen2_vl"
-        ):
-            if position_ids.dim() == 1:
-                position_ids = self.model.get_position_ids(input_ids)
 
         graph = torch.cuda.CUDAGraph()
         self.cuda_graphs[bs] = {
@@ -1818,12 +1789,6 @@ class FlashCausalLM(Model):
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
 
-        if cu_seqlen_prefill is None and self.max_past() is not None:
-            # In decode, not prefill, we're actually overwriting the KV-cache
-            # in a circular buffer mode.
-            # This makes sure the max_s for the decode pass is correct.
-            max_s = min(self.max_past(), max_s)
-
         bs = input_ids.shape[0]
         sorted_padded_bs = sorted([k for k in self.cuda_graphs.keys() if k >= bs])
         if sorted_padded_bs:
@@ -1930,6 +1895,9 @@ class FlashCausalLM(Model):
         prefill = batch.prefilling
         if prefill:
             batch.prepare_for_prefill()
+
+        if hasattr(self, "set_inputs_embeds") and callable(self.set_inputs_embeds):
+            self.set_inputs_embeds(batch)
 
         prefill_logprobs = batch.prefill_next_token_indices is not None
 
@@ -2050,7 +2018,7 @@ class FlashCausalLM(Model):
         # instantly become of shape [BATCH_SIZE]
         if prefill and finished_prefilling:
             indices = batch.cu_seqlen_prefill[1:] - 1
-            batch.position_ids = batch.position_ids[(..., indices)]
+            batch.position_ids = batch.position_ids[indices]
             batch.slot_indices = batch.slot_indices[indices]
             batch.adapter_meta.adapter_indices = batch.adapter_meta.adapter_indices[
                 indices
@@ -2134,7 +2102,11 @@ class FlashCausalLM(Model):
         if not prefill or (prefill and finished_prefilling):
             batch.input_ids = next_input_ids[cu_accepted_ids[1:] - 1]
             batch.speculative_ids = speculative_ids
-            batch.position_ids += accepted_ids
+            if batch.position_ids.dim() == 2:
+                # Qwen2_vl case:
+                batch.position_ids += accepted_ids.unsqueeze(-1)
+            else:
+                batch.position_ids += accepted_ids
             batch.cache_lengths_tensor += batch.input_lengths_tensor + accepted_ids - 1
             batch.input_lengths_tensor = torch.ones_like(batch.input_lengths_tensor)
             batch.slot_indices += accepted_ids
@@ -2465,6 +2437,7 @@ class FlashCausalLM(Model):
         input_lengths_tensor: torch.Tensor,
         cache_lengths_tensor: torch.Tensor,
         state: Optional[Any] = None,
+        attention_mask: Optional[torch.Tensor] = None,
     ) -> ContextManager:
         if ATTENTION != "flashinfer":
             return nullcontext()
@@ -2481,6 +2454,7 @@ class FlashCausalLM(Model):
                 ),
                 block_tables=block_tables,
                 cu_seqlens=cu_seqlen_prefill,
+                custom_mask=attention_mask,
                 input_lengths=input_lengths_tensor + cache_lengths_tensor,
                 num_heads=self.num_heads,
                 num_kv_heads=self.num_kv_heads,
@@ -2488,7 +2462,6 @@ class FlashCausalLM(Model):
                 page_size=BLOCK_SIZE,
                 kv_dtype=self.kv_cache_dtype,
                 q_dtype=self.dtype,
-                window_left=self.sliding_window,
             )
         else:
             assert input_lengths_tensor is not None
@@ -2502,5 +2475,4 @@ class FlashCausalLM(Model):
                 page_size=BLOCK_SIZE,
                 kv_cache_dtype=self.kv_cache_dtype,
                 q_dtype=self.dtype,
-                window_left=self.sliding_window,
             )

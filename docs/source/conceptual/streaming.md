@@ -27,14 +27,14 @@ For example, a system can generate 100 tokens per second. If the system generate
 
 <div class="block dark:hidden">
 	<iframe
-        src="https://osanseviero-streaming-vs-non-streaming.hf.space?__theme=light"
+        src="https://huggingface-streaming-vs-non-streaming.hf.space?__theme=light"
         width="850"
         height="350"
     ></iframe>
 </div>
 <div class="hidden dark:block">
     <iframe
-        src="https://osanseviero-streaming-vs-non-streaming.hf.space?__theme=dark"
+        src="https://huggingface-streaming-vs-non-streaming.hf.space?__theme=dark"
         width="850"
         height="350"
     ></iframe>
@@ -125,24 +125,26 @@ curl localhost:8080/v1/chat/completions \
 ### Streaming with JavaScript
 
 First, we need to install the `@huggingface/inference` library.
-`npm install @huggingface/inference`
 
-If you're using the free Inference API, you can use `HfInference`. If you're using inference endpoints, you can use `HfInferenceEndpoint`.
+```bash
+npm install @huggingface/inference
+```
 
-We can create a `HfInferenceEndpoint` providing our endpoint URL and credential.
+Whether you use Inference Providers (our serverless API), or Inference Endpoints, you can call `InferenceClient`.
+
 
 ```js
-import { HfInferenceEndpoint } from '@huggingface/inference'
+import { InferenceClient } from '@huggingface/inference';
 
-const hf = new HfInferenceEndpoint('https://YOUR_ENDPOINT.endpoints.huggingface.cloud', 'hf_YOUR_TOKEN')
+const client = new InferenceClient('hf_YOUR_TOKEN', { endpointUrl: 'https://YOUR_ENDPOINT.endpoints.huggingface.cloud' });
 
 // prompt
-const prompt = 'What can you do in Nuremberg, Germany? Give me 3 Tips'
+const prompt = 'What can you do in Nuremberg, Germany? Give me 3 Tips';
 
-const stream = hf.textGenerationStream({ inputs: prompt })
+const stream = client.textGenerationStream({ inputs: prompt });
 for await (const r of stream) {
   // yield the generated token
-  process.stdout.write(r.token.text)
+  process.stdout.write(r.token.text);
 }
 ```
 

@@ -37,6 +37,8 @@ struct Args {
     hostname: String,
     #[clap(default_value = "3000", long, short, env)]
     port: u16,
+    #[clap(default_value = "9000", long, short, env)]
+    prometheus_port: u16,
     #[clap(long, env, required = true)]
     tokenizer_name: String,
     #[clap(long, env)]
@@ -84,6 +86,10 @@ async fn get_tokenizer(tokenizer_name: &str, revision: Option<&str>) -> Option<T
 
         if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
             builder = builder.with_cache_dir(cache_dir.into());
+        }
+
+        if let Ok(origin) = std::env::var("HF_HUB_USER_AGENT_ORIGIN") {
+            builder = builder.with_user_agent("origin", origin.as_str());
         }
 
         builder
@@ -223,6 +229,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         max_batch_total_tokens,
         hostname,
         port,
+        prometheus_port,
         tokenizer_name,
         tokenizer_config_path,
         revision,
@@ -318,6 +325,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
                 max_client_batch_size,
                 usage_stats,
                 payload_limit,
+                prometheus_port,
             )
             .await?;
             Ok(())

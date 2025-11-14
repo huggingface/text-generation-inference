@@ -116,11 +116,10 @@ class MistralAttention(torch.nn.Module):
         )
         self.num_heads = config.num_attention_heads
         self.hidden_size = config.hidden_size
-        if hasattr(config, "head_dim"):
+        if getattr(config, "head_dim", None) is not None:
             self.head_size = config.head_dim
         else:
             self.head_size = self.hidden_size // self.num_heads
-
         self.rotary_emb = PositionRotaryEmbedding.static(
             config=config,
             dim=self.head_size,
@@ -242,6 +241,7 @@ class MistralAttention(torch.nn.Module):
                 seqlen,
                 max_s,
                 kv_scales=self.kv_scales,
+                window_size_left=self.max_past,
             )
 
         return self.o_proj(

@@ -8,6 +8,7 @@ use std::cmp::max;
 use std::collections::VecDeque;
 use text_generation_router::infer::InferError;
 use text_generation_router::infer::InferStreamResponse;
+use text_generation_router::usage_stats::Env;
 use text_generation_router::validation::{
     Chunk, ChunksToString, ValidGenerateRequest, ValidGrammar, ValidParameters,
     ValidStoppingParameters,
@@ -185,6 +186,9 @@ struct State {
 
     /// Paged Attention Block Allocation
     block_allocator: Option<BlockAllocator>,
+
+    /// indicate if it's hpu device, the hpu device needs padding to generate first token.
+    is_hpu_device: bool,
 }
 
 impl State {
@@ -214,6 +218,7 @@ impl State {
             speculate,
             support_chunking,
             block_allocator,
+            is_hpu_device: Env::new().is_hpu_device(),
         }
     }
 
@@ -311,7 +316,7 @@ impl State {
                         + entry.request.stopping_parameters.max_new_tokens
                         + self.speculate
                         - 1;
-                    tracing::debug!("Allocating {tokens} with {input_ids:?}");
+                    // tracing::debug!("Allocating {tokens} with {input_ids:?}");
 
                     let block_allocation = match block_allocator.allocate(tokens, input_ids).await {
                         None => {
@@ -322,7 +327,7 @@ impl State {
                             break 'entry_loop;
                         }
                         Some(mut block_allocation) => {
-                            tracing::debug!("Allocation: {block_allocation:?}");
+                            // tracing::debug!("Allocation: {block_allocation:?}");
                             max_blocks = max(max_blocks, block_allocation.blocks.len() as u32);
 
                             if block_allocation.prefix_len == entry.request.input_length {
@@ -363,6 +368,21 @@ impl State {
                                 "Over budget: prefill_tokens={} > {prefill_token_budget}",
                                 prefill_tokens + postfix_len
                             );
+                            self.entries.push_front((id, entry));
+                            break 'entry_loop;
+                        }
+                    }
+
+                    if self.is_hpu_device {
+                        //HPU needs to pad for the prefill
+                        max_input_length = max_input_length.max(entry.request.input_length);
+                        let actual_prefill_tokens_for_hpu =
+                            (batch.len() + 1) as u32 * max_input_length;
+
+                        if actual_prefill_tokens_for_hpu > prefill_token_budget {
+                            // Entry is over budget
+                            // Add it back to the front
+                            tracing::debug!("Over budget: prefill_tokens={actual_prefill_tokens_for_hpu} > {prefill_token_budget}");
                             self.entries.push_front((id, entry));
                             break 'entry_loop;
                         }

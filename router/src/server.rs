@@ -1,3 +1,4 @@
+use crate::chat::{ChatChoice, ChatEvent, ChatState};
 /// HTTP Server logic
 use crate::config::Config;
 use crate::infer::{Backend, Infer, InferError, InferResponse, InferStreamResponse};
@@ -6,13 +7,13 @@ use crate::kserve::{
     kerve_server_metadata, kserve_health_live, kserve_health_ready, kserve_model_infer,
     kserve_model_metadata, kserve_model_metadata_ready,
 };
+use crate::logging::trace_context_middleware;
 use crate::sagemaker::{
     sagemaker_compatibility, SagemakerRequest, SagemakerResponse, SagemakerStreamResponse,
     __path_sagemaker_compatibility,
 };
 use crate::validation::ValidationError;
 use crate::vertex::vertex_compatibility;
-use crate::ChatTokenizeResponse;
 use crate::{
     usage_stats, BestOfSequence, Details, ErrorResponse, FinishReason, FunctionName,
     GenerateParameters, GenerateRequest, GenerateResponse, GrammarType, HubModelInfo,
@@ -27,8 +28,9 @@ use crate::{
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
     CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
 };
+use crate::{ChatTokenizeResponse, JsonSchemaConfig};
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
-use crate::{ModelInfo, ModelsInfo};
+use crate::{MessageBody, ModelInfo, ModelsInfo};
 use async_stream::__private::AsyncStream;
 use axum::extract::{DefaultBodyLimit, Extension};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -47,8 +49,6 @@ use http::header::AUTHORIZATION;
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder, PrometheusHandle};
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
-use regex::Regex;
-use serde_json::Value;
 use std::convert::Infallible;
 use std::fs::File;
 use std::io::BufReader;
@@ -64,6 +64,7 @@ use tokio::sync::oneshot;
 use tokio::time::Instant;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::{info_span, instrument, Instrument};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -75,11 +76,8 @@ fn encoding_to_tokens(encoding: &tokenizers::Encoding, input: &str) -> Vec<Simpl
             .iter()
             .zip(offsets)
             .map(|(&id, &(start, stop))| {
-                let text = input
-                    .chars()
-                    .skip(start)
-                    .take(stop - start)
-                    .collect::<String>();
+                let text: Vec<u8> = input.bytes().skip(start).take(stop - start).collect();
+                let text: String = String::from_utf8_lossy(&text).to_string();
                 SimpleToken {
                     id,
                     text,
@@ -115,13 +113,13 @@ content(
 ("text/event-stream" = StreamResponse),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error", "error_type": "validation"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"})),
 )
 )]
 #[instrument(skip(infer, req))]
@@ -129,6 +127,7 @@ pub(crate) async fn compat_generate(
     Extension(default_return_full_text): Extension<bool>,
     infer: Extension<Infer>,
     compute_type: Extension<ComputeType>,
+    context: Extension<Option<opentelemetry::Context>>,
     Json(mut req): Json<CompatGenerateRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     // default return_full_text given the pipeline_tag
@@ -138,11 +137,14 @@ pub(crate) async fn compat_generate(
 
     // switch on stream
     if req.stream {
-        Ok(generate_stream(infer, compute_type, Json(req.into()))
-            .await
-            .into_response())
+        Ok(
+            generate_stream(infer, compute_type, context, Json(req.into()))
+                .await
+                .into_response(),
+        )
     } else {
-        let (headers, Json(generation)) = generate(infer, compute_type, Json(req.into())).await?;
+        let (headers, Json(generation)) =
+            generate(infer, compute_type, context, Json(req.into())).await?;
         // wrap generation inside a Vec to match api-inference
         Ok((headers, Json(vec![generation])).into_response())
     }
@@ -247,13 +249,13 @@ request_body = GenerateRequest,
 responses(
 (status = 200, description = "Generated Text", body = GenerateResponse),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error", "error_type": "validation"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"})),
 )
 )]
 #[instrument(
@@ -271,9 +273,14 @@ seed,
 async fn generate(
     infer: Extension<Infer>,
     Extension(ComputeType(compute_type)): Extension<ComputeType>,
+    Extension(context): Extension<Option<opentelemetry::Context>>,
     Json(req): Json<GenerateRequest>,
 ) -> Result<(HeaderMap, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
+    if let Some(context) = context {
+        span.set_parent(context);
+    }
+
     let (headers, _, response) =
         generate_internal(infer, ComputeType(compute_type), Json(req), span).await?;
     Ok((headers, response))
@@ -441,16 +448,16 @@ responses(
 (status = 200, description = "Generated Text", body = StreamResponse,
 content_type = "text/event-stream"),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"}),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"}),
 content_type = "text/event-stream"),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"}),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"}),
 content_type = "text/event-stream"),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"}),
+example = json ! ({"error": "Input validation error", "error_type": "validation"}),
 content_type = "text/event-stream"),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"}),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"}),
 content_type = "text/event-stream"),
 )
 )]
@@ -469,12 +476,17 @@ seed,
 async fn generate_stream(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
+    Extension(context): Extension<Option<opentelemetry::Context>>,
     Json(req): Json<GenerateRequest>,
 ) -> (
     HeaderMap,
     Sse<impl Stream<Item = Result<Event, Infallible>>>,
 ) {
     let span = tracing::Span::current();
+    if let Some(context) = context {
+        span.set_parent(context);
+    }
+
     let (headers, response_stream) =
         generate_stream_internal(infer, compute_type, Json(req), span).await;
 
@@ -679,13 +691,13 @@ content(
 ("text/event-stream" = Chunk),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error", "error_type": "validation"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"})),
 )
 )]
 #[instrument(
@@ -704,9 +716,14 @@ pub(crate) async fn completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
+    Extension(context): Extension<Option<opentelemetry::Context>>,
     Json(req): Json<CompletionRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
+    if let Some(context) = context {
+        span.set_parent(context);
+    }
+
     metrics::counter!("tgi_request_count").increment(1);
 
     let CompletionRequest {
@@ -723,7 +740,7 @@ pub(crate) async fn completions(
     let stop = stop.unwrap_or_default();
     // enable greedy only when temperature is 0
     let (do_sample, temperature) = match temperature {
-        Some(temperature) if temperature == 0.0 => (false, None),
+        Some(0.0) => (false, None),
         other => (true, other),
     };
 
@@ -1114,84 +1131,6 @@ pub(crate) async fn completions(
     }
 }
 
-enum StreamState {
-    Buffering,
-    BufferTrailing,
-    Content { skip_close_quote: bool },
-}
-
-/// Convert a StreamResponse into an Event to be sent over SSE
-fn create_event_from_stream_token(
-    stream_token: &StreamResponse,
-    logprobs: bool,
-    stream_options: Option<StreamOptions>,
-    inner_using_tools: bool,
-    system_fingerprint: String,
-    model_id: String,
-) -> Event {
-    let event = Event::default();
-    let current_time = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-        .as_secs();
-
-    let logprobs = logprobs.then(|| {
-        ChatCompletionLogprobs::from((stream_token.token.clone(), stream_token.top_tokens.clone()))
-    });
-
-    // replace the content with the tool calls if grammar is present
-    let (content, tool_calls) = if inner_using_tools {
-        (None, Some(vec![stream_token.token.text.clone()]))
-    } else {
-        let content = if !stream_token.token.special {
-            Some(stream_token.token.text.clone())
-        } else {
-            None
-        };
-
-        (content, None)
-    };
-
-    let (usage, finish_reason) = match &stream_token.details {
-        Some(details) => {
-            let usage = if stream_options
-                .as_ref()
-                .map(|s| s.include_usage)
-                .unwrap_or(false)
-            {
-                let completion_tokens = details.generated_tokens;
-                let prompt_tokens = details.input_length;
-                let total_tokens = prompt_tokens + completion_tokens;
-                Some(Usage {
-                    completion_tokens,
-                    prompt_tokens,
-                    total_tokens,
-                })
-            } else {
-                None
-            };
-            (usage, Some(details.finish_reason.format(true)))
-        }
-        None => (None, None),
-    };
-
-    let chat_complete = CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
-        model_id.clone(),
-        system_fingerprint.clone(),
-        content,
-        tool_calls,
-        current_time,
-        logprobs,
-        finish_reason,
-        usage,
-    ));
-
-    event.json_data(chat_complete).unwrap_or_else(|e| {
-        println!("Failed to serialize ChatCompletionChunk: {:?}", e);
-        Event::default()
-    })
-}
-
 /// Generate tokens
 #[utoipa::path(
 post,
@@ -1205,34 +1144,39 @@ content(
 ("text/event-stream" = ChatCompletionChunk),
 )),
 (status = 424, description = "Generation Error", body = ErrorResponse,
-example = json ! ({"error": "Request failed during generation"})),
+example = json ! ({"error": "Request failed during generation", "error_type": "generation"})),
 (status = 429, description = "Model is overloaded", body = ErrorResponse,
-example = json ! ({"error": "Model is overloaded"})),
+example = json ! ({"error": "Model is overloaded", "error_type": "overloaded"})),
 (status = 422, description = "Input validation error", body = ErrorResponse,
-example = json ! ({"error": "Input validation error"})),
+example = json ! ({"error": "Input validation error", "error_type": "validation"})),
 (status = 500, description = "Incomplete generation", body = ErrorResponse,
-example = json ! ({"error": "Incomplete generation"})),
+example = json ! ({"error": "Incomplete generation", "error_type": "incomplete_generation"})),
 )
 )]
 #[instrument(
-skip_all,
-fields(
-// parameters = ? req.parameters,
-total_time,
-validation_time,
-queue_time,
-inference_time,
-time_per_token,
-seed,
-)
+    skip_all,
+    fields(
+        parameters,
+        total_time,
+        validation_time,
+        queue_time,
+        inference_time,
+        time_per_token,
+        seed,
+    )
 )]
 pub(crate) async fn chat_completions(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
     Extension(info): Extension<Info>,
-    Json(chat): Json<ChatRequest>,
+    Extension(context): Extension<Option<opentelemetry::Context>>,
+    Json(mut chat): Json<ChatRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
+    if let Some(context) = context {
+        span.set_parent(context);
+    }
+
     metrics::counter!("tgi_request_count").increment(1);
     let ChatRequest {
         model,
@@ -1241,9 +1185,12 @@ pub(crate) async fn chat_completions(
         logprobs,
         ..
     } = chat.clone();
-    let (generate_request, using_tools): (GenerateRequest, bool) =
-        chat.try_into_generate(&infer)?;
 
+    tracing::debug!("Got chat_template {:?}", infer.chat_template);
+    let id = chat.next_tool_call_id();
+    let (generate_request, using_tools): (GenerateRequest, bool) =
+        chat.clone().try_into_generate(&infer)?;
+    span.record("parameters", format!("{:?}", generate_request.parameters));
     let logprobs = logprobs.unwrap_or_default();
 
     // extract model id from request if specified
@@ -1254,128 +1201,40 @@ pub(crate) async fn chat_completions(
     let system_fingerprint = format!("{}-{}", info.version, info.docker_label.unwrap_or("native"));
     // switch on stream
     if stream {
-        let (headers, response_stream) =
-            generate_stream_internal(infer, compute_type, Json(generate_request), span).await;
-
-        // regex to match any function name
-        let function_regex = match Regex::new(r#"\{"function":\{"_name":"([^"]+)""#) {
-            Ok(regex) => regex,
-            Err(e) => {
-                return Err((
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse {
-                        error: format!("Failed to compile regex: {}", e),
-                        error_type: "regex".to_string(),
-                    }),
-                ))
-            }
-        };
+        let (headers, response_stream) = generate_stream_internal(
+            infer.clone(),
+            compute_type.clone(),
+            Json(generate_request),
+            span.clone(),
+        )
+        .await;
 
         let response_stream = async_stream::stream! {
             let mut response_stream = Box::pin(response_stream);
-            let mut buffer = Vec::new();
-            let mut json_buffer = String::new();
-            let mut state = if using_tools {
-                StreamState::Buffering
-            } else {
-                StreamState::Content {
-                    skip_close_quote: false,
-                }
-            };
-            let mut response_as_tool = using_tools;
+            let mut state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
             while let Some(result) = response_stream.next().await {
                 match result{
                 Ok(stream_token) => {
-                    let token_text = &stream_token.token.text.clone();
-                    match state {
-                        StreamState::Buffering => {
-                            json_buffer.push_str(&token_text.replace(" ", ""));
-                            buffer.push(stream_token);
-                            if let Some(captures) = function_regex.captures(&json_buffer) {
-                                let function_name = captures[1].to_string();
-                                if function_name == "no_tool" {
-                                    state = StreamState::BufferTrailing;
-                                    response_as_tool = false;
-                                    buffer.clear();
-                                    json_buffer.clear();
-                                } else {
-                                    state = StreamState::Content {
-                                        skip_close_quote: false,
-                                    };
-                                    // send all the buffered messages
-                                    for stream_token in &buffer {
-                                        let event = create_event_from_stream_token(
-                                            stream_token,
-                                            logprobs,
-                                            stream_options.clone(),
-                                            response_as_tool,
-                                            system_fingerprint.clone(),
-                                            model_id.clone(),
-                                        );
-                                        yield Ok::<Event, Infallible>(event);
-                                    }
-                                }
-                            }
+                    let events = state.push(stream_token);
+                    match events{
+                        ChatEvent::NoTool => {
+                            chat.tools = None;
+                            chat.response_format = None;
+                            let (generate_request, using_tools): (GenerateRequest, bool) =
+                                chat.clone().try_into_generate(&infer).unwrap();
+                            assert!(!using_tools);
+                            let (_headers, response_stream2) =
+                                generate_stream_internal(infer.clone(), compute_type.clone(), Json(generate_request), span.clone()).await;
+                            state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
+                            response_stream = Box::pin(response_stream2);
                         }
-                        // if we skipped sending the buffer we need to avoid sending the following json key and quotes
-                        StreamState::BufferTrailing => {
-                            let infix_text = "\"content\":\"";
-                            json_buffer.push_str(&token_text.replace(" ", ""));
-                            // keep capturing until we find the infix text
-                            match json_buffer.find(infix_text) {
-                                Some(content_key_index) => {
-                                    json_buffer =
-                                        json_buffer[content_key_index + infix_text.len()..].to_string();
-                                }
-                                None => {
-                                    continue;
-                                }
-                            }
-                            // if there is leftover text after removing the infix text, we need to send it
-                            if !json_buffer.is_empty() {
-                                let event = Event::default();
-                                let current_time = std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_else(|_| std::time::Duration::from_secs(0))
-                                    .as_secs();
-                                let chat_complete =
-                                    CompletionType::ChatCompletionChunk(ChatCompletionChunk::new(
-                                        model_id.clone(),
-                                        system_fingerprint.clone(),
-                                        Some(json_buffer.clone()),
-                                        None,
-                                        current_time,
-                                        None,
-                                        None,
-                                        None,
-                                    ));
-                                yield Ok(event.json_data(chat_complete).unwrap_or_else(|e| {
-                                    InferError::StreamSerializationError(e.to_string()).into()
+                        ChatEvent::Events(events) => {
+                            for chat_complete in events{
+                                yield Ok(Event::default().json_data(chat_complete).unwrap_or_else(|e| {
+                                    tracing::error!("Failed to serialize ChatCompletionChunk: {:?}", e);
+                                    Event::default()
                                 }));
                             }
-                            // cleanup the buffers
-                            buffer.clear();
-                            json_buffer.clear();
-                            state = StreamState::Content {
-                                skip_close_quote: true,
-                            };
-                        }
-                        StreamState::Content { skip_close_quote } => {
-                            if skip_close_quote && token_text.contains('"') {
-                                break;
-                            }
-
-                            // send the content
-                            let event = create_event_from_stream_token(
-                                &stream_token,
-                                logprobs,
-                                stream_options.clone(),
-                                response_as_tool,
-                                system_fingerprint.clone(),
-                                model_id.clone(),
-                            );
-
-                            yield Ok::<Event, Infallible>(event);
                         }
                     }
                 }
@@ -1388,8 +1247,13 @@ pub(crate) async fn chat_completions(
         let sse = Sse::new(response_stream).keep_alive(KeepAlive::default());
         Ok((headers, sse).into_response())
     } else {
-        let (headers, input_length, Json(generation)) =
-            generate_internal(Extension(infer), compute_type, Json(generate_request), span).await?;
+        let (mut headers, mut input_length, Json(generation)) = generate_internal(
+            Extension(infer.clone()),
+            compute_type.clone(),
+            Json(generate_request),
+            span.clone(),
+        )
+        .await?;
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1397,55 +1261,25 @@ pub(crate) async fn chat_completions(
             .as_secs();
 
         let (tool_calls, output) = if using_tools {
-            let gen_text_value: Value =
-                serde_json::from_str(&generation.generated_text).map_err(|e| {
-                    InferError::ToolError(format!(
-                        "Failed to parse generated text: {} {:?}",
-                        e, generation.generated_text
-                    ))
-                })?;
-            let function = gen_text_value.get("function").ok_or(InferError::ToolError(
-                "No function found in generated text".to_string(),
-            ))?;
-
-            let name = function
-                .get("_name")
-                .and_then(Value::as_str)
-                .ok_or(InferError::ToolError(
-                    "No _name found in generated text".to_string(),
-                ))?
-                .to_string();
-
-            let mut arguments = function.clone();
-            if let Value::Object(ref mut props) = arguments {
-                props.remove("_name");
-            }
-            match name.as_str() {
-                "no_tool" => {
-                    // parse the content message
-                    let content_message = arguments
-                        .get("content")
-                        .and_then(Value::as_str)
-                        .ok_or_else(|| {
-                            InferError::ToolError(
-                                "No `content` found in generated text".to_string(),
-                            )
-                        })?
-                        .to_string();
-                    (None, Some(content_message))
+            match crate::chat::parse_output(&generation.generated_text)? {
+                ChatChoice::NoTool => {
+                    chat.tools = None;
+                    chat.response_format = None;
+                    let (generate_request, using_tools): (GenerateRequest, bool) =
+                        chat.clone().try_into_generate(&infer)?;
+                    assert!(!using_tools);
+                    let (headers_final, input_length_final, Json(generation)) = generate_internal(
+                        Extension(infer),
+                        compute_type,
+                        Json(generate_request),
+                        span,
+                    )
+                    .await?;
+                    headers = headers_final;
+                    input_length = input_length_final;
+                    (None, Some(generation.generated_text))
                 }
-                _ => {
-                    let tool_calls = vec![ToolCall {
-                        id: "0".to_string(),
-                        r#type: "function".to_string(),
-                        function: FunctionDefinition {
-                            description: None,
-                            name,
-                            arguments,
-                        },
-                    }];
-                    (Some(tool_calls), None)
-                }
+                ChatChoice::ToolCalls(tool_calls) => (Some(tool_calls), None),
             }
         } else {
             (None, Some(generation.generated_text))
@@ -1528,6 +1362,7 @@ CompatGenerateRequest,
 SagemakerRequest,
 GenerateRequest,
 GrammarType,
+JsonSchemaConfig,
 ChatRequest,
 Message,
 MessageContent,
@@ -1577,6 +1412,7 @@ FunctionDefinition,
 ToolChoice,
 ModelInfo,
 ChatTokenizeResponse,
+MessageBody,
 )
 ),
 tags(
@@ -1687,6 +1523,7 @@ pub async fn run(
     max_client_batch_size: usize,
     usage_stats_level: usage_stats::UsageStatsLevel,
     payload_limit: usize,
+    prometheus_port: u16,
 ) -> Result<(), WebServerError> {
     // CORS allowed origins
     // map to go inside the option and then map to parse from String to HeaderValue
@@ -1710,12 +1547,17 @@ pub async fn run(
 
     // Shared API builder initialization
     let api_builder = || {
-        let mut builder = ApiBuilder::new()
-            .with_progress(false)
-            .with_token(authorization_token);
+        let mut builder = ApiBuilder::from_env().with_progress(false);
+        if let Some(token) = authorization_token {
+            builder = builder.with_token(Some(token));
+        }
 
         if let Ok(cache_dir) = std::env::var("HUGGINGFACE_HUB_CACHE") {
             builder = builder.with_cache_dir(cache_dir.into());
+        }
+
+        if let Ok(origin) = std::env::var("HF_HUB_USER_AGENT_ORIGIN") {
+            builder = builder.with_user_agent("origin", origin.as_str());
         }
 
         builder
@@ -1736,7 +1578,7 @@ pub async fn run(
             let cache = std::env::var("HUGGINGFACE_HUB_CACHE")
                 .map_err(|_| ())
                 .map(|cache_dir| Cache::new(cache_dir.into()))
-                .unwrap_or_else(|_| Cache::default());
+                .unwrap_or_else(|_| Cache::from_env());
             tracing::warn!("Offline mode active using cache defaults");
             Type::Cache(cache)
         } else {
@@ -1759,6 +1601,7 @@ pub async fn run(
         tokenizer_config_filename,
         preprocessor_config_filename,
         processor_config_filename,
+        chat_template_filename,
         model_info,
     ) = match api {
         Type::None => (
@@ -1766,6 +1609,7 @@ pub async fn run(
             Some(local_path.join("tokenizer_config.json")),
             Some(local_path.join("preprocessor_config.json")),
             Some(local_path.join("processor_config.json")),
+            Some(local_path.join("chat_template.json")),
             None,
         ),
         Type::Api(api) => {
@@ -1779,6 +1623,7 @@ pub async fn run(
             let tokenizer_config_filename = api_repo.get("tokenizer_config.json").await.ok();
             let preprocessor_config_filename = api_repo.get("preprocessor_config.json").await.ok();
             let processor_config_filename = api_repo.get("processor_config.json").await.ok();
+            let chat_template_filename = api_repo.get("chat_template.json").await.ok();
 
             let model_info = if let Some(model_info) = get_hub_model_info(&api_repo).await {
                 Some(model_info)
@@ -1791,10 +1636,12 @@ pub async fn run(
                 tokenizer_config_filename,
                 preprocessor_config_filename,
                 processor_config_filename,
+                chat_template_filename,
                 model_info,
             )
         }
         Type::Cache(cache) => {
+            tracing::info!("Cache {cache:?}");
             let repo = cache.repo(Repo::with_revision(
                 tokenizer_name.to_string(),
                 RepoType::Model,
@@ -1805,22 +1652,40 @@ pub async fn run(
                 repo.get("tokenizer_config.json"),
                 repo.get("preprocessor_config.json"),
                 repo.get("processor_config.json"),
+                repo.get("chat_template.json"),
                 None,
             )
         }
     };
 
+    // if chat_template_filename is present, load the chat template
+    let chat_template: Option<crate::ChatTemplateVersions> = chat_template_filename
+        .and_then(|f| std::fs::read_to_string(f).ok())
+        .and_then(|c| {
+            let res = serde_json::from_str::<crate::ChatTemplateStandalone>(&c);
+            if let Err(e) = &res {
+                tracing::warn!("Could not parse chat template {e:?}");
+            }
+            res.ok().map(|t| t.chat_template)
+        });
+
     // Read the JSON contents of the file as an instance of 'HubTokenizerConfig'.
+    tracing::warn!("Tokenizer_config {tokenizer_config_path:?} - {tokenizer_config_filename:?}");
     let tokenizer_config: Option<HubTokenizerConfig> = if let Some(filename) = tokenizer_config_path
     {
         HubTokenizerConfig::from_file(filename)
     } else {
         tokenizer_config_filename.and_then(HubTokenizerConfig::from_file)
     };
-    let tokenizer_config = tokenizer_config.unwrap_or_else(|| {
+    let mut tokenizer_config = tokenizer_config.unwrap_or_else(|| {
         tracing::warn!("Could not find tokenizer config locally and no API specified");
         HubTokenizerConfig::default()
     });
+
+    if chat_template.is_some() {
+        tracing::info!("Using chat template from chat_template.json");
+        tokenizer_config.chat_template = chat_template;
+    }
 
     let tokenizer: Result<Tokenizer, WebServerError> = {
         use pyo3::prelude::*;
@@ -1877,6 +1742,8 @@ pub async fn run(
 
     // Only send usage stats when TGI is run in container and the function returns Some
     let is_container = matches!(usage_stats::is_container(), Ok(true));
+    // retrieve the huggingface_hub user agent origin if set, and add the origin to telemetry
+    let origin = std::env::var("HF_HUB_USER_AGENT_ORIGIN").ok();
     let user_agent = match (usage_stats_level, is_container) {
         (usage_stats::UsageStatsLevel::On | usage_stats::UsageStatsLevel::NoStack, true) => {
             let reduced_args = usage_stats::Args::new(
@@ -1899,6 +1766,7 @@ pub async fn run(
                 max_client_batch_size,
                 usage_stats_level,
                 backend.name(),
+                origin,
             );
             Some(usage_stats::UserAgent::new(reduced_args))
         }
@@ -1959,6 +1827,7 @@ pub async fn run(
         compat_return_full_text,
         allow_origin,
         payload_limit,
+        prometheus_port,
     )
     .await;
 
@@ -2020,6 +1889,7 @@ async fn start(
     compat_return_full_text: bool,
     allow_origin: Option<AllowOrigin>,
     payload_limit: usize,
+    prometheus_port: u16,
 ) -> Result<(), WebServerError> {
     // Determine the server port based on the feature and environment variable.
     let port = if cfg!(feature = "google") {
@@ -2093,8 +1963,12 @@ async fn start(
     // let skipped_matcher = Matcher::Full(String::from("tgi_request_skipped_tokens"));
     // let skipped_buckets: Vec<f64> = (0..shard_info.speculate + 1).map(|x| x as f64).collect();
 
+    let mut p_addr = addr;
+    p_addr.set_port(prometheus_port);
+
     // Prometheus handler
     let builder = PrometheusBuilder::new()
+        .with_http_listener(p_addr)
         .set_buckets_for_metric(duration_matcher, &duration_buckets)
         .unwrap()
         .set_buckets_for_metric(input_length_matcher, &input_length_buckets)
@@ -2418,6 +2292,7 @@ async fn start(
         .layer(Extension(prom_handle.clone()))
         .layer(OtelAxumLayer::default())
         .layer(DefaultBodyLimit::max(payload_limit))
+        .layer(axum::middleware::from_fn(trace_context_middleware))
         .layer(cors_layer);
 
     tracing::info!("Connected");

@@ -2,15 +2,15 @@
   inputs = {
     crate2nix = {
       url = "github:nix-community/crate2nix";
-      inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
+      inputs.nixpkgs.follows = "hf-nix/nixpkgs";
     };
     nix-filter.url = "github:numtide/nix-filter";
-    tgi-nix.url = "github:huggingface/text-generation-inference-nix/attention-kernels-0.2.0";
-    nixpkgs.follows = "tgi-nix/nixpkgs";
+    hf-nix.url = "github:huggingface/hf-nix";
+    nixpkgs.follows = "hf-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "tgi-nix/nixpkgs";
+      inputs.nixpkgs.follows = "hf-nix/nixpkgs";
     };
   };
   outputs =
@@ -21,7 +21,7 @@
       nixpkgs,
       flake-utils,
       rust-overlay,
-      tgi-nix,
+      hf-nix,
     }:
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -33,10 +33,10 @@
         };
         pkgs = import nixpkgs {
           inherit system;
-          inherit (tgi-nix.lib) config;
+          inherit (hf-nix.lib) config;
           overlays = [
             rust-overlay.overlays.default
-            tgi-nix.overlays.default
+            hf-nix.overlays.default
             (import nix/overlay.nix)
           ];
         };
@@ -44,9 +44,24 @@
         benchmark = cargoNix.workspaceMembers.text-generation-benchmark.build.override {
           inherit crateOverrides;
         };
-        launcher = cargoNix.workspaceMembers.text-generation-launcher.build.override {
-          inherit crateOverrides;
-        };
+        launcher =
+          let
+            launcherUnwrapped = cargoNix.workspaceMembers.text-generation-launcher.build.override {
+              inherit crateOverrides;
+            };
+            packagePath =
+              with pkgs.python3.pkgs;
+              makePythonPath [
+                torch
+              ];
+          in
+          pkgs.writeShellApplication {
+            name = "text-generation-launcher";
+            text = ''
+              PYTHONPATH="${packagePath}" ${launcherUnwrapped}/bin/text-generation-launcher "$@"
+            '';
+          };
+
         router =
           let
             routerUnwrapped = cargoNix.workspaceMembers.text-generation-router-v3.build.override {
@@ -161,11 +176,15 @@
             '';
           };
 
-          dockerImage = pkgs.callPackage nix/docker.nix {
+          # Use plain nixpkgs without overlays for dockerTools. dockerTools
+          # uses a Python package for computing the layers from the transitive
+          # closure. However, this needs a lot of rebuilds due to our overlay.
+
+          dockerImage = nixpkgs.legacyPackages.${system}.callPackage nix/docker.nix {
             text-generation-inference = default;
           };
 
-          dockerImageStreamed = pkgs.callPackage nix/docker.nix {
+          dockerImageStreamed = nixpkgs.legacyPackages.${system}.callPackage nix/docker.nix {
             text-generation-inference = default;
             stream = true;
           };

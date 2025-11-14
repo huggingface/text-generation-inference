@@ -58,8 +58,6 @@ Options:
           Quantization method to use for the model. It is not necessary to specify this option for pre-quantized models, since the quantization method is read from the model configuration.
           
           Marlin kernels will be used automatically for GPTQ/AWQ models.
-          
-          [env: QUANTIZE=]
 
           Possible values:
           - awq:                4 bit quantization. Requires a specific AWQ quantized model: <https://hf.co/models?search=awq>. Should replace GPTQ models wherever possible because of the better latency
@@ -72,6 +70,8 @@ Options:
           - bitsandbytes-nf4:   Bitsandbytes 4bit. Can be applied on any model, will cut the memory requirement by 4x, but it is known that the model will be much slower to run than the native f16
           - bitsandbytes-fp4:   Bitsandbytes 4bit. nf4 should be preferred in most cases but maybe this one has better perplexity performance for you model
           - fp8:                [FP8](https://developer.nvidia.com/blog/nvidia-arm-and-intel-publish-fp8-specification-for-standardization-as-an-interchange-format-for-ai/) (e4m3) works on H100 and above This dtype has native ops should be the fastest if available. This is currently not the fastest because of local unpacking + padding to satisfy matrix multiplication limitations
+          
+          [env: QUANTIZE=]
 
 ```
 ## SPECULATE
@@ -198,7 +198,7 @@ Options:
           
           For `max_batch_total_tokens=1000`, you could fit `10` queries of `total_tokens=100` or a single query of `1000` tokens.
           
-          Overall this number should be the largest possible amount that fits the remaining memory (after the model is loaded). Since the actual memory overhead depends on other parameters like if you're using quantization, flash attention or the model implementation, text-generation-inference cannot infer this number automatically.
+          Overall this number should be the largest possible amount that fits the remaining memory (after the model is loaded). Since the actual memory overhead depends on other parameters like if you're using quantization, flash attention or the model implementation, text-generation-inference infers this number automatically if not provided ensuring that the value is as large as possible.
           
           [env: MAX_BATCH_TOTAL_TOKENS=]
 
@@ -250,6 +250,15 @@ Options:
           
           [env: PORT=]
           [default: 3000]
+
+```
+## PROMETHEUS_PORT
+```shell
+  -p, --prometheus-port <PROMETHEUS_PORT>
+          The Prometheus port to listen on
+          
+          [env: PROMETHEUS_PORT=]
+          [default: 9000]
 
 ```
 ## SHARD_UDS_PATH
@@ -447,14 +456,14 @@ Options:
 ```shell
       --usage-stats <USAGE_STATS>
           Control if anonymous usage stats are collected. Options are "on", "off" and "no-stack" Defaul is on
-          
-          [env: USAGE_STATS=]
-          [default: on]
 
           Possible values:
           - on:       Default option, usage statistics are collected anonymously
           - off:      Disables all collection of usage statistics
           - no-stack: Doesn't send the error stack trace or error type, but allows sending a crash event
+          
+          [env: USAGE_STATS=]
+          [default: on]
 
 ```
 ## PAYLOAD_LIMIT
@@ -476,6 +485,15 @@ Options:
           Logprobs in the prompt are deactivated by default because they consume a large amount of VRAM (especially for long prompts). Using this flag reallows users to ask for them.
           
           [env: ENABLE_PREFILL_LOGPROBS=]
+
+```
+## GRACEFUL_TERMINATION_TIMEOUT
+```shell
+  -g, --graceful-termination-timeout <GRACEFUL_TERMINATION_TIMEOUT>
+          Change timeout of graceful termination of the TGI server
+          
+          [env: GRACEFUL_TERMINATION_TIMEOUT=]
+          [default: 90]
 
 ```
 ## HELP

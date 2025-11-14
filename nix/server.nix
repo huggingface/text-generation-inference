@@ -3,38 +3,40 @@
   buildPythonPackage,
   poetry-core,
   mypy-protobuf,
-  attention-kernels,
   awq-inference-engine,
   causal-conv1d,
   compressed-tensors,
-  eetq,
   einops,
   exllamav2,
   flashinfer,
   flash-attn,
   flash-attn-layer-norm,
-  flash-attn-rotary,
   flash-attn-v1,
   grpc-interceptor,
   grpcio-reflection,
   grpcio-status,
   grpcio-tools,
   hf-transfer,
+  hf-xet,
+  kernels,
   loguru,
   mamba-ssm,
-  marlin-kernels,
-  moe-kernels,
+  moe,
   opentelemetry-api,
   opentelemetry-exporter-otlp,
   opentelemetry-instrumentation-grpc,
   opentelemetry-semantic-conventions,
   outlines,
+  paged-attention,
   peft,
   pillow,
   prometheus-client,
-  punica-kernels,
+  punica-sgmv,
   py-cpuinfo,
   pydantic,
+  quantization,
+  quantization-eetq,
+  rotary,
   safetensors,
   tokenizers,
   torch,
@@ -78,9 +80,7 @@ buildPythonPackage {
   pythonRemoveDeps = [ "scipy" ];
 
   dependencies = [
-    attention-kernels
     awq-inference-engine
-    eetq
     causal-conv1d
     compressed-tensors
     einops
@@ -88,27 +88,31 @@ buildPythonPackage {
     flashinfer
     flash-attn
     flash-attn-layer-norm
-    flash-attn-rotary
     grpc-interceptor
     grpcio-reflection
     grpcio-status
     grpcio-tools
     hf-transfer
+    hf-xet
+    kernels
     loguru
     mamba-ssm
-    marlin-kernels
-    moe-kernels
+    moe
     opentelemetry-api
     opentelemetry-exporter-otlp
     opentelemetry-instrumentation-grpc
     opentelemetry-semantic-conventions
     outlines
+    paged-attention
     peft
     pillow
     prometheus-client
-    punica-kernels
+    punica-sgmv
     py-cpuinfo
     pydantic
+    quantization
+    quantization-eetq
+    rotary
     safetensors
     sentencepiece
     tokenizers

@@ -9,11 +9,14 @@ authors = [
   {name = "Nicolas Patry", email = "nicolas@huggingface.co"},
 ]
 dependencies = [
+    # Remove explicit click dependency once typer/click are compatible again.
+    "click<8.2.0",
     "einops>=0.8.0",
     "grpc-interceptor>=0.15.4",
     "grpcio>=1.67.0",
     "grpcio-reflection>=1.67.0",
     "grpcio-status>=1.67.0",
+    "kernels>=0.2.1",
     "hf-transfer>=0.1.8",
     "loguru>=0.7.3",
     "numpy>=1.26,<3",
@@ -30,7 +33,35 @@ dependencies = [
     "sentencepiece>=0.2.0",
     "tokenizers>=0.20.3",
     "typer>=0.15.1",
+    "transformers>=4.51.0",
+    "huggingface-hub>=0.30.1",
+    "hf-xet>=1.0.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[build-system]
+requires = ["kernels>=0.1.7", "setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.kernels.dependencies]
+"kernels-community/paged-attention" = ">=0.0.2"
+"kernels-community/moe" = ">=0.1.1"
+"kernels-community/punica-sgmv" = ">=0.0.1"
+"kernels-community/quantization" = ">=0.0.3"
+"kernels-community/quantization-eetq" = ">=0.0.1"
+"kernels-community/rotary" = ">=0.0.1"
 
 [project.scripts]
 text-generation-server = "text_generation_server.cli:app"
@@ -49,7 +80,7 @@ peft = [
     "peft>=0.14.0",
 ]
 outlines = [
-    "outlines>=0.1.13",
+    "outlines>=0.1.13,<1.0",
 ]
 dev = [
     "grpcio-tools>=1.51.1,<2.0",
@@ -59,27 +90,13 @@ quantize = [
     "texttable>=1.6.7,<2",
     "datasets>=2.21,<3",
 ]
-moe = [ "moe-kernels" ]
-attention = [ "attention-kernels" ]
-marlin = [ "marlin-kernels" ]
 gen = [
     "grpcio-tools>=1.69.0",
     "mypy-protobuf>=3.6.0",
 ]
-
-[tool.uv.sources]
-attention-kernels.url = "https://github.com/danieldk/attention-kernels/releases/download/v0.2.0.post2/attention_kernels-0.2.0.post2+cu123torch2.5-cp39-abi3-linux_x86_64.whl"
-marlin-kernels = [
-  { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp39-cp39-linux_x86_64.whl", marker = "python_version == '3.9'" },
-  { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp310-cp310-linux_x86_64.whl", marker = "python_version == '3.10'" },
-  { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp311-cp311-linux_x86_64.whl", marker = "python_version == '3.11'" },
-  { url = "https://github.com/danieldk/marlin-kernels/releases/download/v0.3.7/marlin_kernels-0.3.7+cu123torch2.5-cp312-cp312-linux_x86_64.whl", marker = "python_version == '3.12'" },
-]
-moe-kernels = [
-  { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp39-cp39-linux_x86_64.whl", marker = "python_version == '3.9'" },
-  { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp310-cp310-linux_x86_64.whl", marker = "python_version == '3.10'" },
-  { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp311-cp311-linux_x86_64.whl", marker = "python_version == '3.11'" },
-  { url = "https://github.com/danieldk/moe-kernels/releases/download/v0.7.0/moe_kernels-0.7.0+cu123torch2.5-cp312-cp312-linux_x86_64.whl", marker = "python_version == '3.12'" },
+torch = [
+    "torch==2.7.0",
+    "torchvision==0.22.0",
 ]
 
 [tool.pytest.ini_options]
@@ -87,6 +104,9 @@ markers = ["private: marks tests as requiring an admin hf token (deselect with '
 
 [tool.isort]
 profile = "black"
+
+[tool.uv]
+package = true
 
 [tool.setuptools.packages.find]
 include = ["text_generation_server*"]

@@ -11,7 +11,7 @@ volume=$PWD/data # share a volume with the Docker container to avoid downloading
 docker run --rm -it --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
     --device=/dev/kfd --device=/dev/dri --group-add video \
     --ipc=host --shm-size 256g --net host -v $volume:/data \
-    ghcr.io/huggingface/text-generation-inference:3.0.2-rocm \
+    ghcr.io/huggingface/text-generation-inference:3.3.5-rocm \
     --model-id $model
 ```
 
@@ -39,6 +39,6 @@ The custom kernel supports bf16 and fp16 data types, block size of 16, head size
 
 ## Unsupported features
 
-The following features are currently not supported in the ROCm version of TGI, and the supported may be extended in the future:
+The following features are currently not supported in the ROCm version of TGI, and the support may be extended in the future:
 * Loading [AWQ](https://huggingface.co/docs/transformers/quantization#awq) checkpoints.
 * Kernel for sliding window attention (Mistral)

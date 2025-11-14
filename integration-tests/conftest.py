@@ -1,4 +1,18 @@
+pytest_plugins = [
+    "fixtures.neuron.service",
+    "fixtures.neuron.export_models",
+    "fixtures.gaudi.service",
+]
 # ruff: noqa: E402
+from _pytest.fixtures import SubRequest
+from huggingface_hub.inference._generated.types.chat_completion import (
+    ChatCompletionStreamOutput,
+    ChatCompletionOutput,
+)
+from openai.types.chat.chat_completion_chunk import (
+    ChatCompletionChunk as OAIChatCompletionChunk,
+)
+from openai.types.completion import Completion as OAICompletion
 import requests
 
 
@@ -10,13 +24,13 @@ class SessionTimeoutFix(requests.Session):
 
 requests.sessions.Session = SessionTimeoutFix
 
+import warnings
 import asyncio
 import contextlib
 import json
 import math
 import os
 import random
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -30,7 +44,6 @@ from typing import Dict, List, Optional
 from aiohttp import ClientConnectorError, ClientOSError, ServerDisconnectedError
 from docker.errors import NotFound
 from syrupy.extensions.json import JSONSnapshotExtension
-
 from text_generation import AsyncClient
 from text_generation.types import (
     BestOfSequence,
@@ -56,25 +69,114 @@ def pytest_addoption(parser):
     parser.addoption(
         "--release", action="store_true", default=False, help="run release tests"
     )
+    parser.addoption(
+        "--neuron", action="store_true", default=False, help="run neuron tests"
+    )
+    parser.addoption(
+        "--gaudi", action="store_true", default=False, help="run gaudi tests"
+    )
+    parser.addoption(
+        "--gaudi-all-models",
+        action="store_true",
+        default=False,
+        help="Run tests for all models instead of just the default subset",
+    )
 
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "release: mark test as a release-only test")
+    config.addinivalue_line("markers", "neuron: mark test as a neuron test")
 
 
 def pytest_collection_modifyitems(config, items):
-    if config.getoption("--release"):
-        # --release given in cli: do not skip release tests
-        return
-    skip_release = pytest.mark.skip(reason="need --release option to run")
+    selectors = []
+    if not config.getoption("--release"):
+        # --release not given in cli: skip release tests
+        def skip_release(item):
+            if "release" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="need --release option to run"))
+
+        selectors.append(skip_release)
+
+    if config.getoption("--gaudi"):
+
+        def skip_not_gaudi(item):
+            if "gaudi" not in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --gaudi to run"))
+
+        selectors.append(skip_not_gaudi)
+    else:
+
+        def skip_gaudi(item):
+            if "gaudi" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --gaudi to run"))
+
+        selectors.append(skip_gaudi)
+
+    if config.getoption("--neuron"):
+
+        def skip_not_neuron(item):
+            if "neuron" not in item.keywords:
+                item.add_marker(
+                    pytest.mark.skip(reason="incompatible with --neuron option")
+                )
+
+        selectors.append(skip_not_neuron)
+    else:
+
+        def skip_neuron(item):
+            if "neuron" in item.keywords:
+                item.add_marker(pytest.mark.skip(reason="requires --neuron to run"))
+
+        selectors.append(skip_neuron)
+
     for item in items:
-        if "release" in item.keywords:
-            item.add_marker(skip_release)
+        for selector in selectors:
+            selector(item)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def container_log(request: SubRequest):
+    error_log = request.getfixturevalue("error_log")
+    assert error_log is not None
+    yield
+    if request.session.testsfailed:
+        error_log.seek(0)
+        print(error_log.read(), file=sys.stderr)
+    else:
+        error_log.truncate(0)
+        error_log.seek(0)
 
 
 class ResponseComparator(JSONSnapshotExtension):
     rtol = 0.2
     ignore_logprob = False
+
+    def _serialize(
+        self,
+        data,
+    ):
+        if (
+            isinstance(data, Response)
+            or isinstance(data, ChatComplete)
+            or isinstance(data, ChatCompletionChunk)
+            or isinstance(data, ChatCompletionComplete)
+            or isinstance(data, Completion)
+            or isinstance(data, OAIChatCompletionChunk)
+            or isinstance(data, OAICompletion)
+        ):
+            data = data.model_dump()
+        elif isinstance(data, ChatCompletionStreamOutput) or isinstance(
+            data, ChatCompletionOutput
+        ):
+            data = dict(data)
+        elif isinstance(data, List):
+            data = [self._serialize(d) for d in data]
+        elif isinstance(data, dict):
+            return data
+        else:
+            raise RuntimeError(f"Unexpected data {type(data)} : {data}")
+        return data
 
     def serialize(
         self,
@@ -84,17 +186,7 @@ class ResponseComparator(JSONSnapshotExtension):
         exclude=None,
         matcher=None,
     ):
-        if (
-            isinstance(data, Response)
-            or isinstance(data, ChatComplete)
-            or isinstance(data, ChatCompletionChunk)
-            or isinstance(data, ChatCompletionComplete)
-        ):
-            data = data.model_dump()
-
-        if isinstance(data, List):
-            data = [d.model_dump() for d in data]
-
+        data = self._serialize(data)
         data = self._filter(
             data=data,
             depth=0,
@@ -103,7 +195,8 @@ class ResponseComparator(JSONSnapshotExtension):
             include=include,
             matcher=matcher,
         )
-        return json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+        data = json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+        return data
 
     def matches(
         self,
@@ -119,7 +212,7 @@ class ResponseComparator(JSONSnapshotExtension):
             if isinstance(data, Dict):
                 if "choices" in data:
                     data["choices"] = list(
-                        sorted(data["choices"], key=lambda x: x["index"])
+                        sorted(data["choices"], key=lambda x: int(x["index"]))
                     )
                     choices = data["choices"]
                     if isinstance(choices, List) and len(choices) >= 1:
@@ -132,7 +225,7 @@ class ResponseComparator(JSONSnapshotExtension):
                     return Response(**data)
             if isinstance(data, List):
                 return [_convert_data(d) for d in data]
-            raise NotImplementedError
+            raise NotImplementedError(f"Data: {data}")
 
         def eq_token(token: Token, other: Token) -> bool:
             return (
@@ -230,7 +323,25 @@ class ResponseComparator(JSONSnapshotExtension):
         def eq_chat_complete_chunk(
             response: ChatCompletionChunk, other: ChatCompletionChunk
         ) -> bool:
-            return response.choices[0].delta.content == other.choices[0].delta.content
+            if response.choices:
+                if response.choices[0].delta.content is not None:
+                    return (
+                        response.choices[0].delta.content
+                        == other.choices[0].delta.content
+                    )
+                elif response.choices[0].delta.tool_calls is not None:
+                    return (
+                        response.choices[0].delta.tool_calls
+                        == other.choices[0].delta.tool_calls
+                    )
+                else:
+                    raise RuntimeError(
+                        f"Invalid empty chat chunk {response} vs {other}"
+                    )
+            elif response.usage is not None:
+                return response.usage == other.usage
+            else:
+                raise RuntimeError(f"Invalid empty chat {response} vs {other}")
 
         def eq_response(response: Response, other: Response) -> bool:
             return response.generated_text == other.generated_text and eq_details(
@@ -244,6 +355,9 @@ class ResponseComparator(JSONSnapshotExtension):
             serialized_data = [serialized_data]
         if not isinstance(snapshot_data, List):
             snapshot_data = [snapshot_data]
+
+        if len(serialized_data) == 0:
+            return len(snapshot_data) == len(serialized_data)
 
         if isinstance(serialized_data[0], Completion):
             return len(snapshot_data) == len(serialized_data) and all(
@@ -278,8 +392,10 @@ class IgnoreLogProbResponseComparator(ResponseComparator):
 
 
 class LauncherHandle:
-    def __init__(self, port: int):
-        self.client = AsyncClient(f"http://localhost:{port}", timeout=30)
+    def __init__(self, port: int, error_log):
+        with warnings.catch_warnings(action="ignore"):
+            self.client = AsyncClient(f"http://localhost:{port}", timeout=30)
+        self.error_log = error_log
 
     def _inner_health(self):
         raise NotImplementedError
@@ -288,6 +404,8 @@ class LauncherHandle:
         assert timeout > 0
         for _ in range(timeout):
             if not self._inner_health():
+                self.error_log.seek(0)
+                print(self.error_log.read(), file=sys.stderr)
                 raise RuntimeError("Launcher crashed")
 
             try:
@@ -295,12 +413,14 @@ class LauncherHandle:
                 return
             except (ClientConnectorError, ClientOSError, ServerDisconnectedError):
                 time.sleep(1)
+        self.error_log.seek(0)
+        print(self.error_log.read(), file=sys.stderr)
         raise RuntimeError("Health check failed")
 
 
 class ContainerLauncherHandle(LauncherHandle):
-    def __init__(self, docker_client, container_name, port: int):
-        super(ContainerLauncherHandle, self).__init__(port)
+    def __init__(self, docker_client, container_name, port: int, error_log):
+        super().__init__(port, error_log)
         self.docker_client = docker_client
         self.container_name = container_name
 
@@ -310,8 +430,8 @@ class ContainerLauncherHandle(LauncherHandle):
 
 
 class ProcessLauncherHandle(LauncherHandle):
-    def __init__(self, process, port: int):
-        super(ProcessLauncherHandle, self).__init__(port)
+    def __init__(self, process, port: int, error_log):
+        super().__init__(port, error_log)
         self.process = process
 
     def _inner_health(self) -> bool:
@@ -333,15 +453,14 @@ def ignore_logprob_response_snapshot(snapshot):
     return snapshot.use_extension(IgnoreLogProbResponseComparator)
 
 
-@pytest.fixture(scope="module")
-def event_loop():
-    loop = asyncio.get_event_loop()
-    yield loop
-    loop.close()
+@pytest.fixture(scope="session")
+def error_log():
+    with tempfile.TemporaryFile("w+") as tmp:
+        yield tmp
 
 
-@pytest.fixture(scope="module")
-def launcher(event_loop):
+@pytest.fixture(scope="session")
+async def launcher(error_log):
     @contextlib.contextmanager
     def local_launcher(
         model_id: str,
@@ -429,22 +548,19 @@ def launcher(event_loop):
         if attention is not None:
             env["ATTENTION"] = attention
 
-        with tempfile.TemporaryFile("w+") as tmp:
+            # with tempfile.TemporaryFile("w+") as tmp:
             # We'll output stdout/stderr to a temporary file. Using a pipe
             # cause the process to block until stdout is read.
-            with subprocess.Popen(
-                args,
-                stdout=tmp,
-                stderr=subprocess.STDOUT,
-                env=env,
-            ) as process:
-                yield ProcessLauncherHandle(process, port)
+        with subprocess.Popen(
+            args,
+            stdout=error_log,
+            stderr=subprocess.STDOUT,
+            env=env,
+        ) as process:
+            yield ProcessLauncherHandle(process, port, error_log=error_log)
 
-                process.terminate()
-                process.wait(60)
-
-                tmp.seek(0)
-                shutil.copyfileobj(tmp, sys.stderr)
+            process.terminate()
+            process.wait(60)
 
         if not use_flash_attention:
             del env["USE_FLASH_ATTENTION"]
@@ -578,8 +694,21 @@ def launcher(event_loop):
             shm_size="1G",
         )
 
+        def pipe():
+            for log in container.logs(stream=True):
+                log = log.decode("utf-8")
+                error_log.write(log)
+
+        # Start looping to pipe the logs
+        import threading
+
+        t = threading.Thread(target=pipe, args=())
+        t.start()
+
         try:
-            yield ContainerLauncherHandle(client, container.name, port)
+            yield ContainerLauncherHandle(
+                client, container.name, port, error_log=error_log
+            )
 
             if not use_flash_attention:
                 del env["USE_FLASH_ATTENTION"]
@@ -589,9 +718,6 @@ def launcher(event_loop):
                 container.wait()
             except NotFound:
                 pass
-
-            container_output = container.logs().decode("utf-8")
-            print(container_output, file=sys.stderr)
 
         finally:
             try:

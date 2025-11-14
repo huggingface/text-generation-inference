@@ -12,7 +12,7 @@
   - local: installation_gaudi
     title: Using TGI with Intel Gaudi
   - local: installation_inferentia
-    title: Using TGI with AWS Inferentia
+    title: Using TGI with AWS Trainium and Inferentia
   - local: installation_tpu
     title: Using TGI with Google TPUs
   - local: installation_intel
@@ -50,8 +50,14 @@
     title: Train Medusa
   title: Tutorials
 - sections:
+  - local: backends/neuron
+    title: Neuron
+  - local: backends/gaudi
+    title: Gaudi
   - local: backends/trtllm
     title: TensorRT-LLM
+  - local: backends/llamacpp
+    title: Llamacpp
   title: Backends
 - sections:
   - local: reference/launcher

@@ -7,6 +7,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use utoipa::ToSchema;
 
 #[derive(Clone, Deserialize, ToSchema)]
@@ -70,9 +71,14 @@ example = json ! ({"error": "Incomplete generation"})),
 pub(crate) async fn vertex_compatibility(
     Extension(infer): Extension<Infer>,
     Extension(compute_type): Extension<ComputeType>,
+    Extension(context): Extension<Option<opentelemetry::Context>>,
     Json(req): Json<VertexRequest>,
 ) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
     let span = tracing::Span::current();
+    if let Some(context) = context {
+        span.set_parent(context);
+    }
+
     metrics::counter!("tgi_request_count").increment(1);
 
     // check that theres at least one instance
@@ -147,7 +153,7 @@ pub(crate) async fn vertex_compatibility(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Message, MessageContent};
+    use crate::{Message, MessageBody, MessageContent};
 
     #[test]
     fn vertex_deserialization() {
@@ -169,9 +175,13 @@ mod tests {
             VertexRequest {
                 instances: vec![VertexInstance::Chat(ChatRequest {
                     messages: vec![Message {
-                        role: "user".to_string(),
-                        content: MessageContent::SingleText("What's Deep Learning?".to_string()),
                         name: None,
+                        role: "user".to_string(),
+                        body: MessageBody::Content {
+                            content: MessageContent::SingleText(
+                                "What's Deep Learning?".to_string()
+                            )
+                        },
                     },],
                     max_tokens: Some(128),
                     top_p: Some(0.95),

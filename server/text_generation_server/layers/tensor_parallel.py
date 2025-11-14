@@ -90,7 +90,7 @@ class TensorParallelHead(SuperLayer):
                 local_out = gather_input.T
 
             torch.mm(input, self.linear.weight.T, out=local_out)
-            if SYSTEM == "ipex":
+            if SYSTEM == "ipex" and gather_input.device.type == "cpu":
                 ipex.distributed.all_gather_into_tensor(
                     world_out, gather_input, group=self.process_group
                 )
@@ -107,7 +107,7 @@ class TensorParallelHead(SuperLayer):
         world_output = [
             torch.empty_like(output) for _ in range(self.process_group.size())
         ]
-        if SYSTEM == "ipex":
+        if SYSTEM == "ipex" and output.device.type == "cpu":
             ipex.distributed.all_gather(world_output, output, group=self.process_group)
         else:
             torch.distributed.all_gather(world_output, output, group=self.process_group)
@@ -202,7 +202,7 @@ class TensorParallelRowLinear(SuperLayer):
     def forward(self, input: torch.Tensor, reduce: bool = True) -> torch.Tensor:
         out = super().forward(input)
         if self.process_group.size() > 1 and reduce:
-            if SYSTEM == "ipex":
+            if SYSTEM == "ipex" and out.device.type == "cpu":
                 ipex.distributed.all_reduce(out, group=self.process_group)
             else:
                 torch.distributed.all_reduce(out, group=self.process_group)
@@ -242,7 +242,7 @@ class TensorParallelEmbedding(torch.nn.Module):
         )
         out = torch.nn.functional.embedding(input, self.weight)
         if self.reduce and self.process_group.size() > 1:
-            if SYSTEM == "ipex":
+            if SYSTEM == "ipex" and out.device.type == "cpu":
                 ipex.distributed.all_reduce(out, group=self.process_group)
             else:
                 torch.distributed.all_reduce(out, group=self.process_group)

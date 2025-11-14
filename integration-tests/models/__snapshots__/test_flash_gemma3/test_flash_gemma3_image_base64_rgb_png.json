@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "Okay, let's analyze the image. \n\nThe image is a very plain, solid white square. That's it! \n\nIt's essentially a blank canvas. \n\nDo you want me to describe it in more detail, or are you interested in something else regarding this image?",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1747062955,
+  "id": "",
+  "model": "google/gemma-3-4b-it",
+  "object": "chat.completion",
+  "system_fingerprint": "3.3.6-dev0-native",
+  "usage": {
+    "completion_tokens": 62,
+    "prompt_tokens": 277,
+    "total_tokens": 339
+  }
+}

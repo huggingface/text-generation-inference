@@ -283,7 +283,7 @@ impl RadixTrie {
     }
 
     /// Find worker.
-    fn find_(&mut self, mut node_id: NodeId, key: &[u32], blocks: &mut Vec<u32>) -> NodeId {
+    fn find_(&mut self, node_id: NodeId, key: &[u32], blocks: &mut Vec<u32>) -> NodeId {
         let node = &self.nodes[node_id];
 
         if key.len() >= self.block_size {
@@ -295,9 +295,13 @@ impl RadixTrie {
                 assert_eq!(shared_prefix_len % self.block_size, 0);
                 blocks.extend(&child.blocks[..shared_prefix_len / self.block_size]);
 
+                // A node represents the prefix of its children. So, only
+                // recurse when there is a full prefix match.
                 let key = &key[shared_prefix_len..];
-                if !key.is_empty() {
-                    node_id = self.find_(child_id, key, blocks);
+                if !key.is_empty() && shared_prefix_len == child.key.len() {
+                    return self.find_(child_id, key, blocks);
+                } else {
+                    return child_id;
                 }
             }
         }
@@ -631,6 +635,12 @@ fn shared_prefix(left: &[u32], right: &[u32], block_size: usize) -> usize {
 mod tests {
     use std::sync::Arc;
 
+    use rand::{
+        distributions::Uniform, prelude::Distribution, rngs::SmallRng, seq::SliceRandom,
+        SeedableRng,
+    };
+    use rustc_hash::FxHashSet;
+
     use super::*;
 
     #[test]
@@ -872,5 +882,160 @@ mod tests {
 
         // Clear out the whole trie.
         assert_eq!(trie.evict(10), vec![1, 2, 3, 0, 1]);
+    }
+
+    #[test]
+    fn full_match_returns_correct_node() {
+        let mut trie = RadixTrie::new(1);
+        trie.insert(&[0, 1, 2], &[0, 1, 2]).unwrap();
+        let node_id = trie.find(&[0, 1, 2], &mut vec![]);
+        // At this point, there are only two nodes: the root and the node
+        // with tokens 0, 1, 2. Looking up the exact prefix must return
+        // the non-root node.
+        assert_ne!(node_id, trie.root);
+    }
+
+    #[test]
+    fn partial_match_does_not_recurse() {
+        let mut trie = RadixTrie::new(1);
+        trie.insert(&[0, 1, 2], &[0, 1, 2]).unwrap();
+        trie.insert(&[0, 1, 2, 3, 4, 5], &[0, 1, 2, 3, 4, 5])
+            .unwrap();
+        let mut blocks = Vec::new();
+        let node_id = trie.find(&[0, 1, 3, 4, 5], &mut blocks);
+        assert_eq!(blocks, vec![0, 1]);
+        assert_eq!(node_id, trie.find(&[0, 1], &mut blocks))
+    }
+
+    struct AllocationWithInfo {
+        allocation: BlockAllocation,
+        // We are doing a lot of set operations and `FxBuildHasher` is
+        // muc faster for a set of integers.
+        blockset: FxHashSet<u32>,
+        non_prefix_blocks: FxHashSet<u32>,
+    }
+
+    #[test]
+    fn invariants_hold_on_many_operations_remove_all() {
+        invariants_hold_on_many_insertions(true);
+    }
+
+    #[test]
+    fn invariants_hold_on_many_operations_remove_subset() {
+        invariants_hold_on_many_insertions(false);
+    }
+
+    fn invariants_hold_on_many_insertions(remove_all: bool) {
+        // Small vocabulary sizes lead to violations more quickly due to
+        // prefix sharing, etc.
+        const VOCAB_SIZE: u32 = 2;
+        const DATA_LEN: usize = 1_000;
+
+        const MAX_PREFILL_LEN: usize = 8;
+        const MAX_DECODE_LEN: usize = 8;
+
+        let vocab_range = Uniform::new(0, VOCAB_SIZE);
+        let data_range = Uniform::new(0, DATA_LEN);
+        let prefill_len_range = Uniform::new(0, MAX_PREFILL_LEN);
+        let decode_len_range = Uniform::new(0, MAX_DECODE_LEN);
+
+        let mut rng = SmallRng::seed_from_u64(64);
+        let data = (0..DATA_LEN)
+            .map(|_| vocab_range.sample(&mut rng))
+            .collect::<Vec<_>>();
+        let mut allocator = RadixAllocator::new(1, 100, None);
+
+        let mut allocations = Vec::new();
+
+        for i in 0..100_000 {
+            // Allocate until all blocks are used.
+            'allocation: loop {
+                // Use offset 0 half of the times for prefix sharing.
+                let prefill_offset = data_range.sample(&mut rng);
+                let prefill_len = prefill_len_range.sample(&mut rng);
+                let decode_len = decode_len_range.sample(&mut rng);
+
+                let prefill =
+                    data[prefill_offset..data.len().min(prefill_offset + prefill_len)].to_vec();
+
+                let allocation = match allocator
+                    .allocate((prefill.len() + decode_len) as u32, Some(Arc::new(prefill)))
+                {
+                    Some(allocation) => allocation,
+                    None => break 'allocation,
+                };
+                let non_prefix_blocks = allocation.blocks[allocation.prefix_len as usize..]
+                    .iter()
+                    .copied()
+                    .collect::<FxHashSet<_>>();
+                let blockset = allocation.blocks.iter().copied().collect::<FxHashSet<_>>();
+
+                // No duplicate blocks in an allocation.
+                assert_eq!(
+                    allocation.blocks.len(),
+                    blockset.len(),
+                    "Duplicate blocks in allocation"
+                );
+
+                allocations.push(AllocationWithInfo {
+                    allocation,
+                    blockset,
+                    non_prefix_blocks,
+                });
+            }
+
+            // Check invariants. Skip first iteration, since there is no prefix sharing yet.
+            if i > 1 {
+                check_allocation_invariants(&allocations);
+            }
+
+            // Remove 20% of the allocations, randomly.
+            if remove_all {
+                allocations.into_iter().for_each(|allocation| {
+                    allocator.free(
+                        allocation.allocation.blocks.clone(),
+                        allocation.allocation.allocation_id,
+                    )
+                });
+                allocations = Vec::new();
+            } else {
+                allocations.shuffle(&mut rng);
+                let remove_index = (allocations.len() as f64 * 0.8) as usize;
+                for allocation in allocations.drain(remove_index..) {
+                    allocator.free(
+                        allocation.allocation.blocks.clone(),
+                        allocation.allocation.allocation_id,
+                    );
+                }
+            }
+        }
+    }
+
+    fn check_allocation_invariants(allocations: &[AllocationWithInfo]) {
+        for i in 0..allocations.len() {
+            let allocation = &allocations[i];
+
+            // 0 is used for health checks, must not be used.
+            assert!(
+                !allocation.blockset.contains(&0),
+                "Block 0 must not be allocated"
+            );
+
+            // No duplicate blocks in an allocation.
+            assert_eq!(
+                allocation.allocation.blocks.len(),
+                allocation.blockset.len(),
+                "Duplicate blocks in allocation"
+            );
+
+            for other_allocation in &allocations[i + 1..] {
+                assert!(
+                    other_allocation
+                        .non_prefix_blocks
+                        .is_disjoint(&allocation.non_prefix_blocks),
+                    "Allocations share non-prefix blocks"
+                )
+            }
+        }
     }
 }

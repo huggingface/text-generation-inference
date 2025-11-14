@@ -73,20 +73,38 @@ def initialize_torch_distributed():
             if SYSTEM == "ipex":
                 import intel_extension_for_pytorch as ipex
 
-                ipex.distributed.init_process_group(
-                    backend="ccl",
-                    world_size=WORLD_SIZE,
-                    rank=RANK,
-                    timeout=timedelta(seconds=120),
-                    pg_options=options,
-                )
+                if torch.xpu.is_available():
+                    assert (
+                        WORLD_SIZE <= torch.xpu.device_count()
+                    ), "Each process is one xpu"
+                    device = RANK % torch.xpu.device_count()
+                    torch.xpu.set_device(device)
+                    device_id = torch.device(f"xpu:{RANK}")
+                    torch.distributed.init_process_group(
+                        backend="xccl",
+                        world_size=WORLD_SIZE,
+                        rank=RANK,
+                        timeout=timedelta(seconds=120),
+                        pg_options=options,
+                        device_id=device_id,
+                    )
+                else:
+                    ipex.distributed.init_process_group(
+                        backend="ccl",
+                        world_size=WORLD_SIZE,
+                        rank=RANK,
+                        timeout=timedelta(seconds=120),
+                        pg_options=options,
+                    )
             else:
+                device = torch.device(f"cuda:{RANK}")
                 torch.distributed.init_process_group(
                     backend=backend,
                     world_size=WORLD_SIZE,
                     rank=RANK,
                     timeout=timedelta(seconds=120),
                     pg_options=options,
+                    device_id=device,
                 )
         else:
             logger.warning("torch.distributed is already initialized.")

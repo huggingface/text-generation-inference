@@ -25,7 +25,7 @@ jobs:
       docker_volume: ${{ steps.final.outputs.docker_volume }}
       docker_devices: ${{ steps.final.outputs.docker_devices }}
       runs_on: ${{ steps.final.outputs.runs_on }}
-      label: ${{ steps.final.outputs.label }}
+      label_extension: ${{ steps.final.outputs.label_extension }}
       extra_pytest: ${{ steps.final.outputs.extra_pytest }}
     concurrency:
       group: ${{ github.workflow }}-build-and-push-image-${{ inputs.hardware }}-${{ github.head_ref || github.run_id }}
@@ -45,7 +45,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Extract TensorRT-LLM version
@@ -64,7 +64,7 @@ jobs:
                 export runs_on="aws-g6-12xl-plus-priv-cache"
                 export platform=""
                 export extra_pytest=""
-                export target="nil"
+                export target=""
                 ;;
             cuda-trtllm)
                 export dockerfile="Dockerfile_trtllm"
@@ -74,7 +74,13 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest=""
-                export build_type="dev"
+                if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+                  export build_type="release";
+                  export target="";
+                else
+                  export build_type="dev";
+                  export target="ci-runtime";
+                fi
                 ;;
             rocm)
                 export dockerfile="Dockerfile_amd"
@@ -85,7 +91,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform=""
                 export extra_pytest="-k test_flash_gemma_gptq_load"
-                export target="nil"
+                export target=""
                 ;;
             intel-xpu)
                 export dockerfile="Dockerfile_intel"
@@ -95,7 +101,7 @@ jobs:
                 export runs_on="ubuntu-latest"
                 export platform="xpu"
                 export extra_pytest=""
-                export target="nil"
+                export target=""
                 ;;
             intel-cpu)
                 export dockerfile="Dockerfile_intel"
@@ -106,8 +112,27 @@ jobs:
                 export runs_on="aws-highmemory-32-plus-priv"
                 export platform="cpu"
                 export extra_pytest="-k test_flash_gemma_simple"
-                export target="nil"
+                export target=""
                 ;;
+            neuron)
+                export dockerfile="Dockerfile.neuron"
+                export label_extension="-neuron"
+                export docker_devices="/dev/neuron0"
+                export docker_volume="/mnt/cache"
+                export runs_on="aws-inf2-8xlarge"
+                export platform="cpu"
+                export extra_pytest="--neuron"
+                export target=""
+                ;;
+            gaudi)
+                export dockerfile="Dockerfile_gaudi"
+                export label_extension="-gaudi"
+                export docker_volume="/mnt/cache"
+                export docker_devices=""
+                export runs_on="itac-bm-emr-gaudi3-dell-2gaudi"
+                export platform=""
+                export extra_pytest="--gaudi"
+                export target=""
           esac
           echo $dockerfile
           echo "Dockerfile=${dockerfile}"
@@ -116,7 +141,7 @@ jobs:
           echo $runs_on
           echo $platform
           echo "DOCKERFILE=${dockerfile}" >> $GITHUB_ENV
-          echo "LABEL=${label_extension}" >> $GITHUB_ENV
+          echo "LABEL_EXTENSION=${label_extension}" >> $GITHUB_ENV
           echo "PLATFORM=${platform}" >> $GITHUB_ENV
           echo "DOCKER_VOLUME=${docker_volume}" >> $GITHUB_ENV
           echo "DOCKER_DEVICES=${docker_devices}" >> $GITHUB_ENV
@@ -131,6 +156,7 @@ jobs:
           install: true
           buildkitd-config: /tmp/buildkitd.toml
       - name: Login to internal Container Registry
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.REGISTRY_USERNAME }}
@@ -143,13 +169,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Login to Azure Container Registry
-        if: github.event_name != 'pull_request'
+      - name: Login to Docker Hub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.AZURE_DOCKER_USERNAME }}
-          password: ${{ secrets.AZURE_DOCKER_PASSWORD }}
-          registry: db4c2190dd824d1f950f5d1555fbadf0.azurecr.io
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: configure aws credentials
         id: aws-creds
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
@@ -158,7 +183,6 @@ jobs:
           role-duration-seconds: 18000
           aws-region: us-east-1
           output-credentials: true
-          
       # If pull request
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name == 'pull_request' }}
@@ -166,9 +190,9 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            registry.internal.huggingface.tech/api-inference/community/text-generation-inference
+            docker.io/huggingface/text-generation-inference-ci
           tags: |
-            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL_EXTENSION }}
       # If main, release or tag
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name != 'pull_request' }}
@@ -180,12 +204,11 @@ jobs:
           images: |
             registry.internal.huggingface.tech/api-inference/community/text-generation-inference
             ghcr.io/huggingface/text-generation-inference
-            db4c2190dd824d1f950f5d1555fbadf0.azurecr.io/text-generation-inference
           tags: |
-            type=semver,pattern={{version}}${{ env.LABEL }}
-            type=semver,pattern={{major}}.{{minor}}${{ env.LABEL }}
-            type=raw,value=latest${{ env.LABEL }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            type=semver,pattern={{version}}${{ env.LABEL_EXTENSION }}
+            type=semver,pattern={{major}}.{{minor}}${{ env.LABEL_EXTENSION }}
+            type=raw,value=latest${{ env.LABEL_EXTENSION }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL_EXTENSION }}
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v4
@@ -198,14 +221,14 @@ jobs:
           platforms: 'linux/amd64'
           build-args: |
             GIT_SHA=${{ env.GITHUB_SHA }}
-            DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL }}
+            DOCKER_LABEL=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL_EXTENSION }}
             PLATFORM=${{ env.PLATFORM }}
             build_type=${{ env.BUILD_TYPE }}
             sccache_gha_enabled=on
           secrets: |
             actions_cache_url=${{ env.ACTIONS_CACHE_URL }}
             actions_runtime_token=${{ env.ACTIONS_RUNTIME_TOKEN }}
-
+          target: ${{ env.TARGET }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
           cache-from: type=s3,region=us-east-1,bucket=${{ vars.AWS_S3BUCKET_GITHUB_BUILDX_CACHE }},name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ steps.aws-creds.outputs.aws-access-key-id }},secret_access_key=${{ steps.aws-creds.outputs.aws-secret-access-key }},session_token=${{ steps.aws-creds.outputs.aws-session-token }},mode=max
@@ -213,18 +236,52 @@ jobs:
       - name: Final
         id: final
         run: |
-          echo "docker_image=registry.internal.huggingface.tech/api-inference/community/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "docker_image=docker.io/huggingface/text-generation-inference-ci:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL_EXTENSION }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "docker_image=ghcr.io/huggingface/text-generation-inference:sha-${{ env.GITHUB_SHA_SHORT}}${{ env.LABEL_EXTENSION }}" >> "$GITHUB_OUTPUT"
+          fi
           echo "docker_devices=${{ env.DOCKER_DEVICES }}" >> "$GITHUB_OUTPUT"
           echo "docker_volume=${{ env.DOCKER_VOLUME }}" >> "$GITHUB_OUTPUT"
           echo "runs_on=${{ env.RUNS_ON }}" >> "$GITHUB_OUTPUT"
-          echo "label=${{ env.LABEL }}" >> "$GITHUB_OUTPUT"
+          echo "label_extension=${{ env.LABEL_EXTENSION }}" >> "$GITHUB_OUTPUT"
           echo "extra_pytest=${{ env.EXTRA_PYTEST }}" >> "$GITHUB_OUTPUT"
-  integration_tests:
+  precompile_neuron_models:
     concurrency:
-      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label }}-${{ github.head_ref || github.run_id }}
+      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label_extension }}-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
     needs: build-and-push
-    if: needs.build-and-push.outputs.runs_on != 'ubuntu-latest'
+    if: needs.build-and-push.outputs.label_extension == '-neuron'
+    runs-on:
+      group: ${{ needs.build-and-push.outputs.runs_on }}
+    env:
+      PYTEST_FLAGS: ${{ (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || inputs.release-tests == true) && '--release' || '--release' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Inject slug/short variables
+        uses: rlespinasse/github-slug-action@v4.4.1
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: |
+          make install-integration-tests
+      - name: Export neuron models
+        run: |
+          export DOCKER_IMAGE=${{ needs.build-and-push.outputs.docker_image }}
+          echo $DOCKER_IMAGE
+          docker pull $DOCKER_IMAGE
+          export HF_TOKEN=${{ secrets.HF_TOKEN_NEURON }}
+          python integration-tests/fixtures/neuron/export_models.py
+  integration_tests:
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.job }}-${{ needs.build-and-push.outputs.label_extension }}-${{ github.head_ref || github.run_id }}
+      cancel-in-progress: true
+    needs: [precompile_neuron_models, build-and-push]
+    if: ${{ always() && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') && needs.build-and-push.outputs.runs_on != 'ubuntu-latest' }}
     runs-on:
       group: ${{ needs.build-and-push.outputs.runs_on }}
     env:
@@ -254,7 +311,7 @@ jobs:
 
   backend_trtllm_cxx_tests:
     needs: build-and-push
-    if: needs.build-and-push.outputs.label == '-trtllm'
+    if: needs.build-and-push.outputs.label_extension == '-trtllm'
     concurrency:
       group: ${{ github.workflow }}-${{ github.job }}-trtllm-${{ github.head_ref || github.run_id }}
       cancel-in-progress: true
@@ -263,10 +320,11 @@ jobs:
     container:
       image: ${{ needs.build-and-push.outputs.docker_image }}
       credentials:
-        username: ${{ secrets.REGISTRY_USERNAME }}
-        password: ${{ secrets.REGISTRY_PASSWORD }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
       options: --gpus all --shm-size=8g
 
     steps:
       - name: Run C++/CUDA tests
+        if: ${{ env.LABEL_EXTENSION == 'ci-runtime' }}
         run: /usr/local/tgi/bin/tgi_trtllm_backend_tests

@@ -16,7 +16,9 @@ from text_generation_server.layers.moe.gptq_marlin import (
     can_use_marlin_moe_gemm,
 )
 from text_generation_server.layers.moe.unquantized import UnquantizedSparseMoELayer
+from text_generation_server.layers.moe.fp8 import FP8SparseMoELayer
 from text_generation_server.utils.import_utils import SYSTEM
+from text_generation_server.utils.kernels import load_kernel
 from text_generation_server.utils.log import log_once
 from text_generation_server.utils.weights import (
     DefaultWeightsLoader,
@@ -26,6 +28,10 @@ from text_generation_server.utils.weights import (
 
 if SYSTEM == "ipex":
     from .fused_moe_ipex import fused_topk, grouped_topk
+elif SYSTEM == "cuda":
+    moe_kernels = load_kernel(module="moe", repo_id="kernels-community/moe")
+    fused_topk = moe_kernels.fused_topk
+    grouped_topk = moe_kernels.grouped_topk
 else:
     from moe_kernels.fused_moe import fused_topk, grouped_topk
 
@@ -51,6 +57,8 @@ class MoELayer(Protocol):
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
         hidden_act: str = "silu",
+        scoring_func: Optional[str] = None,
+        e_score_correction_bias: Optional[float] = None,
     ): ...
 
     def forward(
@@ -80,8 +88,13 @@ class DenseMoELayer(nn.Module):
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
         hidden_act: str = "silu",
+        scoring_func: Optional[str] = None,
+        e_score_correction_bias: Optional[float] = None,
     ):
         super().__init__()
+
+        assert scoring_func is None, "scoring func is not handled"
+        assert e_score_correction_bias is None, "scoring correction bias is not handled"
 
         log_once(
             logger.info,
@@ -198,17 +211,24 @@ class SparseMoELayer(nn.Module):
         topk: int,
         topk_group: Optional[int],
         weights: Weights,
+        scoring_func: Optional[str] = "softmax",
+        e_score_correction_bias: Optional[float] = None,
         gate_proj_name: str = "gate_proj",
         up_proj_name: str = "up_proj",
         down_proj_name: str = "down_proj",
     ):
         super().__init__()
-
         if (
             isinstance(weights.loader, DefaultWeightsLoader)
             and isinstance(weights.loader.weight_class, UnquantizedWeight)
         ) or isinstance(weights.loader, HybridFP8UnquantLoader):
-            cls = UnquantizedSparseMoELayer
+            if (
+                isinstance(weights.loader, HybridFP8UnquantLoader)
+                and weights.loader.to_fp8
+            ):
+                cls = FP8SparseMoELayer
+            else:
+                cls = UnquantizedSparseMoELayer
         elif isinstance(
             weights.loader, GPTQMarlinWeightsLoader
         ) and can_use_marlin_moe_gemm(
@@ -235,6 +255,8 @@ class SparseMoELayer(nn.Module):
             topk=topk,
             topk_group=topk_group,
             weights=weights,
+            scoring_func=scoring_func,
+            e_score_correction_bias=e_score_correction_bias,
             gate_proj_name=gate_proj_name,
             up_proj_name=up_proj_name,
             down_proj_name=down_proj_name,

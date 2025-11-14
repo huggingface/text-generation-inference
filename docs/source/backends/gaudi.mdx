@@ -1,0 +1,264 @@
+# Gaudi Backend for Text Generation Inference
+
+## Overview
+Text Generation Inference (TGI) has been optimized to run on Gaudi hardware via the Gaudi backend for TGI.
+
+## Supported Hardware
+- **Gaudi1**: Available on [AWS EC2 DL1 instances](https://aws.amazon.com/ec2/instance-types/dl1/)
+- **Gaudi2**: Available on [Intel Cloud](https://console.cloud.intel.com/docs/reference/ai_instances.html)
+- **Gaudi3**: Available on [Intel Cloud](https://console.cloud.intel.com/docs/reference/ai_instances.html)
+
+## Tutorial: Getting Started with TGI on Gaudi
+
+### Basic Usage
+The easiest way to run TGI on Gaudi is to use the official Docker image:
+
+```bash
+model=meta-llama/Meta-Llama-3.1-8B-Instruct
+volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
+hf_token=YOUR_HF_ACCESS_TOKEN
+
+docker run --runtime=habana --cap-add=sys_nice --ipc=host \
+    -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
+    ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
+    --model-id $model
+```
+
+Once you see the `connected` log, the server is ready to accept requests:
+> 2024-05-22T19:31:48.302239Z  INFO text_generation_router: router/src/main.rs:378: Connected
+
+You can find your `YOUR_HF_ACCESS_TOKEN` at [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens). This is necessary to access gated models like llama3.1.
+
+### Making Your First Request
+You can send a request from a separate terminal:
+
+```bash
+curl 127.0.0.1:8080/generate \
+    -X POST \
+    -d '{"inputs":"What is Deep Learning?","parameters":{"max_new_tokens":32}}' \
+    -H 'Content-Type: application/json'
+```
+
+## How-to Guides
+
+You can view the full list of supported models in the [Supported Models](https://huggingface.co/docs/text-generation-inference/backends/gaudi#supported-models) section.
+
+For example, to run Llama3.1-8B, you can use the following command:
+
+```bash
+model=meta-llama/Meta-Llama-3.1-8B-Instruct
+volume=$PWD/data # share a volume with the Docker container to avoid downloading weights every run
+hf_token=YOUR_ACCESS_TOKEN
+
+docker run --runtime=habana --cap-add=sys_nice --ipc=host \
+    -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
+    ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
+    --model-id $model
+    <text-generation-inference-launcher-arguments>
+```
+
+For the full list of service parameters, refer to the [launcher-arguments page](https://huggingface.co/docs/text-generation-inference/reference/launcher).
+
+The validated docker commands can be found in the [examples/docker_commands folder](https://github.com/huggingface/text-generation-inference/tree/main/backends/gaudi/examples/docker_commands).
+
+> Note: `--runtime=habana --cap-add=sys_nice --ipc=host ` is required to enable docker to use the Gaudi hardware (more details [here](https://docs.habana.ai/en/latest/Installation_Guide/Additional_Installation/Docker_Installation.html)).
+
+### How to Enable Multi-Card Inference (Sharding)
+
+TGI-Gaudi supports sharding for multi-card inference, allowing you to distribute the load across multiple Gaudi cards. This is recommended to run large models and to speed up inference.
+
+For example, on a machine with 8 Gaudi cards, you can run:
+
+```bash
+docker run --runtime=habana --ipc=host --cap-add=sys_nice \
+    -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
+    tgi-gaudi \
+    --model-id $model --sharded true --num-shard 8
+```
+
+<Tip>
+We recommend always using sharding when running on a multi-card machine.
+</Tip>
+
+### How to Use Different Precision Formats
+
+#### BF16 Precision (Default)
+By default, all models run with BF16 precision on Gaudi hardware.
+
+#### FP8 Precision
+TGI-Gaudi supports FP8 precision inference, which can significantly reduce memory usage and improve performance for large models. We support model like W8A8 FP compressed-tensors parameters such as [RedHatAI/Mixtral-8x7B-Instruct-v0.1-FP8](https://huggingface.co/RedHatAI/Mixtral-8x7B-Instruct-v0.1-FP8) and AutoFP8 generated model[RedHatAI/Meta-Llama-3-8B-Instruct-FP8](https://huggingface.co/RedHatAI/Meta-Llama-3-8B-Instruct-FP8) .
+TGI-Gaudi supports FP8 precision inference with [Intel Neural Compressor (INC)](https://docs.habana.ai/en/latest/PyTorch/Inference_on_PyTorch/Inference_Using_FP8.html).
+
+
+### How to Run Vision-Language Models (VLMs)
+
+Gaudi supports VLM inference.
+
+Example for Llava-v1.6-Mistral-7B on 1 card:
+
+Start the TGI server via the following command:
+```bash
+model=llava-hf/llava-v1.6-mistral-7b-hf
+volume=$PWD/data   # share a volume with the Docker container to avoid downloading weights every run
+
+docker run -p 8080:80 \
+   --runtime=habana \
+   --cap-add=sys_nice \
+   --ipc=host \
+   -v $volume:/data \
+   ghcr.io/huggingface/text-generation-inference:3.3.5-gaudi \
+   --model-id $model \
+   --max-input-tokens 4096 --max-batch-prefill-tokens 16384 \
+   --max-total-tokens 8192 --max-batch-size 4
+```
+
+You can then send a request to the server via the following command:
+```bash
+curl -N 127.0.0.1:8080/generate \
+    -X POST \
+    -d '{"inputs":"![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)What is this a picture of?\n\n","parameters":{"max_new_tokens":32}}' \
+    -H 'Content-Type: application/json'
+```
+
+> Note: In Llava-v1.6-Mistral-7B, an image usually accounts for 2000 input tokens. For example, an image of size 512x512 is represented by 2800 tokens. Thus, `max-input-tokens` must be larger than the number of tokens associated with the image. Otherwise the image may be truncated. The value of `max-batch-prefill-tokens` is 16384, which is calculated as follows: `prefill_batch_size` = `max-batch-prefill-tokens` / `max-input-tokens`.
+
+### How to Benchmark Performance
+
+We recommend using the [inference-benchmarker tool](https://github.com/huggingface/inference-benchmarker) to benchmark performance on Gaudi hardware.
+
+This benchmark tool simulates user requests and measures the performance of the model on realistic scenarios.
+
+To run it on the same machine, you can do the following:
+```bash
+MODEL=meta-llama/Llama-3.1-8B-Instruct
+HF_TOKEN=<your HF READ token>
+# run a benchmark to evaluate the performance of the model for chat use case
+# we mount results to the current directory
+docker run \
+    --rm \
+    -it \
+    --net host \
+    -v $(pwd):/opt/inference-benchmarker/results \
+    -e "HF_TOKEN=$HF_TOKEN" \
+    ghcr.io/huggingface/inference-benchmarker:latest \
+    inference-benchmarker \
+    --tokenizer-name "$MODEL" \
+    --url http://localhost:8080 \
+    --profile chat
+```
+
+Please refer to the [inference-benchmarker README](https://github.com/huggingface/inference-benchmarker) for more details.
+
+## Explanation: Understanding TGI on Gaudi
+
+### The Warmup Process
+
+Intel Gaudi accelerators perform best when operating on models with fixed tensor shapes. [Intel Gaudi Graph Compiler](https://docs.habana.ai/en/latest/Gaudi_Overview/Intel_Gaudi_Software_Suite.html#graph-compiler-and-runtime)
+generates optimized binary code that implements the given model topology on Gaudi. In its default configuration, the produced binary code may be highly dependent on input and output tensor shapes, requiring graph recompilation
+when encountering tensors with different shapes within the same topology. While these binaries efficiently utilize Gaudi, the compilation process itself can introduce noticeable overhead in end-to-end execution.
+In dynamic inference serving scenarios, minimizing the number of graph compilations and reducing the risk of graph compilation occurring during server runtime is important.
+
+To ensure optimal performance, warmup is performed at the beginning of each server run. This process creates queries with various input shapes based on provided parameters and runs basic TGI operations (prefill, decode).
+
+Note: Model warmup can take several minutes, especially for FP8 inference. For faster subsequent runs, refer to [Disk Caching Eviction Policy](https://docs.habana.ai/en/latest/PyTorch/Model_Optimization_PyTorch/Optimization_in_PyTorch_Models.html#disk-caching-eviction-policy).
+
+### Understanding Parameter Tuning
+
+#### Sequence Length Parameters
+- `--max-input-tokens` is the maximum possible input prompt length. Default value is `4095`.
+- `--max-total-tokens` is the maximum possible total length of the sequence (input and output). Default value is `4096`.
+
+#### Batch Size Parameters
+- For prefill operation, please set `--max-batch-prefill-tokens` as `bs * max-input-tokens`, where `bs` is your expected maximum prefill batch size.
+- For decode operation, please set `--max-batch-size` as `bs`, where `bs` is your expected maximum decode batch size.
+- Please note that batch size will be always padded to the nearest shapes that has been warmed up. This is done to avoid out of memory issues and to ensure that the graphs are reused efficiently.
+
+
+## Reference
+
+This section contains reference information about the Gaudi backend.
+
+### Supported Models
+
+Text Generation Inference enables serving optimized models on Gaudi hardware. The following sections list which models (VLMs & LLMs) are supported on Gaudi.
+
+**Large Language Models (LLMs)**
+- [deepseek-R1](https://huggingface.co/deepseek-ai/DeepSeek-R1)
+- [deepseek-v2](https://huggingface.co/deepseek-ai/DeepSeek-V2)
+- [Llama2](https://huggingface.co/collections/meta-llama/llama-2-family-661da1f90a9d678b6f55773b)
+- [Llama3](https://huggingface.co/collections/meta-llama/llama-31-669fc079a0c406a149a5738f)
+- [CodeLlama](https://huggingface.co/codellama/CodeLlama-13b-hf)
+- [Mixtral](https://huggingface.co/mistralai/Mixtral-8x7B-Instruct-v0.1)
+- [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3)
+- [Qwen 2](https://huggingface.co/collections/Qwen/qwen2-6659360b33528ced941e557f)
+- [Qwen 3](https://huggingface.co/collections/Qwen/qwen3-67dd247413f0e2e4f653967f)
+- [Qwen 3 Moe](https://huggingface.co/collections/Qwen/qwen3-67dd247413f0e2e4f653967f)
+- [Phi-1.5](https://huggingface.co/microsoft/phi-1_5)
+- [Phi-3](https://huggingface.co/microsoft/Phi-3-mini-4k-instruct)
+- [PhiMoe](https://huggingface.co/microsoft/Phi-3.5-MoE-instruct)
+- [Gemma](https://huggingface.co/google/gemma-7b-it)
+- [Gemma2](https://huggingface.co/collections/google/gemma-2-release-667d6600fd5220e7b967f315)
+- [Gemma3 Text](https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d)
+- [Granite](https://huggingface.co/ibm-granite/granite-3.0-8b-instruct)
+- [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)
+- [dbrx](https://huggingface.co/databricks/dbrx-instruct)
+- [Starcoder2](https://huggingface.co/bigcode/starcoder2-3b)
+- [Falcon](https://huggingface.co/tiiuae/falcon-7b-instruct)
+- [GPT-2](https://huggingface.co/openai-community/gpt2)
+- [gpt-j-6b](https://huggingface.co/EleutherAI/gpt-j-6b)
+- [gpt-bigcode](https://huggingface.co/bigcode/gpt_bigcode-santacoder)
+- [Baichuan](https://huggingface.co/baichuan-inc/Baichuan2-7B-Chat)
+
+
+**Vision-Language Models (VLMs)**
+- [Llava Next (1.6)](https://huggingface.co/llava-hf/llava-v1.6-vicuna-13b-hf)
+- [Mllama (Multimodal Llama from Meta)](https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct)
+- [idefics 2](https://huggingface.co/HuggingFaceM4/idefics2-8b)
+- [idefics 3](https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3)
+- [PaliGemma](https://huggingface.co/google/paligemma-3b-pt-224)
+- [Llama4](https://huggingface.co/collections/meta-llama/llama-4-67f0c30d9fe03840bc9d0164)
+- [Gemma3](https://huggingface.co/collections/google/gemma-3-release-67c6c6f89c4f76621268bb6d)
+- [Qwen 2.5 VL](https://huggingface.co/collections/Qwen/qwen25-vl-6795ffac22b334a837c0f9a5)
+- [Qwen 2 VL](https://huggingface.co/collections/Qwen/qwen2-vl-66cee7455501d7126940800d)
+
+If you have an issue with a model, please open an issue on the [Gaudi backend repository](https://github.com/huggingface/text-generation-inference/issues).
+
+### Environment Variables
+
+The following table contains the environment variables that can be used to configure the Gaudi backend:
+
+| Name                        | Value(s)   | Default          | Description                                                                                                                      | Usage                        |
+|-----------------------------| :--------- | :--------------- | :------------------------------------------------------------------------------------------------------------------------------- | :--------------------------- |
+| LIMIT_HPU_GRAPH             | True/False | True             | Skip HPU graph usage for prefill to save memory, set to `True` for large sequence/decoding lengths(e.g. 300/212)                 | add -e in docker run command |
+| SKIP_TOKENIZER_IN_TGI       | True/False | False            | Skip tokenizer for input/output processing                                                                                       | add -e in docker run command |
+| VLLM_SKIP_WARMUP              | True/False | False             | Skip graph warmup during server initialization which is not recommended, but could be used for debug.                            | add -e in docker run command |
+
+
+## Contributing
+
+Contributions to the TGI-Gaudi project are welcome. Please refer to the [contributing guide](https://github.com/huggingface/text-generation-inference/blob/main/CONTRIBUTING.md).
+
+**Guidelines for contributing to Gaudi on TGI:** All changes should be made within the `backends/gaudi` folder. In general, you should avoid modifying the router, launcher, or benchmark to accommodate Gaudi hardware, as all Gaudi-specific logic should be contained within the `backends/gaudi` folder.
+
+### Building the Docker Image from Source
+
+To build the Docker image from source:
+
+```bash
+make -C backends/gaudi image
+```
+
+This builds the image and saves it as `tgi-gaudi`. You can then run TGI-Gaudi with this image:
+
+```bash
+model=meta-llama/Meta-Llama-3.1-8B-Instruct
+volume=$PWD/data
+hf_token=YOUR_ACCESS_TOKEN
+
+docker run --runtime=habana --ipc=host --cap-add=sys_nice \
+    -p 8080:80 -v $volume:/data -e HF_TOKEN=$hf_token \
+    tgi-gaudi \
+    --model-id $model
+```
+
+For more details, see the [README of the Gaudi backend](https://github.com/huggingface/text-generation-inference/blob/main/backends/gaudi/README.md) and the [Makefile of the Gaudi backend](https://github.com/huggingface/text-generation-inference/blob/main/backends/gaudi/Makefile).

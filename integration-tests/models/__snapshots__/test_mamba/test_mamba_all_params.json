@@ -64,7 +64,7 @@
       },
       {
         "id": 329,
-        "logprob": -2.171875,
+        "logprob": -2.296875,
         "special": false,
         "text": " A"
       },
@@ -81,19 +81,19 @@
         "text": " of"
       },
       {
-        "id": 1027,
-        "logprob": -1.5546875,
+        "id": 253,
+        "logprob": -0.86328125,
         "special": false,
-        "text": " different"
+        "text": " the"
       },
       {
         "id": 3295,
-        "logprob": -0.97265625,
+        "logprob": -0.55078125,
         "special": false,
         "text": " color"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "blue, red, yellow, \nand blue colors. A number of different color"
+  "generated_text": "blue, red, yellow, \nand blue colors. A number of the color"
 }

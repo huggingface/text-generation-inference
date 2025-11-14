@@ -29,10 +29,13 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
     aspect_ratio_mask: Optional[torch.Tensor] = None
     cross_attention_states: Optional[torch.Tensor] = None
 
+    def prepare_for_prefill(self):
+        super(VlmCausalLMBatch, self).prepare_for_prefill()
+
     @classmethod
     @tracer.start_as_current_span("concatenate")
     def concatenate(cls, batches):
-        batch = super().concatenate(batches)
+        batch = super(VlmCausalLMBatch, cls).concatenate(batches)
         batch.pixel_values = None
         batch.pixel_attention_mask = None
 
@@ -56,7 +59,7 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
     @tracer.start_as_current_span("filter")
     def filter(self, request_ids: List[int]):
         assert self.image_indices is not None
-        batch = super().filter(request_ids)
+        batch = super(VlmCausalLMBatch, self).filter(request_ids)
         assert self.image_indices is not None
         indices = []
         for i, request_id in enumerate(request_ids):
@@ -82,6 +85,7 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
             ]
         else:
             batch.cross_attention_states = None
+        batch.pixel_values = None
         return batch
 
     @classmethod
@@ -196,6 +200,13 @@ class MllamaCausalLMBatch(VlmCausalLMBatch):
 
 
 class MllamaCausalLM(VlmCausalLM):
+    def set_inputs_embeds(self, batch):
+        # Set the input embeddings to None, as we are using the input_ids for the model
+        batch.inputs_embeds = None
+
+    def cuda_graph_warmup(self, bs: int, max_s: int, max_bt: int):
+        super(VlmCausalLM, self).cuda_graph_warmup(bs, max_s, max_bt)
+
     def forward(
         self,
         batch: MllamaCausalLMBatch,
@@ -255,12 +266,6 @@ class MllamaCausalLM(VlmCausalLM):
             cache_lengths_tensor = batch.cache_lengths_tensor
             max_s = batch.max_current_length
             lm_head_indices = batch.prefill_head_indices
-
-        if cu_seqlen_prefill is None and self.max_past() is not None:
-            # In decode, not prefill, we're actually overwriting the KV-cache
-            # in a circular buffer mode.
-            # This makes sure the max_s for the decode pass is correct.
-            max_s = min(self.max_past(), max_s)
 
         # Try to find an associated cuda graph
         bs = input_ids.shape[0]

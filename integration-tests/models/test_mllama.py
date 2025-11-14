@@ -5,7 +5,7 @@ import asyncio
 @pytest.fixture(scope="module")
 def mllama_handle(launcher):
     with launcher(
-        "meta-llama/Llama-3.2-11B-Vision-Instruct",
+        "unsloth/Llama-3.2-11B-Vision-Instruct",
         num_shard=2,
     ) as handle:
         yield handle
@@ -28,7 +28,7 @@ async def test_mllama_simpl(mllama, response_snapshot):
                 "content": [
                     {
                         "type": "text",
-                        "text": "Can you tell me a very short story based on the image?",
+                        "text": "Describe the image in 10 words.",
                     },
                     {
                         "type": "image_url",
@@ -43,12 +43,12 @@ async def test_mllama_simpl(mllama, response_snapshot):
 
     assert response.usage == {
         "completion_tokens": 10,
-        "prompt_tokens": 50,
-        "total_tokens": 60,
+        "prompt_tokens": 45,
+        "total_tokens": 55,
     }
     assert (
         response.choices[0].message.content
-        == "In a bustling city, a chicken named Cluck"
+        == "A chicken sits on a pile of money, looking"
     )
     assert response == response_snapshot
 
@@ -66,7 +66,7 @@ async def test_mllama_load(mllama, generate_load, response_snapshot):
                     "content": [
                         {
                             "type": "text",
-                            "text": "Can you tell me a very short story based on the image?",
+                            "text": "Describe the image in 10 words.",
                         },
                         {
                             "type": "image_url",
@@ -84,12 +84,12 @@ async def test_mllama_load(mllama, generate_load, response_snapshot):
     ]
     responses = await asyncio.gather(*futures)
 
-    _ = [response.choices[0].message.content for response in responses]
+    generated_texts = [response.choices[0].message.content for response in responses]
 
     # XXX: TODO: Fix this test.
-    # assert generated_texts[0] == "In a bustling city, a chicken named Cluck"
-    # assert len(generated_texts) == 4
-    # assert generated_texts, all(
-    #     [text == generated_texts[0] for text in generated_texts]
-    # )
-    # assert responses == response_snapshot
+    assert generated_texts[0] == "A chicken sits on a pile of money, looking"
+    assert len(generated_texts) == 2
+    assert generated_texts, all(
+        [text == generated_texts[0] for text in generated_texts]
+    )
+    assert responses == response_snapshot

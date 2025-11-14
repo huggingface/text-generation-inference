@@ -22,7 +22,7 @@ To infer with vision language models through Python, you can use the [`huggingfa
 ```python
 from huggingface_hub import InferenceClient
 
-client = InferenceClient("http://127.0.0.1:3000")
+client = InferenceClient(base_url="http://127.0.0.1:3000")
 image = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png"
 prompt = f"![]({image})What is this a picture of?\n\n"
 for token in client.text_generation(prompt, max_new_tokens=16, stream=True):
@@ -37,7 +37,7 @@ import base64
 import requests
 import io
 
-client = InferenceClient("http://127.0.0.1:3000")
+client = InferenceClient(base_url="http://127.0.0.1:3000")
 
 # read image from local file
 image_path = "rabbit.png"
@@ -58,7 +58,7 @@ or via the `chat_completion` endpoint:
 ```python
 from huggingface_hub import InferenceClient
 
-client = InferenceClient("http://127.0.0.1:3000")
+client = InferenceClient(base_url="http://127.0.0.1:3000")
 
 chat = client.chat_completion(
     messages=[
@@ -137,19 +137,19 @@ First, we need to install the `@huggingface/inference` library.
 npm install @huggingface/inference
 ```
 
-If you're using the free Inference API, you can use [Huggingface.js](https://huggingface.co/docs/huggingface.js/inference/README)'s `HfInference`. If you're using inference endpoints, you can use `HfInferenceEndpoint` class to easily interact with the Inference API.
+Whether you use Inference Providers (our serverless API), or Inference Endpoints, you can call `InferenceClient`.
 
-We can create a `HfInferenceEndpoint` providing our endpoint URL and We can create a `HfInferenceEndpoint` providing our endpoint URL and [Hugging Face access token](https://huggingface.co/settings/tokens).
+We can create a `InferenceClient` providing our endpoint URL and [Hugging Face access token](https://huggingface.co/settings/tokens).
 
 ```js
-import { HfInferenceEndpoint } from "@huggingface/inference";
+import { InferenceClient } from "@huggingface/inference";
 
-const hf = new HfInferenceEndpoint("http://127.0.0.1:3000", "HF_TOKEN");
+const client = new InferenceClient('hf_YOUR_TOKEN', { endpointUrl: 'https://YOUR_ENDPOINT.endpoints.huggingface.cloud' });
 
 const prompt =
   "![](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/rabbit.png)What is this a picture of?\n\n";
 
-const stream = hf.textGenerationStream({
+const stream = client.textGenerationStream({
   inputs: prompt,
   parameters: { max_new_tokens: 16, seed: 42 },
 });

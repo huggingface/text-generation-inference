@@ -1,0 +1,24 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "I'm an artificial intelligence model known as a large language model (LLM) or conversational AI",
+        "role": "assistant",
+        "tool_calls": null
+      }
+    }
+  ],
+  "created": 1741693957,
+  "id": "",
+  "model": "meta-llama/Llama-3.1-8B-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.1.2-dev0-native",
+  "usage": {
+    "completion_tokens": 12,
+    "prompt_tokens": 53,
+    "total_tokens": 65
+  }
+}

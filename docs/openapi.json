@@ -10,7 +10,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version": "3.0.2-dev0"
+    "version": "3.3.6-dev0"
   },
   "paths": {
     "/": {
@@ -57,7 +57,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Input validation error"
+                  "error": "Input validation error",
+                  "error_type": "validation"
                 }
               }
             }
@@ -70,7 +71,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Request failed during generation"
+                  "error": "Request failed during generation",
+                  "error_type": "generation"
                 }
               }
             }
@@ -83,7 +85,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Model is overloaded"
+                  "error": "Model is overloaded",
+                  "error_type": "overloaded"
                 }
               }
             }
@@ -96,7 +99,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Incomplete generation"
+                  "error": "Incomplete generation",
+                  "error_type": "incomplete_generation"
                 }
               }
             }
@@ -181,7 +185,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Input validation error"
+                  "error": "Input validation error",
+                  "error_type": "validation"
                 }
               }
             }
@@ -194,7 +199,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Request failed during generation"
+                  "error": "Request failed during generation",
+                  "error_type": "generation"
                 }
               }
             }
@@ -207,7 +213,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Model is overloaded"
+                  "error": "Model is overloaded",
+                  "error_type": "overloaded"
                 }
               }
             }
@@ -220,7 +227,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Incomplete generation"
+                  "error": "Incomplete generation",
+                  "error_type": "incomplete_generation"
                 }
               }
             }
@@ -264,7 +272,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Input validation error"
+                  "error": "Input validation error",
+                  "error_type": "validation"
                 }
               }
             }
@@ -277,7 +286,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Request failed during generation"
+                  "error": "Request failed during generation",
+                  "error_type": "generation"
                 }
               }
             }
@@ -290,7 +300,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Model is overloaded"
+                  "error": "Model is overloaded",
+                  "error_type": "overloaded"
                 }
               }
             }
@@ -303,7 +314,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Incomplete generation"
+                  "error": "Incomplete generation",
+                  "error_type": "incomplete_generation"
                 }
               }
             }
@@ -558,7 +570,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Input validation error"
+                  "error": "Input validation error",
+                  "error_type": "validation"
                 }
               }
             }
@@ -571,7 +584,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Request failed during generation"
+                  "error": "Request failed during generation",
+                  "error_type": "generation"
                 }
               }
             }
@@ -584,7 +598,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Model is overloaded"
+                  "error": "Model is overloaded",
+                  "error_type": "overloaded"
                 }
               }
             }
@@ -597,7 +612,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Incomplete generation"
+                  "error": "Incomplete generation",
+                  "error_type": "incomplete_generation"
                 }
               }
             }
@@ -646,7 +662,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Input validation error"
+                  "error": "Input validation error",
+                  "error_type": "validation"
                 }
               }
             }
@@ -659,7 +676,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Request failed during generation"
+                  "error": "Request failed during generation",
+                  "error_type": "generation"
                 }
               }
             }
@@ -672,7 +690,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Model is overloaded"
+                  "error": "Model is overloaded",
+                  "error_type": "overloaded"
                 }
               }
             }
@@ -685,7 +704,8 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "example": {
-                  "error": "Incomplete generation"
+                  "error": "Incomplete generation",
+                  "error_type": "incomplete_generation"
                 }
               }
             }
@@ -1771,6 +1791,24 @@
                 "type": "string"
               }
             }
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "value"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "json_schema"
+                ]
+              },
+              "value": {
+                "$ref": "#/components/schemas/JsonSchemaConfig"
+              }
+            }
           }
         ],
         "discriminator": {
@@ -1864,26 +1902,74 @@
           }
         }
       },
-      "Message": {
+      "JsonSchemaConfig": {
         "type": "object",
         "required": [
-          "role",
-          "content"
+          "schema"
         ],
         "properties": {
-          "content": {
-            "$ref": "#/components/schemas/MessageContent"
-          },
           "name": {
             "type": "string",
-            "example": "\"David\"",
+            "description": "Optional name identifier for the schema",
             "nullable": true
           },
-          "role": {
-            "type": "string",
-            "example": "user"
+          "schema": {
+            "description": "The actual JSON schema definition"
           }
         }
+      },
+      "Message": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MessageBody"
+          },
+          {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "example": "\"David\"",
+                "nullable": true
+              },
+              "role": {
+                "type": "string",
+                "example": "user"
+              }
+            }
+          }
+        ]
+      },
+      "MessageBody": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "content"
+            ],
+            "properties": {
+              "content": {
+                "$ref": "#/components/schemas/MessageContent"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "tool_calls"
+            ],
+            "properties": {
+              "tool_calls": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ToolCall"
+                }
+              }
+            }
+          }
+        ]
       },
       "MessageChunk": {
         "oneOf": [
@@ -2116,9 +2202,6 @@
       },
       "StreamOptions": {
         "type": "object",
-        "required": [
-          "include_usage"
-        ],
         "properties": {
           "include_usage": {
             "type": "boolean",
@@ -2179,6 +2262,10 @@
           "role": {
             "type": "string",
             "example": "user"
+          },
+          "tool_call_id": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -2266,7 +2353,10 @@
             "example": "assistant"
           },
           "tool_calls": {
-            "$ref": "#/components/schemas/DeltaToolCall"
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeltaToolCall"
+            }
           }
         }
       },

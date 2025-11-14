@@ -29,26 +29,65 @@ async def test_grammar_response_format_llama_json(llama_grammar, response_snapsh
         unit: str
         temperature: List[int]
 
+    json_payload = {
+        "model": "tgi",
+        "messages": [
+            {
+                "role": "system",
+                "content": f"Respond to the users questions and answer them in the following format: {Weather.model_json_schema()}",
+            },
+            {
+                "role": "user",
+                "content": "What's the weather like the next 3 days in San Francisco, CA?",
+            },
+        ],
+        "seed": 42,
+        "max_tokens": 500,
+        "response_format": {
+            "type": "json_object",
+            "value": Weather.model_json_schema(),
+        },
+    }
     # send the request
     response = requests.post(
         f"{llama_grammar.base_url}/v1/chat/completions",
         headers=llama_grammar.headers,
-        json={
-            "model": "tgi",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": f"Respond to the users questions and answer them in the following format: {Weather.schema()}",
-                },
-                {
-                    "role": "user",
-                    "content": "What's the weather like the next 3 days in San Francisco, CA?",
-                },
-            ],
-            "seed": 42,
-            "max_tokens": 500,
-            "response_format": {"type": "json_object", "value": Weather.schema()},
+        json=json_payload,
+    )
+
+    chat_completion = response.json()
+    called = chat_completion["choices"][0]["message"]["content"]
+
+    assert response.status_code == 200
+    assert called == '{ "unit": "fahrenheit", "temperature": [ 72, 79, 88 ] }'
+    assert chat_completion == response_snapshot
+
+    json_payload["response_format"]["type"] = "json"
+    response = requests.post(
+        f"{llama_grammar.base_url}/v1/chat/completions",
+        headers=llama_grammar.headers,
+        json=json_payload,
+    )
+
+    chat_completion = response.json()
+    called = chat_completion["choices"][0]["message"]["content"]
+
+    assert response.status_code == 200
+    assert called == '{ "unit": "fahrenheit", "temperature": [ 72, 79, 88 ] }'
+    assert chat_completion == response_snapshot
+
+    json_payload["response_format"] = {
+        "type": "json_schema",
+        "value": {
+            "name": "weather",
+            "strict": True,
+            "schema": Weather.model_json_schema(),
         },
+    }
+    response = requests.post(
+        f"{llama_grammar.base_url}/v1/chat/completions",
+        headers=llama_grammar.headers,
+        json=json_payload,
     )
 
     chat_completion = response.json()
@@ -77,7 +116,7 @@ async def test_grammar_response_format_llama_error_if_tools_not_installed(
             "messages": [
                 {
                     "role": "system",
-                    "content": f"Respond to the users questions and answer them in the following format: {Weather.schema()}",
+                    "content": f"Respond to the users questions and answer them in the following format: {Weather.model_json_schema()}",
                 },
                 {
                     "role": "user",
@@ -87,7 +126,10 @@ async def test_grammar_response_format_llama_error_if_tools_not_installed(
             "seed": 42,
             "max_tokens": 500,
             "tools": [],
-            "response_format": {"type": "json_object", "value": Weather.schema()},
+            "response_format": {
+                "type": "json_object",
+                "value": Weather.model_json_schema(),
+            },
         },
     )
 

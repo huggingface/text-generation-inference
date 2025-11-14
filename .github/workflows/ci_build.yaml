@@ -20,6 +20,8 @@ on:
       - "Dockerfile"
       - "Dockerfile_amd"
       - "Dockerfile_intel"
+      - "Dockerfile.neuron"
+      - "Dockerfile_gaudi"
     branches:
       - "main"
   workflow_dispatch:
@@ -37,7 +39,7 @@ jobs:
       # fail-fast is true by default
       fail-fast: false
       matrix:
-        hardware: ["cuda", "cuda-trtllm", "rocm", "intel-xpu", "intel-cpu"]
+        hardware: ["cuda", "cuda-trtllm", "rocm", "intel-xpu", "intel-cpu", "neuron", "gaudi"]
     uses: ./.github/workflows/build.yaml # calls the one above ^
     permissions:
       contents: write

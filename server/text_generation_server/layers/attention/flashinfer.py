@@ -1,6 +1,7 @@
 from typing import Optional
 from contextvars import ContextVar
 from contextlib import contextmanager
+import math
 
 import flashinfer
 import torch
@@ -18,6 +19,20 @@ decode_state: ContextVar[flashinfer.BatchDecodeWithPagedKVCacheWrapper] = Contex
 )
 
 workspace: Optional[torch.Tensor] = None
+
+
+def unpad_2d_mask(
+    attention_mask: torch.Tensor, seq_lengths: torch.Tensor
+) -> torch.Tensor:
+    # Like torch unpad_sequence, but for 2D masks.
+    unpadded_tensors = []
+    for i, length in enumerate(seq_lengths):
+        unpadded_matrix = attention_mask[i, :length, :length]
+        unpadded_tensors.append(unpadded_matrix.flatten())
+
+    packed_tensor = torch.cat(unpadded_tensors)
+
+    return packed_tensor
 
 
 def get_workspace(device):
@@ -45,6 +60,7 @@ def use_prefill_with_paged_kv_state(
     state: flashinfer.BatchPrefillWithPagedKVCacheWrapper,
     block_tables: torch.Tensor,
     cu_seqlens: torch.Tensor,
+    custom_mask: Optional[torch.Tensor],
     input_lengths: torch.Tensor,
     num_heads: int,
     num_kv_heads: int,
@@ -52,7 +68,6 @@ def use_prefill_with_paged_kv_state(
     page_size: int,
     kv_dtype: torch.dtype,
     q_dtype: torch.dtype,
-    window_left: int,
 ):
     """
     Context manager to set the active flashinfer prefill state to the given
@@ -83,19 +98,28 @@ def use_prefill_with_paged_kv_state(
         last_page_len += 1
 
     token = prefill_with_paged_kv_state.set(state)
+
+    # Attention masks are padded, unpad.
+    if custom_mask is not None:
+        bs = input_lengths.shape[0]
+        seq_len = math.isqrt(custom_mask.numel() // bs)
+        custom_mask = unpad_2d_mask(
+            custom_mask.reshape(bs, seq_len, seq_len), input_lengths
+        )
+
     try:
         state.plan(
             qo_indptr=cu_seqlens,
             paged_kv_indptr=indptr,
             paged_kv_indices=block_tables,
             paged_kv_last_page_len=last_page_len,
+            custom_mask=custom_mask,
             num_qo_heads=num_heads,
             num_kv_heads=num_kv_heads,
             head_dim=head_size,
             kv_data_type=kv_dtype,
             q_data_type=q_dtype,
             page_size=page_size,
-            window_left=-1 if window_left is None else window_left,
         )
         yield
     finally:
@@ -172,7 +196,6 @@ def use_decode_state(
     page_size: int,
     kv_cache_dtype: torch.dtype,
     q_dtype: torch.dtype,
-    window_left: int,
 ):
     """
     Context manager to set the active flashinfer decoding state to the given
@@ -209,7 +232,6 @@ def use_decode_state(
             page_size=page_size,
             data_type=kv_cache_dtype,
             q_data_type=q_dtype,
-            window_left=-1 if window_left is None else window_left,
         )
         yield
     finally:

@@ -1,5 +1,8 @@
 use crate::infer::InferError;
-use crate::{ChatTemplateInputs, Message, MessageChunk, TextMessage, TokenizerConfigToken, Tool};
+use crate::{
+    ChatTemplateInputs, Message, MessageBody, MessageChunk, TextMessage, TokenizerConfigToken, Tool,
+};
+use chrono::Local;
 use minijinja::{Environment, ErrorKind, Template};
 use minijinja_contrib::pycompat;
 
@@ -8,7 +11,12 @@ pub(crate) fn raise_exception(err_text: String) -> Result<String, minijinja::Err
     Err(minijinja::Error::new(ErrorKind::SyntaxError, err_text))
 }
 
-#[derive(Clone)]
+/// Get the current date in a specific format (custom function), similar to `datetime.now().strftime()` in Python
+pub(crate) fn strftime_now(format_str: String) -> Result<String, minijinja::Error> {
+    Ok(Local::now().format(&format_str).to_string())
+}
+
+#[derive(Debug, Clone)]
 pub(crate) struct ChatTemplate {
     template: Template<'static, 'static>,
     bos_token: Option<String>,
@@ -25,8 +33,28 @@ impl ChatTemplate {
         let mut env = Box::new(Environment::new());
         // enable things like .strip() or .capitalize()
         env.set_unknown_method_callback(pycompat::unknown_method_callback);
-        let template_str = template.into_boxed_str();
+
+        // TODO: replace with better solution
+        // hack to adjust gemma3 template for debug
+        // replace 'messages[0]['content'][0]['text']' with 'messages[0]['content']'
+        let mutated_template = template.replace(
+            "messages[0]['content'][0]['text']",
+            "messages[0]['content']",
+        );
+        //  Hack to fix Qwen3 templating.
+        //  It uses python notation to reverse lists, which do not exist in minijinja
+        //  so we're using the reverse filter instead.
+        let mutated_template = mutated_template.replace("[::-1]", "|reverse");
+        // TODO: replace with a better solution
+        // Hack to remove the {% generation %} and {% endgeneration %} statements from
+        // the Jinja2 chat templates if there, since those are only using for assistant
+        // masking during training, and should be ignored during inference
+        let mutated_template = mutated_template.replace("{% generation %}", "");
+        let mutated_template = mutated_template.replace("{% endgeneration %}", "");
+
+        let template_str = mutated_template.into_boxed_str();
         env.add_function("raise_exception", raise_exception);
+        env.add_function("strftime_now", strftime_now);
         tracing::debug!("Loading template: {}", template_str);
 
         // leaking env and template_str as read-only, static resources for performance.
@@ -67,7 +95,9 @@ impl ChatTemplate {
                     format!("\n---\n{}", tool_prompt)
                 };
                 if let Some(last_message) = messages.last_mut() {
-                    last_message.content.push(MessageChunk::Text { text });
+                    if let MessageBody::Content { content } = &mut last_message.body {
+                        content.push(MessageChunk::Text { text });
+                    }
                 }
                 Some(tools)
             }
@@ -109,11 +139,13 @@ impl ChatTemplate {
 // tests
 #[cfg(test)]
 mod tests {
-    use crate::infer::chat_template::raise_exception;
+    use crate::infer::chat_template::{raise_exception, strftime_now};
     use crate::infer::ChatTemplate;
     use crate::{
-        ChatTemplateInputs, Message, MessageContent, TextMessage, TokenizerConfigToken, Tool,
+        ChatTemplateInputs, Message, MessageBody, MessageChunk, MessageContent, TextMessage,
+        TokenizerConfigToken, Tool, Url,
     };
+    use chrono::Local;
     use minijinja::Environment;
 
     #[test]
@@ -150,18 +182,22 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -179,9 +215,256 @@ mod tests {
     }
 
     #[test]
+    fn test_chat_template_with_tool_response() {
+        let env = Environment::new();
+
+        // template modified from Llama-3.1-8B-Instruct
+        // https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/blob/0e9e39f249a16976918f6564b8830bc894c89659/tokenizer_config.json#L2053
+        // the main change is accesing `message.tool_call_id` from the messages
+        let source = r#"
+        {{- bos_token }}
+        {%- if custom_tools is defined %}
+            {%- set tools = custom_tools %}
+        {%- endif %}
+        {%- if not tools_in_user_message is defined %}
+            {%- set tools_in_user_message = true %}
+        {%- endif %}
+        {%- if not date_string is defined %}
+            {%- set date_string = "26 Jul 2024" %}
+        {%- endif %}
+        {%- if not tools is defined %}
+            {%- set tools = none %}
+        {%- endif %}
+
+        {#- This block extracts the system message, so we can slot it into the right place. #}
+        {%- if messages[0]['role'] == 'system' %}
+            {%- set system_message = messages[0]['content']|trim %}
+            {%- set messages = messages[1:] %}
+        {%- else %}
+            {%- set system_message = "" %}
+        {%- endif %}
+
+        {#- System message + builtin tools #}
+        {{- "<|start_header_id|>system<|end_header_id|>\n\n" }}
+        {%- if builtin_tools is defined or tools is not none %}
+            {{- "Environment: ipython\n" }}
+        {%- endif %}
+        {%- if builtin_tools is defined %}
+            {{- "Tools: " + builtin_tools | reject('equalto', 'code_interpreter') | join(", ") + "\n\n"}}
+        {%- endif %}
+        {{- "Cutting Knowledge Date: December 2023\n" }}
+        {{- "Today Date: " + date_string + "\n\n" }}
+        {%- if tools is not none and not tools_in_user_message %}
+            {{- "You have access to the following functions. To call a function, please respond with JSON for a function call." }}
+            {{- 'Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.' }}
+            {{- "Do not use variables.\n\n" }}
+            {%- for t in tools %}
+                {{- t | tojson(indent=4) }}
+                {{- "\n\n" }}
+            {%- endfor %}
+        {%- endif %}
+        {{- system_message }}
+        {{- "<|eot_id|>" }}
+
+        {#- Custom tools are passed in a user message with some extra guidance #}
+        {%- if tools_in_user_message and not tools is none %}
+            {#- Extract the first user message so we can plug it in here #}
+            {%- if messages | length != 0 %}
+                {%- set first_user_message = messages[0]['content']|trim %}
+                {%- set messages = messages[1:] %}
+            {%- else %}
+                {{- raise_exception("Cannot put tools in the first user message when there's no first user message!") }}
+        {%- endif %}
+            {{- '<|start_header_id|>user<|end_header_id|>\n\n' -}}
+            {{- "Given the following functions, please respond with a JSON for a function call " }}
+            {{- "with its proper arguments that best answers the given prompt.\n\n" }}
+            {{- 'Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.' }}
+            {{- "Do not use variables.\n\n" }}
+            {%- for t in tools %}
+                {{- t | tojson(indent=4) }}
+                {{- "\n\n" }}
+            {%- endfor %}
+            {{- first_user_message + "<|eot_id|>"}}
+        {%- endif %}
+
+        {%- for message in messages %}
+            {%- if not (message.role == 'ipython' or message.role == 'tool' or 'tool_calls' in message) %}
+                {{- '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' }}
+            {%- elif 'tool_calls' in message %}
+                {%- if not message.tool_calls|length == 1 %}
+                    {{- raise_exception("This model only supports single tool-calls at once!") }}
+                {%- endif %}
+                {%- set tool_call = message.tool_calls[0].function %}
+                {%- if builtin_tools is defined and tool_call.name in builtin_tools %}
+                    {{- '<|start_header_id|>assistant<|end_header_id|>\n\n' -}}
+                    {{- "<|python_tag|>" + tool_call.name + ".call(" }}
+                    {%- for arg_name, arg_val in tool_call.arguments | items %}
+                        {{- arg_name + '="' + arg_val + '"' }}
+                        {%- if not loop.last %}
+                            {{- ", " }}
+                        {%- endif %}
+                        {%- endfor %}
+                    {{- ")" }}
+                {%- else  %}
+                    {{- '<|start_header_id|>assistant<|end_header_id|>\n\n' -}}
+                    {{- '{"name": "' + tool_call.name + '", ' }}
+                    {{- '"parameters": ' }}
+                    {{- tool_call.arguments | tojson }}
+                    {{- "}" }}
+                {%- endif %}
+                {%- if builtin_tools is defined %}
+                    {#- This means we're in ipython mode #}
+                    {{- "<|eom_id|>" }}
+                {%- else %}
+                    {{- "<|eot_id|>" }}
+                {%- endif %}
+            {%- elif message.role == "tool" or message.role == "ipython" %}
+                {{- "<|start_header_id|>ipython<|end_header_id|>\n\n" }}
+                    {{- "TOOL CALL ID: " + message.tool_call_id + "\n\n" }}
+                {%- if message.content is mapping or message.content is iterable %}
+                    {{- message.content | tojson }}
+                {%- else %}
+                    {{- message.content }}
+                {%- endif %}
+                {{- "<|eot_id|>" }}
+            {%- endif %}
+        {%- endfor %}
+        {%- if add_generation_prompt %}
+            {{- '<|start_header_id|>assistant<|end_header_id|>\n\n' }}
+        {%- endif %}
+        "#;
+
+        // trim all the whitespace
+        let source = source
+            .lines()
+            .map(|line| line.trim())
+            .collect::<Vec<&str>>()
+            .join("");
+
+        let tmpl = env.template_from_str(&source);
+
+        let chat_template_inputs = ChatTemplateInputs {
+            messages: vec![
+                TextMessage {
+                    role: "user".to_string(),
+                    content: "Hi!".to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "assistant".to_string(),
+                    content: r#"[ { "id": "0", "function": { "arguments": '{"longitude": 2.2945, "latitude": 48.8567}', "name": "get_weather", "description": None, }, "type": "function", } ]"#.to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "tool".to_string(),
+                    content: "6.7".to_string(),
+                    tool_call_id: Some("0".to_string()),
+                },
+            ],
+            bos_token: Some("[BOS]"),
+            eos_token: Some("[EOS]"),
+            add_generation_prompt: true,
+            ..Default::default()
+        };
+
+        let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
+
+        assert_eq!(
+            result,
+            r#"[BOS]<|start_header_id|>system<|end_header_id|>
+
+Cutting Knowledge Date: December 2023
+Today Date: 26 Jul 2024
+
+<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+Hi!<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+[ { "id": "0", "function": { "arguments": '{"longitude": 2.2945, "latitude": 48.8567}', "name": "get_weather", "description": None, }, "type": "function", } ]<|eot_id|><|start_header_id|>ipython<|end_header_id|>
+
+TOOL CALL ID: 0
+
+"6.7"<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+"#
+        );
+    }
+
+    #[test]
+    fn test_chat_template_loop_controls() {
+        // some chat templates as e.g. CohereForAI/c4ai-command-r7b-12-202 contain `break`
+        // statements in their chat templates, so the feature `loop_controls` has been included
+        // in `minijinja`
+        let env = Environment::new();
+
+        let source = r#"
+        {% set user_count = 0 %}
+        {% for message in messages %}
+            {% if message['role'] == 'user' %}
+                {{'### User:\n' + message['content']+'\n\n'}}
+                {% set user_count = user_count + 1 %}
+                {% if user_count >= 2 %}
+                    {% break %}
+                {% endif %}
+            {% elif message['role'] == 'assistant' %}
+                {{'### Assistant:\n'  + message['content']}}
+            {% endif %}
+        {% endfor %}
+        {% if add_generation_prompt %}
+            {{ '### Assistant:\n' }}
+        {% endif %}"#;
+
+        // trim all the whitespace
+        let source = source
+            .lines()
+            .map(|line| line.trim())
+            .collect::<Vec<&str>>()
+            .join("");
+
+        let tmpl = env.template_from_str(&source);
+
+        let chat_template_inputs = ChatTemplateInputs {
+            messages: vec![
+                TextMessage {
+                    role: "user".to_string(),
+                    content: "Hi!".to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "assistant".to_string(),
+                    content: "Hello how can I help?".to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "user".to_string(),
+                    content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "assistant".to_string(),
+                    content: "magic!".to_string(),
+                    ..Default::default()
+                },
+            ],
+            bos_token: Some("[BOS]"),
+            eos_token: Some("[EOS]"),
+            add_generation_prompt: true,
+            ..Default::default()
+        };
+
+        let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
+
+        assert_eq!(
+            result,
+            "### User:\nHi!\n\n### Assistant:\nHello how can I help?### User:\nWhat is Deep Learning?\n\n### Assistant:\n"
+        );
+    }
+
+    #[test]
     fn test_chat_template_invalid_with_raise() {
         let mut env = Environment::new();
         env.add_function("raise_exception", raise_exception);
+        env.add_function("strftime_now", strftime_now);
 
         let source = r#"
         {{ bos_token }}
@@ -212,22 +495,27 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi again!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -253,6 +541,7 @@ mod tests {
     fn test_chat_template_valid_with_raise() {
         let mut env = Environment::new();
         env.add_function("raise_exception", raise_exception);
+        env.add_function("strftime_now", strftime_now);
 
         let source = r#"
         {{ bos_token }}
@@ -283,18 +572,22 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -308,9 +601,82 @@ mod tests {
     }
 
     #[test]
+    fn test_chat_template_valid_with_strftime_now() {
+        let mut env = Environment::new();
+        env.add_function("raise_exception", raise_exception);
+        env.add_function("strftime_now", strftime_now);
+
+        let source = r#"
+        {% set today = strftime_now("%Y-%m-%d") %}
+        {% set default_system_message = "The current date is " + today + "." %}
+        {{ bos_token }}
+        {% if messages[0]['role'] == 'system' %}
+            { set system_message = messages[0]['content'] %}
+            {%- set loop_messages = messages[1:] %}
+        {% else %}
+            {%- set system_message = default_system_message %}
+            {%- set loop_messages = messages %}
+        {% endif %}
+        {{ '[SYSTEM_PROMPT]' + system_message + '[/SYSTEM_PROMPT]' }}
+        {% for message in loop_messages %}
+            {% if message['role'] == 'user' %}
+                {{ '[INST]' + message['content'] + '[/INST]' }}
+            {% elif message['role'] == 'assistant' %}
+                {{ message['content'] + eos_token }}
+            {% else %}
+                {{ raise_exception('Only user and assistant roles are supported!') }}
+            {% endif %}
+        {% endfor %}
+        "#;
+
+        // trim all the whitespace
+        let source = source
+            .lines()
+            .map(|line| line.trim())
+            .collect::<Vec<&str>>()
+            .join("");
+
+        let tmpl = env.template_from_str(&source);
+
+        let chat_template_inputs = ChatTemplateInputs {
+            messages: vec![
+                TextMessage {
+                    role: "user".to_string(),
+                    content: "Hi!".to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "assistant".to_string(),
+                    content: "Hello how can I help?".to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "user".to_string(),
+                    content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
+                },
+                TextMessage {
+                    role: "assistant".to_string(),
+                    content: "magic!".to_string(),
+                    ..Default::default()
+                },
+            ],
+            bos_token: Some("[BOS]"),
+            eos_token: Some("[EOS]"),
+            add_generation_prompt: true,
+            ..Default::default()
+        };
+
+        let current_date = Local::now().format("%Y-%m-%d").to_string();
+        let result = tmpl.unwrap().render(chat_template_inputs).unwrap();
+        assert_eq!(result, format!("[BOS][SYSTEM_PROMPT]The current date is {}.[/SYSTEM_PROMPT][INST]Hi![/INST]Hello how can I help?[EOS][INST]What is Deep Learning?[/INST]magic![EOS]", current_date));
+    }
+
+    #[test]
     fn test_chat_template_valid_with_add_generation_prompt() {
         let mut env = Environment::new();
         env.add_function("raise_exception", raise_exception);
+        env.add_function("strftime_now", strftime_now);
 
         let source = r#"
         {% for message in messages %}
@@ -334,18 +700,22 @@ mod tests {
                 TextMessage {
                     role: "user".to_string(),
                     content: "Hi!".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "Hello how can I help?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "user".to_string(),
                     content: "What is Deep Learning?".to_string(),
+                    ..Default::default()
                 },
                 TextMessage {
                     role: "assistant".to_string(),
                     content: "magic!".to_string(),
+                    ..Default::default()
                 },
             ],
             bos_token: Some("[BOS]"),
@@ -371,14 +741,17 @@ mod tests {
             TextMessage {
                 role: "user".to_string(),
                 content: "Hello, how are you?".to_string(),
+                ..Default::default()
             },
             TextMessage {
                 role: "assistant".to_string(),
                 content: "I'm doing great. How can I help you today?".to_string(),
+                ..Default::default()
             },
             TextMessage {
                 role: "user".to_string(),
                 content: "I'd like to show off how chat templating works!".to_string(),
+                ..Default::default()
             },
         ];
 
@@ -386,6 +759,7 @@ mod tests {
             role: "system".to_string(),
             content: "You are a friendly chatbot who always responds in the style of a pirate"
                 .to_string(),
+            ..Default::default()
         }]
         .iter()
         .chain(&example_chat)
@@ -502,6 +876,7 @@ mod tests {
         {
             let mut env = Environment::new();
             env.add_function("raise_exception", raise_exception);
+            env.add_function("strftime_now", strftime_now);
             let tmpl = env.template_from_str(chat_template);
             let result = tmpl.unwrap().render(input).unwrap();
             assert_eq!(result, target);
@@ -528,10 +903,12 @@ mod tests {
                         TextMessage {
                             role: "system".to_string(),
                             content: "You are a friendly chatbot who always responds in the style of a pirate".to_string(),
+                            ..Default::default()
                         },
                         TextMessage {
                             role: "user".to_string(),
                             content: "How many helicopters can a human eat in one sitting?".to_string(),
+                            ..Default::default()
                         },
                     ],
                     add_generation_prompt: true,
@@ -776,6 +1153,7 @@ mod tests {
         {
             let mut env = Environment::new();
             env.add_function("raise_exception", raise_exception);
+            env.add_function("strftime_now", strftime_now);
             // trim all the whitespace
             let chat_template = chat_template
                 .lines()
@@ -802,19 +1180,27 @@ mod tests {
             Message {
                 name: None,
                 role: "user".to_string(),
-                content: MessageContent::SingleText(
-                    "I'd like to show off how chat templating works!".to_string(),
-                ),
+                body: MessageBody::Content {
+                    content: MessageContent::SingleText(
+                        "I'd like to show off how chat templating works!".to_string(),
+                    ),
+                },
             },
             Message {
                 name: None,
                 role: "assistant".to_string(),
-                content: MessageContent::SingleText("Great! How can I help you today?".to_string()),
+                body: MessageBody::Content {
+                    content: MessageContent::SingleText(
+                        "Great! How can I help you today?".to_string(),
+                    ),
+                },
             },
             Message {
                 name: None,
                 role: "user".to_string(),
-                content: MessageContent::SingleText("Just testing".to_string()),
+                body: MessageBody::Content {
+                    content: MessageContent::SingleText("Just testing".to_string()),
+                },
             },
         ];
         let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
@@ -822,7 +1208,7 @@ mod tests {
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
         let result = ct.apply(msgs, tools_and_prompt);
-        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"arguments\":{\"type\":\"object\",\"properties\":{\"location\":{\"type\":\"string\",\"description\":\"The city and state, e.g. San Francisco, CA\"},\"format\":{\"type\":\"string\",\"enum\":[\"celsius\",\"fahrenheit\"],\"description\":\"The temperature unit to use. Infer this from the users location.\"}},\"required\":[\"location\",\"format\"]}}}]\nThis default prompt will be used [/INST]".to_string();
+        let expected = "<s>[INST] I'd like to show off how chat templating works! [/INST]Great! How can I help you today?</s> [INST] Just testing\n---\n[{\"type\":\"function\",\"function\":{\"description\":\"Get the current weather\",\"name\":\"get_current_weather\",\"arguments\":\"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"location\\\":{\\\"type\\\":\\\"string\\\",\\\"description\\\":\\\"The city and state, e.g. San Francisco, CA\\\"},\\\"format\\\":{\\\"type\\\":\\\"string\\\",\\\"enum\\\":[\\\"celsius\\\",\\\"fahrenheit\\\"],\\\"description\\\":\\\"The temperature unit to use. Infer this from the users location.\\\"}},\\\"required\\\":[\\\"location\\\",\\\"format\\\"]}\"}}]\nThis default prompt will be used [/INST]".to_string();
         assert_eq!(result.unwrap(), expected);
     }
 
@@ -838,17 +1224,21 @@ mod tests {
             Message {
                 name: None,
                 role: "system".to_string(),
-                content: MessageContent::SingleText(
-                    "Youre a helpful assistant! Answer the users question best you can."
-                        .to_string(),
-                ),
+                body: MessageBody::Content {
+                    content: MessageContent::SingleText(
+                        "Youre a helpful assistant! Answer the users question best you can."
+                            .to_string(),
+                    ),
+                },
             },
             Message {
                 name: None,
                 role: "user".to_string(),
-                content: MessageContent::SingleText(
-                    "What is the weather like in Brooklyn, New York?".to_string(),
-                ),
+                body: MessageBody::Content {
+                    content: MessageContent::SingleText(
+                        "What is the weather like in Brooklyn, New York?".to_string(),
+                    ),
+                },
             },
         ];
         let tools_string = r#"[{"type": "function","function": {"name": "get_current_weather","description": "Get the current weather","parameters": {"type": "object","properties": {"location": {"type": "string","description": "The city and state, e.g. San Francisco, CA"},"format": {"type": "string","enum": ["celsius", "fahrenheit"],"description": "The temperature unit to use. Infer this from the users location."}},"required": ["location", "format"]}}}]"#.to_string();
@@ -856,7 +1246,101 @@ mod tests {
         let tool_prompt = "This default prompt will be used".to_string();
         let tools_and_prompt = Some((tools, tool_prompt));
         let result = ct.apply(msgs, tools_and_prompt);
-        let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n    \"function\": {\n        \"arguments\": {\n            \"properties\": {\n                \"format\": {\n                    \"description\": \"The temperature unit to use. Infer this from the users location.\",\n                    \"enum\": [\n                        \"celsius\",\n                        \"fahrenheit\"\n                    ],\n                    \"type\": \"string\"\n                },\n                \"location\": {\n                    \"description\": \"The city and state, e.g. San Francisco, CA\",\n                    \"type\": \"string\"\n                }\n            },\n            \"required\": [\n                \"location\",\n                \"format\"\n            ],\n            \"type\": \"object\"\n        },\n        \"description\": \"Get the current weather\",\n        \"name\": \"get_current_weather\"\n    },\n    \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
+        let expected = "<s><|start_header_id|>system<|end_header_id|>\n\nEnvironment: ipython\nCutting Knowledge Date: December 2023\nToday Date: 26 Jul 2024\n\nYoure a helpful assistant! Answer the users question best you can.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nGiven the following functions, please respond with a JSON for a function call with its proper arguments that best answers the given prompt.\n\nRespond in the format {\"name\": function name, \"parameters\": dictionary of argument name and its value}.Do not use variables.\n\n{\n    \"function\": {\n        \"arguments\": \"{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"location\\\":{\\\"type\\\":\\\"string\\\",\\\"description\\\":\\\"The city and state, e.g. San Francisco, CA\\\"},\\\"format\\\":{\\\"type\\\":\\\"string\\\",\\\"enum\\\":[\\\"celsius\\\",\\\"fahrenheit\\\"],\\\"description\\\":\\\"The temperature unit to use. Infer this from the users location.\\\"}},\\\"required\\\":[\\\"location\\\",\\\"format\\\"]}\",\n        \"description\": \"Get the current weather\",\n        \"name\": \"get_current_weather\"\n    },\n    \"type\": \"function\"\n}\n\nWhat is the weather like in Brooklyn, New York?\n---\nThis default prompt will be used<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n".to_string();
+        assert_eq!(result.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_chat_template_with_special_system_prompt() {
+        // chat template from gemma3
+        let ct = ChatTemplate::new(
+            r#"{{ bos_token }}
+{%- if messages[0]['role'] == 'system' -%}
+    {%- set first_user_prefix = messages[0]['content'][0]['text'] + '
+
+' -%}
+    {%- set loop_messages = messages[1:] -%}
+{%- else -%}
+    {%- set first_user_prefix = "" -%}
+    {%- set loop_messages = messages -%}
+{%- endif -%}
+{%- for message in loop_messages -%}
+    {%- if (message['role'] == 'user') != (loop.index0 % 2 == 0) -%}
+        {{ raise_exception("Conversation roles must alternate user/assistant/user/assistant/...") }}
+    {%- endif -%}
+    {%- if (message['role'] == 'assistant') -%}
+        {%- set role = "model" -%}
+    {%- else -%}
+        {%- set role = message['role'] -%}
+    {%- endif -%}
+    {{ '<start_of_turn>' + role + '
+' + (first_user_prefix if loop.first else "") }}
+    {%- if message['content'] is string -%}
+        {{ message['content'] | trim }}
+    {%- elif message['content'] is iterable -%}
+        {%- for item in message['content'] -%}
+            {%- if item['type'] == 'image' -%}
+                {{ '<start_of_image>' }}
+            {%- elif item['type'] == 'text' -%}
+                {{ item['text'] | trim }}
+            {%- endif -%}
+        {%- endfor -%}
+    {%- else -%}
+        {{ raise_exception("Invalid content type") }}
+    {%- endif -%}
+    {{ '<end_of_turn>
+' }}
+{%- endfor -%}
+{%- if add_generation_prompt -%}
+    {{'<start_of_turn>model
+'}}
+{%- endif -%}
+"#
+            .to_string(),
+            Some(TokenizerConfigToken::String("<bos>".to_string())),
+            Some(TokenizerConfigToken::String("</eos>".to_string())),
+        );
+        let msgs: Vec<Message> = vec![
+            Message {
+                name: None,
+                role: "system".to_string(),
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![MessageChunk::Text {
+                        text: "You are a helpful assistant.".to_string(),
+                    }]),
+                },
+            },
+            Message {
+                name: None,
+                role: "user".to_string(),
+                body: MessageBody::Content {
+                    content: MessageContent::MultipleChunks(vec![
+                        MessageChunk::Text {
+                            text: "I'm already using this supplement ".to_string(),
+                        },
+                        MessageChunk::ImageUrl {
+                            image_url: Url {
+                                url:  "https://huggingface.co/datasets/merve/vlm_test_images/resolve/main/IMG_3018.JPG".to_string()
+                            },
+                        },
+                        MessageChunk::Text {
+                            text: "and I want to use this one too ".to_string()
+                        },
+                        MessageChunk::ImageUrl {
+                            image_url: Url {
+                                url: "https://huggingface.co/datasets/merve/vlm_test_images/resolve/main/IMG_3015.jpg".to_string()
+                            },
+                        },
+                        MessageChunk::Text {
+                            text: " what are cautions?".to_string()
+                        },
+                    ]),
+                },
+            },
+        ];
+
+        let result = ct.apply(msgs, None);
+        let expected = "<bos><start_of_turn>user\nYou are a helpful assistant.\n\nI'm already using this supplement ![](https://huggingface.co/datasets/merve/vlm_test_images/resolve/main/IMG_3018.JPG)and I want to use this one too ![](https://huggingface.co/datasets/merve/vlm_test_images/resolve/main/IMG_3015.jpg) what are cautions?<end_of_turn>\n<start_of_turn>model\n".to_string();
         assert_eq!(result.unwrap(), expected);
     }
 }

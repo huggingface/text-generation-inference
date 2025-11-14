@@ -9,7 +9,7 @@ import numpy as np
 
 
 def find_segments(
-    adapter_indices: Union[torch.Tensor, List[int]]
+    adapter_indices: Union[torch.Tensor, List[int]],
 ) -> Tuple[List[int], List[int]]:
     if isinstance(adapter_indices, torch.Tensor):
         adapter_indices = adapter_indices.cpu().numpy()

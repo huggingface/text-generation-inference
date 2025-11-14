@@ -41,5 +41,5 @@ jobs:
 
     - name: Check that documentation is up-to-date
       run: |
-        npm install -g @redocly/cli
+        npm install -g @redocly/cli@1.34.2
         python update_doc.py --check
