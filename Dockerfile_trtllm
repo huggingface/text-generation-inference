@@ -95,7 +95,7 @@ COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 
 ENV RUSTC_WRAPPER=sccache
 ENV CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX
-RUN --mount=type=secret,id=actions_cache_url,env=ACTIONS_CACHE_URL \
+RUN --mount=type=secret,id=actions_results_url,env=ACTIONS_RESULTS_URL \
     --mount=type=secret,id=actions_runtime_token,env=ACTIONS_RUNTIME_TOKEN \
     export CMAKE_C_COMPILER_LAUNCHER=sccache && \
     export CMAKE_CXX_COMPILER_LAUNCHER=sccache && \
