@@ -175,6 +175,14 @@ jobs:
           registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: configure aws credentials
+        id: aws-creds
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_BUILDX_CACHE }}
+          role-duration-seconds: 18000
+          aws-region: us-east-1
+          output-credentials: true
       # If pull request
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name == 'pull_request' }}
@@ -204,6 +212,8 @@ jobs:
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v4
+        env: 
+          DOCKER_BUILD_SUMMARY: false
         with:
           context: .
           file: ${{ env.DOCKERFILE }}
@@ -215,13 +225,14 @@ jobs:
             PLATFORM=${{ env.PLATFORM }}
             build_type=${{ env.BUILD_TYPE }}
             sccache_gha_enabled=on
+          secrets: |
             actions_results_url=${{ env.ACTIONS_RESULTS_URL }}
             actions_runtime_token=${{ env.ACTIONS_RUNTIME_TOKEN }}
           target: ${{ env.TARGET }}
           tags: ${{ steps.meta.outputs.tags || steps.meta-pr.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels || steps.meta-pr.outputs.labels }}
-          cache-from: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL_EXTENSION }},mode=max,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
-          cache-to: type=s3,region=us-east-1,bucket=ci-docker-buildx-cache,name=text-generation-inference-cache${{ env.LABEL_EXTENSION }},mode=min,access_key_id=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_ACCESS_KEY_ID }},secret_access_key=${{ secrets.S3_CI_DOCKER_BUILDX_CACHE_SECRET_ACCESS_KEY }},mode=min
+          cache-from: type=s3,region=us-east-1,bucket=${{ vars.AWS_S3BUCKET_GITHUB_BUILDX_CACHE }},name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ steps.aws-creds.outputs.aws-access-key-id }},secret_access_key=${{ steps.aws-creds.outputs.aws-secret-access-key }},session_token=${{ steps.aws-creds.outputs.aws-session-token }},mode=max
+          cache-to: type=s3,region=us-east-1,bucket=${{ vars.AWS_S3BUCKET_GITHUB_BUILDX_CACHE }},name=text-generation-inference-cache${{ env.LABEL }},mode=min,access_key_id=${{ steps.aws-creds.outputs.aws-access-key-id }},secret_access_key=${{ steps.aws-creds.outputs.aws-secret-access-key }},session_token=${{ steps.aws-creds.outputs.aws-session-token }},mode=max
       - name: Final
         id: final
         run: |

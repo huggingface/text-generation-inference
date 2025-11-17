@@ -65,8 +65,6 @@ WORKDIR /usr/src/text-generation-inference
 ARG cuda_arch_list
 ARG build_type
 ARG sccache_gha_enabled
-ARG actions_results_url
-ARG actions_runtime_token
 
 # Install Rust
 ENV PATH="/root/.cargo/bin:$PATH"
@@ -84,8 +82,6 @@ ENV CUDA_ARCH_LIST=${cuda_arch_list}
 
 # SCCACHE Specifics args - before finding a better, more generic, way...
 ENV SCCACHE_GHA_ENABLED=${sccache_gha_enabled}
-ENV ACTIONS_RESULTS_URL=${actions_results_url}
-ENV ACTIONS_RUNTIME_TOKEN=${actions_runtime_token}
 
 COPY Cargo.lock Cargo.lock
 COPY Cargo.toml Cargo.toml
@@ -99,8 +95,8 @@ COPY --from=mpi-builder /usr/local/mpi /usr/local/mpi
 
 ENV RUSTC_WRAPPER=sccache
 ENV CMAKE_INSTALL_PREFIX=$TGI_INSTALL_PREFIX
-RUN export CC=gcc-14 \
-    export CXX=g++-14 \
+RUN --mount=type=secret,id=actions_results_url,env=ACTIONS_RESULTS_URL \
+    --mount=type=secret,id=actions_runtime_token,env=ACTIONS_RUNTIME_TOKEN \
     export CMAKE_C_COMPILER_LAUNCHER=sccache && \
     export CMAKE_CXX_COMPILER_LAUNCHER=sccache && \
     export CMAKE_CUDA_COMPILER_LAUNCHER=sccache && \
