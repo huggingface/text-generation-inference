@@ -22,7 +22,7 @@ from text_generation_server.utils.weights import (
 
 # compressed-tensors can match modules as quantization targets. However,
 # they need to be objects rather than classes or class names. Since we
-# need to match `Linear` targets, make an instance that can be re-used.
+# need to match `Linear` targets, make an instance that can be reused.
 _EMPTY_LINEAR: nn.Module = nn.Linear(0, 0)
 
 
@@ -148,7 +148,7 @@ class CompressedTensorsLoader(WeightsLoader):
             return W8ANFpLoader(input_activations=input_activations, weights=weights)
         else:
             raise ValueError(
-                f"Group '{group_name}' has unsupported compressed-tensors configurtion"
+                f"Group '{group_name}' has unsupported compressed-tensors configuration"
             )
 
     def _lookup_loader(self, prefix: str) -> WeightsLoader:
