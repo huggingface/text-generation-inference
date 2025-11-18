@@ -15,6 +15,7 @@ async def flash_llama_marlin(flash_llama_marlin24_handle):
     return flash_llama_marlin24_handle.client
 
 
+@pytest.mark.skip(reason="Issue with the model access")
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
@@ -27,6 +28,7 @@ async def test_flash_llama_marlin(flash_llama_marlin, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.skip(reason="Issue with the model access")
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
@@ -50,6 +52,7 @@ async def test_flash_llama_marlin24_all_params(flash_llama_marlin, response_snap
     assert response == response_snapshot
 
 
+@pytest.mark.skip(reason="Issue with the model access")
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private

@@ -13,6 +13,7 @@ async def flash_llama_fp8(flash_llama_fp8_handle):
     return flash_llama_fp8_handle.client
 
 
+@pytest.mark.skip(reason="Issue with the model access")
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
@@ -26,6 +27,7 @@ async def test_flash_llama_fp8(flash_llama_fp8, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.skip(reason="Issue with the model access")
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
@@ -49,6 +51,7 @@ async def test_flash_llama_fp8_all_params(flash_llama_fp8, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.skip(reason="Issue with the model access")
 @pytest.mark.release
 @pytest.mark.asyncio
 @pytest.mark.private
