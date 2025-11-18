@@ -3,7 +3,7 @@ import pytest
 
 @pytest.fixture(scope="module")
 def flash_llama_handle(launcher):
-    with launcher("huggingface/llama-7b", num_shard=2) as handle:
+    with launcher("huggyllama/llama-7b", num_shard=2) as handle:
         yield handle
 
 

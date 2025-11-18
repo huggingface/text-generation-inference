@@ -1523,6 +1523,7 @@ pub async fn run(
     max_client_batch_size: usize,
     usage_stats_level: usage_stats::UsageStatsLevel,
     payload_limit: usize,
+    max_image_fetch_size: usize,
     prometheus_port: u16,
 ) -> Result<(), WebServerError> {
     // CORS allowed origins
@@ -1827,6 +1828,7 @@ pub async fn run(
         compat_return_full_text,
         allow_origin,
         payload_limit,
+        max_image_fetch_size,
         prometheus_port,
     )
     .await;
@@ -1889,6 +1891,7 @@ async fn start(
     compat_return_full_text: bool,
     allow_origin: Option<AllowOrigin>,
     payload_limit: usize,
+    max_image_fetch_size: usize,
     prometheus_port: u16,
 ) -> Result<(), WebServerError> {
     // Determine the server port based on the feature and environment variable.
@@ -1920,6 +1923,7 @@ async fn start(
         max_input_tokens,
         max_total_tokens,
         disable_grammar_support,
+        max_image_fetch_size,
     );
 
     let infer = Infer::new(

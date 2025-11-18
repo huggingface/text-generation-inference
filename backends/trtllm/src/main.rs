@@ -67,6 +67,8 @@ struct Args {
     usage_stats: UsageStatsLevel,
     #[clap(default_value = "2000000", long, env)]
     payload_limit: usize,
+    #[clap(default_value = "1073741824", long, env)]
+    max_image_fetch_size: usize,
 }
 
 async fn get_tokenizer(tokenizer_name: &str, revision: Option<&str>) -> Option<Tokenizer> {
@@ -244,6 +246,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
         executor_worker,
         usage_stats,
         payload_limit,
+        max_image_fetch_size,
     } = args;
 
     // Launch Tokio runtime
@@ -325,6 +328,7 @@ async fn main() -> Result<(), TensorRtLlmBackendError> {
                 max_client_batch_size,
                 usage_stats,
                 payload_limit,
+                max_image_fetch_size,
                 prometheus_port,
             )
             .await?;

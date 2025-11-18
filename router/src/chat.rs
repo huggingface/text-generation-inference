@@ -673,7 +673,7 @@ mod tests {
                 let (name, arguments) = get_tool_call_content(&events[0]);
                 if let Some(name) = name {
                     assert_eq!(name, "get_current_weather");
-                    output_name.push_str(&name);
+                    output_name.push_str(name);
                 }
                 output.push_str(arguments);
             } else {

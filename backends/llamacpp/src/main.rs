@@ -157,6 +157,10 @@ struct Args {
     /// Maximum payload size in bytes.
     #[clap(default_value = "2000000", long, env)]
     payload_limit: usize,
+
+    /// Maximum image fetch size in bytes.
+    #[clap(default_value = "1073741824", long, env)]
+    max_image_fetch_size: usize,
 }
 
 #[tokio::main]
@@ -320,6 +324,7 @@ async fn main() -> Result<(), RouterError> {
         args.max_client_batch_size,
         args.usage_stats,
         args.payload_limit,
+        args.max_image_fetch_size,
         args.prometheus_port,
     )
     .await?;

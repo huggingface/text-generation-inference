@@ -12,7 +12,7 @@ use rand::{thread_rng, Rng};
 use serde_json::Value;
 /// Payload validation logic
 use std::cmp::min;
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 use std::iter;
 use std::sync::Arc;
 use thiserror::Error;
@@ -51,6 +51,7 @@ impl Validation {
         max_input_length: usize,
         max_total_tokens: usize,
         disable_grammar_support: bool,
+        max_image_fetch_size: usize,
     ) -> Self {
         let workers = if let Tokenizer::Python { .. } = &tokenizer {
             1
@@ -78,6 +79,7 @@ impl Validation {
                         config_clone,
                         preprocessor_config_clone,
                         tokenizer_receiver,
+                        max_image_fetch_size,
                     )
                 });
             }
@@ -480,6 +482,7 @@ fn tokenizer_worker(
     config: Option<Config>,
     preprocessor_config: Option<HubPreprocessorConfig>,
     mut receiver: mpsc::UnboundedReceiver<TokenizerRequest>,
+    max_image_fetch_size: usize,
 ) {
     match tokenizer {
         Tokenizer::Python {
@@ -503,6 +506,7 @@ fn tokenizer_worker(
                                 &tokenizer,
                                 config.as_ref(),
                                 preprocessor_config.as_ref(),
+                                max_image_fetch_size,
                             ))
                             .unwrap_or(())
                     })
@@ -524,6 +528,7 @@ fn tokenizer_worker(
                             &tokenizer,
                             config.as_ref(),
                             preprocessor_config.as_ref(),
+                            max_image_fetch_size,
                         ))
                         .unwrap_or(())
                 })
@@ -562,10 +567,35 @@ fn format_to_mimetype(format: ImageFormat) -> String {
     .to_string()
 }
 
-fn fetch_image(input: &str) -> Result<(Vec<u8>, String, usize, usize), ValidationError> {
+fn fetch_image(
+    input: &str,
+    max_image_fetch_size: usize,
+) -> Result<(Vec<u8>, String, usize, usize), ValidationError> {
     if input.starts_with("![](http://") || input.starts_with("![](https://") {
         let url = &input["![](".len()..input.len() - 1];
-        let data = reqwest::blocking::get(url)?.bytes()?;
+        let response = reqwest::blocking::get(url)?;
+
+        // Check Content-Length header if present
+        if let Some(content_length) = response.content_length() {
+            if content_length as usize > max_image_fetch_size {
+                return Err(ValidationError::ImageTooLarge(
+                    content_length as usize,
+                    max_image_fetch_size,
+                ));
+            }
+        }
+
+        // Read the body with size limit to prevent unbounded memory allocation
+        let mut data = Vec::new();
+        let mut limited_reader = response.take((max_image_fetch_size + 1) as u64);
+        limited_reader.read_to_end(&mut data)?;
+
+        if data.len() > max_image_fetch_size {
+            return Err(ValidationError::ImageTooLarge(
+                data.len(),
+                max_image_fetch_size,
+            ));
+        }
 
         let format = image::guess_format(&data)?;
         // TODO Remove this clone
@@ -787,6 +817,7 @@ fn prepare_input<T: TokenizerTrait>(
     tokenizer: &T,
     config: Option<&Config>,
     preprocessor_config: Option<&HubPreprocessorConfig>,
+    max_image_fetch_size: usize,
 ) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {
     use Config::*;
     static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
@@ -805,7 +836,8 @@ fn prepare_input<T: TokenizerTrait>(
                     input_chunks.push(Chunk::Text(inputs[start..chunk_start].to_string()));
                     tokenizer_query.push_str(&inputs[start..chunk_start]);
                 }
-                let (data, mimetype, height, width) = fetch_image(&inputs[chunk_start..chunk_end])?;
+                let (data, mimetype, height, width) =
+                    fetch_image(&inputs[chunk_start..chunk_end], max_image_fetch_size)?;
                 input_chunks.push(Chunk::Image(Image { data, mimetype }));
                 tokenizer_query.push_str(&image_tokens(config, preprocessor_config, height, width));
                 start = chunk_end;
@@ -990,6 +1022,10 @@ pub enum ValidationError {
     InvalidImageContent(String),
     #[error("Could not fetch image: {0}")]
     FailedFetchImage(#[from] reqwest::Error),
+    #[error("Image size {0} bytes exceeds maximum allowed size of {1} bytes")]
+    ImageTooLarge(usize, usize),
+    #[error("Failed to read image data: {0}")]
+    ImageReadError(#[from] std::io::Error),
     #[error("{0} modality is not supported")]
     UnsupportedModality(&'static str),
 }
@@ -1023,6 +1059,7 @@ mod tests {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            1024 * 1024 * 1024, // 1GB
         );
 
         let max_new_tokens = 10;
@@ -1058,6 +1095,7 @@ mod tests {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            1024 * 1024 * 1024, // 1GB
         );
 
         let max_new_tokens = 10;
@@ -1092,6 +1130,7 @@ mod tests {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            1024 * 1024 * 1024, // 1GB
         );
         match validation
             .validate(GenerateRequest {
@@ -1132,6 +1171,7 @@ mod tests {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            1024 * 1024 * 1024, // 1GB
         );
         match validation
             .validate(GenerateRequest {
@@ -1203,6 +1243,7 @@ mod tests {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            1024 * 1024 * 1024, // 1GB
         );
         match validation
             .validate(GenerateRequest {
@@ -1293,6 +1334,7 @@ mod tests {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            1024 * 1024 * 1024, // 1GB
         );
 
         let chunks = match validation
@@ -1349,6 +1391,7 @@ mod tests {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            1024 * 1024 * 1024, // 1GB
         );
 
         let (encoding, chunks) = match validation
