@@ -46,7 +46,7 @@ FROM rocm/dev-ubuntu-22.04:6.3.1-complete AS base
 ARG HIPBLASLT_BRANCH="4d40e36"
 ARG HIPBLAS_COMMON_BRANCH="7c1566b"
 ARG LEGACY_HIPBLASLT_OPTION=
-ARG RCCL_BRANCH="648a58d"
+ARG RCCL_BRANCH="rocm-6.3.1"
 ARG RCCL_REPO="https://github.com/ROCm/rccl"
 ARG TRITON_BRANCH="e5be006"
 ARG TRITON_REPO="https://github.com/triton-lang/triton.git"
