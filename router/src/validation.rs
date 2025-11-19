@@ -51,7 +51,7 @@ impl SerializableIndex {
             initial_state: index.initial_state(),
             final_states: index.final_states().iter().cloned().collect(),
             transitions,
-            eos_token_id: eos_token_id,
+            eos_token_id,
             vocab_size: index.vocab_size(),
         }
     }
@@ -78,7 +78,7 @@ impl Validation {
     pub(crate) fn new(
         workers: usize,
         tokenizer: Tokenizer,
-        tokenizer_config: HubTokenizerConfig,
+        _tokenizer_config: HubTokenizerConfig,
         config: Option<Config>,
         preprocessor_config: Option<HubPreprocessorConfig>,
         max_best_of: usize,
@@ -148,9 +148,9 @@ impl Validation {
                 }
             }
             Tokenizer::Python {
-                ref mut tokenizer_name,
-                ref mut revision,
-                ref mut trust_remote_code,
+                tokenizer_name: _,
+                revision: _,
+                trust_remote_code: _,
             } => (),
         };
 
@@ -442,15 +442,12 @@ impl Validation {
                         // Do compilation in the router for performance. In the future, we
                         // should also move regex -> automaton compilation in the router,
                         // but this is not yet supported in pure Rust by outlines-core.
-                        let regex =
-                            json_schema::regex_from_value(&json, None, None).map_err(|e| {
-                                ValidationError::InvalidGrammar(format!(
-                                    "Failed to convert JSON schema to regex: {}",
-                                    e
-                                ))
-                            })?;
-
-                        regex
+                        json_schema::regex_from_value(&json, None, None).map_err(|e| {
+                            ValidationError::InvalidGrammar(format!(
+                                "Failed to convert JSON schema to regex: {}",
+                                e
+                            ))
+                        })?
                     }
                     GrammarType::JsonSchema(schema_config) => {
                         // Extract the actual schema for validation
@@ -469,15 +466,12 @@ impl Validation {
                             ))?;
 
                         // Do compilation in the router for performance
-                        let regex =
-                            json_schema::regex_from_value(json, None, None).map_err(|e| {
-                                ValidationError::InvalidGrammar(format!(
-                                    "Failed to convert JSON schema to regex: {}",
-                                    e
-                                ))
-                            })?;
-
-                        regex
+                        json_schema::regex_from_value(json, None, None).map_err(|e| {
+                            ValidationError::InvalidGrammar(format!(
+                                "Failed to convert JSON schema to regex: {}",
+                                e
+                            ))
+                        })?
                     }
                     GrammarType::Regex(regex) => regex,
                 };
@@ -488,7 +482,7 @@ impl Validation {
 
         let mut grammar_index = None;
         if let Some(ref regex) = grammar {
-            let index = Index::new(&regex, &self.vocabulary).map_err(|e| {
+            let index = Index::new(regex, &self.vocabulary).map_err(|e| {
                 ValidationError::InvalidGrammar(format!("Failed to build index from regex: {}", e))
             })?;
             let serialized_index = SerializableIndex::from_index_and_eos_token_id(&index, 0);
