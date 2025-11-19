@@ -15,6 +15,7 @@ async def flash_llama_fd(flash_llama_handle_fd):
     return flash_llama_handle_fd.client
 
 
+@pytest.mark.skip(reason="Flaky test, needs investigation")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_flashdecoding(

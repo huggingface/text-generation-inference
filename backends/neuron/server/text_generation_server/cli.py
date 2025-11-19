@@ -13,7 +13,7 @@ def serve(
     model_id: str,
     revision: Optional[str] = None,
     sharded: bool = False,
-    trust_remote_code: bool = None,
+    trust_remote_code: Optional[bool] = None,
     uds_path: str = "/tmp/text-generation-server",
     logger_level: str = "INFO",
     json_output: bool = False,
