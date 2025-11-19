@@ -191,7 +191,7 @@ RUN . .venv/bin/activate && cd aiter \
     && git checkout ${AITER_BRANCH} \
     && git submodule update --init --recursive \
     && pip install -r requirements.txt \
-    && PREBUILD_KERNELS=1 GPU_ARCHS=gfx942 pip install -e . --no-build-isolation && pip show aiter
+    && PREBUILD_KERNELS=1 GPU_ARCHS=gfx942 python3 setup.py install && pip show aiter
 
 RUN rm -rf /var/lib/apt/lists/*
 
