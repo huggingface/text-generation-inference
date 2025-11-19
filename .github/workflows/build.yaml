@@ -212,7 +212,7 @@ jobs:
       - name: Build and push Docker image
         id: build-and-push
         uses: docker/build-push-action@v4
-        env: 
+        env:
           DOCKER_BUILD_SUMMARY: false
         with:
           context: .

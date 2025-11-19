@@ -62,7 +62,7 @@ async def test_flash_llama_fp8_kv_cache_all_params(
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_fp8_kv_cache_load(
-    flash_llama_fp8_kv_cache, generate_load, response_snapshot
+    flash_llama_fp8_kv_cache, generate_load, ignore_logprob_response_snapshot
 ):
     responses = await generate_load(
         flash_llama_fp8_kv_cache, "What is deep learning?", max_new_tokens=10, n=4
@@ -76,4 +76,6 @@ async def test_flash_llama_fp8_kv_cache_load(
     assert all(
         [r.generated_text == responses[0].generated_text for r in responses]
     ), f"Different messages : {[r.generated_text for r in responses]}"
-    assert responses == response_snapshot
+    # Use ignore_logprob_response_snapshot due to numerical precision differences
+    # between GPU architectures (A100 vs L4)
+    assert responses == ignore_logprob_response_snapshot

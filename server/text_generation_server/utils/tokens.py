@@ -38,6 +38,7 @@ class NextTokenChooser:
         grammar: str = "",
         grammar_type: GrammarType = GrammarType.GRAMMAR_TYPE_NONE,
         fsm_grammar_state: int = 0,
+        grammar_index: Optional[object] = None,
     ):
         self.watermark_processor = (
             WatermarkLogitsProcessor(device=device) if watermark else None
@@ -53,7 +54,9 @@ class NextTokenChooser:
             else None
         )
         self.grammar_processor = (
-            GrammarLogitProcessor(tokenizer, device, grammar, grammar_type)
+            GrammarLogitProcessor(
+                tokenizer, device, grammar, grammar_type, grammar_index
+            )
             if grammar != ""
             else None
         )
@@ -77,6 +80,7 @@ class NextTokenChooser:
         self.choice = Sampling(seed, device) if sampling else Greedy()
         self.fsm_grammar_state = fsm_grammar_state
         self.grammar = grammar
+        self.grammar_index = grammar_index
 
     def __call__(self, input_ids, scores):
         if self.watermark_processor is not None:
@@ -125,6 +129,7 @@ class NextTokenChooser:
             tokenizer=tokenizer,
             grammar=pb.grammar,
             grammar_type=pb.grammar_type,
+            grammar_index=pb.grammar_index,
         )
 
 
@@ -231,6 +236,7 @@ def create_n_gram_speculation(
 
 
 class HeterogeneousNextTokenChooser:
+
     def __init__(
         self,
         dtype: torch.dtype,
@@ -247,6 +253,7 @@ class HeterogeneousNextTokenChooser:
         tokenizer: PreTrainedTokenizerBase,
         grammars: List[str],
         grammar_types: List[int],
+        grammar_index: List[Optional[object]],
         fsm_grammar_states=List[int],
     ):
         warpers = []
@@ -281,7 +288,7 @@ class HeterogeneousNextTokenChooser:
 
         self.grammar_processor = (
             HeterogeneousGrammarLogitProcessor(
-                tokenizer, device, grammars, grammar_types
+                tokenizer, device, grammars, grammar_types, grammar_index
             )
             if any([grammar != "" for grammar in grammars])
             else None
@@ -322,6 +329,7 @@ class HeterogeneousNextTokenChooser:
         self.fsm_grammar_states = fsm_grammar_states
         self.grammars = grammars
         self.grammar_types = grammar_types
+        self.grammar_index = grammar_index
 
     def __call__(
         self,
@@ -457,14 +465,17 @@ class HeterogeneousNextTokenChooser:
         new_grammars = []
         new_fsm_grammar_states = []
         new_grammar_types = []
+        new_grammar_index = []
         for i in indices:
             new_grammars.append(self.grammars[i])
             new_fsm_grammar_states.append(self.fsm_grammar_states[i])
             new_grammar_types.append(self.grammar_types[i])
+            new_grammar_index.append(self.grammar_index[i])
 
         self.grammars = new_grammars
         self.fsm_grammar_states = new_fsm_grammar_states
         self.grammar_types = new_grammar_types
+        self.grammar_index = new_grammar_index
 
         if any(self.do_sample):
             self.choice.filter(indices)
@@ -497,6 +508,7 @@ class HeterogeneousNextTokenChooser:
             tokenizer=tokenizer,
             grammars=[pb_.grammar for pb_ in pb],
             grammar_types=[pb_.grammar_type for pb_ in pb],
+            grammar_index=[pb_.grammar_index for pb_ in pb],
             fsm_grammar_states=(
                 fsm_grammar_states if fsm_grammar_states else [0] * len(pb)
             ),

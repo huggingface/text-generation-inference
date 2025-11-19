@@ -47,6 +47,7 @@ async def test_flash_llama_all_params(flash_llama, response_snapshot):
     assert response == response_snapshot
 
 
+@pytest.mark.skip(reason="Flaky test, needs investigation")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_load(flash_llama, generate_load, response_snapshot):

@@ -1,7 +1,8 @@
 use crate::block_allocator::{BlockAllocation, BlockAllocator};
 use crate::client;
 use crate::client::{
-    Batch, GrammarType, NextTokenChooserParameters, Request, StoppingCriteriaParameters,
+    Batch, GrammarIndex, GrammarType, NextTokenChooserParameters, Request,
+    StoppingCriteriaParameters, Transition,
 };
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::max;
@@ -530,6 +531,21 @@ impl From<ValidParameters> for NextTokenChooserParameters {
             },
         };
 
+        let grammar_index = value.grammar_index.map(|index| GrammarIndex {
+            initial_state: index.initial_state,
+            final_states: index.final_states,
+            transitions: index
+                .transitions
+                .into_iter()
+                .map(|(from_state, token_id, to_state)| Transition {
+                    from_state,
+                    token_id,
+                    to_state,
+                })
+                .collect(),
+            vocab_size: index.vocab_size as u64,
+        });
+
         Self {
             temperature: value.temperature,
             top_k: value.top_k,
@@ -542,6 +558,7 @@ impl From<ValidParameters> for NextTokenChooserParameters {
             watermark: value.watermark,
             grammar,
             grammar_type: grammar_type.into(),
+            grammar_index,
         }
     }
 }
@@ -588,6 +605,7 @@ mod tests {
                     frequency_penalty: 0.0,
                     watermark: false,
                     grammar: None,
+                    grammar_index: None,
                 },
                 stopping_parameters: ValidStoppingParameters {
                     ignore_eos_token: false,
