@@ -136,9 +136,7 @@ impl Validation {
         // }
         match tokenizer_clone {
             Tokenizer::Rust(ref mut tokenizer) => {
-                println!("Getting added tokens from rust tokenizer...");
-
-                // iterare over all the tokens in the vocab
+                // iterate over all the tokens in the vocab
                 for (token, id) in tokenizer.get_vocab(true).iter() {
                     if *id != eos_token_id {
                         vocabulary
