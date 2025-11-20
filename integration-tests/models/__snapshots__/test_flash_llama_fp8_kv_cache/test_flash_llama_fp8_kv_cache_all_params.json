@@ -14,25 +14,25 @@
       },
       {
         "id": 34564,
-        "logprob": -0.12512207,
+        "logprob": -0.12695312,
         "special": false,
         "text": "Deep"
       },
       {
         "id": 6975,
-        "logprob": 0.0,
+        "logprob": -0.10632324,
         "special": false,
         "text": " learning"
       },
       {
         "id": 320,
-        "logprob": -0.23840332,
+        "logprob": -0.22546387,
         "special": false,
         "text": " ("
       },
       {
         "id": 16931,
-        "logprob": -2.0175781,
+        "logprob": -1.8837891,
         "special": false,
         "text": "DL"
       },
@@ -44,7 +44,7 @@
       },
       {
         "id": 374,
-        "logprob": -0.8613281,
+        "logprob": -0.8798828,
         "special": false,
         "text": " is"
       },
@@ -56,7 +56,7 @@
       },
       {
         "id": 1207,
-        "logprob": -1.2451172,
+        "logprob": -1.2675781,
         "special": false,
         "text": " sub"
       },
