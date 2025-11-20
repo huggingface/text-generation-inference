@@ -1758,9 +1758,10 @@
         "oneOf": [
           {
             "type": "object",
+            "description": "A string that represents a [JSON Schema](https://json-schema.org/).\n\nJSON Schema is a declarative language that allows to annotate JSON documents\nwith types and descriptions.",
             "required": [
-              "type",
-              "value"
+              "value",
+              "type"
             ],
             "properties": {
               "type": {
@@ -1769,16 +1770,21 @@
                   "json"
                 ]
               },
-              "value": {
-                "description": "A string that represents a [JSON Schema](https://json-schema.org/).\n\nJSON Schema is a declarative language that allows to annotate JSON documents\nwith types and descriptions."
+              "value": {}
+            },
+            "example": {
+              "properties": {
+                "location": {
+                  "type": "string"
+                }
               }
             }
           },
           {
             "type": "object",
             "required": [
-              "type",
-              "value"
+              "value",
+              "type"
             ],
             "properties": {
               "type": {
@@ -1795,18 +1801,16 @@
           {
             "type": "object",
             "required": [
-              "type",
-              "value"
+              "json_schema",
+              "type"
             ],
             "properties": {
+              "json_schema": {},
               "type": {
                 "type": "string",
                 "enum": [
                   "json_schema"
                 ]
-              },
-              "value": {
-                "$ref": "#/components/schemas/JsonSchemaConfig"
               }
             }
           }
@@ -1899,22 +1903,6 @@
           "version": {
             "type": "string",
             "example": "0.5.0"
-          }
-        }
-      },
-      "JsonSchemaConfig": {
-        "type": "object",
-        "required": [
-          "schema"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "Optional name identifier for the schema",
-            "nullable": true
-          },
-          "schema": {
-            "description": "The actual JSON schema definition"
           }
         }
       },
