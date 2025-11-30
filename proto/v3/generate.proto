@@ -104,6 +104,8 @@ message NextTokenChooserParameters {
   string grammar = 10;
   /// grammar type
   GrammarType grammar_type = 11;
+  /// logit bias dictionary mapping token string to bias value
+  map<string, int32> logit_bias = 12;
 }
 
 message StoppingCriteriaParameters {
