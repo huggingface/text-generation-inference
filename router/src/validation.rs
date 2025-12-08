@@ -129,11 +129,6 @@ impl Validation {
         let eos_token_id = 0;
         // Start building the vocabulary from eos_token_id and added tokens.
         let mut vocabulary = Vocabulary::new(eos_token_id);
-        // for (id, added_token) in tokenizer.get_added_tokens_decoder().iter() {
-        //     if !added_token.special && id != &eos_token_id {
-        //         vocabulary.try_insert(added_token.content.clone(), *id)?
-        //     }
-        // }
         match tokenizer_clone {
             Tokenizer::Rust(ref mut tokenizer) => {
                 // iterate over all the tokens in the vocab
