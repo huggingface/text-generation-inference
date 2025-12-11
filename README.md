@@ -1,3 +1,8 @@
+> [!CAUTION]
+> text-generation-inference is now in maintenance mode. Going forward, we will accept pull requests for minor bug fixes, documentation improvements and lightweight maintenance tasks.
+>
+> TGI has initiated the movement for optimized inference engines to rely on a `transformers` model architectures. This approach is now adopted by downstream inference engines, which we contribute to and recommend using going forward: [vllm](https://github.com/vllm-project/vllm), [SGLang](https://github.com/sgl-project/sglang), as well as local engines with inter-compatibility such as llama.cpp or MLX.
+
 <div align="center">
 
 <a href="https://www.youtube.com/watch?v=jlMAX2Oaht0">
@@ -17,11 +22,6 @@ A Rust, Python and gRPC server for text generation inference. Used in production
 to power Hugging Chat, the Inference API and Inference Endpoints.
 
 </div>
-
-> [!CAUTION]
-> text-generation-inference is now in maintenance mode. Going forward, we will accept pull requests for minor bug fixes, documentation improvements and lightweight maintenance tasks.
->
-> TGI has initiated the movement for optimized inference engines to rely on a `transformers` model architectures. This approach is now adopted by downstream inference engines, which we contribute to and recommend using going forward: [vllm](https://github.com/vllm-project/vllm), [SGLang](https://github.com/sgl-project/sglang), as well as local engines with inter-compatibility such as llama.cpp or MLX.
 
 ## Table of contents
 
