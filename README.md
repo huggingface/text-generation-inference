@@ -18,6 +18,11 @@ to power Hugging Chat, the Inference API and Inference Endpoints.
 
 </div>
 
+> [!CAUTION]
+> The text-generation-inference is currently archived and in maintenance mode. We will accept pull requests only for minor bug fixes, documentation improvements and lightweight maintenance tasks.
+>
+> We recommend using other inference engines that have a `transformers` modeling backend instead of TGI going forward: [vllm](https://github.com/vllm-project/vllm), [SGLang](https://github.com/sgl-project/sglang), as well as local engines with inter-compatibility such as llama.cpp or MLX.
+
 ## Table of contents
 
   - [Get Started](#get-started)
