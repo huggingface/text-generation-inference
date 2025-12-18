@@ -72,11 +72,11 @@ fn vram_maximum(
     if let Some(vram) = available.checked_sub(model) {
         let tokens_allowed = vram / token_vram;
         tracing::debug!(
-        "Available vram {}: model needs {}, every tokens requires {}, maximum allocatable tokens {tokens_allowed}",
-        human_size(available, "B"),
-        human_size(model, "B"),
-        human_size(token_vram, "B"),
-    );
+            "Available vram {}: model needs {}, every tokens requires {}, maximum allocatable tokens {tokens_allowed}",
+            human_size(available, "B"),
+            human_size(model, "B"),
+            human_size(token_vram, "B"),
+        );
         Some(tokens_allowed)
     } else {
         tracing::warn!(
@@ -1264,7 +1264,12 @@ fn num_cuda_devices() -> Option<usize> {
         Ok(devices) => devices,
         Err(_) => match env::var("NVIDIA_VISIBLE_DEVICES") {
             Ok(devices) => {
-                if devices.trim() == "all" {
+                // NVIDIA_VISIBLE_DEVICES is always set when not specified and the nvidia container runtime is
+                // in (jit-)cdi mode (since 1.14)
+                // nvidia container runtime default mode switched from legacy to cdi mode from 1.18 on
+                // Let's handle the void case as all here
+                // See: https://github.com/NVIDIA/nvidia-container-toolkit
+                if ["all", "void"].contains(&devices.trim())  {
                     // Count the number of all GPUs via nvidia-smi
                     let output = Command::new("nvidia-smi")
                         .args(["--query-gpu=uuid", "--format=csv,noheader"])
@@ -1274,8 +1279,7 @@ fn num_cuda_devices() -> Option<usize> {
                     String::from_utf8_lossy(&output.stdout)
                         .lines()
                         .filter(|line| !line.trim().is_empty())
-                        .count()
-                        .to_string()
+                        .collect::<Vec<_>>().join(",")
                 } else {
                     devices
                 }
