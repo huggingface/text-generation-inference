@@ -158,8 +158,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         git \
         && rm -rf /var/lib/apt/lists/*
 
-# RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-# ENV PATH="$PATH:/root/.local/bin"
+ENV UV_PYTHON_INSTALL_DIR="/usr/share/uv"
 COPY --from=ghcr.io/astral-sh/uv:0.5.31 /uv /uvx /bin/
 # Install flash-attention dependencies
 # RUN pip install einops --no-cache-dir
@@ -245,6 +244,6 @@ FROM base
 COPY ./tgi-entrypoint.sh /tgi-entrypoint.sh
 RUN chmod +x /tgi-entrypoint.sh
 
-ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/root/.local/share/uv/python/cpython-3.11.11-linux-x86_64-gnu/lib/"
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/share/uv/python/cpython-3.11.11-linux-x86_64-gnu/lib/"
 ENTRYPOINT ["/tgi-entrypoint.sh"]
 # CMD ["--json-output"]
