@@ -7,7 +7,6 @@ use crate::{
 use crate::{PyTokenizer, Tokenizer};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use image::{ImageFormat, ImageReader};
-use outlines_core::json_schema::to_regex as json_schema_to_regex;
 use rand::{thread_rng, Rng};
 use serde_json::Value;
 /// Payload validation logic
@@ -22,7 +21,41 @@ use tracing::warn;
 use tracing::{instrument, Span};
 use {once_cell::sync::Lazy, regex::Regex};
 
+use crate::HubTokenizerConfig;
+use outlines_core::prelude::*;
+
 static DEFAULT_GENERATION_LENGTH: u32 = 1024;
+
+/// Serializable Index for grammar validation
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SerializableIndex {
+    pub initial_state: u32,
+    pub final_states: Vec<u32>,
+    pub transitions: Vec<(u32, u32, u32)>,
+    pub eos_token_id: u32,
+    pub vocab_size: usize,
+}
+
+impl SerializableIndex {
+    pub fn from_index_and_eos_token_id(index: &Index, eos_token_id: u32) -> Self {
+        let transitions = index
+            .transitions()
+            .iter()
+            .flat_map(|(state, map)| {
+                map.iter()
+                    .map(move |(token_id, next_state)| (*state, *token_id, *next_state))
+            })
+            .collect();
+
+        Self {
+            initial_state: index.initial_state(),
+            final_states: index.final_states().iter().cloned().collect(),
+            transitions,
+            eos_token_id,
+            vocab_size: index.vocab_size(),
+        }
+    }
+}
 
 /// Validation
 #[derive(Debug, Clone)]
@@ -36,6 +69,8 @@ pub struct Validation {
     disable_grammar_support: bool,
     /// Channel to communicate with the background tokenization task
     sender: mpsc::UnboundedSender<TokenizerRequest>,
+    /// Vocabulary for grammar validation
+    vocabulary: Vocabulary,
 }
 
 impl Validation {
@@ -43,6 +78,7 @@ impl Validation {
     pub(crate) fn new(
         workers: usize,
         tokenizer: Tokenizer,
+        _tokenizer_config: HubTokenizerConfig,
         config: Option<Config>,
         preprocessor_config: Option<HubPreprocessorConfig>,
         max_best_of: usize,
@@ -89,6 +125,29 @@ impl Validation {
 
             validation_sender
         };
+        let mut tokenizer_clone = tokenizer.clone();
+        let eos_token_id = 0;
+        // Start building the vocabulary from eos_token_id and added tokens.
+        let mut vocabulary = Vocabulary::new(eos_token_id);
+        match tokenizer_clone {
+            Tokenizer::Rust(ref mut tokenizer) => {
+                // iterate over all the tokens in the vocab
+                for (token, id) in tokenizer.get_vocab(true).iter() {
+                    if *id != eos_token_id {
+                        vocabulary
+                            .try_insert(token.clone(), *id)
+                            .unwrap_or_else(|e| {
+                                warn!("Failed to insert token {}: {}", token, e);
+                            });
+                    }
+                }
+            }
+            Tokenizer::Python {
+                tokenizer_name: _,
+                revision: _,
+                trust_remote_code: _,
+            } => (),
+        };
 
         Self {
             max_best_of,
@@ -98,6 +157,7 @@ impl Validation {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            vocabulary,
         }
     }
 
@@ -377,10 +437,12 @@ impl Validation {
                         // Do compilation in the router for performance. In the future, we
                         // should also move regex -> automaton compilation in the router,
                         // but this is not yet supported in pure Rust by outlines-core.
-                        let grammar_regex = json_schema_to_regex(&json, None, &json)
-                            .map_err(ValidationError::RegexFromSchema)?;
-
-                        ValidGrammar::Regex(grammar_regex.to_string())
+                        json_schema::regex_from_value(&json, None, None).map_err(|e| {
+                            ValidationError::InvalidGrammar(format!(
+                                "Failed to convert JSON schema to regex: {}",
+                                e
+                            ))
+                        })?
                     }
                     GrammarType::JsonSchema(schema_config) => {
                         // Extract the actual schema for validation
@@ -399,17 +461,32 @@ impl Validation {
                             ))?;
 
                         // Do compilation in the router for performance
-                        let grammar_regex = json_schema_to_regex(json, None, json)
-                            .map_err(ValidationError::RegexFromSchema)?;
-
-                        ValidGrammar::Regex(grammar_regex.to_string())
+                        json_schema::regex_from_value(json, None, None).map_err(|e| {
+                            ValidationError::InvalidGrammar(format!(
+                                "Failed to convert JSON schema to regex: {}",
+                                e
+                            ))
+                        })?
                     }
-                    GrammarType::Regex(regex) => ValidGrammar::Regex(regex),
+                    GrammarType::Regex(regex) => regex,
                 };
                 Some(valid_grammar)
             }
             None => None,
         };
+
+        let mut grammar_index = None;
+        if let Some(ref regex) = grammar {
+            let index = Index::new(regex, &self.vocabulary).map_err(|e| {
+                ValidationError::InvalidGrammar(format!("Failed to build index from regex: {}", e))
+            })?;
+            let serialized_index = SerializableIndex::from_index_and_eos_token_id(&index, 0);
+            grammar_index = Some(serialized_index);
+        }
+
+        let grammar = Some(ValidGrammar::Regex(
+            grammar.unwrap_or_else(|| "".to_string()),
+        ));
 
         let parameters = ValidParameters {
             temperature,
@@ -422,6 +499,7 @@ impl Validation {
             seed,
             watermark,
             grammar,
+            grammar_index,
         };
         let stopping_parameters = ValidStoppingParameters {
             max_new_tokens,
@@ -929,6 +1007,8 @@ pub struct ValidParameters {
     pub watermark: bool,
     /// / grammar (applied if not empty)
     pub grammar: Option<ValidGrammar>,
+    /// / compiled index for the grammar regex
+    pub grammar_index: Option<SerializableIndex>,
 }
 
 #[derive(Debug, Clone)]
@@ -1051,6 +1131,7 @@ mod tests {
         let validation = Validation::new(
             workers,
             tokenizer,
+            HubTokenizerConfig::default(),
             config,
             None,
             max_best_of,
@@ -1087,6 +1168,7 @@ mod tests {
         let validation = Validation::new(
             workers,
             tokenizer,
+            HubTokenizerConfig::default(),
             config,
             None,
             max_best_of,
@@ -1122,6 +1204,7 @@ mod tests {
         let validation = Validation::new(
             workers,
             tokenizer,
+            HubTokenizerConfig::default(),
             config,
             None,
             max_best_of,
@@ -1163,6 +1246,7 @@ mod tests {
         let validation = Validation::new(
             workers,
             tokenizer,
+            HubTokenizerConfig::default(),
             config,
             None,
             max_best_of,
@@ -1235,6 +1319,7 @@ mod tests {
         let validation = Validation::new(
             workers,
             tokenizer,
+            HubTokenizerConfig::default(),
             config,
             None,
             max_best_of,
@@ -1326,6 +1411,7 @@ mod tests {
         let validation = Validation::new(
             workers,
             tokenizer,
+            HubTokenizerConfig::default(),
             Some(config),
             None,
             max_best_of,
@@ -1379,6 +1465,7 @@ mod tests {
         let validation = Validation::new(
             workers,
             tokenizer,
+            HubTokenizerConfig::default(),
             Some(config),
             Some(HubPreprocessorConfig::Idefics2Processor(
                 Idefics2Preprocessor {
@@ -1439,5 +1526,80 @@ mod tests {
                 .count(),
             11
         );
+    }
+
+    use crate::TokenizerConfigToken;
+
+    #[tokio::test]
+    async fn test_validation_json_schema_to_regex() {
+        let tokenizer = get_tokenizer();
+        let max_best_of = 2;
+        let max_stop_sequences = 3;
+        let max_top_n_tokens = 4;
+        let max_input_length = 100;
+        let max_total_tokens = 200;
+        let workers = 1;
+        let disable_grammar_support = false; // Enable grammar support
+        let config = None;
+        let mut tokenizer_config = HubTokenizerConfig::default();
+
+        tokenizer_config.eos_token = Some(TokenizerConfigToken::String("</s>".to_string()));
+
+        let validation = Validation::new(
+            workers,
+            tokenizer,
+            tokenizer_config,
+            config,
+            None,
+            max_best_of,
+            max_stop_sequences,
+            max_top_n_tokens,
+            max_input_length,
+            max_total_tokens,
+            disable_grammar_support,
+            1024 * 1024 * 1024, // 1GB
+        );
+
+        // Create a valid JSON schema with properties
+        let json_schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "age": {
+                    "type": "number"
+                }
+            },
+            "required": ["name"]
+        });
+
+        // Test with GrammarType::Json
+        let result = validation
+            .validate(GenerateRequest {
+                inputs: "Hello".to_string(),
+                add_special_tokens: true,
+                parameters: GenerateParameters {
+                    max_new_tokens: Some(50),
+                    grammar: Some(GrammarType::Json(json_schema.clone())),
+                    ..default_parameters()
+                },
+            })
+            .await;
+
+        match result {
+            Ok(valid_request) => {
+                // Verify that the grammar was successfully converted to a regex
+                assert!(valid_request.parameters.grammar.is_some());
+                match valid_request.parameters.grammar {
+                    Some(ValidGrammar::Regex(regex_str)) => {
+                        // Verify that a regex string was generated
+                        assert!(!regex_str.is_empty());
+                    }
+                    _ => panic!("Expected ValidGrammar::Regex"),
+                }
+            }
+            Err(e) => panic!("Validation failed: {:?}", e),
+        }
     }
 }

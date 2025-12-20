@@ -23,7 +23,8 @@ metrics-exporter-prometheus = { workspace = true }
 nohash-hasher = "0.2.0"
 opentelemetry = { version = "0.20.0", features = ["rt-tokio"] }
 opentelemetry-otlp = "0.13.0"
-outlines-core = { git = "https://github.com/dottxt-ai/outlines-core.git", rev = "ba10c619fc9bf3c487e43f49bdecb95a24bb465c" }
+# below is `outlines-core = "0.2.13` but allows the newer version of hf-hub that TGI uses
+outlines-core = { git = "https://github.com/drbh/outlines-core.git", rev = "ab2307d" }
 rand = "0.8.5"
 reqwest = { version = "0.11.20", features = ["blocking"] }
 serde = "1.0.188"

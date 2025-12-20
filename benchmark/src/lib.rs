@@ -47,6 +47,7 @@ pub async fn run(
         watermark,
         grammar: String::new(),
         grammar_type: GrammarType::None as i32,
+        grammar_index: None,
     };
 
     // Initialize terminal properties

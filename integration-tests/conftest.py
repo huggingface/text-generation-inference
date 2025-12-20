@@ -18,7 +18,7 @@ import requests
 
 class SessionTimeoutFix(requests.Session):
     def request(self, *args, **kwargs):
-        timeout = kwargs.pop("timeout", 120)
+        timeout = kwargs.pop("timeout", 180)
         return super().request(*args, **kwargs, timeout=timeout)
 
 

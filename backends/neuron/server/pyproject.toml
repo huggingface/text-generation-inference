@@ -13,7 +13,7 @@ dependencies = [
     'grpcio-status == 1.48.2',
     'grpcio-reflection == 1.48.2',
     'grpc-interceptor == 0.15.2',
-    'typer == 0.6.1',
+    'typer >= 0.6.1',
     'safetensors',
     'loguru == 0.6.0',
     'optimum-neuron[neuronx] >= 0.0.28',
