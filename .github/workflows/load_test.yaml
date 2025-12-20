@@ -26,10 +26,10 @@ jobs:
       DOCKER_VOLUME: /cache
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Install Python 3.11
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v6
         with:
           python-version: 3.11
 
