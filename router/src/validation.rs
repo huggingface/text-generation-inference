@@ -20,7 +20,8 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::warn;
 use tracing::{instrument, Span};
-use {once_cell::sync::Lazy, regex::Regex};
+use regex::Regex;
+use std::sync::LazyLock;
 
 static DEFAULT_GENERATION_LENGTH: u32 = 1024;
 
@@ -820,7 +821,7 @@ fn prepare_input<T: TokenizerTrait>(
     max_image_fetch_size: usize,
 ) -> Result<(tokenizers::Encoding, Vec<Chunk>), ValidationError> {
     use Config::*;
-    static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
+    static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"!\[\]\([^\)]*\)").unwrap());
     let (tokenizer_query, input_chunks) = match config {
         Some(
             config @ (Idefics | Mllama | Idefics2(_) | Idefics3(_) | Gemma3(_) | Llama4(_)
