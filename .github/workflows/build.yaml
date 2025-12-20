@@ -177,7 +177,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: configure aws credentials
         id: aws-creds
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708  # v5.1.1
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_GITHUB_BUILDX_CACHE }}
           role-duration-seconds: 18000
@@ -197,7 +197,7 @@ jobs:
       - name: Extract metadata (tags, labels) for Docker
         if: ${{ github.event_name != 'pull_request' }}
         id: meta
-        uses: docker/metadata-action@v4.3.0
+        uses: docker/metadata-action@v5.10.0
         with:
           flavor: |
             latest=false
@@ -211,7 +211,7 @@ jobs:
             type=raw,value=sha-${{ env.GITHUB_SHA_SHORT }}${{ env.LABEL_EXTENSION }}
       - name: Build and push Docker image
         id: build-and-push
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v6
         env: 
           DOCKER_BUILD_SUMMARY: false
         with:
