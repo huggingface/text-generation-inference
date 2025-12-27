@@ -466,4 +466,300 @@ mod test {
         let slots = config.get_number_of_features(1067, 1600);
         assert_eq!(slots, 2144);
     }
+
+    // =========================================================================
+    // Tests for utility functions
+    // =========================================================================
+
+    #[test]
+    fn test_gcd_basic_cases() {
+        // Basic GCD cases
+        assert_eq!(gcd(12, 8), 4);
+        assert_eq!(gcd(8, 12), 4);
+        assert_eq!(gcd(17, 13), 1); // Coprime numbers
+        assert_eq!(gcd(100, 25), 25);
+        assert_eq!(gcd(48, 18), 6);
+    }
+
+    #[test]
+    fn test_gcd_edge_cases() {
+        // Edge cases
+        assert_eq!(gcd(0, 5), 5);
+        assert_eq!(gcd(5, 0), 5);
+        assert_eq!(gcd(1, 1), 1);
+        assert_eq!(gcd(1, 100), 1);
+        assert_eq!(gcd(100, 100), 100);
+    }
+
+    #[test]
+    fn test_get_factors_basic() {
+        let factors = get_factors(12);
+        assert!(factors.contains(&1));
+        assert!(factors.contains(&2));
+        assert!(factors.contains(&3));
+        assert!(factors.contains(&4));
+        assert!(factors.contains(&6));
+        assert!(factors.contains(&12));
+        assert_eq!(factors.len(), 6);
+    }
+
+    #[test]
+    fn test_get_factors_prime() {
+        // Prime number should only have 1 and itself
+        let factors = get_factors(7);
+        assert!(factors.contains(&1));
+        assert!(factors.contains(&7));
+        assert_eq!(factors.len(), 2);
+    }
+
+    #[test]
+    fn test_get_factors_perfect_square() {
+        // Perfect square
+        let factors = get_factors(16);
+        assert!(factors.contains(&1));
+        assert!(factors.contains(&2));
+        assert!(factors.contains(&4));
+        assert!(factors.contains(&8));
+        assert!(factors.contains(&16));
+        assert_eq!(factors.len(), 5);
+    }
+
+    #[test]
+    fn test_get_factors_one() {
+        let factors = get_factors(1);
+        assert!(factors.contains(&1));
+        assert_eq!(factors.len(), 1);
+    }
+
+    #[test]
+    fn test_select_best_resolution_exact_match() {
+        let possible = vec![(640, 480), (800, 600), (1024, 768)];
+        // When original matches a possible resolution exactly
+        let result = select_best_resolution(480, 640, &possible);
+        assert_eq!(result, (640, 480));
+    }
+
+    #[test]
+    fn test_select_best_resolution_scaling() {
+        let possible = vec![(336, 672), (672, 336), (672, 672)];
+        // Should find best fit based on effective resolution
+        let result = select_best_resolution(400, 800, &possible);
+        assert_eq!(result, (336, 672));
+    }
+
+    #[test]
+    fn test_select_best_resolution_empty_returns_original() {
+        // When no possible resolutions, should return original
+        let result = select_best_resolution(100, 200, &[]);
+        assert_eq!(result, (100, 200));
+    }
+
+    #[test]
+    fn test_find_supported_resolutions_basic() {
+        let resolutions = find_supported_resolutions(4, 100);
+        // Should produce resolutions based on chunk factors
+        assert!(!resolutions.is_empty());
+        // All resolutions should be multiples of patch_size (100)
+        for (h, w) in &resolutions {
+            assert_eq!(h % 100, 0);
+            assert_eq!(w % 100, 0);
+        }
+    }
+
+    #[test]
+    fn test_find_supported_resolutions_includes_expected() {
+        let resolutions = find_supported_resolutions(4, 100);
+        // Should include 1x1, 2x1, 1x2, 2x2, 4x1, 1x4 patterns scaled by patch_size
+        assert!(resolutions.contains(&(100, 100))); // 1x1
+        assert!(resolutions.contains(&(200, 200))); // 2x2
+    }
+
+    #[test]
+    fn test_get_best_fit_upscaling() {
+        let possible = vec![(200, 200), (400, 400), (800, 800)];
+        // Small image should upscale to smallest fitting resolution
+        let result = get_best_fit(100, 100, &possible, false);
+        assert_eq!(result, (200, 200));
+    }
+
+    #[test]
+    fn test_get_best_fit_upscaling_max_canvas() {
+        let possible = vec![(200, 200), (400, 400), (800, 800)];
+        // With resize_to_max_canvas=true, should pick largest
+        let result = get_best_fit(100, 100, &possible, true);
+        assert_eq!(result, (800, 800));
+    }
+
+    #[test]
+    fn test_get_best_fit_downscaling() {
+        let possible = vec![(200, 200), (400, 400)];
+        // Large image should downscale to largest fitting resolution
+        let result = get_best_fit(1000, 1000, &possible, false);
+        assert_eq!(result, (400, 400));
+    }
+
+    // =========================================================================
+    // Tests for model-specific configurations
+    // =========================================================================
+
+    #[test]
+    fn test_idefics2_constant_features() {
+        let config = Idefics2 {};
+        // Idefics2 always returns 64 features regardless of dimensions
+        assert_eq!(config.get_number_of_features(100, 100), 64);
+        assert_eq!(config.get_number_of_features(1000, 500), 64);
+        assert_eq!(config.get_number_of_features(1, 1), 64);
+    }
+
+    #[test]
+    fn test_idefics3_constants() {
+        let config = Idefics3 {};
+        assert_eq!(config.get_max_longest_edge(), 364);
+        assert_eq!(config.get_number_of_features(), 169);
+        assert_eq!(config.get_max_longest_edge_for_image_resize(), 1456);
+        assert_eq!(config.get_max_image_size(), 4096);
+    }
+
+    #[test]
+    fn test_paligemma_features_from_config() {
+        let config = Paligemma {
+            text_config: PaliTextConfig {
+                num_image_tokens: 256,
+            },
+        };
+        // Paligemma returns num_image_tokens regardless of dimensions
+        assert_eq!(config.get_number_of_features(100, 100), 256);
+        assert_eq!(config.get_number_of_features(500, 300), 256);
+    }
+
+    #[test]
+    fn test_qwen2vl_features_calculation() {
+        let config = Qwen2Vl {
+            vision_config: Qwen2VlVisionConfig {
+                depth: 24,
+                embed_dim: 1024,
+                mlp_ratio: 4,
+                num_heads: 16,
+                in_chans: 3,
+                hidden_size: 1024,
+                patch_size: 14,
+                spatial_merge_size: 2,
+                spatial_patch_size: 14,
+                temporal_patch_size: 2,
+            },
+        };
+        // Features = (height * width) / patch_size^2
+        // 196 * 196 / 14^2 = 38416 / 196 = 196
+        assert_eq!(config.get_number_of_features(196, 196), 196);
+        // 280 * 280 / 14^2 = 78400 / 196 = 400
+        assert_eq!(config.get_number_of_features(280, 280), 400);
+    }
+
+    #[test]
+    fn test_qwen2_5vl_features_calculation() {
+        let config = Qwen2_5Vl {
+            vision_config: Qwen2_5VlVisionConfig {
+                spatial_patch_size: 14,
+            },
+        };
+        // Features = (height * width) / spatial_patch_size^2
+        assert_eq!(config.get_number_of_features(196, 196), 196);
+        assert_eq!(config.get_number_of_features(280, 280), 400);
+    }
+
+    #[test]
+    fn test_llama4_accessors() {
+        let config = Llama4 {
+            text_config: TextConfig {},
+            vision_config: Llama4VisionConfig {
+                image_size: 560,
+                patch_size: 14,
+                pixel_shuffle_ratio: 0.5,
+            },
+        };
+        assert_eq!(config.image_size(), 560);
+        assert_eq!(config.patch_size(), 14);
+        assert!((config.pixel_shuffle_ratio() - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_llama4_aspect_ratios() {
+        let config = Llama4 {
+            text_config: TextConfig {},
+            vision_config: Llama4VisionConfig {
+                image_size: 560,
+                patch_size: 14,
+                pixel_shuffle_ratio: 0.5,
+            },
+        };
+        // Test aspect ratio calculation
+        let (h, w) = config.get_aspect_ratios(560, 560, 4);
+        assert!(h > 0 && w > 0);
+    }
+
+    // =========================================================================
+    // Tests for Config enum serialization
+    // =========================================================================
+
+    #[test]
+    fn test_config_deserialize_simple_variants() {
+        // Test simple variants without data
+        let json = r#"{"model_type": "mistral"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(matches!(config, Config::Mistral));
+
+        let json = r#"{"model_type": "llama"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(matches!(config, Config::Llama));
+
+        let json = r#"{"model_type": "gemma2"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(matches!(config, Config::Gemma2));
+    }
+
+    #[test]
+    fn test_config_deserialize_idefics2() {
+        let json = r#"{"model_type": "idefics2"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(matches!(config, Config::Idefics2(_)));
+    }
+
+    #[test]
+    fn test_config_deserialize_idefics3() {
+        let json = r#"{"model_type": "idefics3"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(matches!(config, Config::Idefics3(_)));
+    }
+
+    #[test]
+    fn test_config_deserialize_qwen2vl() {
+        let json = r#"{
+            "model_type": "qwen2_vl",
+            "vision_config": {
+                "depth": 24,
+                "embed_dim": 1024,
+                "mlp_ratio": 4,
+                "num_heads": 16,
+                "in_chans": 3,
+                "hidden_size": 1024,
+                "patch_size": 14,
+                "spatial_merge_size": 2,
+                "spatial_patch_size": 14,
+                "temporal_patch_size": 2
+            }
+        }"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(matches!(config, Config::Qwen2Vl(_)));
+    }
+
+    #[test]
+    fn test_config_deserialize_deepseek_variants() {
+        let json = r#"{"model_type": "deepseek_v2"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(matches!(config, Config::DeepseekV2));
+
+        let json = r#"{"model_type": "deepseek_v3"}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(matches!(config, Config::DeepseekV3));
+    }
 }
