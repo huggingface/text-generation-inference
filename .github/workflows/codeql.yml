@@ -1,0 +1,27 @@
+---
+name: CodeQL Security Analysis For Github Actions
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+  # pull_request:
+
+jobs:
+  codeql:
+    name: CodeQL Analysis
+    uses: huggingface/security-workflows/.github/workflows/codeql-reusable.yml@v1.2.0
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    with:
+      languages: '["actions"]'
+      queries: 'security-extended,security-and-quality'
+      runner: 'ubuntu-latest' #optional if need custom runner
+      use-runner-group: false #optional
+
+      # if need to use runner group:
+      # runner: 'cpu-low'
+      # use-runner-group: true
