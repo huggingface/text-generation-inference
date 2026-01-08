@@ -202,9 +202,13 @@ def _pack_weight(
             device=weight.qweight.device,
         )
         qzeros = torch.empty(
-            (n_experts,) + weight.qzeros.shape,
-            dtype=weight.qzeros.dtype,
-            device=weight.qzeros.device,
+            (n_experts,) + ((0,) if weight.qzeros is None else weight.qzeros.shape),
+            dtype=(
+                weight.qweight.dtype if weight.qzeros is None else weight.qzeros.dtype
+            ),
+            device=(
+                weight.qweight.device if weight.qzeros is None else weight.qzeros.device
+            ),
         )
         scales = torch.empty(
             (n_experts,) + weight.scales.shape,
@@ -232,7 +236,13 @@ def _pack_weight(
         )
 
     moe_weight.qweight[expert] = weight.qweight
-    moe_weight.qzeros[expert] = weight.qzeros
+    moe_weight.qzeros[expert] = (
+        torch.zeros(
+            (0,), device=moe_weight.qzeros.device, dtype=moe_weight.qzeros.dtype
+        )
+        if weight.qzeros is None
+        else weight.qzeros
+    )
     moe_weight.scales[expert] = weight.scales
     moe_weight.g_idx[expert] = weight.g_idx
     moe_weight.perm[expert] = weight.perm
