@@ -26,7 +26,7 @@ use crate::{
     ChatCompletion, ChatCompletionChoice, ChatCompletionChunk, ChatCompletionComplete,
     ChatCompletionDelta, ChatCompletionLogprob, ChatCompletionLogprobs, ChatCompletionTopLogprob,
     ChatRequest, Chunk, CompatGenerateRequest, Completion, CompletionComplete, CompletionFinal,
-    CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool,
+    CompletionRequest, CompletionType, DeltaToolCall, Function, Prompt, Tool, EnergyMonitor,
 };
 use crate::{ChatTokenizeResponse, JsonSchemaConfig};
 use crate::{FunctionDefinition, HubPreprocessorConfig, ToolCall, ToolChoice};
@@ -293,6 +293,7 @@ pub(crate) async fn generate_internal(
     span: tracing::Span,
 ) -> Result<(HeaderMap, u32, Json<GenerateResponse>), (StatusCode, Json<ErrorResponse>)> {
     let start_time = Instant::now();
+    let start_energy = EnergyMonitor::total_energy_mj();
     metrics::counter!("tgi_request_count").increment(1);
 
     // Do not long ultra long inputs, like image payloads.
@@ -316,6 +317,12 @@ pub(crate) async fn generate_internal(
             (response, Some(best_of_responses))
         }
         _ => (infer.generate(req).await?, None),
+    };
+    
+    let end_energy = EnergyMonitor::total_energy_mj();
+    let energy_mj = match (start_energy, end_energy) {
+        (Some(start), Some(end)) => Some(end.saturating_sub(start)),
+        _ => None,
     };
 
     // Token details
@@ -354,6 +361,7 @@ pub(crate) async fn generate_internal(
                 seed: response.generated_text.seed,
                 best_of_sequences,
                 top_tokens: response.top_tokens,
+                energy_mj,
             })
         }
         false => None,
@@ -515,6 +523,7 @@ async fn generate_stream_internal(
     impl Stream<Item = Result<StreamResponse, InferError>>,
 ) {
     let start_time = Instant::now();
+    let start_energy = EnergyMonitor::total_energy_mj();
     metrics::counter!("tgi_request_count").increment(1);
 
     tracing::debug!("Input: {}", req.inputs);
@@ -590,6 +599,11 @@ async fn generate_stream_internal(
                                         queued,
                                         top_tokens,
                                     } => {
+                                        let end_energy = EnergyMonitor::total_energy_mj();
+                                        let energy_mj = match (start_energy, end_energy) {
+                                            (Some(start), Some(end)) => Some(end.saturating_sub(start)),
+                                            _ => None,
+                                        };
                                         // Token details
                                         let details = match details {
                                             true => Some(StreamDetails {
@@ -597,6 +611,7 @@ async fn generate_stream_internal(
                                                 generated_tokens: generated_text.generated_tokens,
                                                 seed: generated_text.seed,
                                                 input_length,
+                                                energy_mj,
                                             }),
                                             false => None,
                                         };
