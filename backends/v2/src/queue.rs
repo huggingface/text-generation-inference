@@ -429,6 +429,7 @@ mod tests {
                     frequency_penalty: 0.0,
                     watermark: false,
                     grammar: None,
+                    grammar_index: None,
                 },
                 stopping_parameters: ValidStoppingParameters {
                     ignore_eos_token: false,

@@ -81,6 +81,26 @@ enum GrammarType {
   GRAMMAR_TYPE_REGEX = 2;
 }
 
+message Transition {
+  /// From state ID
+  uint32 from_state = 1;
+  /// Token ID
+  uint32 token_id = 2;
+  /// To state ID
+  uint32 to_state = 3;
+}
+
+message GrammarIndex {
+  /// The ID of the initial state in the automaton
+  uint32 initial_state = 1;
+  /// A collection of states considered as terminal states
+  repeated uint32 final_states = 2;
+  /// A mapping of state transitions, defined by tokens ids and their corresponding state changes
+  repeated Transition transitions = 3;
+  /// The size of the vocabulary used to build the index
+  uint64 vocab_size = 4;
+}
+
 message NextTokenChooserParameters {
   /// exponential scaling output probability distribution
   float temperature = 1;
@@ -104,6 +124,8 @@ message NextTokenChooserParameters {
   string grammar = 10;
   /// grammar type
   GrammarType grammar_type = 11;
+  /// compiled index for the grammar regex
+  optional GrammarIndex grammar_index = 12;
 }
 
 message StoppingCriteriaParameters {
