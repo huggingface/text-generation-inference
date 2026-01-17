@@ -52,7 +52,6 @@ minijinja = { workspace = true, features = ["loop_controls"] }
 minijinja-contrib = { workspace = true }
 futures-util = "0.3.30"
 regex = "1.10.3"
-once_cell = "1.19.0"
 image = "0.25.1"
 base64 = { workspace = true }
 sysinfo = "0.30.13"
