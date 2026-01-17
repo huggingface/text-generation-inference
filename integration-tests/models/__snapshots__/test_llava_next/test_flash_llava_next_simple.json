@@ -8,61 +8,61 @@
     "tokens": [
       {
         "id": 13,
-        "logprob": -0.00756073,
+        "logprob": -0.052612305,
         "special": false,
         "text": "\n"
       },
       {
         "id": 13,
-        "logprob": -0.20117188,
+        "logprob": -0.07739258,
         "special": false,
         "text": "\n"
       },
       {
         "id": 16114,
-        "logprob": -1.2597656,
+        "logprob": -1.6914062,
         "special": false,
         "text": "Once"
       },
       {
         "id": 3714,
-        "logprob": -0.20825195,
+        "logprob": -0.21020508,
         "special": false,
         "text": " upon"
       },
       {
         "id": 264,
-        "logprob": -0.00178051,
+        "logprob": -0.0014228821,
         "special": false,
         "text": " a"
       },
       {
         "id": 727,
-        "logprob": -0.011955261,
+        "logprob": -0.012123108,
         "special": false,
         "text": " time"
       },
       {
         "id": 28725,
-        "logprob": -0.17541504,
+        "logprob": -0.15625,
         "special": false,
         "text": ","
       },
       {
         "id": 736,
-        "logprob": -0.91308594,
+        "logprob": -0.47875977,
         "special": false,
         "text": " there"
       },
       {
         "id": 403,
-        "logprob": -0.058410645,
+        "logprob": -0.033416748,
         "special": false,
         "text": " was"
       },
       {
         "id": 264,
-        "logprob": -0.009689331,
+        "logprob": -0.014137268,
         "special": false,
         "text": " a"
       }

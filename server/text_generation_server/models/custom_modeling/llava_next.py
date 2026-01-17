@@ -115,12 +115,29 @@ class LlavaNextForConditionalGeneration(nn.Module):
         super().__init__()
         config.vision_config.quantize = config.quantize
         vision_config = config.vision_config
-        # Instead of selecting in hidden_states[-2].
-        # Instead compute only the n -2 + 1 layers and don't pool
-        if config.vision_feature_layer < 0:
-            vision_config.num_hidden_layers += config.vision_feature_layer + 1
+
+        vision_feature_layer = []
+        # If the vision_feature_layer is an int, we assume it is the number of layers
+        if isinstance(config.vision_feature_layer, int):
+            # Instead of selecting in hidden_states[-2].
+            # Instead compute only the n -2 + 1 layers and don't pool
+            if config.vision_feature_layer < 0:
+                # vision_config.num_hidden_layers += config.vision_feature_layer + 1
+                num = vision_config.num_hidden_layers + config.vision_feature_layer + 1
+                vision_feature_layer = [num]
+            else:
+                # vision_config.num_hidden_layers = config.vision_feature_layer + 1
+                num_hidden_layers = [config.vision_feature_layer + 1]
+        elif isinstance(config.vision_feature_layer, list):
+            # If the vision_feature_layer is a list, we assume it is a list of layer indices
+            # and we select the hidden states at those layers
+
+            vision_feature_layer = config.vision_feature_layer
         else:
-            vision_config.num_hidden_layers = config.vision_feature_layer + 1
+            vision_feature_layer = [vision_config.num_hidden_layers - 1]
+
+        self.vision_feature_layer = vision_feature_layer
+
         self.vision_tower = load_vision_model(
             prefix="vision_tower" if not prefix else f"{prefix}.vision_tower",
             config=config.vision_config,
@@ -193,6 +210,14 @@ class LlavaNextForConditionalGeneration(nn.Module):
             raise RuntimeError(
                 f"Strategy `{self.config.vision_feature_select_strategy}` is not supported/valid."
             )
+
+        if image_features.hidden_states is not None:
+            # vision_feature_layer is a list of layer indices, we select the hidden states at those layers
+            hs_pool = [
+                image_features.hidden_states[layer_idx]
+                for layer_idx in self.vision_feature_layer
+            ]
+            selected_image_feature = torch.cat(hs_pool, dim=-1)
 
         image_features = self.multi_modal_projector(selected_image_feature)
 
