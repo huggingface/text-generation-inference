@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel, field_validator, ConfigDict
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union, Any, Dict
 
 from text_generation.errors import ValidationError
 
@@ -137,7 +137,7 @@ class ChatRequest(BaseModel):
     # decreasing the model's likelihood to repeat the same line verbatim.
     frequency_penalty: Optional[float] = None
     # Bias values for token selection
-    logit_bias: Optional[List[float]] = None
+    logit_bias: Optional[Dict[str, int]] = None
     # Whether to return log probabilities
     logprobs: Optional[bool] = None
     # Number of most likely tokens to return at each position

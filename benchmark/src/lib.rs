@@ -47,6 +47,7 @@ pub async fn run(
         watermark,
         grammar: String::new(),
         grammar_type: GrammarType::None as i32,
+        logit_bias: std::collections::HashMap::new(),
     };
 
     // Initialize terminal properties

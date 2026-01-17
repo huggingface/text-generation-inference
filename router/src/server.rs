@@ -798,6 +798,7 @@ pub(crate) async fn completions(
                 top_n_tokens: None,
                 grammar: None,
                 adapter_id: model.as_ref().filter(|m| *m != "tgi").map(String::from),
+                logit_bias: None,
             },
         })
         .collect();
