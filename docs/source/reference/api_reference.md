@@ -141,7 +141,9 @@ TGI can be deployed on various cloud providers for scalable and robust text gene
 
 ## Amazon SageMaker
 
-Amazon Sagemaker natively supports the message API:
+Amazon SageMaker natively supports the Messages API.
+
+For a fuller deployment + benchmarking guide (including EC2), see [Deploying on AWS (EC2 and SageMaker)](../basic_tutorials/deploy_aws).
 
 ```python
 import json
@@ -150,36 +152,38 @@ import boto3
 from sagemaker.huggingface import HuggingFaceModel, get_huggingface_llm_image_uri
 
 try:
- role = sagemaker.get_execution_role()
+    role = sagemaker.get_execution_role()
 except ValueError:
- iam = boto3.client('iam')
- role = iam.get_role(RoleName='sagemaker_execution_role')['Role']['Arn']
+    iam = boto3.client("iam")
+    role = iam.get_role(RoleName="sagemaker_execution_role")["Role"]["Arn"]
 
 # Hub Model configuration. https://huggingface.co/models
 hub = {
- 'HF_MODEL_ID':'HuggingFaceH4/zephyr-7b-beta',
- 'SM_NUM_GPUS': json.dumps(1),
+    "HF_MODEL_ID": "HuggingFaceH4/zephyr-7b-beta",
+    "SM_NUM_GPUS": json.dumps(1),
 }
 
 # create Hugging Face Model Class
 huggingface_model = HuggingFaceModel(
- image_uri=get_huggingface_llm_image_uri("huggingface",version="3.3.5"),
- env=hub,
- role=role,
+    image_uri=get_huggingface_llm_image_uri("huggingface", version="3.3.5"),
+    env=hub,
+    role=role,
 )
 
 # deploy model to SageMaker Inference
 predictor = huggingface_model.deploy(
- initial_instance_count=1,
- instance_type="ml.g5.2xlarge",
- container_startup_health_check_timeout=300,
-  )
+    initial_instance_count=1,
+    instance_type="ml.g5.2xlarge",
+    container_startup_health_check_timeout=300,
+)
 
 # send request
-predictor.predict({
-"messages": [
-        {"role": "system", "content": "You are a helpful assistant." },
-        {"role": "user", "content": "What is deep learning?"}
-    ]
-})
+predictor.predict(
+    {
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "What is deep learning?"},
+        ]
+    }
+)
 ```
