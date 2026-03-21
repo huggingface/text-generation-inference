@@ -43,10 +43,10 @@ RUN cargo build --profile release-opt --frozen
 
 FROM rocm/dev-ubuntu-22.04:6.3.1-complete AS base
 
-ARG HIPBLASLT_BRANCH="4d40e36"
-ARG HIPBLAS_COMMON_BRANCH="7c1566b"
+ARG HIPBLASLT_BRANCH="rocm-6.3.1"
+ARG HIPBLAS_COMMON_BRANCH="rocm-6.3.1"
 ARG LEGACY_HIPBLASLT_OPTION=
-ARG RCCL_BRANCH="648a58d"
+ARG RCCL_BRANCH="rocm-6.3.1"
 ARG RCCL_REPO="https://github.com/ROCm/rccl"
 ARG TRITON_BRANCH="e5be006"
 ARG TRITON_REPO="https://github.com/triton-lang/triton.git"
@@ -92,7 +92,7 @@ RUN uv venv --python ${PYTHON_VERSION} && uv pip install pip setuptools packagin
 ENV VIRTUAL_ENV=/usr/src/.venv/
 ENV PATH="$PATH:/usr/src/.venv/bin/"
 
-RUN . .venv/bin/activate && pip install -U packaging cmake ninja wheel setuptools pybind11 Cython
+RUN . .venv/bin/activate && pip install -U packaging "cmake<4" ninja wheel setuptools pybind11 Cython
 
 FROM base AS build_hipblaslt
 ARG HIPBLASLT_BRANCH
@@ -121,7 +121,7 @@ ARG RCCL_REPO
 RUN git clone ${RCCL_REPO}
 RUN . .venv/bin/activate && cd rccl \
     && git checkout ${RCCL_BRANCH} \
-    && ./install.sh -p --amdgpu_targets ${PYTORCH_ROCM_ARCH}
+    && CMAKE_POLICY_VERSION_MINIMUM=3.5 ./install.sh -p --amdgpu_targets ${PYTORCH_ROCM_ARCH}
 RUN mkdir -p /app/install && cp /app/rccl/build/release/*.deb /app/install
 
 FROM base AS build_triton
@@ -150,7 +150,7 @@ RUN git clone ${PYTORCH_REPO} pytorch
 RUN . .venv/bin/activate && cd pytorch && git checkout ${PYTORCH_BRANCH} && \
     pip install -r requirements.txt && git submodule update --init --recursive \
     && python3 tools/amd_build/build_amd.py \
-    && CMAKE_PREFIX_PATH=$(python3 -c 'import sys; print(sys.prefix)') python3 setup.py bdist_wheel --dist-dir=dist \
+    && CMAKE_PREFIX_PATH=$(python3 -c 'import sys; print(sys.prefix)') CMAKE_POLICY_VERSION_MINIMUM=3.5 python3 setup.py bdist_wheel --dist-dir=dist \
     && pip install dist/*.whl
 RUN git clone ${PYTORCH_VISION_REPO} vision
 RUN . .venv/bin/activate && cd vision && git checkout ${PYTORCH_VISION_BRANCH} \
@@ -191,7 +191,7 @@ RUN . .venv/bin/activate && cd aiter \
     && git checkout ${AITER_BRANCH} \
     && git submodule update --init --recursive \
     && pip install -r requirements.txt \
-    && PREBUILD_KERNELS=1 GPU_ARCHS=gfx942 python3 setup.py develop && pip show aiter
+    && PREBUILD_KERNELS=1 GPU_ARCHS=gfx942 python3 setup.py install && pip show aiter
 
 RUN rm -rf /var/lib/apt/lists/*
 

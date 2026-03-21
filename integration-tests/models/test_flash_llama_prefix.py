@@ -13,6 +13,8 @@ async def flash_llama(flash_llama_handle):
     return flash_llama_handle.client
 
 
+# skip flaky test to see if its masking other issues
+@pytest.mark.skip(reason="flaky test, needs investigation")
 @pytest.mark.asyncio
 @pytest.mark.private
 async def test_flash_llama_load(

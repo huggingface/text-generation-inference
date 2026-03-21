@@ -13,7 +13,7 @@ def serve(
     model_id: str,
     revision: Optional[str] = None,
     sharded: bool = False,
-    trust_remote_code: bool = None,
+    trust_remote_code: Optional[bool] = typer.Option(None, "--trust-remote-code"),
     uds_path: str = "/tmp/text-generation-server",
     logger_level: str = "INFO",
     json_output: bool = False,
@@ -77,10 +77,10 @@ def download_weights(
     revision: Optional[str] = None,
     logger_level: str = "INFO",
     json_output: bool = False,
-    auto_convert: Optional[bool] = None,
+    auto_convert: Optional[bool] = typer.Option(None, "--auto-convert"),
     extension: Optional[str] = None,
-    trust_remote_code: Optional[bool] = None,
-    merge_lora: Optional[bool] = None,
+    trust_remote_code: Optional[bool] = typer.Option(None, "--trust-remote-code"),
+    merge_lora: Optional[bool] = typer.Option(None, "--merge-lora"),
 ):
     """Download the model weights.
 

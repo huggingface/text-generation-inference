@@ -1915,6 +1915,7 @@ async fn start(
     let validation = Validation::new(
         validation_workers,
         tokenizer,
+        tokenizer_config.clone(),
         config,
         preprocessor_config,
         max_best_of,

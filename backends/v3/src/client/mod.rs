@@ -13,9 +13,9 @@ mod sharded_client;
 
 pub use grpc_client::Client;
 pub use pb::generate::v3::{
-    input_chunk::Chunk, Batch, CachedBatch, FinishReason, GeneratedText, Generation, GrammarType,
-    HealthResponse, Image, InfoResponse, Input, InputChunk, NextTokenChooserParameters, Request,
-    StoppingCriteriaParameters,
+    input_chunk::Chunk, Batch, CachedBatch, FinishReason, GeneratedText, Generation, GrammarIndex,
+    GrammarType, HealthResponse, Image, InfoResponse, Input, InputChunk,
+    NextTokenChooserParameters, Request, StoppingCriteriaParameters, Transition,
 };
 pub use sharded_client::ShardedClient;
 
