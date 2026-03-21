@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": null,
+        "name": null,
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": "{\"weather\":\"sunny\"}",
+              "description": null,
+              "name": "classify_weather"
+            },
+            "id": "0",
+            "type": "function"
+          }
+        ]
+      },
+      "usage": null
+    }
+  ],
+  "created": 1751896977,
+  "id": "",
+  "model": "google/gemma-3-4b-it",
+  "object": "chat.completion",
+  "system_fingerprint": "3.3.4-dev0-native",
+  "usage": {
+    "completion_tokens": 20,
+    "prompt_tokens": 196,
+    "total_tokens": 216
+  }
+}
