@@ -8,25 +8,25 @@
     "tokens": [
       {
         "id": 5267,
-        "logprob": -1.1464844,
+        "logprob": -1.0410156,
         "special": false,
         "text": "?\n"
       },
       {
         "id": 33464,
-        "logprob": -0.83203125,
+        "logprob": -0.6147461,
         "special": false,
         "text": "Deep"
       },
       {
         "id": 20909,
-        "logprob": -0.5625,
+        "logprob": -0.5229492,
         "special": false,
         "text": " Learning"
       },
       {
         "id": 320,
-        "logprob": -2.1464844,
+        "logprob": -1.7451172,
         "special": false,
         "text": " ("
       },
@@ -38,36 +38,36 @@
       },
       {
         "id": 701,
-        "logprob": -2.2089844,
+        "logprob": -2.2382812,
         "special": false,
         "text": "),"
       },
       {
         "id": 476,
-        "logprob": -0.27368164,
+        "logprob": -0.22546387,
         "special": false,
         "text": " or"
       },
       {
         "id": 20443,
-        "logprob": -0.09442139,
+        "logprob": -0.16967773,
         "special": false,
         "text": " artificial"
       },
       {
-        "id": 29728,
-        "logprob": 0.0,
+        "id": 11229,
+        "logprob": -2.265625,
         "special": false,
-        "text": " neural"
+        "text": " intelligence"
       },
       {
-        "id": 14155,
+        "id": 11,
         "logprob": 0.0,
         "special": false,
-        "text": " networks"
+        "text": ","
       }
     ],
     "top_tokens": null
   },
-  "generated_text": "What is deep learning?\nDeep Learning (DL), or artificial neural networks"
+  "generated_text": "What is deep learning?\nDeep Learning (DL), or artificial intelligence,"
 }

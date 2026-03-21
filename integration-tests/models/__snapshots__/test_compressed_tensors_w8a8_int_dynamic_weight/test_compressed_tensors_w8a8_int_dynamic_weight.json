@@ -1,469 +1,613 @@
 {
   "details": {
     "best_of_sequences": null,
-    "finish_reason": "eos_token",
-    "generated_tokens": 76,
+    "finish_reason": "length",
+    "generated_tokens": 100,
     "prefill": [],
     "seed": null,
     "tokens": [
       {
         "id": 18183,
-        "logprob": -1.5195312,
+        "logprob": -1.5371094,
         "special": false,
         "text": " Deep"
       },
       {
         "id": 6832,
-        "logprob": -0.06817627,
+        "logprob": -0.08483887,
         "special": false,
         "text": " learning"
       },
       {
         "id": 374,
-        "logprob": -0.13122559,
+        "logprob": -0.13378906,
         "special": false,
         "text": " is"
       },
       {
         "id": 264,
-        "logprob": -0.13415527,
+        "logprob": -0.14562988,
         "special": false,
         "text": " a"
       },
       {
         "id": 25993,
-        "logprob": -0.8769531,
+        "logprob": -0.78222656,
         "special": false,
         "text": " subset"
       },
       {
         "id": 315,
-        "logprob": -0.0011396408,
+        "logprob": -0.0013389587,
         "special": false,
         "text": " of"
       },
       {
         "id": 5662,
-        "logprob": -0.16442871,
+        "logprob": -0.15234375,
         "special": false,
         "text": " machine"
       },
       {
         "id": 6832,
-        "logprob": -0.0026416779,
+        "logprob": -0.0018444061,
         "special": false,
         "text": " learning"
       },
       {
         "id": 429,
-        "logprob": -0.48754883,
+        "logprob": -0.45507812,
         "special": false,
         "text": " that"
       },
       {
         "id": 5711,
-        "logprob": -1.2294922,
+        "logprob": -1.1435547,
         "special": false,
         "text": " uses"
       },
       {
         "id": 29728,
-        "logprob": -0.66503906,
+        "logprob": -0.78515625,
         "special": false,
         "text": " neural"
       },
       {
         "id": 14155,
-        "logprob": -0.02960205,
+        "logprob": -0.022445679,
         "special": false,
         "text": " networks"
       },
       {
         "id": 311,
-        "logprob": -0.7236328,
+        "logprob": -0.6767578,
         "special": false,
         "text": " to"
       },
       {
         "id": 3960,
-        "logprob": -1.1914062,
+        "logprob": -1.1796875,
         "special": false,
         "text": " learn"
       },
       {
         "id": 504,
-        "logprob": -0.7089844,
+        "logprob": -0.77441406,
         "special": false,
         "text": " from"
       },
       {
         "id": 821,
-        "logprob": -0.7729492,
+        "logprob": -0.67089844,
         "special": false,
         "text": " data"
       },
       {
         "id": 13,
-        "logprob": -0.7836914,
+        "logprob": -0.64404297,
         "special": false,
         "text": "."
       },
       {
         "id": 1084,
-        "logprob": -0.9941406,
+        "logprob": -1.1582031,
         "special": false,
         "text": " It"
       },
       {
         "id": 374,
-        "logprob": -0.52441406,
+        "logprob": -0.5810547,
         "special": false,
         "text": " is"
       },
       {
         "id": 264,
-        "logprob": -0.9511719,
+        "logprob": -1.1416016,
         "special": false,
         "text": " a"
       },
       {
         "id": 943,
-        "logprob": -0.8642578,
+        "logprob": -0.9873047,
         "special": false,
         "text": " type"
       },
       {
         "id": 315,
-        "logprob": -0.00030231476,
+        "logprob": -0.0001975298,
         "special": false,
         "text": " of"
       },
       {
         "id": 20443,
-        "logprob": -0.14416504,
+        "logprob": -0.22302246,
         "special": false,
         "text": " artificial"
       },
       {
         "id": 11229,
-        "logprob": -0.013824463,
+        "logprob": -0.012550354,
         "special": false,
         "text": " intelligence"
       },
       {
         "id": 429,
-        "logprob": -0.18762207,
+        "logprob": -0.2130127,
         "special": false,
         "text": " that"
       },
       {
         "id": 646,
-        "logprob": -1.0087891,
+        "logprob": -1.1347656,
         "special": false,
         "text": " can"
       },
       {
         "id": 3960,
-        "logprob": -0.90234375,
+        "logprob": -0.97802734,
         "special": false,
         "text": " learn"
       },
       {
         "id": 504,
-        "logprob": -0.54345703,
+        "logprob": -0.4489746,
         "special": false,
         "text": " from"
       },
       {
         "id": 323,
-        "logprob": -1.0400391,
+        "logprob": -0.9038086,
         "special": false,
         "text": " and"
       },
       {
         "id": 1281,
-        "logprob": -0.072509766,
+        "logprob": -0.10961914,
         "special": false,
         "text": " make"
       },
       {
         "id": 19898,
-        "logprob": -0.16516113,
+        "logprob": -0.3503418,
         "special": false,
         "text": " predictions"
       },
       {
         "id": 389,
-        "logprob": -0.4416504,
+        "logprob": -0.62939453,
         "special": false,
         "text": " on"
       },
       {
         "id": 3460,
-        "logprob": -0.5385742,
+        "logprob": -0.9458008,
         "special": false,
         "text": " large"
       },
       {
         "id": 14713,
-        "logprob": -0.4387207,
+        "logprob": -0.33813477,
         "special": false,
         "text": " amounts"
       },
       {
         "id": 315,
-        "logprob": -0.00015091896,
+        "logprob": -0.00013554096,
         "special": false,
         "text": " of"
       },
       {
         "id": 821,
-        "logprob": -0.061431885,
+        "logprob": -0.06390381,
         "special": false,
         "text": " data"
       },
       {
         "id": 13,
-        "logprob": -0.71875,
+        "logprob": -0.6826172,
         "special": false,
         "text": "."
       },
       {
         "id": 18183,
-        "logprob": -0.23632812,
+        "logprob": -0.3503418,
         "special": false,
         "text": " Deep"
       },
       {
         "id": 6832,
-        "logprob": -0.0017204285,
+        "logprob": -0.0020923615,
         "special": false,
         "text": " learning"
       },
       {
         "id": 374,
-        "logprob": -1.1738281,
+        "logprob": -1.1357422,
         "special": false,
         "text": " is"
       },
       {
         "id": 1483,
-        "logprob": -0.61083984,
+        "logprob": -0.76416016,
         "special": false,
         "text": " used"
       },
       {
         "id": 304,
-        "logprob": -0.035003662,
+        "logprob": -0.04458618,
         "special": false,
         "text": " in"
       },
       {
         "id": 264,
-        "logprob": -0.118652344,
+        "logprob": -0.09295654,
         "special": false,
         "text": " a"
       },
       {
         "id": 8045,
-        "logprob": -0.42016602,
+        "logprob": -0.54003906,
         "special": false,
         "text": " variety"
       },
       {
         "id": 315,
-        "logprob": -1.6212463e-05,
+        "logprob": -1.6450882e-05,
         "special": false,
         "text": " of"
       },
       {
         "id": 8357,
-        "logprob": -0.1315918,
+        "logprob": -0.095947266,
         "special": false,
         "text": " applications"
       },
       {
         "id": 11,
-        "logprob": -0.12915039,
+        "logprob": -0.10650635,
         "special": false,
         "text": ","
       },
       {
         "id": 2670,
-        "logprob": -0.12463379,
+        "logprob": -0.079589844,
         "special": false,
         "text": " including"
       },
       {
         "id": 2168,
-        "logprob": -0.37402344,
+        "logprob": -0.40551758,
         "special": false,
         "text": " image"
       },
       {
         "id": 323,
-        "logprob": -0.1451416,
+        "logprob": -0.13012695,
         "special": false,
         "text": " and"
       },
       {
         "id": 8806,
-        "logprob": -0.028869629,
+        "logprob": -0.02720642,
         "special": false,
         "text": " speech"
       },
       {
         "id": 17843,
-        "logprob": -0.00024068356,
+        "logprob": -0.00020062923,
         "special": false,
         "text": " recognition"
       },
       {
         "id": 11,
-        "logprob": -0.00031018257,
+        "logprob": -0.00056505203,
         "special": false,
         "text": ","
       },
       {
         "id": 5810,
-        "logprob": -0.019821167,
+        "logprob": -0.022247314,
         "special": false,
         "text": " natural"
       },
       {
         "id": 4128,
-        "logprob": -0.00012528896,
+        "logprob": -0.00017559528,
         "special": false,
         "text": " language"
       },
       {
         "id": 8692,
-        "logprob": -0.00089263916,
+        "logprob": -0.0007171631,
         "special": false,
         "text": " processing"
       },
       {
         "id": 11,
-        "logprob": -0.00073862076,
+        "logprob": -0.0007882118,
         "special": false,
         "text": ","
       },
       {
         "id": 323,
-        "logprob": -0.040161133,
+        "logprob": -0.027862549,
         "special": false,
         "text": " and"
       },
       {
         "id": 38193,
-        "logprob": -0.4519043,
+        "logprob": -0.39111328,
         "special": false,
         "text": " autonomous"
       },
       {
         "id": 11474,
-        "logprob": -0.39941406,
+        "logprob": -0.38427734,
         "special": false,
         "text": " vehicles"
       },
       {
         "id": 13,
-        "logprob": -0.21166992,
+        "logprob": -0.23461914,
         "special": false,
         "text": "."
       },
       {
         "id": 1084,
-        "logprob": -0.9082031,
+        "logprob": -1.0439453,
         "special": false,
         "text": " It"
       },
       {
         "id": 374,
-        "logprob": -0.44213867,
+        "logprob": -0.44580078,
         "special": false,
         "text": " is"
       },
       {
         "id": 264,
-        "logprob": -1.2177734,
+        "logprob": -0.86865234,
         "special": false,
         "text": " a"
       },
       {
         "id": 18512,
-        "logprob": -0.5205078,
+        "logprob": -0.5263672,
         "special": false,
         "text": " rapidly"
       },
       {
         "id": 7826,
-        "logprob": -0.15332031,
+        "logprob": -0.15881348,
         "special": false,
         "text": " growing"
       },
       {
         "id": 2070,
-        "logprob": -0.0039978027,
+        "logprob": -0.0044059753,
         "special": false,
         "text": " field"
       },
       {
         "id": 448,
-        "logprob": -0.9091797,
+        "logprob": -0.921875,
         "special": false,
         "text": " with"
       },
       {
         "id": 1657,
-        "logprob": -0.17114258,
+        "logprob": -0.18737793,
         "special": false,
         "text": " many"
       },
       {
         "id": 4650,
-        "logprob": -0.70703125,
+        "logprob": -0.8857422,
         "special": false,
         "text": " potential"
       },
       {
         "id": 8357,
-        "logprob": -0.025131226,
+        "logprob": -0.036193848,
         "special": false,
         "text": " applications"
       },
       {
         "id": 304,
-        "logprob": -0.6699219,
+        "logprob": -0.65283203,
         "special": false,
         "text": " in"
       },
       {
         "id": 279,
-        "logprob": -0.35205078,
+        "logprob": -0.4411621,
         "special": false,
         "text": " the"
       },
       {
         "id": 3853,
-        "logprob": -0.049194336,
+        "logprob": -0.059326172,
         "special": false,
         "text": " future"
       },
       {
         "id": 13,
-        "logprob": -0.21972656,
+        "logprob": -0.23278809,
         "special": false,
         "text": "."
       },
       {
-        "id": 151643,
-        "logprob": -2.0019531,
-        "special": true,
-        "text": "<|endoftext|>"
+        "id": 3555,
+        "logprob": -1.90625,
+        "special": false,
+        "text": " What"
+      },
+      {
+        "id": 525,
+        "logprob": -0.48291016,
+        "special": false,
+        "text": " are"
+      },
+      {
+        "id": 1045,
+        "logprob": -0.1484375,
+        "special": false,
+        "text": " some"
+      },
+      {
+        "id": 10295,
+        "logprob": -1.4072266,
+        "special": false,
+        "text": " examples"
+      },
+      {
+        "id": 315,
+        "logprob": -0.00091028214,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 5538,
+        "logprob": -0.47192383,
+        "special": false,
+        "text": " deep"
+      },
+      {
+        "id": 6832,
+        "logprob": -0.0005393028,
+        "special": false,
+        "text": " learning"
+      },
+      {
+        "id": 8357,
+        "logprob": -0.33569336,
+        "special": false,
+        "text": " applications"
+      },
+      {
+        "id": 30,
+        "logprob": -0.19299316,
+        "special": false,
+        "text": "?"
+      },
+      {
+        "id": 2619,
+        "logprob": -1.3320312,
+        "special": false,
+        "text": " There"
+      },
+      {
+        "id": 525,
+        "logprob": -0.0027637482,
+        "special": false,
+        "text": " are"
+      },
+      {
+        "id": 1657,
+        "logprob": -0.0574646,
+        "special": false,
+        "text": " many"
+      },
+      {
+        "id": 10295,
+        "logprob": -0.093811035,
+        "special": false,
+        "text": " examples"
+      },
+      {
+        "id": 315,
+        "logprob": -0.000106692314,
+        "special": false,
+        "text": " of"
+      },
+      {
+        "id": 5538,
+        "logprob": -0.013023376,
+        "special": false,
+        "text": " deep"
+      },
+      {
+        "id": 6832,
+        "logprob": -7.081032e-05,
+        "special": false,
+        "text": " learning"
+      },
+      {
+        "id": 8357,
+        "logprob": -0.010604858,
+        "special": false,
+        "text": " applications"
+      },
+      {
+        "id": 11,
+        "logprob": -0.28125,
+        "special": false,
+        "text": ","
+      },
+      {
+        "id": 2670,
+        "logprob": -0.5209961,
+        "special": false,
+        "text": " including"
+      },
+      {
+        "id": 1447,
+        "logprob": -0.8300781,
+        "special": false,
+        "text": ":\n\n"
+      },
+      {
+        "id": 220,
+        "logprob": -0.8071289,
+        "special": false,
+        "text": " "
+      },
+      {
+        "id": 353,
+        "logprob": -0.07385254,
+        "special": false,
+        "text": " *"
+      },
+      {
+        "id": 4654,
+        "logprob": -0.12548828,
+        "special": false,
+        "text": " Image"
+      },
+      {
+        "id": 17843,
+        "logprob": -0.4790039,
+        "special": false,
+        "text": " recognition"
+      },
+      {
+        "id": 25,
+        "logprob": -0.25634766,
+        "special": false,
+        "text": ":"
       }
     ],
     "top_tokens": null
   },
-  "generated_text": " Deep learning is a subset of machine learning that uses neural networks to learn from data. It is a type of artificial intelligence that can learn from and make predictions on large amounts of data. Deep learning is used in a variety of applications, including image and speech recognition, natural language processing, and autonomous vehicles. It is a rapidly growing field with many potential applications in the future."
+  "generated_text": " Deep learning is a subset of machine learning that uses neural networks to learn from data. It is a type of artificial intelligence that can learn from and make predictions on large amounts of data. Deep learning is used in a variety of applications, including image and speech recognition, natural language processing, and autonomous vehicles. It is a rapidly growing field with many potential applications in the future. What are some examples of deep learning applications? There are many examples of deep learning applications, including:\n\n  * Image recognition:"
 }

@@ -5,7 +5,7 @@
       inputs.nixpkgs.follows = "hf-nix/nixpkgs";
     };
     nix-filter.url = "github:numtide/nix-filter";
-    hf-nix.url = "github:huggingface/hf-nix";
+    hf-nix.url = "github:huggingface/hf-nix/quantization-0.1.0";
     nixpkgs.follows = "hf-nix/nixpkgs";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
@@ -33,7 +33,7 @@
         };
         pkgs = import nixpkgs {
           inherit system;
-          inherit (hf-nix.lib) config;
+          config = hf-nix.lib.config system;
           overlays = [
             rust-overlay.overlays.default
             hf-nix.overlays.default

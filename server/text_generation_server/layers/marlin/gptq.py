@@ -256,7 +256,7 @@ class GPTQMarlinWeight(Weight):
     """
 
     qweight: torch.Tensor
-    qzeros: torch.Tensor
+    qzeros: Optional[torch.Tensor]
     scales: torch.Tensor
     g_idx: torch.Tensor
     perm: torch.Tensor
@@ -268,6 +268,7 @@ class GPTQMarlinWeight(Weight):
         assert self.scales.dtype in (torch.float16, torch.bfloat16)
         assert self.g_idx.dtype == torch.int32
         assert self.perm.dtype == torch.int32
+        assert self.qzeros is None or self.qzeros.numel() > 0
 
     def get_linear(self, bias: torch.Tensor):
         return GPTQMarlinLinear(
@@ -350,9 +351,6 @@ def repack_gptq_for_marlin(
             qweight, perm, in_features, out_features, bits
         )
 
-    if qzeros is None:
-        qzeros = torch.empty(0, dtype=torch.int, device=qweight.device)
-
     scales = permute_scales(scales)
 
     is_full_k = not (desc_act and groupsize != -1 and sharded_infeatures)
@@ -392,7 +390,7 @@ class GPTQMarlinLinear(nn.Module):
         if weight.bits not in (4, 8):
             raise ValueError("GPTQMarlinLinear only supports 4 and 8-bit quantization")
 
-        if weight.qzeros.numel() > 0:
+        if weight.qzeros is not None:
             if weight.bits == 4:
                 self.quant_type = quantization.scalar_types.uint4
             else:
@@ -424,20 +422,21 @@ class GPTQMarlinLinear(nn.Module):
 
         A_flat = A.view(-1, A.shape[-1])
         C = quantization.gptq_marlin_gemm(
-            A_flat,
-            self.qweight,
-            self.scales,
-            self.qzeros,
-            self.g_idx,
-            self.perm,
-            self.workspace,
-            self.quant_type,
-            A_flat.shape[0],
-            self.scales.shape[1],
-            A_flat.shape[1],
-            self.is_full_k,
-            self.qzeros.numel() > 0,
-            True,
+            a=A_flat,
+            c=None,
+            b_q_weight=self.qweight,
+            b_scales=self.scales,
+            global_scale=None,
+            b_zeros=self.qzeros,
+            g_idx=self.g_idx,
+            perm=self.perm,
+            workspace=self.workspace,
+            b_q_type=self.quant_type,
+            size_m=A_flat.shape[0],
+            size_n=self.scales.shape[1],
+            size_k=A_flat.shape[1],
+            is_k_full=self.is_full_k,
+            use_fp32_reduce=True,
         )
         C = C.reshape(A.shape[:-1] + (self.scales.shape[1],))
 
