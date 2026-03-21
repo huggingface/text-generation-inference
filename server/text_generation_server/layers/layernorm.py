@@ -36,9 +36,12 @@ torch.nn.LayerNorm.load_no_bias = load_layer_norm_no_bias
 if SYSTEM == "cuda":
     import dropout_layer_norm
 
+    major, _ = torch.cuda.get_device_capability()
+    is_blackwell = major > 9
+
     class FastLayerNorm(nn.LayerNorm):
         def forward(self, hidden_states, residual=None):
-            if hidden_states.shape[-1] > 8192:
+            if hidden_states.shape[-1] > 8192 or is_blackwell:
                 if residual is not None:
                     hidden_states += residual
                 residual = hidden_states
@@ -142,7 +145,7 @@ class FastRMSNorm(nn.Module):
                 self.variance_epsilon,
             )
             return out, residual
-        elif hidden_states.shape[-1] > 8192:
+        elif hidden_states.shape[-1] > 8192 or is_blackwell:
             if residual is not None:
                 hidden_states += residual
             residual = hidden_states
