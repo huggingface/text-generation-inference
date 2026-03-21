@@ -1,0 +1,26 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "logprobs": null,
+      "message": {
+        "content": "Chat!",
+        "name": null,
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "usage": null
+    }
+  ],
+  "created": 1746486174,
+  "id": "",
+  "model": "Qwen/Qwen2-VL-2B-Instruct",
+  "object": "chat.completion",
+  "system_fingerprint": "3.2.3-dev0-native",
+  "usage": {
+    "completion_tokens": 3,
+    "prompt_tokens": 25,
+    "total_tokens": 28
+  }
+}

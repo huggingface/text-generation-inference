@@ -34,6 +34,7 @@ pub struct Validation {
     max_input_length: usize,
     max_total_tokens: usize,
     disable_grammar_support: bool,
+    vocab_size: u32,
     /// Channel to communicate with the background tokenization task
     sender: mpsc::UnboundedSender<TokenizerRequest>,
 }
@@ -90,6 +91,19 @@ impl Validation {
             validation_sender
         };
 
+        let vocab_size = match &tokenizer {
+            Tokenizer::Python { tokenizer_name, .. } => {
+                warn!(
+                    "Tokenizer {} is not supported for validation",
+                    tokenizer_name
+                );
+                0
+            }
+            Tokenizer::Rust(tokenizer) => tokenizer.get_vocab_size(false),
+        }
+        .try_into()
+        .unwrap_or(0);
+
         Self {
             max_best_of,
             sender,
@@ -98,6 +112,7 @@ impl Validation {
             max_input_length,
             max_total_tokens,
             disable_grammar_support,
+            vocab_size,
         }
     }
 
@@ -411,6 +426,37 @@ impl Validation {
             None => None,
         };
 
+        // Validate logit bias and convert to a vector of (token_id, bias_value)
+        let logit_bias = request
+            .parameters
+            .logit_bias
+            .as_ref()
+            .filter(|bias_map| !bias_map.is_empty())
+            .map(|bias_map| {
+                bias_map
+                    .iter()
+                    .map(|(token_str, &bias_value)| {
+                        let token_id: u32 = token_str.parse().map_err(|_| {
+                            ValidationError::LogitBiasInvalid(format!(
+                                "Token ID {token_str} is not a valid number."
+                            ))
+                        })?;
+
+                        if token_id >= self.vocab_size {
+                            return Err(ValidationError::LogitBiasInvalid(format!(
+                                "Token ID {token_id} is out of range (0..{}).",
+                                self.vocab_size - 1
+                            )));
+                        }
+
+                        Ok((token_id, bias_value as f32))
+                    })
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            // convert Option<Result<T, E>> to Result<Option<T>, E> to throw
+            // if any of the token IDs are invalid
+            .transpose()?;
+
         let parameters = ValidParameters {
             temperature,
             repetition_penalty,
@@ -422,6 +468,7 @@ impl Validation {
             seed,
             watermark,
             grammar,
+            logit_bias,
         };
         let stopping_parameters = ValidStoppingParameters {
             max_new_tokens,
@@ -929,6 +976,8 @@ pub struct ValidParameters {
     pub watermark: bool,
     /// / grammar (applied if not empty)
     pub grammar: Option<ValidGrammar>,
+    /// / logit bias
+    pub logit_bias: Option<Vec<(u32, f32)>>,
 }
 
 #[derive(Debug, Clone)]
@@ -1028,6 +1077,8 @@ pub enum ValidationError {
     ImageReadError(#[from] std::io::Error),
     #[error("{0} modality is not supported")]
     UnsupportedModality(&'static str),
+    #[error("logit_bias is not valid: {0}")]
+    LogitBiasInvalid(String),
 }
 
 #[cfg(test)]

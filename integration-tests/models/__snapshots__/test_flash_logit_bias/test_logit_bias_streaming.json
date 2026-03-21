@@ -1,0 +1,20 @@
+{
+  "choices": [
+    {
+      "delta": {
+        "content": "",
+        "role": "assistant",
+        "tool_calls": null
+      },
+      "finish_reason": "length",
+      "index": 0,
+      "logprobs": null
+    }
+  ],
+  "created": 1746486174,
+  "id": "",
+  "model": "Qwen/Qwen2-VL-2B-Instruct",
+  "object": "chat.completion.chunk",
+  "system_fingerprint": "3.2.3-dev0-native",
+  "usage": null
+}

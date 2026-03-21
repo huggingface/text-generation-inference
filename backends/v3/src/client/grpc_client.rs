@@ -7,6 +7,7 @@ use grpc_metadata::InjectTelemetryContext;
 use pb::generate::v3::text_generation_service_client::TextGenerationServiceClient;
 use pb::generate::v3::*;
 use std::cmp::min;
+use std::collections::HashMap;
 use std::time::Duration;
 use tonic::transport::{Channel, Uri};
 use tracing::instrument;
@@ -181,6 +182,7 @@ impl Client {
                     watermark: true,
                     grammar: String::new(),
                     grammar_type: GrammarType::None as i32,
+                    logit_bias: HashMap::new(),
                 }),
                 stopping_parameters: Some(StoppingCriteriaParameters {
                     max_new_tokens,

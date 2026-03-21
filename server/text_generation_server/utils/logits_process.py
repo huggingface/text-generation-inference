@@ -623,3 +623,85 @@ class HeterogeneousGrammarLogitProcessor(LogitsProcessor):
             new_fsms.append(self.fsms[i])
         self.fsms = new_fsms
         return self
+
+
+class LogitBiasProcessor(LogitsProcessor):
+    """
+    `LogitBiasProcessor` creates a bias tensor from a dictionary of token IDs and their
+    corresponding bias values. Bias are applied to the logits during each forward pass.
+
+    Supports token IDs provided as strings (e.g., {"9707": -100}).
+    """
+
+    def __init__(
+        self,
+        logit_biases: dict,
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
+    ):
+        assert logit_biases, "LogitBiasProcessor requires non-empty logit_biases"
+
+        # use _vocab_size or fallback to tokenizer.vocab_size if not available
+        self.vocab_size = getattr(tokenizer, "_vocab_size", tokenizer.vocab_size)
+
+        # Convert keys to integers and values to a list
+        token_ids = torch.tensor(
+            [int(k) for k in logit_biases.keys()], dtype=torch.long
+        )
+        bias_values = torch.tensor(list(logit_biases.values()), dtype=torch.float)
+
+        # Create a tensor and directly copy bias values at the corresponding indices
+        self.bias_tensor = torch.zeros(self.vocab_size, dtype=torch.float)
+        self.bias_tensor.index_put_((token_ids,), bias_values, accumulate=True)
+
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
+        scores.add_(self.bias_tensor.to(device=scores.device, dtype=scores.dtype))
+        return scores
+
+
+class HeterogeneousLogitBiasProcessor(LogitsProcessor):
+    """
+    Process logits with different logit biases for each sequence in the batch.
+    """
+
+    def __init__(
+        self,
+        logit_biases: List[Optional[dict]],
+        tokenizer: PreTrainedTokenizerBase,
+        device: torch.device,
+    ):
+        assert logit_biases, "LogitBiasProcessor requires non-empty logit_biases"
+
+        self.tokenizer = tokenizer
+        self.logit_biases = logit_biases
+
+        # use _vocab_size or fallback to tokenizer.vocab_size if not available
+        self.vocab_size = getattr(tokenizer, "_vocab_size", tokenizer.vocab_size)
+
+        # Create batch_size x vocab_size bias matrix
+        self.bias_matrix = torch.zeros(
+            (len(logit_biases), self.vocab_size), dtype=torch.float, device=device
+        )
+
+        # for each logit bias dictionary, convert keys to integers and values to a list
+        for i, logit_bias in enumerate(logit_biases):
+            token_ids = torch.tensor(
+                [int(k) for k in logit_bias.keys()], dtype=torch.long
+            ).to(device=device)
+            bias_values = torch.tensor(list(logit_bias.values()), dtype=torch.float).to(
+                device=device
+            )
+            # Create a tensor and directly copy bias values at the corresponding indices
+            self.bias_matrix[i].index_put_((token_ids,), bias_values, accumulate=True)
+
+    def __call__(self, input_ids: torch.Tensor, scores: torch.Tensor) -> torch.Tensor:
+        scores.add_(self.bias_matrix.to(device=scores.device, dtype=scores.dtype))
+        return scores
+
+    def filter(self, indices):
+        new_logit_biases = [self.logit_biases[i] for i in indices]
+        if not any(bias and len(bias) > 0 for bias in new_logit_biases):
+            return None
+        return HeterogeneousLogitBiasProcessor(
+            new_logit_biases, self.tokenizer, self.device
+        )

@@ -5,6 +5,7 @@ use crate::client::{
 };
 use nohash_hasher::{BuildNoHashHasher, IntMap};
 use std::cmp::max;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use text_generation_router::infer::InferError;
 use text_generation_router::infer::InferStreamResponse;
@@ -542,6 +543,14 @@ impl From<ValidParameters> for NextTokenChooserParameters {
             watermark: value.watermark,
             grammar,
             grammar_type: grammar_type.into(),
+            logit_bias: value
+                .logit_bias
+                .map(|bias| {
+                    bias.into_iter()
+                        .map(|(token, bias)| (token.to_string(), bias as i32))
+                        .collect::<HashMap<String, i32>>()
+                })
+                .unwrap_or_default(),
         }
     }
 }
@@ -588,6 +597,7 @@ mod tests {
                     frequency_penalty: 0.0,
                     watermark: false,
                     grammar: None,
+                    logit_bias: None,
                 },
                 stopping_parameters: ValidStoppingParameters {
                     ignore_eos_token: false,
