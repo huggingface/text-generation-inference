@@ -23,6 +23,10 @@ use tracing::warn;
 use utoipa::ToSchema;
 use uuid::Uuid;
 use validation::Validation;
+use nvml_wrapper::Nvml;
+use std::sync::OnceLock;
+
+static NVML: OnceLock<Option<Nvml>> = OnceLock::new();
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
@@ -1468,6 +1472,9 @@ pub(crate) struct Details {
     pub best_of_sequences: Option<Vec<BestOfSequence>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub top_tokens: Vec<Vec<Token>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = true, example = 152)]
+    pub energy_mj: Option<u64>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -1498,6 +1505,9 @@ pub(crate) struct StreamDetails {
     pub seed: Option<u64>,
     #[schema(example = 1)]
     pub input_length: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = true, example = 152)]
+    pub energy_mj: Option<u64>,
 }
 
 #[derive(Serialize, ToSchema, Clone)]
@@ -1543,6 +1553,34 @@ impl Default for ModelsInfo {
             object: "list".to_string(),
             data: Vec::new(),
         }
+    }
+}
+
+pub struct EnergyMonitor;
+
+impl EnergyMonitor {
+    fn nvml() -> Option<&'static Nvml> {
+        NVML.get_or_init(|| Nvml::init().ok()).as_ref()
+    }
+
+    pub fn energy_mj(gpu_index: u32) -> Option<u64> {
+        let nvml = Self::nvml()?;
+        let device = nvml.device_by_index(gpu_index).ok()?;
+        device.total_energy_consumption().ok()
+    }
+
+    pub fn total_energy_mj() -> Option<u64> {
+        let nvml = Self::nvml()?;
+        let count = nvml.device_count().ok()?;
+        let mut total = 0;
+        for i in 0..count {
+            if let Ok(device) = nvml.device_by_index(i) {
+                if let Ok(energy) = device.total_energy_consumption() {
+                    total += energy;
+                }
+            }
+        }
+        Some(total)
     }
 }
 
