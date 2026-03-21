@@ -110,8 +110,7 @@ pub(crate) async fn vertex_compatibility(
                 },
             },
             VertexInstance::Chat(instance) => {
-                let (generate_request, _using_tools): (GenerateRequest, bool) =
-                    instance.try_into_generate(&infer)?;
+                let (generate_request, _using_tools) = instance.try_into_generate(&infer)?;
                 generate_request
             }
         };
@@ -182,6 +181,7 @@ mod tests {
                                 "What's Deep Learning?".to_string()
                             )
                         },
+                        tool_call_id: None,
                     },],
                     max_tokens: Some(128),
                     top_p: Some(0.95),

@@ -34,6 +34,7 @@ impl ToolGrammar {
                     .chain(std::iter::once(Tool {
                         r#type: "function".to_string(),
                         function: FunctionDefinition {
+                            id: None,
                             name: "no_tool".to_string(),
                             description: Some(
                                 "Open ended response with no specific tool selected".to_string(),

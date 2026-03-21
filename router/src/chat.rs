@@ -49,6 +49,7 @@ pub(crate) fn parse_output(generated_text: &str) -> Result<ChatChoice, InferErro
                 id: "0".to_string(),
                 r#type: "function".to_string(),
                 function: FunctionDefinition {
+                    id: None,
                     description: None,
                     name: name.to_string(),
                     arguments: serde_json::to_value(call.function.arguments).map_err(|err| {

@@ -1188,8 +1188,7 @@ pub(crate) async fn chat_completions(
 
     tracing::debug!("Got chat_template {:?}", infer.chat_template);
     let id = chat.next_tool_call_id();
-    let (generate_request, using_tools): (GenerateRequest, bool) =
-        chat.clone().try_into_generate(&infer)?;
+    let (generate_request, using_tools) = chat.clone().try_into_generate(&infer)?;
     span.record("parameters", format!("{:?}", generate_request.parameters));
     let logprobs = logprobs.unwrap_or_default();
 
@@ -1211,7 +1210,7 @@ pub(crate) async fn chat_completions(
 
         let response_stream = async_stream::stream! {
             let mut response_stream = Box::pin(response_stream);
-            let mut state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
+            let mut state = ChatState::new(using_tools.is_some(), stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
             while let Some(result) = response_stream.next().await {
                 match result{
                 Ok(stream_token) => {
@@ -1220,12 +1219,12 @@ pub(crate) async fn chat_completions(
                         ChatEvent::NoTool => {
                             chat.tools = None;
                             chat.response_format = None;
-                            let (generate_request, using_tools): (GenerateRequest, bool) =
+                            let (generate_request, using_tools)  =
                                 chat.clone().try_into_generate(&infer).unwrap();
-                            assert!(!using_tools);
+                            assert!(using_tools.is_none());
                             let (_headers, response_stream2) =
                                 generate_stream_internal(infer.clone(), compute_type.clone(), Json(generate_request), span.clone()).await;
-                            state = ChatState::new(using_tools, stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
+                            state = ChatState::new(using_tools.is_some(), stream_options.clone(), system_fingerprint.clone(), model_id.clone(), logprobs, id.clone());
                             response_stream = Box::pin(response_stream2);
                         }
                         ChatEvent::Events(events) => {
@@ -1260,14 +1259,13 @@ pub(crate) async fn chat_completions(
             .unwrap_or_else(|_| std::time::Duration::from_secs(0))
             .as_secs();
 
-        let (tool_calls, output) = if using_tools {
+        let (tool_calls, output) = if using_tools.is_some() {
             match crate::chat::parse_output(&generation.generated_text)? {
                 ChatChoice::NoTool => {
                     chat.tools = None;
                     chat.response_format = None;
-                    let (generate_request, using_tools): (GenerateRequest, bool) =
-                        chat.clone().try_into_generate(&infer)?;
-                    assert!(!using_tools);
+                    let (generate_request, using_tools) = chat.clone().try_into_generate(&infer)?;
+                    assert!(using_tools.is_none());
                     let (headers_final, input_length_final, Json(generation)) = generate_internal(
                         Extension(infer),
                         compute_type,
@@ -1279,7 +1277,16 @@ pub(crate) async fn chat_completions(
                     input_length = input_length_final;
                     (None, Some(generation.generated_text))
                 }
-                ChatChoice::ToolCalls(tool_calls) => (Some(tool_calls), None),
+                ChatChoice::ToolCalls(mut tool_calls) => {
+                    // assign the tool ids based on the tool names
+                    tool_calls.iter_mut().for_each(|tool_call| {
+                        tool_call.id = using_tools
+                            .as_ref()
+                            .and_then(|tools| tools.get(&tool_call.function.name))
+                            .map_or("0".to_string(), |id| id.clone());
+                    });
+                    (Some(tool_calls), None)
+                }
             }
         } else {
             (None, Some(generation.generated_text))
