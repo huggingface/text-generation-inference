@@ -210,7 +210,7 @@ cd text-generation-inference
 ```
 
 Then [install Rust](https://rustup.rs/) and create a Python virtual environment with at least
-Python 3.9, e.g. using `conda` or `python venv`:
+Python 3.10, e.g. using `conda` or `python venv`:
 
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
