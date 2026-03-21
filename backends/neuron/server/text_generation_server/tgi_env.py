@@ -112,7 +112,7 @@ def neuron_config_to_env(neuron_config):
 
 
 def sort_neuron_configs(dictionary):
-    return -dictionary["tp_degree"], -dictionary["batch_size"]
+    return -dictionary["tp_degree"], dictionary["batch_size"]
 
 
 def lookup_compatible_cached_model(
